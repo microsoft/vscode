@@ -20,7 +20,7 @@ import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationServic
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
+import { ScrollType, IDiffEditorViewState, IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -58,6 +58,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -68,7 +69,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		@IFileService fileService: IFileService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, fileService);
+		super(TextDiffEditor.ID, group, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, fileService);
 	}
 
 	override getTitle(): string {
@@ -91,7 +92,13 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return this.diffEditorControl?.getModifiedEditor();
 	}
 
+	private _previousViewModel: IDiffEditorViewModel | null = null;
+
 	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		if (this._previousViewModel) {
+			this._previousViewModel.dispose();
+			this._previousViewModel = null;
+		}
 
 		// Cleanup previous things associated with the input
 		this.inputLifecycleStopWatch = undefined;
@@ -100,7 +107,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		await super.setInput(input, options, context, token);
 
 		try {
-			const resolvedModel = await input.resolve(options);
+			const resolvedModel = await input.resolve();
 
 			// Check for cancellation
 			if (token.isCancellationRequested) {
@@ -118,6 +125,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
 
 			const vm = resolvedDiffEditorModel.textDiffEditorModel ? control.createViewModel(resolvedDiffEditorModel.textDiffEditorModel) : null;
+			this._previousViewModel = vm;
 			await vm?.waitForDiff();
 			control.setModel(vm);
 
@@ -164,7 +172,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		}
 
 		// Handle case where a file is too large to open without confirmation
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE && this.group) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 			let message: string;
 			if (error instanceof TooLargeFileOperationError) {
 				message = localize('fileTooLargeForHeapErrorWithSize', "At least one file is not displayed in the text compare editor because it is very large ({0}).", ByteSize.formatSize(error.size));
@@ -187,6 +195,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			}
 
 			control.restoreViewState(editorViewState);
+
+			if (options?.revealIfVisible) {
+				control.revealFirstDiff();
+			}
 
 			return true;
 		}
@@ -211,7 +223,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		}
 
 		// Replace this editor with the binary one
-		(this.group ?? this.editorGroupService.activeGroup).replaceEditors([{
+		this.group.replaceEditors([{
 			editor: input,
 			replacement: binaryDiffInput,
 			options: {
@@ -221,8 +233,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				// and do not control the initial intent that resulted
 				// in us now opening as binary.
 				activation: EditorActivation.PRESERVE,
-				pinned: this.group?.isPinned(input),
-				sticky: this.group?.isSticky(input)
+				pinned: this.group.isPinned(input),
+				sticky: this.group.isSticky(input)
 			}
 		}]);
 	}
@@ -267,9 +279,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return editorConfiguration;
 	}
 
-	protected override getConfigurationOverrides(): IDiffEditorOptions {
+	protected override getConfigurationOverrides(configuration: IEditorConfiguration): IDiffEditorOptions {
 		return {
-			...super.getConfigurationOverrides(),
+			...super.getConfigurationOverrides(configuration),
 			...this.getReadonlyConfiguration(this.input?.isReadonly()),
 			originalEditable: this.input instanceof DiffEditorInput && !this.input.original.isReadonly(),
 			lineDecorationsWidth: '2ch'
@@ -300,6 +312,11 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	override clearInput(): void {
+		if (this._previousViewModel) {
+			this._previousViewModel.dispose();
+			this._previousViewModel = null;
+		}
+
 		super.clearInput();
 
 		// Log input lifecycle telemetry
@@ -349,8 +366,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return this.diffEditorControl?.hasTextFocus() || super.hasFocus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
 
 		if (visible) {
 			this.diffEditorControl?.onVisible();

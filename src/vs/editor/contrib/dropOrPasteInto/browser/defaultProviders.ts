@@ -13,7 +13,7 @@ import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { DocumentOnDropEdit, DocumentOnDropEditProvider, DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
+import { DocumentOnDropEdit, DocumentOnDropEditProvider, DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
@@ -27,7 +27,7 @@ abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider,
 	abstract readonly dropMimeTypes: readonly string[] | undefined;
 	abstract readonly pasteMimeTypes: readonly string[];
 
-	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
+	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
 		return edit ? { insertText: edit.insertText, label: edit.label, detail: edit.detail, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo } : undefined;
 	}
@@ -152,6 +152,34 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 	}
 }
 
+class PasteHtmlProvider implements DocumentPasteEditProvider {
+
+	public readonly id = 'html';
+
+	public readonly pasteMimeTypes = ['text/html'];
+
+	private readonly _yieldTo = [{ mimeType: Mimes.text }];
+
+	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
+		if (context.trigger !== 'explicit' && context.only !== this.id) {
+			return;
+		}
+
+		const entry = dataTransfer.get('text/html');
+		const htmlText = await entry?.asString();
+		if (!htmlText || token.isCancellationRequested) {
+			return;
+		}
+
+		return {
+			insertText: htmlText,
+			yieldTo: this._yieldTo,
+			label: localize('pasteHtmlLabel', 'Insert HTML'),
+			detail: builtInLabel,
+		};
+	}
+}
+
 async function extractUriList(dataTransfer: IReadonlyVSDataTransfer): Promise<{ readonly uri: URI; readonly originalText: string }[]> {
 	const urlListEntry = dataTransfer.get(Mimes.uriList);
 	if (!urlListEntry) {
@@ -193,5 +221,6 @@ export class DefaultPasteProvidersFeature extends Disposable {
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PathProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PasteHtmlProvider()));
 	}
 }

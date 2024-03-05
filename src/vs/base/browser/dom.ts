@@ -24,15 +24,38 @@ export interface IRegisteredCodeWindow {
 	readonly disposables: DisposableStore;
 }
 
-export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+//# region Multi-Window Support Utilities
+
+export const {
+	registerWindow,
+	getWindow,
+	getDocument,
+	getWindows,
+	getWindowsCount,
+	getWindowId,
+	getWindowById,
+	hasWindow,
+	onDidRegisterWindow,
+	onWillUnregisterWindow,
+	onDidUnregisterWindow
+} = (function () {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
 	ensureCodeWindow(mainWindow, 1);
-	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
+	const mainWindowRegistration = { window: mainWindow, disposables: new DisposableStore() };
+	windows.set(mainWindow.vscodeWindowId, mainWindowRegistration);
 
 	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
 	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
 	const onWillUnregisterWindow = new event.Emitter<CodeWindow>();
+
+	function getWindowById(windowId: number): IRegisteredCodeWindow | undefined;
+	function getWindowById(windowId: number | undefined, fallbackToMain: true): IRegisteredCodeWindow;
+	function getWindowById(windowId: number | undefined, fallbackToMain?: boolean): IRegisteredCodeWindow | undefined {
+		const window = typeof windowId === 'number' ? windows.get(windowId) : undefined;
+
+		return window ?? (fallbackToMain ? mainWindowRegistration : undefined);
+	}
 
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
@@ -72,9 +95,32 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRe
 		},
 		getWindowId(targetWindow: Window): number {
 			return (targetWindow as CodeWindow).vscodeWindowId;
+		},
+		hasWindow(windowId: number): boolean {
+			return windows.has(windowId);
+		},
+		getWindowById,
+		getWindow(e: Node | UIEvent | undefined | null): CodeWindow {
+			const candidateNode = e as Node | undefined | null;
+			if (candidateNode?.ownerDocument?.defaultView) {
+				return candidateNode.ownerDocument.defaultView.window as CodeWindow;
+			}
+
+			const candidateEvent = e as UIEvent | undefined | null;
+			if (candidateEvent?.view) {
+				return candidateEvent.view.window as CodeWindow;
+			}
+
+			return mainWindow;
+		},
+		getDocument(e: Node | UIEvent | undefined | null): Document {
+			const candidateNode = e as Node | undefined | null;
+			return getWindow(candidateNode).document;
 		}
 	};
 })();
+
+//#endregion
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -97,7 +143,7 @@ class DomListener implements IDisposable {
 		this._node.addEventListener(this._type, this._handler, this._options);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (!this._handler) {
 			// Already disposed
 			return;
@@ -174,7 +220,6 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 
-
 /**
  * Execute the callback the next time the browser is idle, returning an
  * {@link IDisposable} that will cancel the callback when disposed. This wraps
@@ -208,7 +253,6 @@ export class WindowIdleValue<T> extends AbstractIdleValue<T> {
 	}
 }
 
-
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
@@ -224,7 +268,7 @@ export let runAtThisOrScheduleAtNextAnimationFrame: (targetWindow: Window, runne
  */
 export let scheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
 
-export function disposableWindowInterval(targetWindow: Window & typeof globalThis, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
+export function disposableWindowInterval(targetWindow: Window, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
 	let iteration = 0;
 	const timer = targetWindow.setInterval(() => {
 		iteration++;
@@ -240,8 +284,19 @@ export function disposableWindowInterval(targetWindow: Window & typeof globalThi
 
 export class WindowIntervalTimer extends IntervalTimer {
 
-	override cancelAndSet(runner: () => void, interval: number, targetWindow: Window & typeof globalThis): void {
-		return super.cancelAndSet(runner, interval, targetWindow);
+	private readonly defaultTarget?: Window & typeof globalThis;
+
+	/**
+	 *
+	 * @param node The optional node from which the target window is determined
+	 */
+	constructor(node?: Node) {
+		super();
+		this.defaultTarget = node && getWindow(node);
+	}
+
+	override cancelAndSet(runner: () => void, interval: number, targetWindow?: Window & typeof globalThis): void {
+		return super.cancelAndSet(runner, interval, targetWindow ?? this.defaultTarget);
 	}
 }
 
@@ -257,11 +312,11 @@ class AnimationFrameQueueItem implements IDisposable {
 		this._canceled = false;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._canceled = true;
 	}
 
-	public execute(): void {
+	execute(): void {
 		if (this._canceled) {
 			return;
 		}
@@ -274,7 +329,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	}
 
 	// Sort by priority (largest to lowest)
-	public static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
+	static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
 		return b.priority - a.priority;
 	}
 }
@@ -407,10 +462,9 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return getWindow(el).getComputedStyle(el, null);
 }
 
-export function getClientArea(element: HTMLElement): Dimension {
-
-	const elDocument = element.ownerDocument;
-	const elWindow = elDocument.defaultView?.window;
+export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dimension {
+	const elWindow = getWindow(element);
+	const elDocument = elWindow.document;
 
 	// Try with DOM clientWidth / clientHeight
 	if (element !== elDocument.body) {
@@ -435,6 +489,10 @@ export function getClientArea(element: HTMLElement): Dimension {
 	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
 	if (elDocument.documentElement && elDocument.documentElement.clientWidth && elDocument.documentElement.clientHeight) {
 		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
+	}
+
+	if (fallback) {
+		return getClientArea(fallback);
 	}
 
 	throw new Error('Unable to figure out browser width and height');
@@ -506,8 +564,8 @@ export class Dimension implements IDimension {
 	static readonly None = new Dimension(0, 0);
 
 	constructor(
-		public readonly width: number,
-		public readonly height: number,
+		readonly width: number,
+		readonly height: number,
 	) { }
 
 	with(width: number = this.width, height: number = this.height): Dimension {
@@ -800,8 +858,9 @@ export function getShadowRoot(domNode: Node): ShadowRoot | null {
 }
 
 /**
- * Returns the active element across all child windows.
- * Use this instead of `document.activeElement` to handle multiple windows.
+ * Returns the active element across all child windows
+ * based on document focus. Falls back to the main
+ * window if no window has focus.
  */
 export function getActiveElement(): Element | null {
 	let result = getActiveDocument().activeElement;
@@ -814,74 +873,80 @@ export function getActiveElement(): Element | null {
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `element` is `element`.
+ * Returns true if the focused window active element matches
+ * the provided element. Falls back to the main window if no
+ * window has focus.
  */
 export function isActiveElement(element: Element): boolean {
-	return element.ownerDocument.activeElement === element;
+	return getActiveElement() === element;
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `ancestor` is contained in `ancestor`.
+ * Returns true if the focused window active element is contained in
+ * `ancestor`. Falls back to the main window if no window has focus.
  */
 export function isAncestorOfActiveElement(ancestor: Element): boolean {
-	return isAncestor(ancestor.ownerDocument.activeElement, ancestor);
+	return isAncestor(getActiveElement(), ancestor);
 }
 
 /**
- * Returns whether the element is in the active `document`.
+ * Returns whether the element is in the active `document`. The active
+ * document has focus or will be the main windows document.
  */
 export function isActiveDocument(element: Element): boolean {
 	return element.ownerDocument === getActiveDocument();
 }
 
 /**
- * Returns the active document across all child windows.
- * Use this instead of `document` when reacting to dom
- * events to handle multiple windows.
+ * Returns the active document across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main windows document.
  */
 export function getActiveDocument(): Document {
 	if (getWindowsCount() <= 1) {
-		return document;
+		return mainWindow.document;
 	}
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	return documents.find(doc => doc.hasFocus()) ?? document;
+	return documents.find(doc => doc.hasFocus()) ?? mainWindow.document;
 }
 
-export function getDocument(element: Node | undefined | null): Document;
-export function getDocument(event: UIEvent | undefined | null): Document;
-export function getDocument(e: unknown): Document {
-	const candidateNode = e as Node | undefined | null;
-	return getWindow(candidateNode).document;
-}
-
+/**
+ * Returns the active window across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main window.
+ */
 export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
-export function getWindow(element: Node | undefined | null): CodeWindow;
-export function getWindow(event: UIEvent | undefined | null): CodeWindow;
-export function getWindow(e: unknown): CodeWindow {
-	const candidateNode = e as Node | undefined | null;
-	if (candidateNode?.ownerDocument?.defaultView) {
-		return candidateNode.ownerDocument.defaultView.window as CodeWindow;
-	}
-
-	const candidateEvent = e as UIEvent | undefined | null;
-	if (candidateEvent?.view) {
-		return candidateEvent.view.window as CodeWindow;
-	}
-
-	return mainWindow;
-}
-
-export function focusWindow(element: Node): void {
+/**
+ * Given an element, will attempt to pass focus() to the window it belongs
+ * to, depending on the options passed in:
+ * - force: always focus the element's window
+ * - otherwise: only focus the element's window if another window in the same
+ *  workspace group has focus (when auxiliary windows are opened).
+ *
+ * @param element used to figure out the window the element belongs to
+ */
+export function focusWindow(element: Node, options?: { force: boolean }): void {
 	const window = getWindow(element);
-	if (window !== getActiveWindow()) {
+
+	// Force: always focus the element window
+	if (options?.force) {
 		window.focus();
+	}
+
+	// Not forced: only focus the element window if another
+	// window in the same workspace group has focus (when auxiliary
+	// windows are opened).
+	// This prevents stealing focus from another workspace window.
+	else {
+		const activeWindow = getActiveWindow();
+		if (activeWindow !== window && activeWindow.document.hasFocus()) {
+			window.focus();
+		}
 	}
 }
 
@@ -889,6 +954,38 @@ const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HT
 
 export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
+}
+
+/**
+ * A version of createStyleSheet which has a unified API to initialize/set the style content.
+ */
+export function createStyleSheet2(): WrappedStyleElement {
+	return new WrappedStyleElement();
+}
+
+class WrappedStyleElement {
+	private _currentCssStyle = '';
+	private _styleSheet: HTMLStyleElement | undefined = undefined;
+
+	public setStyle(cssStyle: string): void {
+		if (cssStyle === this._currentCssStyle) {
+			return;
+		}
+		this._currentCssStyle = cssStyle;
+
+		if (!this._styleSheet) {
+			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = cssStyle);
+		} else {
+			this._styleSheet.innerText = cssStyle;
+		}
+	}
+
+	public dispose(): void {
+		if (this._styleSheet) {
+			this._styleSheet.remove();
+			this._styleSheet = undefined;
+		}
+	}
 }
 
 export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
@@ -1006,9 +1103,17 @@ export const sharedMutationObserver = new class {
 };
 
 export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
-	const meta = document.createElement('meta');
-	container.appendChild(meta);
-	return meta;
+	return createHeadElement('meta', container) as HTMLMetaElement;
+}
+
+export function createLinkElement(container: HTMLElement = mainWindow.document.head): HTMLLinkElement {
+	return createHeadElement('link', container) as HTMLLinkElement;
+}
+
+function createHeadElement(tagName: string, container: HTMLElement = mainWindow.document.head): HTMLElement {
+	const element = document.createElement(tagName);
+	container.appendChild(element);
+	return element;
 }
 
 let _sharedStyleSheet: HTMLStyleElement | null = null;
@@ -1176,8 +1281,8 @@ export const EventHelper = {
 };
 
 export interface IFocusTracker extends Disposable {
-	onDidFocus: event.Event<void>;
-	onDidBlur: event.Event<void>;
+	readonly onDidFocus: event.Event<void>;
+	readonly onDidBlur: event.Event<void>;
 	refreshState(): void;
 }
 
@@ -1202,10 +1307,10 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 class FocusTracker extends Disposable implements IFocusTracker {
 
 	private readonly _onDidFocus = this._register(new event.Emitter<void>());
-	public readonly onDidFocus: event.Event<void> = this._onDidFocus.event;
+	readonly onDidFocus = this._onDidFocus.event;
 
 	private readonly _onDidBlur = this._register(new event.Emitter<void>());
-	public readonly onDidBlur: event.Event<void> = this._onDidBlur.event;
+	readonly onDidBlur = this._onDidBlur.event;
 
 	private _refreshStateHandler: () => void;
 
@@ -1784,6 +1889,7 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'hr',
 	'i',
 	'img',
+	'input',
 	'ins',
 	'kbd',
 	'label',
@@ -2264,9 +2370,11 @@ function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-export function copyAttributes(from: Element, to: Element): void {
+export function copyAttributes(from: Element, to: Element, filter?: string[]): void {
 	for (const { name, value } of from.attributes) {
-		to.setAttribute(name, value);
+		if (!filter || filter.includes(name)) {
+			to.setAttribute(name, value);
+		}
 	}
 }
 
@@ -2280,7 +2388,7 @@ function copyAttribute(from: Element, to: Element, name: string): void {
 }
 
 export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
-	copyAttributes(from, to);
+	copyAttributes(from, to, filter);
 
 	const disposables = new DisposableStore();
 

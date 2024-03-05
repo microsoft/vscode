@@ -47,6 +47,7 @@ class ViewContainerActivityByView extends Disposable {
 
 	override dispose() {
 		this.activityDisposable.dispose();
+		super.dispose();
 	}
 }
 
@@ -93,8 +94,8 @@ export class ActivityService extends Disposable implements IActivityService {
 			}
 			this._onDidChangeActivity.fire(viewContainer);
 			return toDisposable(() => {
-				activities!.splice(activities!.indexOf(activity), 1);
-				if (activities!.length === 0) {
+				activities.splice(activities.indexOf(activity), 1);
+				if (activities.length === 0) {
 					this.viewContainerActivities.delete(viewContainerId);
 				}
 				this._onDidChangeActivity.fire(viewContainer);
@@ -158,8 +159,8 @@ export class ActivityService extends Disposable implements IActivityService {
 		activities.push(activity);
 		this._onDidChangeActivity.fire(id);
 		return toDisposable(() => {
-			activities!.splice(activities!.indexOf(activity), 1);
-			if (activities!.length === 0) {
+			activities.splice(activities.indexOf(activity), 1);
+			if (activities.length === 0) {
 				this.globalActivities.delete(id);
 			}
 			this._onDidChangeActivity.fire(id);

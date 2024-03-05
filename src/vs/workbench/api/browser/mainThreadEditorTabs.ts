@@ -70,7 +70,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		this._dispoables.add(this._editorGroupsService.onDidRemoveGroup(() => this._createTabsModel()));
 
 		// Once everything is read go ahead and initialize the model
-		this._editorGroupsService.mainPart.whenReady.then(() => this._createTabsModel());
+		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
 	}
 
 	dispose(): void {
@@ -553,6 +553,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 					this._onDidTabPreviewChange(groupId, event.editorIndex, event.editor);
 					break;
 				}
+			case GroupModelChangeKind.EDITOR_TRANSIENT:
+				// Currently not exposed in the API
+				break;
 			case GroupModelChangeKind.EDITOR_MOVE:
 				if (isGroupEditorMoveEvent(event) && event.editor && event.editorIndex !== undefined && event.oldEditorIndex !== undefined) {
 					this._onDidTabMove(groupId, event.editorIndex, event.oldEditorIndex, event.editor);

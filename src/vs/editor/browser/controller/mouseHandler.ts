@@ -687,6 +687,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 
 	public override dispose(): void {
 		this._animationFrameDisposable.dispose();
+		super.dispose();
 	}
 
 	public setPosition(position: IMouseTargetOutsideEditor, mouseEvent: EditorMouseEvent): void {

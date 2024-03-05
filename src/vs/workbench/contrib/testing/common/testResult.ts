@@ -5,15 +5,17 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservable, observableValue } from 'vs/base/common/observable';
 import { language } from 'vs/base/common/platform';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { makeEmptyCounts, maxPriority, statesInOrder, terminalStatePriorities, TestStateCount } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -23,7 +25,7 @@ export interface ITestRunTaskResults extends ITestRunTask {
 	/**
 	 * Contains test coverage for the result, if it's available.
 	 */
-	readonly coverage: IObservableValue<TestCoverage | undefined>;
+	readonly coverage: IObservable<undefined | ((tkn: CancellationToken) => Promise<TestCoverage>)>;
 
 	/**
 	 * Messages from the task not associated with any specific test.
@@ -384,7 +386,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 	 * Adds a new run task to the results.
 	 */
 	public addTask(task: ITestRunTask) {
-		this.tasks.push({ ...task, coverage: this._register(new MutableObservableValue(undefined)), otherMessages: [], output: new TaskRawOutput() });
+		this.tasks.push({ ...task, coverage: observableValue(this, undefined), otherMessages: [], output: new TaskRawOutput() });
 
 		for (const test of this.tests) {
 			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
@@ -645,6 +647,7 @@ export class HydratedTestResult implements ITestResult {
 	private readonly testById = new Map<string, TestResultItem>();
 
 	constructor(
+		identity: IUriIdentityService,
 		private readonly serialized: ISerializedTestResults,
 		private readonly persist = true,
 	) {
@@ -654,7 +657,7 @@ export class HydratedTestResult implements ITestResult {
 			id: task.id,
 			name: task.name,
 			running: false,
-			coverage: staticObservableValue(undefined),
+			coverage: observableValue(this, undefined),
 			output: emptyRawOutput,
 			otherMessages: []
 		}));
@@ -662,7 +665,7 @@ export class HydratedTestResult implements ITestResult {
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const de = TestResultItem.deserialize(item);
+			const de = TestResultItem.deserialize(identity, item);
 			this.counts[de.ownComputedState]++;
 			this.testById.set(item.item.extId, de);
 		}

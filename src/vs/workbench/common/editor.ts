@@ -74,7 +74,7 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 	/**
 	 * Instantiates the editor pane using the provided services.
 	 */
-	instantiate(instantiationService: IInstantiationService): T;
+	instantiate(instantiationService: IInstantiationService, group: IEditorGroup): T;
 
 	/**
 	 * Whether the descriptor is for the provided editor pane.
@@ -119,7 +119,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	readonly group: IEditorGroup | undefined;
+	readonly group: IEditorGroup;
 
 	/**
 	 * The minimum width of this editor.
@@ -327,7 +327,6 @@ export function findViewStateForEditor(input: EditorInput, group: GroupIdentifie
  */
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: EditorInput;
-	readonly group: IEditorGroup;
 }
 
 /**
@@ -495,9 +494,21 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
  */
 export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	/**
-	 * The list of resources to compare.
+	 * A unique identifier of this multi diff editor input.
+	 * If a second multi diff editor with the same uri is opened, the existing one is revealed instead (even if the resources list is different!).
 	 */
-	readonly resources: (IResourceDiffEditorInput & { readonly resource: URI })[];
+	readonly multiDiffSource?: URI;
+
+	/**
+	 * The list of resources to compare.
+	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
+	 */
+	readonly resources?: IResourceDiffEditorInput[];
+
+	/**
+	 * Whether the editor should be serialized and stored for subsequent sessions.
+	 */
+	readonly isTransient?: boolean;
 }
 
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
@@ -552,14 +563,20 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 	return candidate?.original !== undefined && candidate.modified !== undefined;
 }
 
-export function isResourceDiffListEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
+export function isResourceMultiDiffEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
 
 	const candidate = editor as IResourceMultiDiffEditorInput | undefined;
+	if (!candidate) {
+		return false;
+	}
+	if (candidate.resources && !Array.isArray(candidate.resources)) {
+		return false;
+	}
 
-	return Array.isArray(candidate?.resources);
+	return !!candidate.resources || !!candidate.multiDiffSource;
 }
 
 export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {
@@ -928,7 +945,7 @@ export interface IFileEditorInput extends EditorInput, IEncodingSupport, ILangua
 	isResolved(): boolean;
 }
 
-export interface IFileEditorInputOptions extends ITextEditorOptions {
+export interface IFileLimitedEditorInputOptions extends IEditorOptions {
 
 	/**
 	 * If provided, the size of the file will be checked against the limits
@@ -936,6 +953,8 @@ export interface IFileEditorInputOptions extends ITextEditorOptions {
 	 */
 	readonly limits?: IFileReadLimits;
 }
+
+export interface IFileEditorInputOptions extends ITextEditorOptions, IFileLimitedEditorInputOptions { }
 
 export function createTooLargeFileError(group: IEditorGroup, input: EditorInput, options: IEditorOptions | undefined, message: string, preferencesService: IPreferencesService): Error {
 	return createEditorOpenError(message, [
@@ -1087,6 +1106,14 @@ export interface IEditorWillMoveEvent extends IEditorIdentifier {
 
 export interface IEditorWillOpenEvent extends IEditorIdentifier { }
 
+export interface IWillInstantiateEditorPaneEvent {
+
+	/**
+	 * @see {@link IEditorDescriptor.typeId}
+	 */
+	readonly typeId: string;
+}
+
 export type GroupIdentifier = number;
 
 export const enum GroupModelChangeKind {
@@ -1105,6 +1132,7 @@ export const enum GroupModelChangeKind {
 	EDITOR_LABEL,
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
+	EDITOR_TRANSIENT,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
 	EDITOR_WILL_DISPOSE
@@ -1282,7 +1310,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1351,7 +1379,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 

@@ -3,26 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, join, reset, setParentFlowTo } from 'vs/base/browser/dom';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { $, Dimension, addDisposableListener, append, setParentFlowTo } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { CheckboxActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Color } from 'vs/base/common/color';
-import { getErrorMessage, isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas, matchesScheme } from 'vs/base/common/network';
-import { OS, language } from 'vs/base/common/platform';
-import { platform } from 'vs/base/common/process';
+import { language } from 'vs/base/common/platform';
 import * as semver from 'vs/base/common/semver/semver';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -33,25 +30,24 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionIdentifier, IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultCheckboxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { ExtensionFeaturesTab } from 'vs/workbench/contrib/extensions/browser/extensionFeaturesTab';
 import {
 	ActionWithDropDownAction,
 	ClearLanguageAction,
@@ -71,14 +67,12 @@ import {
 	SetFileIconThemeAction,
 	SetLanguageAction,
 	SetProductIconThemeAction,
-	SkipUpdateAction,
-	SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction,
-	ToggleSyncExtensionAction,
+	ToggleAutoUpdateForExtensionAction,
 	UninstallAction,
 	UpdateAction,
-	WebInstallAction
+	WebInstallAction,
+	TogglePreReleaseExtensionAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { errorIcon, infoIcon, preReleaseIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, VerifiedPublisherWidget, onClick } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
@@ -87,6 +81,7 @@ import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/e
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { IWebview, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -107,7 +102,7 @@ class NavBar extends Disposable {
 		super();
 		const element = append(container, $('.navbar'));
 		this.actions = [];
-		this.actionbar = this._register(new ActionBar(element, { animated: false }));
+		this.actionbar = this._register(new ActionBar(element));
 	}
 
 	push(id: string, label: string, tooltip: string): void {
@@ -196,38 +191,15 @@ class VersionWidget extends ExtensionWithDifferentGalleryVersionWidget {
 	private readonly element: HTMLElement;
 	constructor(container: HTMLElement) {
 		super();
-		this.element = append(container, $('code.version', { title: localize('extension version', "Extension Version") }));
+		this.element = append(container, $('code.version'));
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, localize('extension version', "Extension Version")));
 		this.render();
 	}
 	render(): void {
 		if (!this.extension || !semver.valid(this.extension.version)) {
 			return;
 		}
-		this.element.textContent = `v${this.gallery?.version ?? this.extension.version}`;
-	}
-}
-
-class PreReleaseTextWidget extends ExtensionWithDifferentGalleryVersionWidget {
-	private readonly element: HTMLElement;
-	constructor(container: HTMLElement) {
-		super();
-		this.element = append(container, $('span.pre-release'));
-		append(this.element, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
-		const textElement = append(this.element, $('span.pre-release-text'));
-		textElement.textContent = localize('preRelease', "Pre-Release");
-		this.render();
-	}
-	render(): void {
-		this.element.style.display = this.isPreReleaseVersion() ? 'inherit' : 'none';
-	}
-	private isPreReleaseVersion(): boolean {
-		if (!this.extension) {
-			return false;
-		}
-		if (this.gallery) {
-			return this.gallery.properties.isPreReleaseVersion;
-		}
-		return !!(this.extension.state === ExtensionState.Installed ? this.extension.local?.isPreReleaseVersion : this.extension.gallery?.properties.isPreReleaseVersion);
+		this.element.textContent = `v${this.gallery?.version ?? this.extension.version}${this.extension.isPreReleaseVersion ? ' (pre-release)' : ''}`;
 	}
 }
 
@@ -257,13 +229,13 @@ export class ExtensionEditor extends EditorPane {
 	private showPreReleaseVersionContextKey: IContextKey<boolean> | undefined;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IThemeService themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
@@ -274,7 +246,7 @@ export class ExtensionEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
-		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
+		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
@@ -301,27 +273,30 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
-		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name"), role: 'heading', tabIndex: 0 }));
+		const name = append(title, $('span.name.clickable', { role: 'heading', tabIndex: 0 }));
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), name, localize('name', "Extension name")));
 		const versionWidget = new VersionWidget(title);
 
-		const preReleaseWidget = new PreReleaseTextWidget(title);
-
-		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
+		const preview = append(title, $('span.preview'));
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), preview, localize('preview', "Preview")));
 		preview.textContent = localize('preview', "Preview");
 
 		const builtin = append(title, $('span.builtin'));
 		builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
+		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { tabIndex: 0 }));
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), publisher, localize('publisher', "Publisher")));
 		publisher.setAttribute('role', 'button');
 		const publisherDisplayName = append(publisher, $('.publisher-name'));
 		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $('.verified-publisher')), false);
 
-		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
+		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { tabIndex: 0 }));
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), installCount, localize('install count', "Install count")));
 		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, false);
 
-		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
+		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { tabIndex: 0 }));
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), rating, localize('rating', "Rating")));
 		rating.setAttribute('role', 'link'); // #132645
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, rating, false);
 
@@ -330,7 +305,6 @@ export class ExtensionEditor extends EditorPane {
 		const widgets: ExtensionWidget[] = [
 			remoteBadge,
 			versionWidget,
-			preReleaseWidget,
 			verifiedPublisherWidget,
 			installCountWidget,
 			ratingsWidget,
@@ -344,7 +318,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ReloadAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
-				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
+				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, true, [true, 'onlyEnabledExtensions'])]]),
 			this.instantiationService.createInstance(SetColorThemeAction),
 			this.instantiationService.createInstance(SetFileIconThemeAction),
 			this.instantiationService.createInstance(SetProductIconThemeAction),
@@ -365,21 +339,22 @@ export class ExtensionEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallAnotherVersionAction),
 				]
 			]),
-			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
-			this.instantiationService.createInstance(SwitchToReleasedVersionAction, false),
-			this.instantiationService.createInstance(ToggleSyncExtensionAction),
+			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
+			this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, false, [false, 'onlySelectedExtensions']),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
 
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const extensionActionBar = this._register(new ActionBar(actionsAndStatusContainer, {
-			animated: false,
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction, options) => {
 				if (action instanceof ExtensionDropDownAction) {
-					return action.createActionViewItem();
+					return action.createActionViewItem(options);
 				}
 				if (action instanceof ActionWithDropDownAction) {
-					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+					return new ExtensionActionWithDropdownActionViewItem(action, { ...options, icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+				}
+				if (action instanceof ToggleAutoUpdateForExtensionAction) {
+					return new CheckboxActionViewItem(undefined, action, { ...options, icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
 				}
 				return undefined;
 			},
@@ -452,7 +427,6 @@ export class ExtensionEditor extends EditorPane {
 			},
 			set gallery(gallery: IGalleryExtension | null) {
 				versionWidget.gallery = gallery;
-				preReleaseWidget.gallery = gallery;
 			},
 			set manifest(manifest: IExtensionManifest | null) {
 				installAction.manifest = manifest;
@@ -601,11 +575,9 @@ export class ExtensionEditor extends EditorPane {
 			this.currentIdentifier = extension.identifier.id;
 		}
 
-		if (extension.hasReadme()) {
-			template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-		}
-		if (manifest && manifest.contributes) {
-			template.navbar.push(ExtensionEditorTab.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+		template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		if (manifest) {
+			template.navbar.push(ExtensionEditorTab.Features, localize('features', "Features"), localize('featurestooltip', "Lists features contributed by this extension"));
 		}
 		if (extension.hasChangelog()) {
 			template.navbar.push(ExtensionEditorTab.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
@@ -617,18 +589,9 @@ export class ExtensionEditor extends EditorPane {
 			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
 		}
 
-		const addRuntimeStatusSection = () => template.navbar.push(ExtensionEditorTab.RuntimeStatus, localize('runtimeStatus', "Runtime Status"), localize('runtimeStatus description', "Extension runtime status"));
-		if (this.extensionsWorkbenchService.getExtensionStatus(extension)) {
-			addRuntimeStatusSection();
-		} else {
-			const disposable = this.extensionService.onDidChangeExtensionsStatus(e => {
-				if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
-					addRuntimeStatusSection();
-					disposable.dispose();
-				}
-			}, this, this.transientDisposables);
+		if ((<IExtensionEditorOptions | undefined>this.options)?.tab) {
+			template.navbar.switch((<IExtensionEditorOptions>this.options).tab!);
 		}
-
 		if (template.navbar.currentId) {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
@@ -685,11 +648,10 @@ export class ExtensionEditor extends EditorPane {
 	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		switch (id) {
 			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
-			case ExtensionEditorTab.Contributions: return this.openContributions(template, token);
+			case ExtensionEditorTab.Features: return this.openFeatures(template, token);
 			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
 			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
 			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
-			case ExtensionEditorTab.RuntimeStatus: return this.openRuntimeStatus(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -721,7 +683,7 @@ export class ExtensionEditor extends EditorPane {
 			webview.setHtml(body);
 			webview.claim(this, undefined);
 
-			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
+			this.contentDisposables.add(webview.onDidFocus(() => this._onDidFocus?.fire()));
 
 			this.contentDisposables.add(webview.onDidScroll(() => this.initialScrollProgress.set(webviewIndex, webview.initialScrollProgress)));
 
@@ -939,6 +901,11 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
 		}
+		if (extension.url && extension.supportUrl) {
+			try {
+				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
+			} catch (error) {/* Ignore */ }
+		}
 		if (extension.repository) {
 			try {
 				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
@@ -954,10 +921,12 @@ export class ExtensionEditor extends EditorPane {
 		}
 		if (resources.length || extension.publisherSponsorLink) {
 			const extensionResourcesContainer = append(container, $('.resources-container.additional-details-element'));
-			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "Extension Resources")));
+			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(extensionResourcesContainer, $('.resources'));
 			for (const [label, uri] of resources) {
-				this.transientDisposables.add(onClick(append(resourcesElement, $('a.resource', { title: uri.toString(), tabindex: '0' }, label)), () => this.openerService.open(uri)));
+				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
+				this.transientDisposables.add(onClick(resource, () => this.openerService.open(uri)));
+				this.transientDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
 			}
 		}
 	}
@@ -999,65 +968,22 @@ export class ExtensionEditor extends EditorPane {
 		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
 	}
 
-	private openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const content = $('div.subcontent.feature-contributions', { tabindex: '0' });
-		return this.loadContents(() => this.extensionManifest!.get(), template.content)
-			.then(manifest => {
-				if (token.isCancellationRequested) {
-					return null;
-				}
+	private async openFeatures(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+		if (token.isCancellationRequested) {
+			return null;
+		}
+		if (!manifest) {
+			return null;
+		}
 
-				if (!manifest) {
-					return content;
-				}
-
-				const scrollableContent = new DomScrollableElement(content, {});
-
-				const layout = () => scrollableContent.scanDomNode();
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-				this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-
-				const renders = [
-					this.renderSettings(content, manifest, layout),
-					this.renderCommands(content, manifest, layout),
-					this.renderCodeActions(content, manifest, layout),
-					this.renderLanguages(content, manifest, layout),
-					this.renderColorThemes(content, manifest, layout),
-					this.renderIconThemes(content, manifest, layout),
-					this.renderProductIconThemes(content, manifest, layout),
-					this.renderColors(content, manifest, layout),
-					this.renderJSONValidation(content, manifest, layout),
-					this.renderDebuggers(content, manifest, layout),
-					this.renderViewContainers(content, manifest, layout),
-					this.renderViews(content, manifest, layout),
-					this.renderLocalizations(content, manifest, layout),
-					this.renderCustomEditors(content, manifest, layout),
-					this.renderNotebooks(content, manifest, layout),
-					this.renderNotebookRenderers(content, manifest, layout),
-					this.renderAuthentication(content, manifest, layout),
-					this.renderActivationEvents(content, manifest, layout),
-				];
-
-				scrollableContent.scanDomNode();
-
-				const isEmpty = !renders.some(x => x);
-				if (isEmpty) {
-					append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
-					append(template.content, content);
-				} else {
-					append(template.content, scrollableContent.getDomNode());
-					this.contentDisposables.add(scrollableContent);
-				}
-				return content;
-			}, () => {
-				if (token.isCancellationRequested) {
-					return null;
-				}
-
-				append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
-				append(template.content, content);
-				return content;
-			});
+		const extensionFeaturesTab = this.contentDisposables.add(this.instantiationService.createInstance(ExtensionFeaturesTab, manifest, (<IExtensionEditorOptions | undefined>this.options)?.feature));
+		const layout = () => extensionFeaturesTab.layout(template.content.clientHeight, template.content.clientWidth);
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+		append(template.content, extensionFeaturesTab.domNode);
+		layout();
+		return extensionFeaturesTab.domNode;
 	}
 
 	private openExtensionDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
@@ -1107,91 +1033,6 @@ export class ExtensionEditor extends EditorPane {
 		return this.renderExtensionPack(manifest, template.content, token);
 	}
 
-	private async openRuntimeStatus(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const content = $('div', { class: 'subcontent', tabindex: '0' });
-
-		const scrollableContent = new DomScrollableElement(content, {});
-		const layout = () => scrollableContent.scanDomNode();
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-
-		const updateContent = () => {
-			scrollableContent.scanDomNode();
-			reset(content, this.renderRuntimeStatus(extension, layout));
-		};
-
-		updateContent();
-		this.extensionService.onDidChangeExtensionsStatus(e => {
-			if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
-				updateContent();
-			}
-		}, this, this.contentDisposables);
-
-		this.contentDisposables.add(scrollableContent);
-		append(template.content, scrollableContent.getDomNode());
-		return content;
-	}
-
-	private renderRuntimeStatus(extension: IExtension, onDetailsToggle: Function): HTMLElement {
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(extension);
-		const element = $('.runtime-status');
-
-		if (extensionStatus?.activationTimes) {
-			const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-			const activationElement = append(element, $('div.activation-details'));
-
-			const activationReasonElement = append(activationElement, $('div.activation-element-entry'));
-			append(activationReasonElement, $('span.activation-message-title', undefined, localize('activation reason', "Activation Event:")));
-			append(activationReasonElement, $('code', undefined, extensionStatus.activationTimes.activationReason.startup ? localize('startup', "Startup") : extensionStatus.activationTimes.activationReason.activationEvent));
-
-			const activationTimeElement = append(activationElement, $('div.activation-element-entry'));
-			append(activationTimeElement, $('span.activation-message-title', undefined, localize('activation time', "Activation Time:")));
-			append(activationTimeElement, $('code', undefined, `${activationTime}ms`));
-
-
-			if (ExtensionIdentifier.toKey(extensionStatus.activationTimes.activationReason.extensionId) !== ExtensionIdentifier.toKey(extension.identifier.id)) {
-				const activatedByElement = append(activationElement, $('div.activation-element-entry'));
-				append(activatedByElement, $('span.activation-message-title', undefined, localize('activatedBy', "Activated By:")));
-				append(activatedByElement, $('span', undefined, extensionStatus.activationTimes.activationReason.extensionId.value));
-			}
-		}
-
-		else if (extension.local && (extension.local.manifest.main || extension.local.manifest.browser)) {
-			append(element, $('div.activation-message', undefined, localize('not yet activated', "Not yet activated.")));
-		}
-
-		if (extensionStatus?.runtimeErrors.length) {
-			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', { tabindex: '0' }, localize('uncaught errors', "Uncaught Errors ({0})", extensionStatus.runtimeErrors.length)),
-				$('div', undefined,
-					...extensionStatus.runtimeErrors.map(error => $('div.message-entry', undefined,
-						$(`span${ThemeIcon.asCSSSelector(errorIcon)}`, undefined),
-						$('span', undefined, getErrorMessage(error)),
-					))
-				),
-			));
-		}
-
-		if (extensionStatus?.messages.length) {
-			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', { tabindex: '0' }, localize('messages', "Messages ({0})", extensionStatus?.messages.length)),
-				$('div', undefined,
-					...extensionStatus.messages.sort((a, b) => b.type - a.type)
-						.map(message => $('div.message-entry', undefined,
-							$(`span${ThemeIcon.asCSSSelector(message.type === Severity.Error ? errorIcon : message.type === Severity.Warning ? warningIcon : infoIcon)}`, undefined),
-							$('span', undefined, message.message)
-						))
-				),
-			));
-		}
-
-		if (element.children.length === 0) {
-			append(element, $('div.no-status-message')).textContent = localize('noStatus', "No status available.");
-		}
-
-		return element;
-	}
-
 	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return null;
@@ -1211,598 +1052,6 @@ export class ExtensionEditor extends EditorPane {
 		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout: () => scrollableContent.scanDomNode() })));
 
 		return content;
-	}
-
-	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const configuration = manifest.contributes?.configuration;
-		let properties: any = {};
-		if (Array.isArray(configuration)) {
-			configuration.forEach(config => {
-				properties = { ...properties, ...config.properties };
-			});
-		} else if (configuration) {
-			properties = configuration.properties;
-		}
-
-		let contrib = properties ? Object.keys(properties) : [];
-
-		// filter deprecated settings
-		contrib = contrib.filter(key => {
-			const config = properties[key];
-			return !config.deprecationMessage && !config.markdownDeprecationMessage;
-		});
-
-		if (!contrib.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('settings', "Settings ({0})", contrib.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('setting name', "ID")),
-					$('th', undefined, localize('description', "Description")),
-					$('th', undefined, localize('default', "Default"))
-				),
-				...contrib
-					.sort((a, b) => a.localeCompare(b))
-					.map(key => {
-						let description: (Node | string) = properties[key].description || '';
-						if (properties[key].markdownDescription) {
-							const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
-							description = element;
-							this.contentDisposables.add(toDisposable(dispose));
-						}
-						return $('tr', undefined,
-							$('td', undefined, $('code', undefined, key)),
-							$('td', undefined, description),
-							$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : JSON.stringify(properties[key].default)}`)));
-					})
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.debuggers || [];
-		if (!contrib.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('debuggers', "Debuggers ({0})", contrib.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('debugger name', "Name")),
-					$('th', undefined, localize('debugger type', "Type")),
-				),
-				...contrib
-					.sort((a, b) => a.label!.localeCompare(b.label!))
-					.map(d => $('tr', undefined,
-						$('td', undefined, d.label!),
-						$('td', undefined, d.type)))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderViewContainers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.viewsContainers || {};
-
-		const viewContainers = Object.keys(contrib).reduce((result, location) => {
-			const viewContainersForLocation: IViewContainer[] = contrib[location];
-			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
-			return result;
-		}, [] as Array<{ id: string; title: string; location: string }>);
-
-		if (!viewContainers.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
-			$('table', undefined,
-				$('tr', undefined, $('th', undefined, localize('view container id', "ID")), $('th', undefined, localize('view container title', "Title")), $('th', undefined, localize('view container location', "Where"))),
-				...viewContainers
-					.sort((a, b) => a.id.localeCompare(b.id))
-					.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderViews(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.views || {};
-
-		const views = Object.keys(contrib).reduce((result, location) => {
-			const viewsForLocation: IView[] = contrib[location];
-			result.push(...viewsForLocation.map(view => ({ ...view, location })));
-			return result;
-		}, [] as Array<{ id: string; name: string; location: string }>);
-
-		if (!views.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('views', "Views ({0})", views.length)),
-			$('table', undefined,
-				$('tr', undefined, $('th', undefined, localize('view id', "ID")), $('th', undefined, localize('view name', "Name")), $('th', undefined, localize('view location', "Where"))),
-				...views
-					.sort((a, b) => a.id.localeCompare(b.id))
-					.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderLocalizations(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const localizations = manifest.contributes?.localizations || [];
-		if (!localizations.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('localizations', "Localizations ({0})", localizations.length)),
-			$('table', undefined,
-				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language ID")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
-				...localizations
-					.sort((a, b) => a.languageId.localeCompare(b.languageId))
-					.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderCustomEditors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const webviewEditors = manifest.contributes?.customEditors || [];
-		if (!webviewEditors.length) {
-			return false;
-		}
-		const renderEditors = Array.from(webviewEditors).sort((a, b) => a.viewType.localeCompare(b.viewType));
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('customEditors', "Custom Editors ({0})", renderEditors.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('customEditors view type', "View Type")),
-					$('th', undefined, localize('customEditors priority', "Priority")),
-					$('th', undefined, localize('customEditors filenamePattern', "Filename Pattern"))),
-				...renderEditors.map(webviewEditor =>
-					$('tr', undefined,
-						$('td', undefined, webviewEditor.viewType),
-						$('td', undefined, webviewEditor.priority),
-						$('td', undefined, arrays.coalesce(webviewEditor.selector.map(x => x.filenamePattern)).join(', '))))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderCodeActions(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const codeActions = manifest.contributes?.codeActions || [];
-		if (!codeActions.length) {
-			return false;
-		}
-
-		const flatActions = arrays.flatten(
-			codeActions.map(contribution =>
-				contribution.actions.map(action => ({ ...action, languages: contribution.languages }))));
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('codeActions', "Code Actions ({0})", flatActions.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('codeActions.title', "Title")),
-					$('th', undefined, localize('codeActions.kind', "Kind")),
-					$('th', undefined, localize('codeActions.description', "Description")),
-					$('th', undefined, localize('codeActions.languages', "Languages"))),
-				...flatActions
-					.sort((a, b) => a.title.localeCompare(b.title))
-					.map(action =>
-						$('tr', undefined,
-							$('td', undefined, action.title),
-							$('td', undefined, $('code', undefined, action.kind)),
-							$('td', undefined, action.description ?? ''),
-							$('td', undefined, ...action.languages.map(language => $('code', undefined, language)))))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderAuthentication(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const authentication = manifest.contributes?.authentication || [];
-		if (!authentication.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('authentication', "Authentication ({0})", authentication.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('authentication.label', "Label")),
-					$('th', undefined, localize('authentication.id', "ID"))
-				),
-				...authentication
-					.sort((a, b) => a.label.localeCompare(b.label))
-					.map(action =>
-						$('tr', undefined,
-							$('td', undefined, action.label),
-							$('td', undefined, action.id)
-						)
-					)
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.themes || [];
-		if (!contrib.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('colorThemes', "Color Themes ({0})", contrib.length)),
-			$('ul', undefined,
-				...contrib
-					.sort((a, b) => a.label.localeCompare(b.label))
-					.map(theme => $('li', undefined, theme.label)))
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.iconThemes || [];
-		if (!contrib.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
-			$('ul', undefined,
-				...contrib
-					.sort((a, b) => a.label.localeCompare(b.label))
-					.map(theme => $('li', undefined, theme.label)))
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderProductIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.productIconThemes || [];
-		if (!contrib.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('productThemes', "Product Icon Themes ({0})", contrib.length)),
-			$('ul', undefined,
-				...contrib
-					.sort((a, b) => a.label.localeCompare(b.label))
-					.map(theme => $('li', undefined, theme.label)))
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderColors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const colors = manifest.contributes?.colors || [];
-		if (!colors.length) {
-			return false;
-		}
-
-		function colorPreview(colorReference: string): Node[] {
-			const result: Node[] = [];
-			if (colorReference && colorReference[0] === '#') {
-				const color = Color.fromHex(colorReference);
-				if (color) {
-					result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(color) }, ''));
-				}
-			}
-			result.push($('code', undefined, colorReference));
-			return result;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('colors', "Colors ({0})", colors.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('colorId', "ID")),
-					$('th', undefined, localize('description', "Description")),
-					$('th', undefined, localize('defaultDark', "Dark Default")),
-					$('th', undefined, localize('defaultLight', "Light Default")),
-					$('th', undefined, localize('defaultHC', "High Contrast Default"))
-				),
-				...colors
-					.sort((a, b) => a.id.localeCompare(b.id))
-					.map(color => $('tr', undefined,
-						$('td', undefined, $('code', undefined, color.id)),
-						$('td', undefined, color.description),
-						$('td', undefined, ...colorPreview(color.defaults.dark)),
-						$('td', undefined, ...colorPreview(color.defaults.light)),
-						$('td', undefined, ...colorPreview(color.defaults.highContrast))
-					))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-
-	private renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.jsonValidation || [];
-		if (!contrib.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('fileMatch', "File Match")),
-					$('th', undefined, localize('schema', "Schema"))
-				),
-				...contrib.map(v => $('tr', undefined,
-					$('td', undefined, $('code', undefined, Array.isArray(v.fileMatch) ? v.fileMatch.join(', ') : v.fileMatch)),
-					$('td', undefined, v.url)
-				))));
-
-		append(container, details);
-		return true;
-	}
-
-	private renderCommands(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const rawCommands = manifest.contributes?.commands || [];
-		const commands = rawCommands.map(c => ({
-			id: c.command,
-			title: c.title,
-			keybindings: [] as ResolvedKeybinding[],
-			menus: [] as string[]
-		}));
-
-		const byId = arrays.index(commands, c => c.id);
-
-		const menus = manifest.contributes?.menus || {};
-
-		for (const context in menus) {
-			for (const menu of menus[context]) {
-				if (menu.command) {
-					let command = byId[menu.command];
-					if (command) {
-						command.menus.push(context);
-					} else {
-						command = { id: menu.command, title: '', keybindings: [], menus: [context] };
-						byId[command.id] = command;
-						commands.push(command);
-					}
-				}
-			}
-		}
-
-		const rawKeybindings = manifest.contributes?.keybindings ? (Array.isArray(manifest.contributes.keybindings) ? manifest.contributes.keybindings : [manifest.contributes.keybindings]) : [];
-
-		rawKeybindings.forEach(rawKeybinding => {
-			const keybinding = this.resolveKeybinding(rawKeybinding);
-
-			if (!keybinding) {
-				return;
-			}
-
-			let command = byId[rawKeybinding.command];
-
-			if (command) {
-				command.keybindings.push(keybinding);
-			} else {
-				command = { id: rawKeybinding.command, title: '', keybindings: [keybinding], menus: [] };
-				byId[command.id] = command;
-				commands.push(command);
-			}
-		});
-
-		if (!commands.length) {
-			return false;
-		}
-
-		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
-			const element = $('');
-			const kbl = new KeybindingLabel(element, OS, defaultKeybindingLabelStyles);
-			kbl.set(keybinding);
-			return element;
-		};
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('commands', "Commands ({0})", commands.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('command name', "ID")),
-					$('th', undefined, localize('command title', "Title")),
-					$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
-					$('th', undefined, localize('menuContexts', "Menu Contexts"))
-				),
-				...commands
-					.sort((a, b) => a.id.localeCompare(b.id))
-					.map(c => $('tr', undefined,
-						$('td', undefined, $('code', undefined, c.id)),
-						$('td', undefined, typeof c.title === 'string' ? c.title : c.title.value),
-						$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
-						$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
-					))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const rawLanguages = contributes?.languages || [];
-		const languages = rawLanguages.map(l => ({
-			id: l.id,
-			name: (l.aliases || [])[0] || l.id,
-			extensions: l.extensions || [],
-			hasGrammar: false,
-			hasSnippets: false
-		}));
-
-		const byId = arrays.index(languages, l => l.id);
-
-		const grammars = contributes?.grammars || [];
-		grammars.forEach(grammar => {
-			let language = byId[grammar.language];
-
-			if (language) {
-				language.hasGrammar = true;
-			} else {
-				language = { id: grammar.language, name: grammar.language, extensions: [], hasGrammar: true, hasSnippets: false };
-				byId[language.id] = language;
-				languages.push(language);
-			}
-		});
-
-		const snippets = contributes?.snippets || [];
-		snippets.forEach(snippet => {
-			let language = byId[snippet.language];
-
-			if (language) {
-				language.hasSnippets = true;
-			} else {
-				language = { id: snippet.language, name: snippet.language, extensions: [], hasGrammar: false, hasSnippets: true };
-				byId[language.id] = language;
-				languages.push(language);
-			}
-		});
-
-		if (!languages.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('languages', "Languages ({0})", languages.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('language id', "ID")),
-					$('th', undefined, localize('language name', "Name")),
-					$('th', undefined, localize('file extensions', "File Extensions")),
-					$('th', undefined, localize('grammar', "Grammar")),
-					$('th', undefined, localize('snippets', "Snippets"))
-				),
-				...languages
-					.sort((a, b) => a.id.localeCompare(b.id))
-					.map(l => $('tr', undefined,
-						$('td', undefined, l.id),
-						$('td', undefined, l.name),
-						$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
-						$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '\u2014')),
-						$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '\u2014'))
-					))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderActivationEvents(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const activationEvents = manifest.activationEvents || [];
-		if (!activationEvents.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('activation events', "Activation Events ({0})", activationEvents.length)),
-			$('ul', undefined,
-				...activationEvents
-					.sort((a, b) => a.localeCompare(b))
-					.map(activationEvent => $('li', undefined, $('code', undefined, activationEvent))))
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderNotebooks(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.notebooks || [];
-
-		if (!contrib.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('Notebooks', "Notebooks ({0})", contrib.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('Notebook id', "ID")),
-					$('th', undefined, localize('Notebook name', "Name")),
-				),
-				...contrib
-					.sort((a, b) => a.type.localeCompare(b.type))
-					.map(d => $('tr', undefined,
-						$('td', undefined, d.type),
-						$('td', undefined, d.displayName)))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private renderNotebookRenderers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.notebookRenderer || [];
-
-		if (!contrib.length) {
-			return false;
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('NotebookRenderers', "Notebook Renderers ({0})", contrib.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('Notebook renderer name', "Name")),
-					$('th', undefined, localize('Notebook mimetypes', "Mimetypes")),
-				),
-				...contrib
-					.sort((a, b) => a.displayName.localeCompare(b.displayName))
-					.map(d => $('tr', undefined,
-						$('td', undefined, d.displayName),
-						$('td', undefined, d.mimeTypes.join(','))))
-			)
-		);
-
-		append(container, details);
-		return true;
-	}
-
-	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding | null {
-		let key: string | undefined;
-
-		switch (platform) {
-			case 'win32': key = rawKeyBinding.win; break;
-			case 'linux': key = rawKeyBinding.linux; break;
-			case 'darwin': key = rawKeyBinding.mac; break;
-		}
-
-		return this.keybindingService.resolveUserBinding(key || rawKeyBinding.key)[0];
 	}
 
 	private loadContents<T>(loadingTask: () => CacheResult<T>, container: HTMLElement): Promise<T> {

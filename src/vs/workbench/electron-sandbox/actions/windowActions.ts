@@ -5,8 +5,8 @@
 
 import 'vs/css!./media/actions';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { localize, localize2 } from 'vs/nls';
+import { ApplyZoomTarget, MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL, applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -37,9 +37,8 @@ export class CloseWindowAction extends Action2 {
 		super({
 			id: CloseWindowAction.ID,
 			title: {
-				value: localize('closeWindow', "Close Window"),
+				...localize2('closeWindow', "Close Window"),
 				mnemonicTitle: localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window"),
-				original: 'Close Window'
 			},
 			f1: true,
 			keybinding: {
@@ -59,33 +58,59 @@ export class CloseWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 
-		return nativeHostService.closeWindowById(getActiveWindow().vscodeWindowId);
+		return nativeHostService.closeWindow({ targetWindowId: getActiveWindow().vscodeWindowId });
 	}
 }
 
 abstract class BaseZoomAction extends Action2 {
 
-	private static readonly SETTING_KEY = 'window.zoomLevel';
-
-	private static readonly MAX_ZOOM_LEVEL = 8;
-	private static readonly MIN_ZOOM_LEVEL = -8;
+	private static readonly ZOOM_LEVEL_SETTING_KEY = 'window.zoomLevel';
+	private static readonly ZOOM_PER_WINDOW_SETTING_KEY = 'window.zoomPerWindow';
 
 	constructor(desc: Readonly<IAction2Options>) {
 		super(desc);
 	}
 
-	protected async setConfiguredZoomLevel(accessor: ServicesAccessor, level: number): Promise<void> {
+	protected async setZoomLevel(accessor: ServicesAccessor, levelOrReset: number | true): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
+		let target: ApplyZoomTarget;
+		if (configurationService.getValue(BaseZoomAction.ZOOM_PER_WINDOW_SETTING_KEY) !== false) {
+			target = ApplyZoomTarget.ACTIVE_WINDOW;
+		} else {
+			target = ApplyZoomTarget.ALL_WINDOWS;
+		}
 
-		if (level > BaseZoomAction.MAX_ZOOM_LEVEL || level < BaseZoomAction.MIN_ZOOM_LEVEL) {
+		let level: number;
+		if (typeof levelOrReset === 'number') {
+			level = Math.round(levelOrReset); // prevent fractional zoom levels
+		} else {
+
+			// reset to 0 when we apply to all windows
+			if (target === ApplyZoomTarget.ALL_WINDOWS) {
+				level = 0;
+			}
+
+			// otherwise, reset to the default zoom level
+			else {
+				const defaultLevel = configurationService.getValue(BaseZoomAction.ZOOM_LEVEL_SETTING_KEY);
+				if (typeof defaultLevel === 'number') {
+					level = defaultLevel;
+				} else {
+					level = 0;
+				}
+			}
+		}
+
+		if (level > MAX_ZOOM_LEVEL || level < MIN_ZOOM_LEVEL) {
 			return; // https://github.com/microsoft/vscode/issues/48357
 		}
 
-		await configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
+		if (target === ApplyZoomTarget.ALL_WINDOWS) {
+			await configurationService.updateValue(BaseZoomAction.ZOOM_LEVEL_SETTING_KEY, level);
+		}
 
-		applyZoom(level);
+		applyZoom(level, target);
 	}
 }
 
@@ -95,9 +120,8 @@ export class ZoomInAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomIn',
 			title: {
-				value: localize('zoomIn', "Zoom In"),
+				...localize2('zoomIn', "Zoom In"),
 				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
-				original: 'Zoom In'
 			},
 			category: Categories.View,
 			f1: true,
@@ -115,7 +139,7 @@ export class ZoomInAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, getZoomLevel() + 1);
+		return super.setZoomLevel(accessor, getZoomLevel(getActiveWindow()) + 1);
 	}
 }
 
@@ -125,9 +149,8 @@ export class ZoomOutAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomOut',
 			title: {
-				value: localize('zoomOut', "Zoom Out"),
+				...localize2('zoomOut', "Zoom Out"),
 				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
-				original: 'Zoom Out'
 			},
 			category: Categories.View,
 			f1: true,
@@ -149,7 +172,7 @@ export class ZoomOutAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, getZoomLevel() - 1);
+		return super.setZoomLevel(accessor, getZoomLevel(getActiveWindow()) - 1);
 	}
 }
 
@@ -159,9 +182,8 @@ export class ZoomResetAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomReset',
 			title: {
-				value: localize('zoomReset', "Reset Zoom"),
+				...localize2('zoomReset', "Reset Zoom"),
 				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"),
-				original: 'Reset Zoom'
 			},
 			category: Categories.View,
 			f1: true,
@@ -178,7 +200,7 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, 0);
+		return super.setZoomLevel(accessor, true);
 	}
 }
 
@@ -190,7 +212,7 @@ abstract class BaseSwitchWindow extends Action2 {
 	};
 
 	private readonly closeDirtyWindowAction: IQuickInputButton = {
-		iconClass: 'dirty-window ' + Codicon.closeDirty,
+		iconClass: 'dirty-window ' + ThemeIcon.asClassName(Codicon.closeDirty),
 		tooltip: localize('close', "Close Window"),
 		alwaysVisible: true
 	};
@@ -274,7 +296,7 @@ abstract class BaseSwitchWindow extends Action2 {
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
 			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
-				await nativeHostService.closeWindowById(context.item.windowId);
+				await nativeHostService.closeWindow({ targetWindowId: context.item.windowId });
 				context.removeItem();
 			}
 		});
@@ -290,7 +312,7 @@ export class SwitchWindowAction extends BaseSwitchWindow {
 	constructor() {
 		super({
 			id: 'workbench.action.switchWindow',
-			title: { value: localize('switchWindow', "Switch Window..."), original: 'Switch Window...' },
+			title: localize2('switchWindow', 'Switch Window...'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -310,7 +332,7 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 	constructor() {
 		super({
 			id: 'workbench.action.quickSwitchWindow',
-			title: { value: localize('quickSwitchWindow', "Quick Switch Window..."), original: 'Quick Switch Window...' },
+			title: localize2('quickSwitchWindow', 'Quick Switch Window...'),
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}

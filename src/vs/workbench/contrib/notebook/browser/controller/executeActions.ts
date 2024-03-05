@@ -10,8 +10,8 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize, localize2 } from 'vs/nls';
+import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -545,10 +545,7 @@ registerAction2(class CancelAllNotebook extends CancelNotebook {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
-			title: {
-				value: localize('notebookActions.cancelNotebook', "Stop Execution"),
-				original: 'Stop Execution'
-			},
+			title: localize2('notebookActions.cancelNotebook', "Stop Execution"),
 			icon: icons.stopIcon,
 			menu: [
 				{
@@ -581,10 +578,7 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 	constructor() {
 		super({
 			id: INTERRUPT_NOTEBOOK_COMMAND_ID,
-			title: {
-				value: localize('notebookActions.interruptNotebook', "Interrupt"),
-				original: 'Interrupt'
-			},
+			title: localize2('notebookActions.interruptNotebook', "Interrupt"),
 			precondition: ContextKeyExpr.and(
 				NOTEBOOK_HAS_SOMETHING_RUNNING,
 				NOTEBOOK_INTERRUPTIBLE_KERNEL
@@ -622,13 +616,21 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 });
 
 
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	title: localize('revealRunningCellShort', "Go To"),
+	submenu: MenuId.NotebookCellExecuteGoTo,
+	group: 'navigation/execute',
+	order: 20,
+	icon: ThemeIcon.modify(icons.executingStateIcon, 'spin')
+});
+
 registerAction2(class RevealRunningCellAction extends NotebookAction {
 	constructor() {
 		super({
 			id: REVEAL_RUNNING_CELL,
 			title: localize('revealRunningCell', "Go to Running Cell"),
 			tooltip: localize('revealRunningCell', "Go to Running Cell"),
-			shortTitle: localize('revealRunningCellShort', "Go To"),
+			shortTitle: localize('revealRunningCell', "Go to Running Cell"),
 			precondition: NOTEBOOK_HAS_RUNNING_CELL,
 			menu: [
 				{
@@ -642,7 +644,7 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 					order: 0
 				},
 				{
-					id: MenuId.NotebookToolbar,
+					id: MenuId.NotebookCellExecuteGoTo,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						NOTEBOOK_HAS_RUNNING_CELL,
@@ -703,7 +705,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 			id: REVEAL_LAST_FAILED_CELL,
 			title: localize('revealLastFailedCell', "Go to Most Recently Failed Cell"),
 			tooltip: localize('revealLastFailedCell', "Go to Most Recently Failed Cell"),
-			shortTitle: localize('revealLastFailedCellShort', "Go To"),
+			shortTitle: localize('revealLastFailedCellShort', "Go to Most Recently Failed Cell"),
 			precondition: NOTEBOOK_LAST_CELL_FAILED,
 			menu: [
 				{
@@ -718,7 +720,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 					order: 0
 				},
 				{
-					id: MenuId.NotebookToolbar,
+					id: MenuId.NotebookCellExecuteGoTo,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						NOTEBOOK_LAST_CELL_FAILED,

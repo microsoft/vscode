@@ -108,7 +108,7 @@ suite('MainThreadEditors', () => {
 		services.set(ICodeEditorService, new TestCodeEditorService(themeService));
 		services.set(IFileService, new TestFileService());
 		services.set(IUriIdentityService, new SyncDescriptor(UriIdentityService));
-		services.set(IEditorService, new TestEditorService());
+		services.set(IEditorService, disposables.add(new TestEditorService()));
 		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IWorkingCopyService, new TestWorkingCopyService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());

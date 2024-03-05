@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread } from 'vs/editor/common/languages';
+import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread, CommentingRangeResourceHint } from 'vs/editor/common/languages';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -20,6 +20,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { IModelService } from 'vs/editor/common/services/model';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -66,6 +68,7 @@ export interface ICommentController {
 	toggleReaction(uri: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
 	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo>;
 	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo>;
+	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void>;
 }
 
 export interface IContinueOnCommentProvider {
@@ -78,7 +81,7 @@ export interface ICommentService {
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
 	readonly onDidUpdateNotebookCommentThreads: Event<INotebookCommentThreadChangedEvent>;
-	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
+	readonly onDidChangeActiveEditingCommentThread: Event<CommentThread | null>;
 	readonly onDidChangeCurrentCommentThread: Event<CommentThread | undefined>;
 	readonly onDidUpdateCommentingRanges: Event<{ owner: string }>;
 	readonly onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges }>;
@@ -86,6 +89,7 @@ export interface ICommentService {
 	readonly onDidDeleteDataProvider: Event<string | undefined>;
 	readonly onDidChangeCommentingEnabled: Event<boolean>;
 	readonly isCommentingEnabled: boolean;
+	readonly commentsModel: ICommentsModel;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread<IRange | ICellRange>[]): void;
 	removeWorkspaceComments(owner: string): void;
@@ -100,14 +104,16 @@ export interface ICommentService {
 	disposeCommentThread(ownerId: string, threadId: string): void;
 	getDocumentComments(resource: URI): Promise<(ICommentInfo | null)[]>;
 	getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]>;
-	updateCommentingRanges(ownerId: string): void;
+	updateCommentingRanges(ownerId: string, resourceHints?: CommentingRangeResourceHint): void;
 	hasReactionHandler(owner: string): boolean;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread<IRange | ICellRange>, comment: Comment, reaction: CommentReaction): Promise<void>;
-	setActiveCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
+	setActiveEditingCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
 	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
+	setActiveCommentAndThread(owner: string, commentInfo: { thread: CommentThread<IRange | ICellRange>; comment?: Comment } | undefined): Promise<void>;
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
 	removeContinueOnComment(pendingComment: { range: IRange | undefined; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined;
+	resourceHasCommentingRanges(resource: URI): boolean;
 }
 
 const CONTINUE_ON_COMMENTS = 'comments.continueOnComments';
@@ -136,8 +142,8 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentingRanges: Emitter<{ owner: string }> = this._register(new Emitter<{ owner: string }>());
 	readonly onDidUpdateCommentingRanges: Event<{ owner: string }> = this._onDidUpdateCommentingRanges.event;
 
-	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
-	readonly onDidChangeActiveCommentThread = this._onDidChangeActiveCommentThread.event;
+	private readonly _onDidChangeActiveEditingCommentThread = this._register(new Emitter<CommentThread | null>());
+	readonly onDidChangeActiveEditingCommentThread = this._onDidChangeActiveEditingCommentThread.event;
 
 	private readonly _onDidChangeCurrentCommentThread = this._register(new Emitter<CommentThread | undefined>());
 	readonly onDidChangeCurrentCommentThread = this._onDidChangeCurrentCommentThread.event;
@@ -162,13 +168,20 @@ export class CommentService extends Disposable implements ICommentService {
 	private _continueOnComments = new Map<string, PendingCommentThread[]>(); // owner -> PendingCommentThread[]
 	private _continueOnCommentProviders = new Set<IContinueOnCommentProvider>();
 
+	private readonly _commentsModel: CommentsModel = this._register(new CommentsModel());
+	public readonly commentsModel: ICommentsModel = this._commentsModel;
+
+	private _commentingRangeResources = new Set<string>(); // URIs
+	private _commentingRangeResourceHintSchemes = new Set<string>(); // schemes
+
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 		this._handleConfiguration();
@@ -200,7 +213,7 @@ export class CommentService extends Disposable implements ICommentService {
 					removed: [],
 					changed: []
 				};
-				this._onDidUpdateCommentThreads.fire(evt);
+				this.updateModelThreads(evt);
 			}
 		}));
 		this._register(storageService.onWillSaveState(() => {
@@ -211,6 +224,21 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 			this._saveContinueOnComments(map);
 		}));
+
+		this._register(this.modelService.onModelAdded(model => {
+			// Allows comment providers to cause their commenting ranges to be prefetched by opening text documents in the background.
+			if (!this._commentingRangeResources.has(model.uri.toString())) {
+				this.getDocumentComments(model.uri);
+			}
+		}));
+	}
+
+	private _updateResourcesWithCommentingRanges(resource: URI, commentInfos: (ICommentInfo | null)[]) {
+		for (const comments of commentInfos) {
+			if (comments && (comments.commentingRanges.ranges.length > 0 || comments.threads.length > 0)) {
+				this._commentingRangeResources.add(resource.toString());
+			}
+		}
 	}
 
 	private _handleConfiguration() {
@@ -261,31 +289,54 @@ export class CommentService extends Disposable implements ICommentService {
 	 * The active comment thread is the the thread that is currently being edited.
 	 * @param commentThread
 	 */
-	setActiveCommentThread(commentThread: CommentThread | null) {
-		this._onDidChangeActiveCommentThread.fire(commentThread);
+	setActiveEditingCommentThread(commentThread: CommentThread | null) {
+		this._onDidChangeActiveEditingCommentThread.fire(commentThread);
+	}
+
+	private _lastActiveCommentController: ICommentController | undefined;
+	async setActiveCommentAndThread(owner: string, commentInfo: { thread: CommentThread<IRange>; comment?: Comment } | undefined) {
+		const commentController = this._commentControls.get(owner);
+
+		if (!commentController) {
+			return;
+		}
+
+		if (commentController !== this._lastActiveCommentController) {
+			await this._lastActiveCommentController?.setActiveCommentAndThread(undefined);
+		}
+		this._lastActiveCommentController = commentController;
+		return commentController.setActiveCommentAndThread(commentInfo);
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
-		if (commentInfos.length) {
-			this._workspaceHasCommenting.set(true);
-		}
 		this._onDidSetResourceCommentInfos.fire({ resource, commentInfos });
 	}
 
+	private setModelThreads(ownerId: string, ownerLabel: string, commentThreads: CommentThread<IRange>[]) {
+		this._commentsModel.setCommentThreads(ownerId, ownerLabel, commentThreads);
+		this._onDidSetAllCommentThreads.fire({ ownerId, ownerLabel, commentThreads });
+	}
+
+	private updateModelThreads(event: ICommentThreadChangedEvent) {
+		this._commentsModel.updateCommentThreads(event);
+		this._onDidUpdateCommentThreads.fire(event);
+	}
+
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void {
+
 		if (commentsByResource.length) {
 			this._workspaceHasCommenting.set(true);
 		}
 		const control = this._commentControls.get(owner);
 		if (control) {
-			this._onDidSetAllCommentThreads.fire({ ownerId: owner, ownerLabel: control.label, commentThreads: commentsByResource });
+			this.setModelThreads(owner, control.label, commentsByResource);
 		}
 	}
 
 	removeWorkspaceComments(owner: string): void {
 		const control = this._commentControls.get(owner);
 		if (control) {
-			this._onDidSetAllCommentThreads.fire({ ownerId: owner, ownerLabel: control.label, commentThreads: [] });
+			this.setModelThreads(owner, control.label, []);
 		}
 	}
 
@@ -300,6 +351,7 @@ export class CommentService extends Disposable implements ICommentService {
 		} else {
 			this._commentControls.clear();
 		}
+		this._commentsModel.deleteCommentsByOwner(owner);
 		this._onDidDeleteDataProvider.fire(owner);
 	}
 
@@ -346,7 +398,7 @@ export class CommentService extends Disposable implements ICommentService {
 		const control = this._commentControls.get(ownerId);
 		if (control) {
 			const evt: ICommentThreadChangedEvent = Object.assign({}, event, { owner: ownerId, ownerLabel: control.label });
-			this._onDidUpdateCommentThreads.fire(evt);
+			this.updateModelThreads(evt);
 		}
 	}
 
@@ -355,7 +407,12 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidUpdateNotebookCommentThreads.fire(evt);
 	}
 
-	updateCommentingRanges(ownerId: string) {
+	updateCommentingRanges(ownerId: string, resourceHints?: CommentingRangeResourceHint) {
+		if (resourceHints?.schemes && resourceHints.schemes.length > 0) {
+			for (const scheme of resourceHints.schemes) {
+				this._commentingRangeResourceHintSchemes.add(scheme);
+			}
+		}
 		this._workspaceHasCommenting.set(true);
 		this._onDidUpdateCommentingRanges.fire({ owner: ownerId });
 	}
@@ -402,7 +459,9 @@ export class CommentService extends Disposable implements ICommentService {
 				}));
 		}
 
-		return Promise.all(commentControlResult);
+		const commentInfos = await Promise.all(commentControlResult);
+		this._updateResourcesWithCommentingRanges(resource, commentInfos);
+		return commentInfos;
 	}
 
 	async getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]> {
@@ -462,5 +521,9 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}
 		return changedOwners;
+	}
+
+	resourceHasCommentingRanges(resource: URI): boolean {
+		return this._commentingRangeResourceHintSchemes.has(resource.scheme) || this._commentingRangeResources.has(resource.toString());
 	}
 }

@@ -18,6 +18,7 @@ interface ServerReadyAction {
 	uriFormat?: string;
 	webRoot?: string;
 	name?: string;
+	config?: vscode.DebugConfiguration;
 	killOnServerStop?: boolean;
 }
 
@@ -194,7 +195,11 @@ class ServerReadyDetector extends vscode.Disposable {
 				break;
 
 			case 'startDebugging':
-				await this.startNamedDebugSession(session, args.name || 'unspecified');
+				if (args.config) {
+					await this.startDebugSession(session, args.config.name, args.config);
+				} else {
+					await this.startDebugSession(session, args.name || 'unspecified');
+				}
 				break;
 
 			default:
@@ -246,17 +251,24 @@ class ServerReadyDetector extends vscode.Disposable {
 		});
 	}
 
-	private async startNamedDebugSession(session: vscode.DebugSession, name: string) {
+	/**
+	 * Starts a debug session given a debug configuration name (saved in launch.json) or a debug configuration object.
+	 *
+	 * @param session The parent debugSession
+	 * @param name The name of the configuration to launch. If config it set, it assumes it is the same as config.name.
+	 * @param config [Optional] Instead of starting a debug session by debug configuration name, use a debug configuration object instead.
+	 */
+	private async startDebugSession(session: vscode.DebugSession, name: string, config?: vscode.DebugConfiguration) {
 		const args = session.configuration.serverReadyAction as ServerReadyAction;
 		if (!args.killOnServerStop) {
-			await vscode.debug.startDebugging(session.workspaceFolder, name);
+			await vscode.debug.startDebugging(session.workspaceFolder, config ?? name);
 			return;
 		}
 
 		const cts = new vscode.CancellationTokenSource();
 		const newSessionPromise = this.catchStartedDebugSession(x => x.name === name, cts.token);
 
-		if (!await vscode.debug.startDebugging(session.workspaceFolder, name)) {
+		if (!await vscode.debug.startDebugging(session.workspaceFolder, config ?? name)) {
 			cts.cancel();
 			cts.dispose();
 			return;

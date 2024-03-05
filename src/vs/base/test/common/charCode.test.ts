@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('CharCode', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('has good values', () => {
 
 		function assertValue(actual: CharCode, expected: string): void {

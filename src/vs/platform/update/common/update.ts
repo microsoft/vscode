@@ -10,7 +10,7 @@ export interface IUpdate {
 	version: string;
 	productVersion: string;
 	url?: string;
-	hash?: string;
+	sha256hash?: string;
 }
 
 /**

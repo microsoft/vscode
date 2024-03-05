@@ -3,73 +3,71 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inlineChat';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, MENU_INLINE_CHAT_WIDGET_TOGGLE, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { EventType, Dimension, addDisposableListener, getActiveElement, getTotalHeight, getTotalWidth, h, reset, getWindow } from 'vs/base/browser/dom';
-import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { IModelService } from 'vs/editor/common/services/model';
-import { URI } from 'vs/base/common/uri';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { Position } from 'vs/editor/common/core/position';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
-import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
-import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { assertType } from 'vs/base/common/types';
+import { Dimension, addDisposableListener, getActiveElement, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { editorForeground, inputBackground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { Lazy } from 'vs/base/common/lazy';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer'; import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ISettableObservable, constObservable, derived, observableValue } from 'vs/base/common/observable';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import 'vs/css!./inlineChat';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
+import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
+import { EditorLayoutInfo, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { LanguageSelector } from 'vs/editor/common/languageSelector';
+import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
+import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { FileKind } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILogService } from 'vs/platform/log/common/log';
+import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
+import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
+import { ExpansionState, HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
+import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_VISIBLE, IInlineChatFollowup, IInlineChatSlashCommand, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -109,6 +107,7 @@ export const _inputEditorOptions: IEditorConstructionOptions = {
 	suggest: {
 		showIcons: false,
 		showSnippets: false,
+		showWords: true,
 		showStatusBar: false,
 	},
 	wordWrap: 'on',
@@ -139,6 +138,7 @@ export interface InlineChatWidgetViewState {
 
 export interface IInlineChatWidgetConstructionOptions {
 	menuId: MenuId;
+	widgetMenuId: MenuId;
 	statusMenuId: MenuId;
 	feedbackMenuId: MenuId;
 }
@@ -170,19 +170,19 @@ export class InlineChatWidget {
 					]),
 					h('div.toolbar@editorToolbar'),
 				]),
+				h('div.widget-toolbar@widgetToolbar')
 			]),
 			h('div.progress@progress'),
+			h('div.detectedIntent.hidden@detectedIntent'),
 			h('div.previewDiff.hidden@previewDiff'),
 			h('div.previewCreateTitle.show-file-icons@previewCreateTitle'),
 			h('div.previewCreate.hidden@previewCreate'),
 			h('div.chatMessage.hidden@chatMessage', [
-				h('div.chatMessageContent@chatMessageContent')
-			]),
-			h('div.markdownMessage.hidden@markdownMessage', [
-				h('div.message@message'),
+				h('div.chatMessageContent@chatMessageContent'),
 				h('div.messageActions@messageActions')
 			]),
 			h('div.followUps.hidden@followUps'),
+			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
 				h('div.actions.hidden@statusToolbar'),
@@ -211,10 +211,11 @@ export class InlineChatWidget {
 	private readonly _previewDiffEditor: Lazy<EmbeddedDiffEditorWidget>;
 	private readonly _previewDiffModel = this._store.add(new MutableDisposable());
 
+	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
+
 	private readonly _previewCreateTitle: ResourceLabel;
 	private readonly _previewCreateEditor: Lazy<ICodeEditor>;
 	private readonly _previewCreateDispoable = this._store.add(new MutableDisposable());
-
 
 	private readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
@@ -222,6 +223,9 @@ export class InlineChatWidget {
 	private readonly _onDidChangeLayout = this._store.add(new MicrotaskEmitter<void>());
 	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
 	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
+
+	private readonly _onRequestWithoutIntentDetection = this._store.add(new Emitter<void>());
+	readonly onRequestWithoutIntentDetection: Event<void> = this._onRequestWithoutIntentDetection.event;
 
 	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
@@ -231,11 +235,13 @@ export class InlineChatWidget {
 
 	private _slashCommandContentWidget: SlashCommandContentWidget;
 
-	private readonly _markdownRenderer: MarkdownRenderer;
 	private readonly _editorOptions: ChatEditorOptions;
-	private _codeBlockDisposables = this._store.add(new DisposableStore());
 	private _chatMessageDisposables = this._store.add(new DisposableStore());
 	private _followUpDisposables = this._store.add(new DisposableStore());
+	private _slashCommandUsedDisposables = this._store.add(new DisposableStore());
+
+	private _chatMessage: MarkdownString | undefined;
+	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 
 	constructor(
 		private readonly parentEditor: ICodeEditor,
@@ -247,9 +253,7 @@ export class InlineChatWidget {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -270,8 +274,8 @@ export class InlineChatWidget {
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
 		this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
-		this._store.add(addDisposableListener(this._elements.message, 'focus', () => this._ctxResponseFocused.set(true)));
-		this._store.add(addDisposableListener(this._elements.message, 'blur', () => this._ctxResponseFocused.reset()));
+		this._store.add(addDisposableListener(this._elements.chatMessageContent, 'focus', () => this._ctxResponseFocused.set(true)));
+		this._store.add(addDisposableListener(this._elements.chatMessageContent, 'blur', () => this._ctxResponseFocused.reset()));
 
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
@@ -283,7 +287,6 @@ export class InlineChatWidget {
 		this._inputModel = this._store.add(this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri));
 		this._inputEditor.setModel(this._inputModel);
 
-		this._markdownRenderer = this._store.add(_instantiationService.createInstance(MarkdownRenderer, {}));
 		this._editorOptions = this._store.add(_instantiationService.createInstance(ChatEditorOptions, undefined, editorForeground, inputBackground, editorBackground));
 
 
@@ -373,30 +376,42 @@ export class InlineChatWidget {
 		this._slashCommandContentWidget = new SlashCommandContentWidget(this._inputEditor);
 		this._store.add(this._slashCommandContentWidget);
 
+		// Share hover delegates between toolbars to support instant hover between both
+		const hoverDelegate = this._store.add(createInstantHoverDelegate());
+
 		// toolbars
 
-		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.menuId, {
+		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.menuId, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
-			toolbarOptions: { primaryGroup: 'main' }
-		});
-		this._store.add(toolbar);
+			toolbarOptions: { primaryGroup: 'main' },
+			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
+			hoverDelegate
+		}));
 
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
 
-		const workbenchMenubarOptions: IMenuWorkbenchButtonBarOptions = {
+
+		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.widgetToolbar, _options.widgetMenuId, {
+			telemetrySource: 'interactiveEditorWidget-toolbar',
+			toolbarOptions: { primaryGroup: 'main' },
+			hoverDelegate
+		}));
+
+		const workbenchMenubarOptions: IWorkbenchButtonBarOptions = {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			buttonConfigProvider: action => {
 				if (action.id === ACTION_REGENERATE_RESPONSE) {
-					return { showIcon: true, showLabel: false };
-				} else if (action.id === ACTION_VIEW_IN_CHAT) {
+					return { showIcon: true, showLabel: false, isSecondary: true };
+				} else if (action.id === ACTION_VIEW_IN_CHAT || action.id === ACTION_ACCEPT_CHANGES) {
 					return { isSecondary: false };
+				} else {
+					return { isSecondary: true };
 				}
-				return undefined;
 			}
 		};
 		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, _options.statusMenuId, workbenchMenubarOptions);
-		this._store.add(statusButtonBar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusButtonBar);
 
 
@@ -414,6 +429,7 @@ export class InlineChatWidget {
 
 		// preview editors
 		this._previewDiffEditor = new Lazy(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {
+			useInlineViewWhenSpaceIsLimited: false,
 			..._previewEditorEditorOptions,
 			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
 		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
@@ -423,34 +439,25 @@ export class InlineChatWidget {
 
 		this._elements.chatMessageContent.tabIndex = 0;
 		this._elements.chatMessageContent.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
-		this._elements.message.tabIndex = 0;
-		this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 		this._elements.followUps.tabIndex = 0;
 		this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
-
 
 		this._elements.statusLabel.tabIndex = 0;
 		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
 		this._store.add(markdownMessageToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(markdownMessageToolbar);
 
-		this._store.add(addDisposableListener(this._elements.root, EventType.CONTEXT_MENU, async (event: MouseEvent) => {
-			this._onContextMenu(event);
-		}));
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
-				this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+				this._elements.chatMessageContent.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+				this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 			}
 		}));
+
+		// Code block rendering
+		this._codeBlockModelCollection = this._store.add(this._instantiationService.createInstance(CodeBlockModelCollection));
 	}
 
-	private _onContextMenu(e: MouseEvent) {
-		const event = new StandardMouseEvent(getWindow(this._elements.root), e);
-		this._contextMenuService.showContextMenu({
-			menuId: MENU_INLINE_CHAT_WIDGET_TOGGLE,
-			getAnchor: () => event,
-		});
-	}
 
 	private _updateAriaLabel(): void {
 		if (!this._accessibilityService.isScreenReaderOptimized()) {
@@ -475,20 +482,26 @@ export class InlineChatWidget {
 		return this._elements.root;
 	}
 
-	layout(dim: Dimension) {
+	layout(_dim: Dimension) {
 		this._isLayouting = true;
 		try {
-			const innerEditorWidth = dim.width - (getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */);
-			dim = new Dimension(innerEditorWidth, dim.height);
+			if (this._accessibleViewer.value) {
+				this._accessibleViewer.value.width = _dim.width - 12;
+			}
+			const widgetToolbarWidth = getTotalWidth(this._elements.widgetToolbar);
+			const editorToolbarWidth = getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */;
+			const innerEditorWidth = _dim.width - editorToolbarWidth - widgetToolbarWidth;
+			const dim = new Dimension(innerEditorWidth, _dim.height);
 			if (!this._lastDim || !Dimension.equals(this._lastDim, dim)) {
 				this._lastDim = dim;
 				this._inputEditor.layout(new Dimension(innerEditorWidth, this._inputEditor.getContentHeight()));
 				this._elements.placeholder.style.width = `${innerEditorWidth  /* input-padding*/}px`;
 
 				if (this._previewDiffEditor.hasValue) {
-					const previewDiffDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())));
-					this._previewDiffEditor.value.layout(previewDiffDim);
+					const previewDiffDim = new Dimension(_dim.width - 12, Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())));
+					this._elements.previewDiff.style.width = `${previewDiffDim.width}px`;
 					this._elements.previewDiff.style.height = `${previewDiffDim.height}px`;
+					this._previewDiffEditor.value.layout(previewDiffDim);
 				}
 
 				if (this._previewCreateEditor.hasValue) {
@@ -496,6 +509,7 @@ export class InlineChatWidget {
 					this._previewCreateEditor.value.layout(previewCreateDim);
 					this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
 				}
+
 
 				const lineHeight = this.parentEditor.getOption(EditorOption.lineHeight);
 				const editorHeight = this.parentEditor.getLayoutInfo().height;
@@ -512,20 +526,23 @@ export class InlineChatWidget {
 	getHeight(): number {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this._inputEditor.getContentHeight() + 12 /* padding and border */;
-		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage);
+		const detectedIntentHeight = getTotalHeight(this._elements.detectedIntent);
 		const followUpsHeight = getTotalHeight(this._elements.followUps);
 		const chatResponseHeight = getTotalHeight(this._elements.chatMessage);
 		const previewDiffHeight = this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.hasValue && this._previewCreateEditor.value.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())) : 0;
-		return base + editorHeight + markdownMessageHeight + followUpsHeight + chatResponseHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
+		const accessibleViewHeight = this._accessibleViewer.value?.height ?? 0;
+		return base + editorHeight + detectedIntentHeight + followUpsHeight + chatResponseHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + accessibleViewHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
 		if (show) {
+			this._progressBar.show();
 			this._progressBar.infinite();
 		} else {
 			this._progressBar.stop();
+			this._progressBar.hide();
 		}
 	}
 
@@ -581,22 +598,29 @@ export class InlineChatWidget {
 	}
 
 	get responseContent(): string | undefined {
-		return this._elements.markdownMessage.textContent ?? undefined;
+		return this._chatMessage?.value;
 	}
 
 	updateChatMessage(message: IInlineChatMessage, isIncomplete: true): IInlineChatMessageAppender;
 	updateChatMessage(message: IInlineChatMessage | undefined): void;
 	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean): IInlineChatMessageAppender | undefined {
+		let expansionState: ExpansionState;
 		this._chatMessageDisposables.clear();
-		this._elements.chatMessage.classList.toggle('hidden', !message);
+		this._chatMessage = message ? new MarkdownString(message.message.value) : undefined;
+		const hasMessage = message?.message.value;
+		this._elements.chatMessage.classList.toggle('hidden', !hasMessage);
 		reset(this._elements.chatMessageContent);
-		if (message) {
-			const sessionModel = this._chatMessageDisposables.add(new ChatModel(message.providerId, undefined, this._logService, this._chatAgentService));
-			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, message.requestId, !isIncomplete, false, undefined));
+		let resultingAppender: IInlineChatMessageAppender | undefined;
+		if (!hasMessage) {
+			this._ctxMessageCropState.reset();
+			expansionState = ExpansionState.NOT_CROPPED;
+		} else {
+			const sessionModel = this._chatMessageDisposables.add(new ChatModel(message.providerId, undefined, this._logService, this._chatAgentService, this._instantiationService));
+			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, undefined, message.requestId, !isIncomplete, false, undefined));
 			const viewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
 			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true };
 			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
-			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate));
+			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate, this._codeBlockModelCollection, undefined));
 			renderer.layout(this._elements.chatMessageContent.clientWidth - 4); // 2 for the padding used for the tab index border
 			this._chatMessageDisposables.add(this._onDidChangeLayout.event(() => {
 				renderer.layout(this._elements.chatMessageContent.clientWidth - 4);
@@ -606,77 +630,48 @@ export class InlineChatWidget {
 			this._chatMessageDisposables.add(template.templateDisposables);
 			renderer.renderChatTreeItem(viewModel, 0, template);
 			this._chatMessageDisposables.add(renderer.onDidChangeItemHeight(() => this._onDidChangeHeight.fire()));
-			this._onDidChangeHeight.fire();
-			return {
-				cancel: () => responseModel.cancel(),
-				complete: () => responseModel.complete(),
-				appendContent: (fragment: string) => responseModel.updateContent({ kind: 'markdownContent', content: new MarkdownString(fragment) }),
-			};
-		} else {
-			this._onDidChangeHeight.fire();
-			return undefined;
-		}
-	}
 
-	updateFollowUps(items: IChatReplyFollowup[], onFollowup: (followup: IChatReplyFollowup) => void): void;
-	updateFollowUps(items: undefined): void;
-	updateFollowUps(items: IChatReplyFollowup[] | undefined, onFollowup?: ((followup: IChatReplyFollowup) => void)) {
-		this._followUpDisposables.clear();
-		this._elements.followUps.classList.toggle('hidden', !items || items.length === 0);
-		reset(this._elements.followUps);
-		if (items && items.length > 0 && onFollowup) {
-			this._followUpDisposables.add(new ChatFollowups(this._elements.followUps, items, undefined, onFollowup, this._contextKeyService));
-		}
-		this._onDidChangeHeight.fire();
-	}
-
-	updateMarkdownMessage(message: IMarkdownString | undefined) {
-		this._codeBlockDisposables.clear();
-		const hasMessage = message?.value;
-		this._elements.markdownMessage.classList.toggle('hidden', !hasMessage);
-		let expansionState: ExpansionState;
-		let textContent: string | undefined = undefined;
-		if (!hasMessage) {
-			reset(this._elements.message);
-			this._ctxMessageCropState.reset();
-			expansionState = ExpansionState.NOT_CROPPED;
-		} else {
-			let codeBlockIndex = 0;
-			const renderedMarkdown = this._codeBlockDisposables.add(this._markdownRenderer.render(message, {
-				fillInIncompleteTokens: true,
-				codeBlockRendererSync: (languageId, text) => {
-					const codeBlockPart = this._codeBlockDisposables.add(this._instantiationService.createInstance(CodeBlockPart, this._editorOptions, MenuId.ChatCodeBlock));
-					const data = { languageId, text, codeBlockIndex: codeBlockIndex++, element: undefined };
-					codeBlockPart.render(data, this._elements.message.clientWidth);
-					this._codeBlockDisposables.add(this._onDidChangeLayout.event(() => {
-						codeBlockPart.layout(this._elements.message.clientWidth);
-					}));
-					return codeBlockPart.element;
-				}
-			}));
-			textContent = renderedMarkdown.element.textContent ?? undefined;
 			if (this._preferredExpansionState) {
-				reset(this._elements.message, renderedMarkdown.element);
 				expansionState = this._preferredExpansionState;
 				this._preferredExpansionState = undefined;
 			} else {
 				this._updateLineClamp(ExpansionState.CROPPED);
-				reset(this._elements.message, renderedMarkdown.element);
-				expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
+				expansionState = template.value.scrollHeight > template.value.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
 			}
 			this._ctxMessageCropState.set(expansionState);
 			this._updateLineClamp(expansionState);
+			resultingAppender = isIncomplete ? {
+				cancel: () => responseModel.cancel(),
+				complete: () => responseModel.complete(),
+				appendContent: (fragment: string) => {
+					responseModel.updateContent({ kind: 'markdownContent', content: new MarkdownString(fragment) });
+					this._chatMessage?.appendMarkdown(fragment);
+				}
+			} : undefined;
 		}
 		this._expansionState = expansionState;
 		this._onDidChangeHeight.fire();
-		return textContent;
+		return resultingAppender;
 	}
 
-	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
+	updateFollowUps(items: IInlineChatFollowup[], onFollowup: (followup: IInlineChatFollowup) => void): void;
+	updateFollowUps(items: undefined): void;
+	updateFollowUps(items: IInlineChatFollowup[] | undefined, onFollowup?: ((followup: IInlineChatFollowup) => void)) {
+		this._followUpDisposables.clear();
+		this._elements.followUps.classList.toggle('hidden', !items || items.length === 0);
+		reset(this._elements.followUps);
+		if (items && items.length > 0 && onFollowup) {
+			this._followUpDisposables.add(
+				this._instantiationService.createInstance(ChatFollowups, this._elements.followUps, items, undefined, onFollowup));
+		}
+		this._onDidChangeHeight.fire();
+	}
+
+	updateChatMessageExpansionState(expansionState: ExpansionState) {
 		this._ctxMessageCropState.set(expansionState);
-		const heightBefore = this._elements.markdownMessage.scrollHeight;
+		const heightBefore = this._elements.chatMessageContent.scrollHeight;
 		this._updateLineClamp(expansionState);
-		const heightAfter = this._elements.markdownMessage.scrollHeight;
+		const heightAfter = this._elements.chatMessageContent.scrollHeight;
 		if (heightBefore === heightAfter) {
 			this._ctxMessageCropState.set(ExpansionState.NOT_CROPPED);
 		}
@@ -684,7 +679,7 @@ export class InlineChatWidget {
 	}
 
 	private _updateLineClamp(expansionState: ExpansionState) {
-		this._elements.message.setAttribute('state', expansionState);
+		this._elements.chatMessageContent.setAttribute('state', expansionState);
 	}
 
 	updateSlashCommandUsed(command: string): void {
@@ -693,11 +688,28 @@ export class InlineChatWidget {
 			return;
 		}
 
-		this._elements.infoLabel.classList.toggle('hidden', false);
-		const label = localize('slashCommandUsed', "Using {0} to generate response...", `\`\`/${details.command}\`\``);
+		this._elements.detectedIntent.classList.toggle('hidden', false);
 
-		const e = renderFormattedText(label, { inline: true, renderCodeSegments: true, className: 'slash-command-pill' });
-		reset(this._elements.infoLabel, e);
+		this._slashCommandUsedDisposables.clear();
+
+		const label = localize('slashCommandUsed', "Using {0} to generate response ([[re-run without]])", `\`\`/${details.command}\`\``);
+		const usingSlashCommandText = renderFormattedText(label, {
+			inline: true,
+			renderCodeSegments: true,
+			className: 'slash-command-pill',
+			actionHandler: {
+				callback: (content) => {
+					if (content !== '0') {
+						return;
+					}
+					this._elements.detectedIntent.classList.toggle('hidden', true);
+					this._onRequestWithoutIntentDetection.fire();
+				},
+				disposables: this._slashCommandUsedDisposables,
+			}
+		});
+
+		reset(this._elements.detectedIntent, usingSlashCommandText);
 		this._onDidChangeHeight.fire();
 	}
 
@@ -735,16 +747,21 @@ export class InlineChatWidget {
 		this._ctxInputEditorFocused.reset();
 
 		this.value = '';
-		this.updateMarkdownMessage(undefined);
 		this.updateChatMessage(undefined);
 		this.updateFollowUps(undefined);
 
 		reset(this._elements.statusLabel);
+		this._elements.detectedIntent.classList.toggle('hidden', true);
 		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.statusToolbar.classList.add('hidden');
 		this._elements.feedbackToolbar.classList.add('hidden');
+		this.updateInfo('');
 		this.hideCreatePreview();
 		this.hideEditsPreview();
+
+		this._accessibleViewer.clear();
+		this._elements.accessibleViewer.classList.toggle('hidden', true);
+
 		this._onDidChangeHeight.fire();
 	}
 
@@ -758,47 +775,37 @@ export class InlineChatWidget {
 
 	// --- preview
 
-	async showEditsPreview(textModel0: ITextModel, textModelN: ITextModel, allEdits: ISingleEditOperation[][]) {
+	showEditsPreview(hunks: HunkData, textModel0: ITextModel, textModelN: ITextModel) {
 
-		this._elements.previewDiff.classList.remove('hidden');
-
-		const languageSelection: ILanguageSelection = { languageId: textModel0.getLanguageId(), onDidChange: Event.None };
-		const modified = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModel0.createSnapshot()), languageSelection, undefined, true);
-		for (const edits of allEdits) {
-			modified.applyEdits(edits, false);
-		}
-
-		const diff = await this._editorWorkerService.computeDiff(textModel0.uri, modified.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
-		if (!diff || diff.changes.length === 0) {
+		if (hunks.size === 0) {
 			this.hideEditsPreview();
 			return;
 		}
 
-		this._previewDiffEditor.value.setModel({ original: textModel0, modified });
+		this._elements.previewDiff.classList.remove('hidden');
+
+		this._previewDiffEditor.value.setModel({ original: textModel0, modified: textModelN });
 
 		// joined ranges
-		let originalLineRange = diff.changes[0].original;
-		let modifiedLineRange = diff.changes[0].modified;
-		for (let i = 1; i < diff.changes.length; i++) {
-			originalLineRange = originalLineRange.join(diff.changes[i].original);
-			modifiedLineRange = modifiedLineRange.join(diff.changes[i].modified);
+		let originalLineRange: LineRange | undefined;
+		let modifiedLineRange: LineRange | undefined;
+		for (const item of hunks.getInfo()) {
+			const [first0] = item.getRanges0();
+			const [firstN] = item.getRangesN();
+
+			originalLineRange = !originalLineRange ? LineRange.fromRangeInclusive(first0) : originalLineRange.join(LineRange.fromRangeInclusive(first0));
+			modifiedLineRange = !modifiedLineRange ? LineRange.fromRangeInclusive(firstN) : modifiedLineRange.join(LineRange.fromRangeInclusive(firstN));
 		}
 
-		// apply extra padding
-		const pad = 3;
-		const newStartLine = Math.max(1, originalLineRange.startLineNumber - pad);
-		modifiedLineRange = new LineRange(newStartLine, modifiedLineRange.endLineNumberExclusive);
-		originalLineRange = new LineRange(newStartLine, originalLineRange.endLineNumberExclusive);
-
-		const newEndLineModified = Math.min(modifiedLineRange.endLineNumberExclusive + pad, modified.getLineCount());
-		modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber, newEndLineModified);
-		const newEndLineOriginal = Math.min(originalLineRange.endLineNumberExclusive + pad, textModel0.getLineCount());
-		originalLineRange = new LineRange(originalLineRange.startLineNumber, newEndLineOriginal);
+		if (!originalLineRange || !modifiedLineRange) {
+			this.hideEditsPreview();
+			return;
+		}
 
 		const hiddenOriginal = invertLineRange(originalLineRange, textModel0);
-		const hiddenModified = invertLineRange(modifiedLineRange, modified);
-		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lineRangeAsRange), 'diff-hidden');
-		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');
+		const hiddenModified = invertLineRange(modifiedLineRange, textModelN);
+		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lr => asRange(lr, textModel0)), 'diff-hidden');
+		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lr => asRange(lr, textModelN)), 'diff-hidden');
 		this._previewDiffEditor.value.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
 
 		this._onDidChangeHeight.fire();
@@ -848,7 +855,7 @@ export class InlineChatWidget {
 		if (commands.length === 0) {
 			return;
 		}
-		this._slashCommandDetails = commands.filter(c => c.command && c.detail).map(c => { return { command: c.command!, detail: c.detail! }; });
+		this._slashCommandDetails = commands.filter(c => c.command && c.detail).map(c => { return { command: c.command, detail: c.detail! }; });
 
 		const selector: LanguageSelector = { scheme: this._inputModel.uri.scheme, pattern: this._inputModel.uri.path, language: this._inputModel.getLanguageId() };
 		this._slashCommands.add(this._languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {
@@ -884,6 +891,7 @@ export class InlineChatWidget {
 
 		const updateSlashDecorations = () => {
 			this._slashCommandContentWidget.hide();
+			this._elements.detectedIntent.classList.toggle('hidden', true);
 
 			const newDecorations: IModelDeltaDecoration[] = [];
 			for (const command of commands) {
@@ -927,6 +935,25 @@ export class InlineChatWidget {
 		this._slashCommands.add(this._inputEditor.onDidChangeModelContent(updateSlashDecorations));
 		updateSlashDecorations();
 	}
+
+
+	// --- accessible viewer
+
+	showAccessibleHunk(session: Session, hunkData: HunkInformation): void {
+
+		this._elements.accessibleViewer.classList.remove('hidden');
+		this._accessibleViewer.clear();
+
+		this._accessibleViewer.value = this._instantiationService.createInstance(HunkAccessibleDiffViewer,
+			this._elements.accessibleViewer,
+			session,
+			hunkData,
+			new AccessibleHunk(this.parentEditor, session, hunkData)
+		);
+
+		this._onDidChangeHeight.fire();
+
+	}
 }
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -954,7 +981,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		}));
 
 		this.widget = this._instaService.createInstance(InlineChatWidget, this.editor, {
-			menuId: MENU_INLINE_CHAT_WIDGET,
+			menuId: MENU_INLINE_CHAT_INPUT,
+			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
 			statusMenuId: MENU_INLINE_CHAT_WIDGET_STATUS,
 			feedbackMenuId: MENU_INLINE_CHAT_WIDGET_FEEDBACK
 		});
@@ -1062,10 +1090,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
 	}
 
-	setWidgetMargins(position: Position, indentationWidth?: number): void {
-		if (indentationWidth === undefined) {
-			indentationWidth = this._calculateIndentationWidth(position);
-		}
+	setWidgetMargins(position: Position): void {
+		const indentationWidth = this._calculateIndentationWidth(position);
 		if (this._indentationWidth === indentationWidth) {
 			return;
 		}
@@ -1081,5 +1107,90 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.widget.reset();
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
+	}
+}
+
+class HunkAccessibleDiffViewer extends AccessibleDiffViewer {
+
+	readonly height: number;
+
+	set width(value: number) {
+		this._width2.set(value, undefined);
+	}
+
+	private readonly _width2: ISettableObservable<number>;
+
+	constructor(
+		parentNode: HTMLElement,
+		session: Session,
+		hunk: HunkInformation,
+		models: IAccessibleDiffViewerModel,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		const width = observableValue('width', 0);
+		const diff = observableValue('diff', HunkAccessibleDiffViewer._asMapping(hunk));
+		const diffs = derived(r => [diff.read(r)]);
+		const lines = Math.min(10, 8 + diff.get().changedLineCount);
+		const height = models.getModifiedOptions().get(EditorOption.lineHeight) * lines;
+
+		super(parentNode, constObservable(true), () => { }, constObservable(false), width, constObservable(height), diffs, models, instantiationService);
+
+		this.height = height;
+		this._width2 = width;
+
+		this._store.add(session.textModelN.onDidChangeContent(() => {
+			diff.set(HunkAccessibleDiffViewer._asMapping(hunk), undefined);
+		}));
+	}
+
+	private static _asMapping(hunk: HunkInformation): DetailedLineRangeMapping {
+		const ranges0 = hunk.getRanges0();
+		const rangesN = hunk.getRangesN();
+		const originalLineRange = LineRange.fromRangeInclusive(ranges0[0]);
+		const modifiedLineRange = LineRange.fromRangeInclusive(rangesN[0]);
+		const innerChanges: RangeMapping[] = [];
+		for (let i = 1; i < ranges0.length; i++) {
+			innerChanges.push(new RangeMapping(ranges0[i], rangesN[i]));
+		}
+		return new DetailedLineRangeMapping(originalLineRange, modifiedLineRange, innerChanges);
+	}
+
+}
+
+class AccessibleHunk implements IAccessibleDiffViewerModel {
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _session: Session,
+		private readonly _hunk: HunkInformation
+	) { }
+
+	getOriginalModel(): ITextModel {
+		return this._session.textModel0;
+	}
+	getModifiedModel(): ITextModel {
+		return this._session.textModelN;
+	}
+	getOriginalOptions(): IComputedEditorOptions {
+		return this._editor.getOptions();
+	}
+	getModifiedOptions(): IComputedEditorOptions {
+		return this._editor.getOptions();
+	}
+	originalReveal(range: Range): void {
+		// throw new Error('Method not implemented.');
+	}
+	modifiedReveal(range?: Range | undefined): void {
+		this._editor.revealRangeInCenterIfOutsideViewport(range || this._hunk.getRangesN()[0], ScrollType.Smooth);
+	}
+	modifiedSetSelection(range: Range): void {
+		// this._editor.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
+		// this._editor.setSelection(range);
+	}
+	modifiedFocus(): void {
+		this._editor.focus();
+	}
+	getModifiedPosition(): Position | undefined {
+		return this._hunk.getRangesN()[0].getStartPosition();
 	}
 }

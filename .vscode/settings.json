@@ -165,6 +165,11 @@
 		"src/vs/workbench/workbench.web.main.ts",
 		"src/vs/workbench/api/common/extHostTypes.ts"
 	],
-	// Temporarily enabled for self-hosting
-	"terminal.integrated.stickyScroll.enabled": true
+	"[github-issues]": {
+		"editor.wordWrap": "on"
+	},
+	"css.format.spaceAroundSelectorSeparator": true,
+	"inlineChat.mode": "live",
+	"testing.defaultGutterClickAction": "contextMenu",
+	"typescript.enablePromptUseWorkspaceTsdk": true,
 }

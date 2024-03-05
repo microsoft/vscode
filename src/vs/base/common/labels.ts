@@ -436,15 +436,17 @@ export function unmnemonicLabel(label: string): string {
 }
 
 /**
- * Splits a recent label in name and parent path, supporting both '/' and '\' and workspace suffixes
+ * Splits a recent label in name and parent path, supporting both '/' and '\' and workspace suffixes.
+ * If the location is remote, the remote name is included in the name part.
  */
-export function splitRecentLabel(recentLabel: string) {
+export function splitRecentLabel(recentLabel: string): { name: string; parentPath: string } {
 	if (recentLabel.endsWith(']')) {
 		// label with workspace suffix
 		const lastIndexOfSquareBracket = recentLabel.lastIndexOf(' [', recentLabel.length - 2);
 		if (lastIndexOfSquareBracket !== -1) {
 			const split = splitName(recentLabel.substring(0, lastIndexOfSquareBracket));
-			return { name: split.name, parentPath: split.parentPath + recentLabel.substring(lastIndexOfSquareBracket) };
+			const remoteNameWithSpace = recentLabel.substring(lastIndexOfSquareBracket);
+			return { name: split.name + remoteNameWithSpace, parentPath: split.parentPath };
 		}
 	}
 	return splitName(recentLabel);

@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeHostService, INativeOptions, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
+import { INativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -65,8 +65,8 @@ export class TestNativeHostService implements INativeHostService {
 	readonly windowId = -1;
 
 	onDidOpenMainWindow: Event<number> = Event.None;
-	onDidMaximizeMainWindow: Event<number> = Event.None;
-	onDidUnmaximizeMainWindow: Event<number> = Event.None;
+	onDidMaximizeWindow: Event<number> = Event.None;
+	onDidUnmaximizeWindow: Event<number> = Event.None;
 	onDidFocusMainWindow: Event<number> = Event.None;
 	onDidBlurMainWindow: Event<number> = Event.None;
 	onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
@@ -74,7 +74,8 @@ export class TestNativeHostService implements INativeHostService {
 	onDidResumeOS: Event<unknown> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
-	onDidTriggerMainWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
+	onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
+	onDidChangeWindowFullScreen = Event.None;
 	onDidChangeDisplay = Event.None;
 
 	windowCount = Promise.resolve(1);
@@ -95,13 +96,13 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
-	async moveWindowTop(options?: INativeOptions): Promise<void> { }
+	async moveWindowTop(options?: INativeHostOptions): Promise<void> { }
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
-	async positionWindow(position: IRectangle, options?: INativeOptions): Promise<void> { }
+	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
-	async focusWindow(options?: INativeOptions): Promise<void> { }
+	async focusWindow(options?: INativeHostOptions): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
 	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
@@ -136,10 +137,9 @@ export class TestNativeHostService implements INativeHostService {
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }
 	async closeWindow(): Promise<void> { }
-	async closeWindowById(): Promise<void> { }
 	async quit(): Promise<void> { }
 	async exit(code: number): Promise<void> { }
-	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }
+	async openDevTools(options?: Partial<Electron.OpenDevToolsOptions> & INativeHostOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async loadCertificates(): Promise<string[]> { return []; }

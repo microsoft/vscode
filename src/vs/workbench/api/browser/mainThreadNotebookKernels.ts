@@ -101,7 +101,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 
 	abstract executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	abstract cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
-	abstract provideVariables(notebookUri: URI, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult>;
+	abstract provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult>;
 }
 
 class MainThreadKernelDetectionTask implements INotebookKernelDetectionTask {
@@ -242,7 +242,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			async cancelNotebookCellExecution(uri: URI, handles: number[]): Promise<void> {
 				await that._proxy.$cancelCells(handle, uri, handles);
 			}
-			provideVariables(notebookUri: URI, parentName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+			provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
 				const requestId = `${handle}variables${that.variableRequestIndex++}`;
 				if (that.variableRequestMap.has(requestId)) {
 					return that.variableRequestMap.get(requestId)!.asyncIterable;
@@ -250,7 +250,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 				const source = new AsyncIterableSource<VariablesResult>();
 				that.variableRequestMap.set(requestId, source);
-				that._proxy.$provideVariables(handle, requestId, notebookUri, parentName, kind, start, token).then(() => {
+				that._proxy.$provideVariables(handle, requestId, notebookUri, parentId, kind, start, token).then(() => {
 					source.resolve();
 					that.variableRequestMap.delete(requestId);
 				}).catch((err) => {

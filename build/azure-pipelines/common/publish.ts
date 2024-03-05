@@ -11,8 +11,6 @@ import { pipeline } from 'node:stream/promises';
 import * as yauzl from 'yauzl';
 import * as crypto from 'crypto';
 import { retry } from './retry';
-import { BlobServiceClient, BlockBlobParallelUploadOptions, StorageRetryPolicyType } from '@azure/storage-blob';
-import * as mime from 'mime';
 import { CosmosClient } from '@azure/cosmos';
 import { ClientSecretCredential } from '@azure/identity';
 import * as cp from 'child_process';
@@ -71,6 +69,10 @@ interface CreateProvisionedFilesErrorResponse {
 
 type CreateProvisionedFilesResponse = CreateProvisionedFilesSuccessResponse | CreateProvisionedFilesErrorResponse;
 
+function isCreateProvisionedFilesErrorResponse(response: unknown): response is CreateProvisionedFilesErrorResponse {
+	return (response as CreateProvisionedFilesErrorResponse)?.ErrorDetails?.Code !== undefined;
+}
+
 class ProvisionService {
 
 	constructor(
@@ -95,6 +97,11 @@ class ProvisionService {
 		this.log(`Provisioning ${fileName} (releaseId: ${releaseId}, fileId: ${fileId})...`);
 		const res = await retry(() => this.request<CreateProvisionedFilesResponse>('POST', '/api/v2/ProvisionedFiles/CreateProvisionedFiles', { body }));
 
+		if (isCreateProvisionedFilesErrorResponse(res) && res.ErrorDetails.Code === 'FriendlyFileNameAlreadyProvisioned') {
+			this.log(`File already provisioned (most likley due to a re-run), skipping: ${fileName}`);
+			return;
+		}
+
 		if (!res.IsSuccess) {
 			throw new Error(`Failed to submit provisioning request: ${JSON.stringify(res.ErrorDetails)}`);
 		}
@@ -114,8 +121,11 @@ class ProvisionService {
 
 		const res = await fetch(`https://dsprovisionapi.microsoft.com${url}`, opts);
 
-		if (!res.ok || res.status < 200 || res.status >= 500) {
-			throw new Error(`Unexpected status code: ${res.status}`);
+
+		// 400 normally means the request is bad or something is already provisioned, so we will return as retries are useless
+		// Otherwise log the text body and headers. We do text because some responses are not JSON.
+		if ((!res.ok || res.status < 200 || res.status >= 500) && res.status !== 400) {
+			throw new Error(`Unexpected status code: ${res.status}\nResponse Headers: ${JSON.stringify(res.headers)}\nBody Text: ${await res.text()}`);
 		}
 
 		return await res.json();
@@ -627,36 +637,6 @@ function getRealType(type: string) {
 	}
 }
 
-async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string, commit: string, filePath: string): Promise<string> {
-	const fileName = path.basename(filePath);
-	const blobName = commit + '/' + fileName;
-
-	const credential = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
-	const blobServiceClient = new BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, { retryOptions: { retryPolicyType: StorageRetryPolicyType.FIXED, tryTimeoutInMs: 2 * 60 * 1000 } });
-	const containerClient = blobServiceClient.getContainerClient(quality);
-	const blobClient = containerClient.getBlockBlobClient(blobName);
-
-	const blobOptions: BlockBlobParallelUploadOptions = {
-		blobHTTPHeaders: {
-			blobContentType: mime.lookup(filePath),
-			blobContentDisposition: `attachment; filename="${fileName}"`,
-			blobCacheControl: 'max-age=31536000, public'
-		}
-	};
-
-	log(`Checking for blob in Azure...`);
-
-	if (await blobClient.exists()) {
-		log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
-	} else {
-		log(`Uploading blobs to Azure storage...`);
-		await blobClient.uploadFile(filePath, blobOptions);
-		log('Blob successfully uploaded to Azure storage.');
-	}
-
-	return `${e('AZURE_CDN_URL')}/${quality}/${blobName}`;
-}
-
 async function processArtifact(artifact: Artifact, artifactFilePath: string): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
@@ -673,35 +653,23 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	const type = getRealType(unprocessedType);
 	const size = fs.statSync(artifactFilePath).size;
 	const stream = fs.createReadStream(artifactFilePath);
-	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
+	const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
 
-	const [cdnSettledResult, prssSettledResult] = await Promise.allSettled([
-		uploadAssetLegacy(log, quality, commit, artifactFilePath),
-		releaseAndProvision(
-			log,
-			e('RELEASE_TENANT_ID'),
-			e('RELEASE_CLIENT_ID'),
-			e('RELEASE_AUTH_CERT_SUBJECT_NAME'),
-			e('RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'),
-			e('PROVISION_TENANT_ID'),
-			e('PROVISION_AAD_USERNAME'),
-			e('PROVISION_AAD_PASSWORD'),
-			commit,
-			quality,
-			artifactFilePath
-		)
-	]);
+	const url = await releaseAndProvision(
+		log,
+		e('RELEASE_TENANT_ID'),
+		e('RELEASE_CLIENT_ID'),
+		e('RELEASE_AUTH_CERT_SUBJECT_NAME'),
+		e('RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'),
+		e('PROVISION_TENANT_ID'),
+		e('PROVISION_AAD_USERNAME'),
+		e('PROVISION_AAD_PASSWORD'),
+		commit,
+		quality,
+		artifactFilePath
+	);
 
-	if (cdnSettledResult.status === 'rejected') {
-		throw cdnSettledResult.reason;
-	} else if (prssSettledResult.status === 'rejected') { // TODO@joaomoreno, let's temporarily ignore these errors
-		console.error(prssSettledResult.reason);
-	}
-
-	const assetUrl = cdnSettledResult.value;
-	const prssUrl = prssSettledResult.status === 'fulfilled' ? prssSettledResult.value : undefined;
-
-	const asset: Asset = { platform, type, url: assetUrl, hash: sha1hash, mooncakeUrl: prssUrl, prssUrl, sha256hash, size, supportsFastUpdate: true };
+	const asset: Asset = { platform, type, url, hash, sha256hash, size, supportsFastUpdate: true };
 	log('Creating asset...', JSON.stringify(asset));
 
 	await retry(async (attempt) => {

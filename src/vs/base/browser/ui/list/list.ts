@@ -7,6 +7,7 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
+import { ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IListVirtualDelegate<T> {
@@ -57,6 +58,7 @@ export interface IListDragEvent<T> {
 	readonly browserEvent: DragEvent;
 	readonly element: T | undefined;
 	readonly index: number | undefined;
+	readonly sector: ListViewTargetSector | undefined;
 }
 
 export interface IListContextMenuEvent<T> {
@@ -84,9 +86,20 @@ export interface IKeyboardNavigationDelegate {
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
 }
 
-export const enum ListDragOverEffect {
+export const enum ListDragOverEffectType {
 	Copy,
 	Move
+}
+
+export const enum ListDragOverEffectPosition {
+	Over = 'drop-target',
+	Before = 'drop-target-before',
+	After = 'drop-target-after'
+}
+
+export interface ListDragOverEffect {
+	type: ListDragOverEffectType;
+	position?: ListDragOverEffectPosition;
 }
 
 export interface IListDragOverReaction {
@@ -108,9 +121,9 @@ export interface IListDragAndDrop<T> extends IDisposable {
 	getDragURI(element: T): string | null;
 	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined;
 	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void;
-	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
 	onDragLeave?(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
-	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
+	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void;
 	onDragEnd?(originalEvent: DragEvent): void;
 }
 

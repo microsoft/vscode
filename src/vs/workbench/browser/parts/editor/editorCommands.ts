@@ -14,9 +14,9 @@ import { isNumber, isObject, isString, isUndefined } from 'vs/base/common/types'
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext, TextCompareEditorVisibleContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { CloseDirection, EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorIdentifier, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -41,6 +41,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, DIFF_OPEN_SIDE, registerDiffEditorCommands } from './diffEditorCommands';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -65,15 +66,6 @@ export const REOPEN_WITH_COMMAND_ID = 'workbench.action.reopenWithEditor';
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
 export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
 
-export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
-export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
-export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChange';
-export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrimarySide';
-export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSecondarySide';
-export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
-export const DIFF_OPEN_SIDE = 'workbench.action.compareEditor.openSide';
-export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
-
 export const SPLIT_EDITOR = 'workbench.action.splitEditor';
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
@@ -97,6 +89,14 @@ export const FOCUS_ABOVE_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focus
 export const FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusBelowGroupWithoutWrap';
 
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
+
+export const MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID = 'workbench.action.moveEditorToNewWindow';
+export const COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID = 'workbench.action.copyEditorToNewWindow';
+
+export const MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID = 'workbench.action.moveEditorGroupToNewWindow';
+export const COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID = 'workbench.action.copyEditorGroupToNewWindow';
+
+export const NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID = 'workbench.action.newEmptyEditorWindow';
 
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
@@ -364,151 +364,6 @@ function registerEditorGroupsLayoutCommands(): void {
 	});
 }
 
-function registerDiffEditorCommands(): void {
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: GOTO_NEXT_CHANGE,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: TextCompareEditorVisibleContext,
-		primary: KeyMod.Alt | KeyCode.F5,
-		handler: accessor => navigateInDiffEditor(accessor, true)
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-		command: {
-			id: GOTO_NEXT_CHANGE,
-			title: { value: localize('compare.nextChange', "Go to Next Change"), original: 'Go to Next Change' },
-		}
-	});
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: GOTO_PREVIOUS_CHANGE,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: TextCompareEditorVisibleContext,
-		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
-		handler: accessor => navigateInDiffEditor(accessor, false)
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-		command: {
-			id: GOTO_PREVIOUS_CHANGE,
-			title: { value: localize('compare.previousChange', "Go to Previous Change"), original: 'Go to Previous Change' },
-		}
-	});
-
-	function getActiveTextDiffEditor(accessor: ServicesAccessor): TextDiffEditor | undefined {
-		const editorService = accessor.get(IEditorService);
-
-		for (const editor of [editorService.activeEditorPane, ...editorService.visibleEditorPanes]) {
-			if (editor instanceof TextDiffEditor) {
-				return editor;
-			}
-		}
-
-		return undefined;
-	}
-
-	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
-		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
-
-		if (activeTextDiffEditor) {
-			activeTextDiffEditor.getControl()?.goToDiff(next ? 'next' : 'previous');
-		}
-	}
-
-	enum FocusTextDiffEditorMode {
-		Original,
-		Modified,
-		Toggle
-	}
-
-	function focusInDiffEditor(accessor: ServicesAccessor, mode: FocusTextDiffEditorMode): void {
-		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
-
-		if (activeTextDiffEditor) {
-			switch (mode) {
-				case FocusTextDiffEditorMode.Original:
-					activeTextDiffEditor.getControl()?.getOriginalEditor().focus();
-					break;
-				case FocusTextDiffEditorMode.Modified:
-					activeTextDiffEditor.getControl()?.getModifiedEditor().focus();
-					break;
-				case FocusTextDiffEditorMode.Toggle:
-					if (activeTextDiffEditor.getControl()?.getModifiedEditor().hasWidgetFocus()) {
-						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original);
-					} else {
-						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified);
-					}
-			}
-		}
-	}
-
-	function toggleDiffSideBySide(accessor: ServicesAccessor): void {
-		const configurationService = accessor.get(IConfigurationService);
-
-		const newValue = !configurationService.getValue('diffEditor.renderSideBySide');
-		configurationService.updateValue('diffEditor.renderSideBySide', newValue);
-	}
-
-	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor): void {
-		const configurationService = accessor.get(IConfigurationService);
-
-		const newValue = !configurationService.getValue('diffEditor.ignoreTrimWhitespace');
-		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue);
-	}
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TOGGLE_DIFF_SIDE_BY_SIDE,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: undefined,
-		primary: undefined,
-		handler: accessor => toggleDiffSideBySide(accessor)
-	});
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: DIFF_FOCUS_PRIMARY_SIDE,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: undefined,
-		primary: undefined,
-		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified)
-	});
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: DIFF_FOCUS_SECONDARY_SIDE,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: undefined,
-		primary: undefined,
-		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original)
-	});
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: DIFF_FOCUS_OTHER_SIDE,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: undefined,
-		primary: undefined,
-		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Toggle)
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-		command: {
-			id: TOGGLE_DIFF_SIDE_BY_SIDE,
-			title: {
-				value: localize('toggleInlineView', "Toggle Inline View"),
-				original: 'Compare: Toggle Inline View'
-			},
-			category: localize('compare', "Compare")
-		},
-		when: TextCompareEditorActiveContext
-	});
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: undefined,
-		primary: undefined,
-		handler: accessor => toggleDiffIgnoreTrimWhitespace(accessor)
-	});
-}
-
 function registerOpenEditorAPICommands(): void {
 
 	function mixinContext(context: IOpenEvent<unknown> | undefined, options: ITextEditorOptions | undefined, column: EditorGroupColumn | undefined): [ITextEditorOptions | undefined, EditorGroupColumn | undefined] {
@@ -663,6 +518,21 @@ function registerOpenEditorAPICommands(): void {
 
 		await editorService.openEditor({ resources: editor, label: title });
 	});
+
+	CommandsRegistry.registerCommand('_workbench.openMultiDiffEditor', async (accessor: ServicesAccessor, options: OpenMultiFileDiffEditorOptions) => {
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor({
+			multiDiffSource: options.multiDiffSourceUri ? URI.revive(options.multiDiffSourceUri) : undefined,
+			resources: options.resources?.map(r => ({ original: { resource: URI.revive(r.originalUri) }, modified: { resource: URI.revive(r.modifiedUri) } })),
+			label: options.title,
+		});
+	});
+}
+
+interface OpenMultiFileDiffEditorOptions {
+	title: string;
+	multiDiffSourceUri?: UriComponents;
+	resources?: { originalUri: UriComponents; modifiedUri: UriComponents }[];
 }
 
 function registerOpenEditorAtIndexCommands(): void {
@@ -1132,7 +1002,7 @@ function registerSplitEditorInGroupCommands(): void {
 		constructor() {
 			super({
 				id: SPLIT_EDITOR_IN_GROUP,
-				title: { value: localize('splitEditorInGroup', "Split Editor in Group"), original: 'Split Editor in Group' },
+				title: localize2('splitEditorInGroup', 'Split Editor in Group'),
 				category: Categories.View,
 				precondition: ActiveEditorCanSplitInGroupContext,
 				f1: true,
@@ -1178,7 +1048,7 @@ function registerSplitEditorInGroupCommands(): void {
 		constructor() {
 			super({
 				id: JOIN_EDITOR_IN_GROUP,
-				title: { value: localize('joinEditorInGroup', "Join Editor in Group"), original: 'Join Editor in Group' },
+				title: localize2('joinEditorInGroup', 'Join Editor in Group'),
 				category: Categories.View,
 				precondition: SideBySideEditorActiveContext,
 				f1: true,
@@ -1198,7 +1068,7 @@ function registerSplitEditorInGroupCommands(): void {
 		constructor() {
 			super({
 				id: TOGGLE_SPLIT_EDITOR_IN_GROUP,
-				title: { value: localize('toggleJoinEditorInGroup', "Toggle Split Editor in Group"), original: 'Toggle Split Editor in Group' },
+				title: localize2('toggleJoinEditorInGroup', 'Toggle Split Editor in Group'),
 				category: Categories.View,
 				precondition: ContextKeyExpr.or(ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext),
 				f1: true
@@ -1220,7 +1090,7 @@ function registerSplitEditorInGroupCommands(): void {
 		constructor() {
 			super({
 				id: TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT,
-				title: { value: localize('toggleSplitEditorInGroupLayout', "Toggle Layout of Split Editor in Group"), original: 'Toggle Layout of Split Editor in Group' },
+				title: localize2('toggleSplitEditorInGroupLayout', 'Toggle Layout of Split Editor in Group'),
 				category: Categories.View,
 				precondition: SideBySideEditorActiveContext,
 				f1: true
@@ -1248,7 +1118,7 @@ function registerFocusSideEditorsCommands(): void {
 		constructor() {
 			super({
 				id: FOCUS_FIRST_SIDE_EDITOR,
-				title: { value: localize('focusLeftSideEditor', "Focus First Side in Active Editor"), original: 'Focus First Side in Active Editor' },
+				title: localize2('focusLeftSideEditor', 'Focus First Side in Active Editor'),
 				category: Categories.View,
 				precondition: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
 				f1: true
@@ -1271,7 +1141,7 @@ function registerFocusSideEditorsCommands(): void {
 		constructor() {
 			super({
 				id: FOCUS_SECOND_SIDE_EDITOR,
-				title: { value: localize('focusRightSideEditor', "Focus Second Side in Active Editor"), original: 'Focus Second Side in Active Editor' },
+				title: localize2('focusRightSideEditor', 'Focus Second Side in Active Editor'),
 				category: Categories.View,
 				precondition: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
 				f1: true
@@ -1294,7 +1164,7 @@ function registerFocusSideEditorsCommands(): void {
 		constructor() {
 			super({
 				id: FOCUS_OTHER_SIDE_EDITOR,
-				title: { value: localize('focusOtherSideEditor', "Focus Other Side in Active Editor"), original: 'Focus Other Side in Active Editor' },
+				title: localize2('focusOtherSideEditor', 'Focus Other Side in Active Editor'),
 				category: Categories.View,
 				precondition: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
 				f1: true
@@ -1357,9 +1227,8 @@ function registerOtherEditorCommands(): void {
 		constructor() {
 			super({
 				id: TOGGLE_LOCK_GROUP_COMMAND_ID,
-				title: { value: localize('toggleEditorGroupLock', "Toggle Editor Group Lock"), original: 'Toggle Editor Group Lock' },
+				title: localize2('toggleEditorGroupLock', 'Toggle Editor Group Lock'),
 				category: Categories.View,
-				precondition: MultipleEditorGroupsContext,
 				f1: true
 			});
 		}
@@ -1372,9 +1241,9 @@ function registerOtherEditorCommands(): void {
 		constructor() {
 			super({
 				id: LOCK_GROUP_COMMAND_ID,
-				title: { value: localize('lockEditorGroup', "Lock Editor Group"), original: 'Lock Editor Group' },
+				title: localize2('lockEditorGroup', 'Lock Editor Group'),
 				category: Categories.View,
-				precondition: ContextKeyExpr.and(MultipleEditorGroupsContext, ActiveEditorGroupLockedContext.toNegated()),
+				precondition: ActiveEditorGroupLockedContext.toNegated(),
 				f1: true
 			});
 		}
@@ -1387,8 +1256,8 @@ function registerOtherEditorCommands(): void {
 		constructor() {
 			super({
 				id: UNLOCK_GROUP_COMMAND_ID,
-				title: { value: localize('unlockEditorGroup', "Unlock Editor Group"), original: 'Unlock Editor Group' },
-				precondition: ContextKeyExpr.and(MultipleEditorGroupsContext, ActiveEditorGroupLockedContext),
+				title: localize2('unlockEditorGroup', 'Unlock Editor Group'),
+				precondition: ActiveEditorGroupLockedContext,
 				category: Categories.View,
 				f1: true
 			});

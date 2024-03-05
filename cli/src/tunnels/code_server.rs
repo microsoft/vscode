@@ -21,6 +21,7 @@ use crate::util::errors::{wrap, AnyError, CodeError, ExtensionInstallFailed, Wra
 use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
+use crate::util::prereqs::skip_requirements_check;
 use crate::{debug, info, log, spanf, trace, warning};
 use lazy_static::lazy_static;
 use opentelemetry::KeyValue;
@@ -58,6 +59,7 @@ pub struct CodeServerArgs {
 	// extension management
 	pub install_extensions: Vec<String>,
 	pub uninstall_extensions: Vec<String>,
+	pub update_extensions: bool,
 	pub list_extensions: bool,
 	pub show_versions: bool,
 	pub category: Option<String>,
@@ -128,6 +130,9 @@ impl CodeServerArgs {
 		}
 		for extension in &self.uninstall_extensions {
 			args.push(format!("--uninstall-extension={}", extension));
+		}
+		if self.update_extensions {
+			args.push(String::from("--update-extensions"));
 		}
 		if self.list_extensions {
 			args.push(String::from("--list-extensions"));
@@ -421,20 +426,24 @@ impl<'a> ServerBuilder<'a> {
 				let server_dir = target_dir.join(SERVER_FOLDER_NAME);
 				unzip_downloaded_release(&archive_path, &server_dir, SilentCopyProgress())?;
 
-				let output = capture_command_and_check_status(
-					server_dir
-						.join("bin")
-						.join(self.server_params.release.quality.server_entrypoint()),
-					&["--version"],
-				)
-				.await
-				.map_err(|e| wrap(e, "error checking server integrity"))?;
+				if !skip_requirements_check().await {
+					let output = capture_command_and_check_status(
+						server_dir
+							.join("bin")
+							.join(self.server_params.release.quality.server_entrypoint()),
+						&["--version"],
+					)
+					.await
+					.map_err(|e| wrap(e, "error checking server integrity"))?;
 
-				trace!(
-					self.logger,
-					"Server integrity verified, version: {}",
-					String::from_utf8_lossy(&output.stdout).replace('\n', " / ")
-				);
+					trace!(
+						self.logger,
+						"Server integrity verified, version: {}",
+						String::from_utf8_lossy(&output.stdout).replace('\n', " / ")
+					);
+				} else {
+					info!(self.logger, "Skipping server integrity check");
+				}
 
 				Ok(())
 			})

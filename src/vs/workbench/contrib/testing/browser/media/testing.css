@@ -5,28 +5,30 @@
 
 /** -- icons */
 
-.monaco-workbench .codicon-testing-error-icon {
-	color: var(--vscode-testing-iconErrored);
-}
+.monaco-workbench {
+	.codicon-testing-error-icon {
+		color: var(--vscode-testing-iconErrored);
+	}
 
-.monaco-workbench .codicon-testing-failed-icon {
-	color: var(--vscode-testing-iconFailed);
-}
+	.codicon-testing-failed-icon {
+		color: var(--vscode-testing-iconFailed);
+	}
 
-.monaco-workbench .codicon-testing-passed-icon {
-	color: var(--vscode-testing-iconPassed);
-}
+	.codicon-testing-passed-icon {
+		color: var(--vscode-testing-iconPassed);
+	}
 
-.monaco-workbench .codicon-testing-queued-icon {
-	color: var(--vscode-testing-iconQueued);
-}
+	.codicon-testing-queued-icon {
+		color: var(--vscode-testing-iconQueued);
+	}
 
-.monaco-workbench .codicon-testing-skipped-icon {
-	color: var(--vscode-testing-iconSkipped);
-}
+	.codicon-testing-skipped-icon {
+		color: var(--vscode-testing-iconSkipped);
+	}
 
-.monaco-workbench .codicon-testing-unset-icon {
-	color: var(--vscode-testing-iconUnset);
+	.codicon-testing-unset-icon {
+		color: var(--vscode-testing-iconUnset);
+	}
 }
 
 /** -- explorer */
@@ -42,7 +44,9 @@
 }
 
 .test-explorer .test-item .label,
-.test-output-peek-tree .test-peek-item .name {
+.test-output-peek-tree .test-peek-item .name,
+.test-coverage-list-item .name,
+.test-coverage-list-item-label {
 	flex-grow: 1;
 	width: 0;
 	overflow: hidden;
@@ -119,10 +123,15 @@
 	margin: 3px 12px 3px 3px;
 	line-height: 17px;
 	font-size: 12px;
+	height: 17px;
+	overflow: hidden;
 }
 
 .test-explorer .monaco-list-row .error p {
 	margin: 0;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
 }
 
 .test-explorer .monaco-list-row .error a {
@@ -140,7 +149,7 @@
 
 .test-explorer .computed-state.retired,
 .testing-run-glyph.retired {
-	opacity: 0.7  !important;
+	opacity: 0.7 !important;
 }
 
 .test-explorer .test-is-hidden {
@@ -164,11 +173,7 @@
 	flex-grow: 1;
 }
 
-.monaco-workbench
-	.test-explorer
-	.monaco-action-bar
-	.action-item
-	> .action-label {
+.monaco-workbench .test-explorer .monaco-action-bar .action-item > .action-label {
 	padding: 1px 2px;
 	margin-right: 2px;
 }
@@ -212,6 +217,22 @@
 .monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget {
 	border-top-width: 2px;
 	border-bottom-width: 2px;
+}
+
+.monaco-editor .zone-widget.test-output-peek .type-decoration {
+	background-color: var(--vscode-peekViewEditor-matchHighlightBackground);
+	border: 2px solid var(--vscode-peekViewEditor-matchHighlightBorder);
+	box-sizing: border-box;
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .monaco-editor-background,
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .inputarea.ime-input,
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container {
+	background-color: var(--vscode-peekViewEditor-background);
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .margin {
+	background-color: var(--vscode-peekViewEditorGutter-background);
 }
 
 .test-output-peek-message-container {
@@ -335,6 +356,172 @@
 .monaco-editor .testing-inline-message-severity-0 {
 	color: var(--vscode-testing-message-error-decorationForeground) !important;
 }
+
 .monaco-editor .testing-inline-message-severity-1 {
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
+}
+
+/** -- coverage  */
+
+.test-coverage-list-item {
+	display: flex;
+	align-items: center;
+}
+
+.test-coverage-bars {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	margin-right: 0.8em;
+}
+
+.test-coverage-bars .bar {
+	height: 8px;
+	border: 1px solid currentColor;
+	border-radius: 2px;
+	position: relative;
+	overflow: hidden;
+}
+
+.test-coverage-bars .bar::before {
+	content: '';
+	background: currentColor;
+	width: var(--test-bar-width);
+	height: 100%;
+	position: absolute;
+	opacity: 0.7;
+}
+
+.test-coverage-list-item .icon {
+	margin-right: 0.2em;
+}
+
+.test-coverage-list-item.not-covered .name {
+	opacity: 0.7;
+}
+
+/** -- coverage in the explorer  */
+
+.explorer-item-with-test-coverage {
+	display: flex;
+}
+
+.explorer-item-with-test-coverage .explorer-item {
+	flex-grow: 1;
+}
+
+.explorer-item-with-test-coverage .monaco-icon-label::after {
+	margin-right: 12px;
+	/* slightly reduce because the bars handle the scrollbar margin */
+}
+
+/** -- coverage decorations  */
+
+.coverage-deco-gutter {
+	z-index: 0;
+}
+
+.coverage-deco-gutter::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+}
+
+.coverage-deco-gutter.coverage-deco-hit::before {
+	background: var(--vscode-testing-coveredGutterBackground);
+	border-color: var(--vscode-testing-coveredGutterBackground);
+}
+
+.coverage-deco-gutter.coverage-deco-miss::before {
+	background: var(--vscode-testing-uncoveredGutterBackground);
+	border-color: var(--vscode-testing-uncoveredGutterBackground);
+}
+
+.hc-light .coverage-deco-gutter::before,
+.hc-black .coverage-deco-gutter::before {
+	border-width: 3px 0 3px 5px;
+	border-style: solid;
+	background: none;
+}
+
+.coverage-deco-gutter.coverage-deco-miss.coverage-deco-hit::before {
+	background-image: linear-gradient(45deg,
+			var(--vscode-testing-coveredGutterBackground) 25%,
+			var(--vscode-testing-uncoveredGutterBackground) 25%,
+			var(--vscode-testing-uncoveredGutterBackground) 50%,
+			var(--vscode-testing-coveredGutterBackground) 50%,
+			75%,
+			var(--vscode-testing-uncoveredGutterBackground) 75%,
+			var(--vscode-testing-uncoveredGutterBackground) 100%);
+	background-size: 6px 6px;
+	background-color: transparent;
+}
+
+.coverage-deco-inline {
+	outline-offset: -1px;
+}
+
+.coverage-deco-inline.coverage-deco-hit {
+	background: var(--vscode-testing-coveredBackground);
+	outline: 1px solid var(--vscode-testing-coveredBorder);
+}
+
+.coverage-deco-inline.coverage-deco-miss {
+	background: var(--vscode-testing-uncoveredBackground);
+	outline: 1px solid var(--vscode-testing-uncoveredBorder);
+}
+
+.hc-light .coverage-deco-inline.coverage-deco-hit,
+.hc-black .coverage-deco-inline.coverage-deco-hit {
+	outline-style: dashed;
+}
+
+.coverage-deco-branch-miss-indicator {
+	height: 100%;
+	width: 4ch;
+	position: relative;
+	display: inline-block;
+	font: inherit !important;
+}
+
+.coverage-deco-branch-miss-indicator::before {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	text-align: center;
+	transform: translate(-50%, -50%);
+	padding: calc(var(--vscode-testing-coverage-lineHeight) / 10);
+	border-radius: 2px;
+	font: normal normal normal calc(var(--vscode-testing-coverage-lineHeight) / 2)/1 codicon;
+	border: 1px solid;
+}
+
+.coverage-deco-inline-count {
+	position: relative;
+	background: var(--vscode-testing-coverCountBadgeBackground);
+	color: var(--vscode-testing-coverCountBadgeForeground);
+	font-size: 0.7em;
+	margin: 0 0.7em 0 0.4em;
+	padding: 0.2em 0 0.2em 0.2em;
+	/* display: inline-block; */
+	border-top-left-radius: 2px;
+	border-bottom-left-radius: 2px;
+}
+
+.coverage-deco-inline-count::after {
+	content: '';
+	display: block;
+	position: absolute;
+	left: 100%;
+	top: 0;
+	bottom: 0;
+	width: 0.5em;
+	background-image:
+		linear-gradient(to bottom left, transparent 50%, var(--vscode-testing-coverCountBadgeBackground) 0),
+		linear-gradient(to bottom right, var(--vscode-testing-coverCountBadgeBackground) 50%, transparent 0);
+	background-size: 100% 50%;
+	background-repeat: no-repeat;
+	background-position: top, bottom;
 }

@@ -10,7 +10,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { groupBy } from 'vs/base/common/collections';
 import { splitGlobAware } from 'vs/base/common/glob';
-import * as path from 'vs/base/common/path';
 import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Progress } from 'vs/platform/progress/common/progress';
@@ -55,7 +54,7 @@ export class RipgrepTextSearchEngine {
 			});
 
 			let gotResult = false;
-			const ripgrepParser = new RipgrepParser(options.maxResults, cwd, options.previewOptions);
+			const ripgrepParser = new RipgrepParser(options.maxResults, options.folder, options.previewOptions);
 			ripgrepParser.on('result', (match: TextSearchResult) => {
 				gotResult = true;
 				dataWithoutResult = '';
@@ -184,7 +183,7 @@ export class RipgrepParser extends EventEmitter {
 
 	private numResults = 0;
 
-	constructor(private maxResults: number, private rootFolder: string, private previewOptions?: TextSearchPreviewOptions) {
+	constructor(private maxResults: number, private root: URI, private previewOptions?: TextSearchPreviewOptions) {
 		super();
 		this.stringDecoder = new StringDecoder();
 	}
@@ -253,7 +252,7 @@ export class RipgrepParser extends EventEmitter {
 
 		if (parsedLine.type === 'match') {
 			const matchPath = bytesOrTextToString(parsedLine.data.path);
-			const uri = URI.file(path.join(this.rootFolder, matchPath));
+			const uri = URI.joinPath(this.root, matchPath);
 			const result = this.createTextSearchMatch(parsedLine.data, uri);
 			this.onResult(result);
 
@@ -263,7 +262,7 @@ export class RipgrepParser extends EventEmitter {
 			}
 		} else if (parsedLine.type === 'context') {
 			const contextPath = bytesOrTextToString(parsedLine.data.path);
-			const uri = URI.file(path.join(this.rootFolder, contextPath));
+			const uri = URI.joinPath(this.root, contextPath);
 			const result = this.createTextSearchContext(parsedLine.data, uri);
 			result.forEach(r => this.onResult(r));
 		}

@@ -11,19 +11,15 @@ import { isSupportedClient, isSupportedTarget } from './common/env';
 import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
 import { ExtensionHost, GitHubTarget, getFlows } from './flows';
-import { NETWORK_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { CANCELLATION_ERROR, NETWORK_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 import { Config } from './config';
 import { base64Encode } from './node/buffer';
-
-// This is the error message that we throw if the login was cancelled for any reason. Extensions
-// calling `getSession` can handle this error to know that the user cancelled the login.
-const CANCELLATION_ERROR = 'Cancelled';
 
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
 export interface IGitHubServer {
-	login(scopes: string): Promise<string>;
+	login(scopes: string, existingLogin?: string): Promise<string>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
@@ -91,7 +87,7 @@ export class GitHubServer implements IGitHubServer {
 		return this._isNoCorsEnvironment;
 	}
 
-	public async login(scopes: string): Promise<string> {
+	public async login(scopes: string, existingLogin?: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
@@ -143,6 +139,7 @@ export class GitHubServer implements IGitHubServer {
 					uriHandler: this._uriHandler,
 					enterpriseUri: this._ghesUri,
 					redirectUri: vscode.Uri.parse(await this.getRedirectEndpoint()),
+					existingLogin
 				});
 			} catch (e) {
 				userCancelled = this.processLoginError(e);

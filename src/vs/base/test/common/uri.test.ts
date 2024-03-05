@@ -5,9 +5,12 @@
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 suite('URI', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('file#toString', () => {
 		assert.strictEqual(URI.file('c:/win/path').toString(), 'file:///c%3A/win/path');
 		assert.strictEqual(URI.file('C:/win/path').toString(), 'file:///c%3A/win/path');

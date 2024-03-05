@@ -27,7 +27,8 @@
     "minimatch": "^5.1.6",
     "request-light": "^0.7.0",
     "which": "^4.0.0",
-    "which-pm": "^2.1.1"
+    "which-pm": "^2.1.1",
+    "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
     "@types/minimatch": "^5.1.2",

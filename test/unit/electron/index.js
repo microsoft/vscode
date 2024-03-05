@@ -33,18 +33,20 @@ const minimist = require('minimist');
  * dev: boolean;
  * reporter: string;
  * 'reporter-options': string;
- * 'wait-server': string;
+ * 'waitServer': string;
  * timeout: string;
  * 'crash-reporter-directory': string;
  * tfs: string;
  * build: boolean;
  * coverage: boolean;
+ * coveragePath: string;
+ * coverageFormats: string | string[];
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'dev', 'reporter', 'reporter-options', 'wait-server', 'timeout', 'crash-reporter-directory', 'tfs'],
-	boolean: ['build', 'coverage', 'help'],
+	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats'],
+	boolean: ['build', 'coverage', 'help', 'dev'],
 	alias: {
 		'grep': ['g', 'f'],
 		'runGlob': ['glob', 'runGrep'],
@@ -69,7 +71,7 @@ Options:
 --dev, --dev-tools, --devTools <window> open dev tools, keep window open, reuse app data
 --reporter <reporter>         the mocha reporter (default: "spec")
 --reporter-options <options> the mocha reporter options (default: "")
---wait-server <port>          port to connect to and wait before running tests
+--waitServer <port>          port to connect to and wait before running tests
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
 --tfs <url>                   TFS server URL
@@ -232,8 +234,8 @@ app.on('ready', () => {
 			win.webContents.openDevTools();
 		}
 
-		if (args['wait-server']) {
-			waitForServer(Number(args['wait-server'])).then(sendRun);
+		if (args.waitServer) {
+			waitForServer(Number(args.waitServer)).then(sendRun);
 		} else {
 			sendRun();
 		}

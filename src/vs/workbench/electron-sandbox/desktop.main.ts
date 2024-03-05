@@ -45,7 +45,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { safeStringify } from 'vs/base/common/objects';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
-import { isCI, isMacintosh } from 'vs/base/common/platform';
+import { isBigSurOrNewer, isCI, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
@@ -78,7 +78,7 @@ export class DesktopMain extends Disposable {
 		this.reviveUris();
 
 		// Apply fullscreen early if configured
-		setFullscreen(!!this.configuration.fullscreen);
+		setFullscreen(!!this.configuration.fullscreen, mainWindow);
 	}
 
 	private reviveUris() {
@@ -116,8 +116,10 @@ export class DesktopMain extends Disposable {
 		// and before the workbench is created to prevent flickering.
 		// We also need to respect that zoom level can be configured per
 		// workspace, so we need the resolved configuration service.
+		// Finally, it is possible for the window to have a custom
+		// zoom level that is not derived from settings.
 		// (fixes https://github.com/microsoft/vscode/issues/187982)
-		this.applyConfiguredWindowZoomLevel(services.configurationService);
+		this.applyWindowZoomLevel(services.configurationService);
 
 		// Create Workbench
 		const workbench = new Workbench(mainWindow.document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
@@ -132,18 +134,21 @@ export class DesktopMain extends Disposable {
 		this._register(instantiationService.createInstance(NativeWindow));
 	}
 
-	private applyConfiguredWindowZoomLevel(configurationService: IConfigurationService) {
-		const windowConfig = configurationService.getValue<IWindowsConfiguration>();
-		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+	private applyWindowZoomLevel(configurationService: IConfigurationService) {
+		let zoomLevel: number | undefined = undefined;
+		if (this.configuration.isCustomZoomLevel && typeof this.configuration.zoomLevel === 'number') {
+			zoomLevel = this.configuration.zoomLevel;
+		} else {
+			const windowConfig = configurationService.getValue<IWindowsConfiguration>();
+			zoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+		}
 
-		applyZoom(windowZoomLevel);
+		applyZoom(zoomLevel, mainWindow);
 	}
 
 	private getExtraClasses(): string[] {
-		if (isMacintosh) {
-			if (this.configuration.os.release > '20.0.0') {
-				return ['macos-bigsur-or-newer'];
-			}
+		if (isMacintosh && isBigSurOrNewer(this.configuration.os.release)) {
+			return ['macos-bigsur-or-newer'];
 		}
 
 		return [];

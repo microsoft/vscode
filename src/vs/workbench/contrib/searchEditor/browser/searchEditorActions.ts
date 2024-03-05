@@ -14,7 +14,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorsOrder } from 'vs/workbench/common/editor';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 import { SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';

@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import severity from 'vs/base/common/severity';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
@@ -21,18 +21,12 @@ import { MockDebugAdapter, MockRawSession } from 'vs/workbench/contrib/debug/tes
 suite('Debug - REPL', () => {
 	let model: DebugModel;
 	let rawSession: MockRawSession;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const configurationService = new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } });
-	let disposables: DisposableStore;
-
 
 	setup(() => {
-		disposables = new DisposableStore();
 		model = createMockDebugModel(disposables);
 		rawSession = new MockRawSession();
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('repl output', () => {

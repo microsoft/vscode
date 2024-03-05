@@ -72,6 +72,11 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['diffEditor.*']
 				},
 				{
+					id: 'editor/multiDiffEditor',
+					label: localize('multiDiffEditor', "Multi-File Diff Editor"),
+					settings: ['multiDiffEditor.*']
+				},
+				{
 					id: 'editor/minimap',
 					label: localize('minimap', "Minimap"),
 					settings: ['editor.minimap.*']
@@ -141,6 +146,11 @@ export const tocData: ITOCEntry<string> = {
 			id: 'features',
 			label: localize('features', "Features"),
 			children: [
+				{
+					id: 'features/accessibilitySignals',
+					label: localize('accessibility.signals', 'Accessibility Signals'),
+					settings: ['accessibility.signals.*', 'audioCues.*']
+				},
 				{
 					id: 'features/accessibility',
 					label: localize('accessibility', "Accessibility"),
@@ -215,11 +225,6 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/notebook',
 					label: localize('notebook', 'Notebook'),
 					settings: ['notebook.*', 'interactiveWindow.*']
-				},
-				{
-					id: 'features/audioCues',
-					label: localize('audioCues', 'Audio Cues'),
-					settings: ['audioCues.*']
 				},
 				{
 					id: 'features/mergeEditor',

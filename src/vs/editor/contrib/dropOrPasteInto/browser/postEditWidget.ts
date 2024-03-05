@@ -11,10 +11,11 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./postEditWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditResult, IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { createCombinedWorkspaceEdit } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -166,25 +167,7 @@ export class PostEditWidgetManager extends Disposable {
 			return;
 		}
 
-		let insertTextEdit: ResourceTextEdit[] = [];
-		if (typeof edit.insertText === 'string' ? edit.insertText === '' : edit.insertText.snippet === '') {
-			insertTextEdit = [];
-		} else {
-			insertTextEdit = ranges.map(range => new ResourceTextEdit(model.uri,
-				typeof edit.insertText === 'string'
-					? { range, text: edit.insertText, insertAsSnippet: false }
-					: { range, text: edit.insertText.snippet, insertAsSnippet: true }
-			));
-		}
-
-		const allEdits = [
-			...insertTextEdit,
-			...(edit.additionalEdit?.edits ?? [])
-		];
-
-		const combinedWorkspaceEdit: WorkspaceEdit = {
-			edits: allEdits
-		};
+		const combinedWorkspaceEdit = createCombinedWorkspaceEdit(model.uri, ranges, edit);
 
 		// Use a decoration to track edits around the trigger range
 		const primaryRange = ranges[0];

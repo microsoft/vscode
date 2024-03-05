@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
@@ -30,6 +30,8 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IFileReadLimits } from 'vs/platform/files/common/files';
+import { parse as parseUri, generate as generateUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -224,6 +226,7 @@ export interface ICellOutput {
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
 	asDto(): IOutputDto;
 	bumpVersion(): void;
+	dispose(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -544,43 +547,13 @@ export interface INotebookContributionData {
 
 
 export namespace CellUri {
-
 	export const scheme = Schemas.vscodeNotebookCell;
-
-
-	const _lengths = ['W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f'];
-	const _padRegexp = new RegExp(`^[${_lengths.join('')}]+`);
-	const _radix = 7;
-
 	export function generate(notebook: URI, handle: number): URI {
-
-		const s = handle.toString(_radix);
-		const p = s.length < _lengths.length ? _lengths[s.length - 1] : 'z';
-
-		const fragment = `${p}${s}s${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
-		return notebook.with({ scheme, fragment });
+		return generateUri(notebook, handle);
 	}
 
 	export function parse(cell: URI): { notebook: URI; handle: number } | undefined {
-		if (cell.scheme !== scheme) {
-			return undefined;
-		}
-
-		const idx = cell.fragment.indexOf('s');
-		if (idx < 0) {
-			return undefined;
-		}
-
-		const handle = parseInt(cell.fragment.substring(0, idx).replace(_padRegexp, ''), _radix);
-		const _scheme = decodeBase64(cell.fragment.substring(idx + 1)).toString();
-
-		if (isNaN(handle)) {
-			return undefined;
-		}
-		return {
-			handle,
-			notebook: cell.with({ scheme: _scheme, fragment: null })
-		};
+		return parseUri(cell);
 	}
 
 	export function generateCellOutputUri(notebook: URI, outputId?: string) {
@@ -787,6 +760,11 @@ export interface INotebookLoadOptions {
 	 * Go to disk bypassing any cache of the model if any.
 	 */
 	forceReadFromFile?: boolean;
+	/**
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
+	 */
+	readonly limits?: IFileReadLimits;
 }
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
@@ -935,7 +913,8 @@ export const NotebookSetting = {
 	focusIndicator: 'notebook.cellFocusIndicator',
 	insertToolbarLocation: 'notebook.insertToolbarLocation',
 	globalToolbar: 'notebook.globalToolbar',
-	stickyScroll: 'notebook.stickyScroll.enabled',
+	stickyScrollEnabled: 'notebook.stickyScroll.enabled',
+	stickyScrollMode: 'notebook.stickyScroll.mode',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
 	showFoldingControls: 'notebook.showFoldingControls',
@@ -949,6 +928,7 @@ export const NotebookSetting = {
 	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
+	LinkifyOutputFilePaths: 'notebook.output.linkifyFilePaths',
 	formatOnSave: 'notebook.formatOnSave.enabled',
 	insertFinalNewline: 'notebook.insertFinalNewline',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
@@ -967,7 +947,8 @@ export const NotebookSetting = {
 	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell',
-	cellChat: 'notebook.experimental.cellChat'
+	cellChat: 'notebook.experimental.cellChat',
+	notebookVariablesView: 'notebook.experimental.variablesView'
 } as const;
 
 export const enum CellStatusbarAlignment {

@@ -51,7 +51,6 @@ export interface ITerminalProfileResolverService {
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 	getDefaultIcon(): TerminalIcon & ThemeIcon;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
-	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
 }
 
 /*
@@ -452,9 +451,11 @@ export const enum TerminalCommandId {
 	ScrollDownLine = 'workbench.action.terminal.scrollDown',
 	ScrollDownPage = 'workbench.action.terminal.scrollDownPage',
 	ScrollToBottom = 'workbench.action.terminal.scrollToBottom',
+	ScrollToBottomAccessibleView = 'workbench.action.terminal.scrollToBottomAccessibleView',
 	ScrollUpLine = 'workbench.action.terminal.scrollUp',
 	ScrollUpPage = 'workbench.action.terminal.scrollUpPage',
 	ScrollToTop = 'workbench.action.terminal.scrollToTop',
+	ScrollToTopAccessibleView = 'workbench.action.terminal.scrollToTopAccessibleView',
 	Clear = 'workbench.action.terminal.clear',
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
@@ -482,6 +483,7 @@ export const enum TerminalCommandId {
 	DetachSession = 'workbench.action.terminal.detachSession',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
+	MoveIntoNewWindow = 'workbench.action.terminal.moveIntoNewWindow',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
 	SelectPrevSuggestion = 'workbench.action.terminal.selectPrevSuggestion',
@@ -493,6 +495,11 @@ export const enum TerminalCommandId {
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
+	StartVoice = 'workbench.action.terminal.startVoice',
+	StopVoice = 'workbench.action.terminal.stopVoice',
+	FontZoomIn = 'workbench.action.terminal.fontZoomIn',
+	FontZoomOut = 'workbench.action.terminal.fontZoomOut',
+	FontZoomReset = 'workbench.action.terminal.fontZoomReset',
 
 	// Developer commands
 

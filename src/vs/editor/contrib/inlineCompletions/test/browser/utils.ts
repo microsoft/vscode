@@ -13,6 +13,7 @@ import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } 
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { autorun } from 'vs/base/common/observable';
+import { MersenneTwister } from 'vs/editor/test/common/model/bracketPairColorizer/combineTextEditInfos.test';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -82,7 +83,7 @@ export class GhostTextContext extends Disposable {
 
 		this._register(autorun(reader => {
 			/** @description update */
-			const ghostText = model.ghostText.read(reader);
+			const ghostText = model.primaryGhostText.read(reader);
 			let view: string | undefined;
 			if (ghostText) {
 				view = ghostText.render(this.editor.getValue(), true);
@@ -131,3 +132,24 @@ export class GhostTextContext extends Disposable {
 		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
 	}
 }
+
+export function generateRandomMultilineString(rng: MersenneTwister, numberOfLines: number, maximumLengthOfLines: number = 20): string {
+	let randomText: string = '';
+	for (let i = 0; i < numberOfLines; i++) {
+		const lengthOfLine = rng.nextIntRange(0, maximumLengthOfLines + 1);
+		randomText += generateRandomSimpleString(rng, lengthOfLine) + '\n';
+	}
+	return randomText;
+}
+
+function generateRandomSimpleString(rng: MersenneTwister, stringLength: number): string {
+	const possibleCharacters: string = ' abcdefghijklmnopqrstuvwxyz0123456789';
+	let randomText: string = '';
+	for (let i = 0; i < stringLength; i++) {
+		const characterIndex = rng.nextIntRange(0, possibleCharacters.length);
+		randomText += possibleCharacters.charAt(characterIndex);
+
+	}
+	return randomText;
+}
+

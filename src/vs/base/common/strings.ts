@@ -49,6 +49,25 @@ export function format2(template: string, values: Record<string, unknown>): stri
 }
 
 /**
+ * Encodes the given value so that it can be used as literal value in html attributes.
+ *
+ * In other words, computes `$val`, such that `attr` in `<div attr="$val" />` has the runtime value `value`.
+ * This prevents XSS injection.
+ */
+export function htmlAttributeEncodeValue(value: string): string {
+	return value.replace(/[<>"'&]/g, ch => {
+		switch (ch) {
+			case '<': return '&lt;';
+			case '>': return '&gt;';
+			case '"': return '&quot;';
+			case '\'': return '&apos;';
+			case '&': return '&amp;';
+		}
+		return ch;
+	});
+}
+
+/**
  * Converts HTML characters inside the string to use entities instead. Makes the string safe from
  * being used e.g. in HTMLElement.innerHTML.
  */
@@ -90,6 +109,17 @@ export function truncate(value: string, maxLength: number, suffix = '…'): stri
 	}
 
 	return `${value.substr(0, maxLength)}${suffix}`;
+}
+
+export function truncateMiddle(value: string, maxLength: number, suffix = '…'): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+
+	const prefixLength = Math.ceil(maxLength / 2) - suffix.length / 2;
+	const suffixLength = Math.floor(maxLength / 2) - suffix.length / 2;
+
+	return `${value.substr(0, prefixLength)}${suffix}${value.substr(value.length - suffixLength)}`;
 }
 
 /**
@@ -222,6 +252,15 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 
 export function splitLines(str: string): string[] {
 	return str.split(/\r\n|\r|\n/);
+}
+
+export function splitLinesIncludeSeparators(str: string): string[] {
+	const linesWithSeparators: string[] = [];
+	const splitLinesAndSeparators = str.split(/(\r\n|\r|\n)/);
+	for (let i = 0; i < Math.ceil(splitLinesAndSeparators.length / 2); i++) {
+		linesWithSeparators.push(splitLinesAndSeparators[2 * i] + (splitLinesAndSeparators[2 * i + 1] ?? ''));
+	}
+	return linesWithSeparators;
 }
 
 /**
@@ -699,16 +738,19 @@ export function isEmojiImprecise(x: number): boolean {
 /**
  * Given a string and a max length returns a shorted version. Shorting
  * happens at favorable positions - such as whitespace or punctuation characters.
+ * The return value can be longer than the given value of `n`. Leading whitespace is always trimmed.
  */
-export function lcut(text: string, n: number) {
-	if (text.length < n) {
-		return text;
+export function lcut(text: string, n: number, prefix = '') {
+	const trimmed = text.trimStart();
+
+	if (trimmed.length < n) {
+		return trimmed;
 	}
 
 	const re = /\b/g;
 	let i = 0;
-	while (re.test(text)) {
-		if (text.length - re.lastIndex < n) {
+	while (re.test(trimmed)) {
+		if (trimmed.length - re.lastIndex < n) {
 			break;
 		}
 
@@ -716,7 +758,11 @@ export function lcut(text: string, n: number) {
 		re.lastIndex += 1;
 	}
 
-	return text.substring(i).replace(/^\s/, '');
+	if (i === 0) {
+		return trimmed;
+	}
+
+	return prefix + trimmed.substring(i).trimStart();
 }
 
 // Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
