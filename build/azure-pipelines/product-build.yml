@@ -233,7 +233,8 @@ extends:
           - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
             - job: CLIMacOSX64
               pool:
-                name: macOS-11
+                name: Azure Pipelines
+                image: macOS-11
                 os: macOS
               steps:
                 - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
@@ -245,7 +246,8 @@ extends:
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
             - job: CLIMacOSARM64
               pool:
-                name: macOS-11
+                name: Azure Pipelines
+                image: macOS-11
                 os: macOS
               steps:
                 - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
@@ -511,7 +513,8 @@ extends:
             - Compile
             - CompileCLI
           pool:
-            name: macOS-11
+            name: Azure Pipelines
+            image: macOS-11
             os: macOS
           variables:
             BUILDSECMON_OPT_IN: true
