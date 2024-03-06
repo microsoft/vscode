@@ -68,10 +68,11 @@ export class TerminalChatWidget extends Disposable {
 			InlineChatWidget,
 			fakeParentEditor,
 			{
-				menuId: MENU_TERMINAL_CHAT_INPUT,
+				inputMenuId: MENU_TERMINAL_CHAT_INPUT,
 				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,
 				statusMenuId: MENU_TERMINAL_CHAT_WIDGET_STATUS,
-				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK
+				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
+				telemetrySource: 'terminal-inline-chat',
 			}
 		);
 		this._reset();

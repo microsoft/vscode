@@ -183,7 +183,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	private _getPlaceholderText(): string {
-		return this._forcedPlaceholder ?? this._model?.inputPlaceholder ?? '';
+		return this._forcedPlaceholder ?? '';
 	}
 
 	setPlaceholder(text: string): void {
