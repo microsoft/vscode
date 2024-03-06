@@ -693,7 +693,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'agentDetection') {
-			const agent = this.chatAgentService.getRegisteredAgent(progress.agentName);
+			const agent = this.chatAgentService.getAgent(progress.agentName);
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
 			}

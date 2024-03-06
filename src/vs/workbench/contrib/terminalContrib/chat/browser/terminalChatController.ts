@@ -99,9 +99,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
 
-		if (!this._chatAgentService.getRegisteredAgent(this._terminalAgentId)) {
+		if (!this._chatAgentService.getAgent(this._terminalAgentId)) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
-				if (this._chatAgentService.getRegisteredAgent(this._terminalAgentId)) {
+				if (this._chatAgentService.getAgent(this._terminalAgentId)) {
 					this._terminalAgentRegisteredContextKey.set(true);
 				}
 			}));
@@ -370,4 +370,3 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatWidget?.rawValue?.dispose();
 	}
 }
-
