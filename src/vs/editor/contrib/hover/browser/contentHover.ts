@@ -29,6 +29,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { renderShowLessHoverAction, renderShowMoreHoverAction } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 
 const $ = dom.$;
 
@@ -46,8 +47,6 @@ export class ContentHoverController extends Disposable {
 	private readonly _participants: IEditorHoverParticipant[];
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 	private _currentFocusIndex: number = -1;
-	private _fragment: DocumentFragment | undefined;
-	private _childrenElements: HTMLCollection | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -220,11 +219,13 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
+		console.log('messages : ', messages);
+
 		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
 
 		const disposables = new DisposableStore();
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
-		this._fragment = document.createDocumentFragment();
+		const fragment = document.createDocumentFragment();
 
 		//
 		disposables.add(this._widget.focusTracker.onDidBlur(() => {
@@ -234,7 +235,6 @@ export class ContentHoverController extends Disposable {
 		//
 
 		let colorPicker: IEditorHoverColorPickerWidget | null = null;
-		const fragment = this._fragment;
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
@@ -250,21 +250,14 @@ export class ContentHoverController extends Disposable {
 				disposables.add(participant.renderHoverParts(context, hoverParts));
 			}
 		}
-
-		console.log('fragment : ', this._fragment);
-		this._childrenElements = this._fragment.children;
-		console.log('this._childernElements : ', this._childrenElements);
-
-		for (let i = 0; i < this._fragment.children.length; i++) {
-			console.log('this._fragment.children : ', this._fragment.children);
-			const element = this._fragment.children.item(i);
+		for (let i = 0; i < fragment.children.length; i++) {
+			console.log('this._fragment.children : ', fragment.children);
+			const element = fragment.children.item(i);
 			if (element && element instanceof HTMLElement) {
 				const currentIndex = i;
 				element.tabIndex = 0;
 				const focusTracker = this._register(dom.trackFocus(element));
 				disposables.add(focusTracker.onDidFocus(() => {
-					// update the index which is focused and associated provider
-					// so that we know the current associated provider
 					this._currentFocusIndex = currentIndex;
 					console.log('this._currentFocusIndex : ', this._currentFocusIndex);
 				}));
@@ -274,10 +267,10 @@ export class ContentHoverController extends Disposable {
 		const isBeforeContent = messages.some(m => m.isBeforeContent);
 
 		if (statusBar.hasContent) {
-			this._fragment.appendChild(statusBar.hoverElement);
+			fragment.appendChild(statusBar.hoverElement);
 		}
 
-		if (this._fragment.hasChildNodes()) {
+		if (fragment.hasChildNodes()) {
 			if (highlightRange) {
 				const highlightDecoration = this._editor.createDecorationsCollection();
 				highlightDecoration.set([{
@@ -289,7 +282,7 @@ export class ContentHoverController extends Disposable {
 				}));
 			}
 
-			this._widget.showAt(this._fragment, new ContentHoverVisibleData(
+			this._widget.showAt(fragment, new ContentHoverVisibleData(
 				anchor.initialMousePosX,
 				anchor.initialMousePosY,
 				colorPicker,
@@ -301,7 +294,6 @@ export class ContentHoverController extends Disposable {
 				isBeforeContent,
 				disposables
 			));
-			console.log('this._fragment.children : ', this._fragment.children);
 		} else {
 			disposables.dispose();
 		}
@@ -434,9 +426,23 @@ export class ContentHoverController extends Disposable {
 					const renderedContents = this._register(renderer.render(mdstring));
 					hoverContentsElement.appendChild(renderedContents.element);
 				}
+				if (result.zoomPossibility?.canZoomOut === true) {
+					renderShowLessHoverAction(this._editor, markdownHoverElement);
+				}
+				if (result.zoomPossibility?.canZoomIn === true) {
+					renderShowMoreHoverAction(this._editor, markdownHoverElement);
+				}
+				markdownHoverElement.tabIndex = 0;
+				const focusTracker = this._register(dom.trackFocus(markdownHoverElement));
+				const currentIndex = this._currentFocusIndex;
+				this._register(focusTracker.onDidFocus(() => {
+					this._currentFocusIndex = currentIndex;
+					console.log('this._currentFocusIndex : ', this._currentFocusIndex);
+				}));
 
 				console.log('markdownHoverElement : ', markdownHoverElement);
 				item?.replaceWith(markdownHoverElement);
+				markdownHoverElement.focus();
 			}
 		}
 	}

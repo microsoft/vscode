@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { Hover, HoverProvider, HoverZoomRequest } from 'vs/editor/common/languages';
+import { Hover, HoverProvider } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -21,9 +21,10 @@ export class HoverProviderResult {
 	) { }
 }
 
-async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, request: Position | HoverZoomRequest, token: CancellationToken): Promise<HoverProviderResult | undefined> {
+async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult | undefined> {
 	try {
-		const result = await Promise.resolve(provider.provideHover(model, request, token));
+		const result = await Promise.resolve(provider.provideHover(model, position, token));
+		console.log('result of executeProvider : ', result);
 		if (result && isValid(result)) {
 			return new HoverProviderResult(provider, result, ordinal);
 		}
@@ -33,14 +34,14 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 	return undefined;
 }
 
-export function getHover(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, request: Position | HoverZoomRequest, token: CancellationToken): AsyncIterableObject<HoverProviderResult> {
+export function getHover(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): AsyncIterableObject<HoverProviderResult> {
 	const providers = registry.ordered(model);
-	const promises = providers.map((provider, index) => executeProvider(provider, index, model, request, token));
+	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
 	return AsyncIterableObject.fromPromises(promises).coalesce();
 }
 
-export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, request: Position | HoverZoomRequest, token: CancellationToken): Promise<Hover[]> {
-	return getHover(registry, model, request, token).map(item => item.hover).toPromise();
+export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
+	return getHover(registry, model, position, token).map(item => item.hover).toPromise();
 }
 
 registerModelAndPositionCommand('_executeHoverProvider', (accessor, model, position) => {

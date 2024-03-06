@@ -23,6 +23,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { HoverProvider } from 'vs/editor/common/languages';
+import { zoomHover } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
 
 const $ = dom.$;
 
@@ -33,6 +35,7 @@ export class MarkdownHover implements IHoverPart {
 		public readonly provider: HoverProvider | undefined,
 		public readonly range: Range,
 		public readonly contents: IMarkdownString[],
+		public readonly zoomPossibility: { canZoomIn?: boolean; canZoomOut?: boolean } | undefined,
 		public readonly isBeforeContent: boolean,
 		public readonly ordinal: number
 	) { }
@@ -45,6 +48,9 @@ export class MarkdownHover implements IHoverPart {
 		);
 	}
 }
+
+export const showLessHoverInformation = 'editor.hover.showLess';
+export const showMoreHoverInformation = 'editor.hover.showMore';
 
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
@@ -59,7 +65,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
-		return new MarkdownHover(this, undefined, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], false, 2000);
+		return new MarkdownHover(this, undefined, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], undefined, false, 2000);
 	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
@@ -85,12 +91,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			stopRenderingMessage = true;
 			result.push(new MarkdownHover(this, undefined, anchor.range, [{
 				value: nls.localize('stopped rendering', "Rendering paused for long line for performance reasons. This can be configured via `editor.stopRenderingLineAfter`.")
-			}], false, index++));
+			}], undefined, false, index++));
 		}
 		if (!stopRenderingMessage && typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
 			result.push(new MarkdownHover(this, undefined, anchor.range, [{
 				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
-			}], false, index++));
+			}], undefined, false, index++));
 		}
 
 		let isBeforeContent = false;
@@ -109,7 +115,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkdownHover(this, undefined, range, asArray(hoverMessage), isBeforeContent, index++));
+			result.push(new MarkdownHover(this, undefined, range, asArray(hoverMessage), undefined, isBeforeContent, index++));
 		}
 
 		return result;
@@ -130,8 +136,9 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return getHover(this._languageFeaturesService.hoverProvider, model, position, token)
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
+				console.log('item : ', item);
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
-				return new MarkdownHover(this, item.provider, rng, item.hover.contents, false, item.ordinal);
+				return new MarkdownHover(this, item.provider, rng, item.hover.contents, item.hover.zoomPossibility, false, item.ordinal);
 			});
 	}
 
@@ -148,11 +155,14 @@ export function renderMarkdownHovers(
 	openerService: IOpenerService,
 ): IDisposable {
 
+	console.log('hoverParts in renderMarkdownHovers : ', hoverParts);
+
 	// Sort hover parts to keep them stable since they might come in async, out-of-order
 	hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 
 	const disposables = new DisposableStore();
 	for (const hoverPart of hoverParts) {
+
 		for (const contents of hoverPart.contents) {
 			if (isEmptyMarkdownString(contents)) {
 				continue;
@@ -166,8 +176,38 @@ export function renderMarkdownHovers(
 			}));
 			const renderedContents = disposables.add(renderer.render(contents));
 			hoverContentsElement.appendChild(renderedContents.element);
+			console.log('hoverPart : ', hoverPart);
+			//
+			if (hoverPart.zoomPossibility?.canZoomOut === true) {
+				renderShowLessHoverAction(editor, markdownHoverElement);
+			}
+			if (hoverPart.zoomPossibility?.canZoomIn === true) {
+				renderShowMoreHoverAction(editor, markdownHoverElement);
+			}
+			//
 			context.fragment.appendChild(markdownHoverElement);
+			// check how to add menu bar to this html element associated to actions
 		}
 	}
 	return disposables;
+}
+
+export function renderShowLessHoverAction(editor: ICodeEditor, container: HTMLElement) {
+	HoverAction.render(container, {
+		label: nls.localize('show less', "Show Less"),
+		commandId: showLessHoverInformation,
+		run: () => {
+			zoomHover(editor, false);
+		}
+	}, null);
+}
+
+export function renderShowMoreHoverAction(editor: ICodeEditor, container: HTMLElement) {
+	HoverAction.render(container, {
+		label: nls.localize('show more', "Show More"),
+		commandId: showMoreHoverInformation,
+		run: () => {
+			zoomHover(editor, true);
+		}
+	}, null);
 }

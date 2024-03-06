@@ -3058,12 +3058,32 @@ declare module 'vscode' {
 		range?: Range;
 
 		/**
+		 * Zoom possibility
+		 */
+		zoomPossibility: ZoomPossibility;
+
+		/**
 		 * Creates a new hover object.
 		 *
 		 * @param contents The contents of the hover.
 		 * @param range The range to which the hover applies.
 		 */
 		constructor(contents: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>, range?: Range);
+	}
+
+	/**
+	 * Zoom possibility
+	 */
+	export interface ZoomPossibility {
+		/**
+		 * Can zoom in
+		 */
+		canZoomIn?: boolean;
+
+		/**
+		 * Can zoom out
+		 */
+		canZoomOut?: boolean;
 	}
 
 	/**

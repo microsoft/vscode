@@ -945,7 +945,8 @@ export namespace Hover {
 	export function from(hover: vscode.Hover): languages.Hover {
 		return <languages.Hover>{
 			range: Range.from(hover.range),
-			contents: MarkdownString.fromMany(hover.contents)
+			contents: MarkdownString.fromMany(hover.contents),
+			zoomPossibility: hover.zoomPossibility
 		};
 	}
 

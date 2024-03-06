@@ -503,7 +503,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 				.appendMarkdown(reason)
 				.appendText(' ')
 				.appendLink(uri, adjustSettings, configureUnicodeHighlightOptionsStr);
-			result.push(new MarkdownHover(this, undefined, d.range, [markdown], false, index++));
+			result.push(new MarkdownHover(this, undefined, d.range, [markdown], undefined, false, index++));
 		}
 		return result;
 	}

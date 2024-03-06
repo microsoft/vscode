@@ -474,13 +474,9 @@ export function registerHoverProvider(languageSelector: LanguageSelector, provid
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.hoverProvider.register(languageSelector, {
 		provideHover: (model: model.ITextModel, request: Position | languages.HoverZoomRequest, token: CancellationToken): Promise<languages.Hover | undefined> => {
-			let position: Position;
-			if (request instanceof Position) {
-				position = request;
-			} else {
-				position = request.position;
-			}
+			const position: Position = request instanceof Position ? request : request.position;
 			const word = model.getWordAtPosition(position);
+
 			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, request, token)).then((value): languages.Hover | undefined => {
 				if (!value) {
 					return undefined;

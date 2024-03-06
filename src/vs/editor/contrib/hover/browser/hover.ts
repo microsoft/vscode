@@ -597,7 +597,7 @@ class ShowLessHoverInformationAction extends EditorAction {
 	}
 }
 
-function zoomHover(editor: ICodeEditor, zoomIn: boolean) {
+export function zoomHover(editor: ICodeEditor, zoomIn: boolean) {
 	console.log('inside of zoomHover');
 	if (!editor.hasModel()) {
 		return;

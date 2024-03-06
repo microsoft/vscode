@@ -92,11 +92,11 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 				itemTooltip = part.item.hint.tooltip;
 			}
 			if (itemTooltip) {
-				executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [itemTooltip], false, 0));
+				executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [itemTooltip], undefined, false, 0));
 			}
 			// (1.2) Inlay dbl-click gesture
 			if (isNonEmptyArray(part.item.hint.textEdits)) {
-				executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double-click to insert"))], false, 10001));
+				executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double-click to insert"))], undefined, false, 10001));
 			}
 
 			// (2) Inlay Label Part Tooltip
@@ -107,7 +107,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 				partTooltip = part.part.tooltip;
 			}
 			if (partTooltip) {
-				executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [partTooltip], false, 1));
+				executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [partTooltip], undefined, false, 1));
 			}
 
 			// (2.2) Inlay Label Part Help Hover
@@ -130,7 +130,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 					linkHint = new MarkdownString(`[${localize('hint.cmd', "Execute Command")}](${asCommandLink(part.part.command)} "${part.part.command.title}") (${kb})`, { isTrusted: true });
 				}
 				if (linkHint) {
-					executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [linkHint], false, 10000));
+					executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [linkHint], undefined, false, 10000));
 				}
 			}
 
@@ -156,7 +156,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			}
 			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new MarkdownHover(this, undefined, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal));
+				.map(item => new MarkdownHover(this, undefined, part.item.anchor.range, item.hover.contents, item.hover.zoomPossibility, false, 2 + item.ordinal));
 		} finally {
 			ref.dispose();
 		}
