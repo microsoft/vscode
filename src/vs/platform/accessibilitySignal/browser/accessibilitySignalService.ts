@@ -17,15 +17,15 @@ export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalS
 
 export interface IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
-	playSignal(cue: AccessibilitySignal, options?: IAccessbilitySignalOptions): Promise<void>;
-	playAccessibilitySignals(cues: (AccessibilitySignal | { cue: AccessibilitySignal; source: string })[]): Promise<void>;
-	isSoundEnabled(cue: AccessibilitySignal): boolean;
-	isAnnouncementEnabled(cue: AccessibilitySignal): boolean;
-	onSoundEnabledChanged(cue: AccessibilitySignal): Event<void>;
-	onAnnouncementEnabledChanged(cue: AccessibilitySignal): Event<void>;
+	playSignal(signal: AccessibilitySignal, options?: IAccessbilitySignalOptions): Promise<void>;
+	playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
+	isSoundEnabled(signal: AccessibilitySignal): boolean;
+	isAnnouncementEnabled(signal: AccessibilitySignal): boolean;
+	onSoundEnabledChanged(signal: AccessibilitySignal): Event<void>;
+	onAnnouncementEnabledChanged(signal: AccessibilitySignal): Event<void>;
 
-	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
-	playSignalLoop(cue: AccessibilitySignal, milliseconds: number): IDisposable;
+	playSound(signal: Sound, allowManyInParallel?: boolean): Promise<void>;
+	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 }
 
 export interface IAccessbilitySignalOptions {
@@ -57,9 +57,9 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	}
 
 	public async playSignal(signal: AccessibilitySignal, options: IAccessbilitySignalOptions = {}): Promise<void> {
-		const alertMessage = signal.announcementMessage;
-		if (this.isAnnouncementEnabled(signal, options.userGesture) && alertMessage) {
-			this.accessibilityService.status(alertMessage);
+		const announcementMessage = signal.announcementMessage;
+		if (this.isAnnouncementEnabled(signal, options.userGesture) && announcementMessage) {
+			this.accessibilityService.status(announcementMessage);
 		}
 
 		if (this.isSoundEnabled(signal, options.userGesture)) {
@@ -68,26 +68,26 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		}
 	}
 
-	public async playAccessibilitySignals(cues: (AccessibilitySignal | { cue: AccessibilitySignal; source: string })[]): Promise<void> {
-		for (const cue of cues) {
-			this.sendSignalTelemetry('cue' in cue ? cue.cue : cue, 'source' in cue ? cue.source : undefined);
+	public async playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void> {
+		for (const signal of signals) {
+			this.sendSignalTelemetry('signal' in signal ? signal.signal : signal, 'source' in signal ? signal.source : undefined);
 		}
-		const cueArray = cues.map(c => 'cue' in c ? c.cue : c);
-		const alerts = cueArray.filter(cue => this.isAnnouncementEnabled(cue)).map(c => c.announcementMessage);
-		if (alerts.length) {
-			this.accessibilityService.status(alerts.join(', '));
+		const signalArray = signals.map(s => 'signal' in s ? s.signal : s);
+		const announcements = signalArray.filter(signal => this.isAnnouncementEnabled(signal)).map(s => s.announcementMessage);
+		if (announcements.length) {
+			this.accessibilityService.status(announcements.join(', '));
 		}
 
 		// Some sounds are reused. Don't play the same sound twice.
-		const sounds = new Set(cueArray.filter(cue => this.isSoundEnabled(cue)).map(cue => cue.sound.getSound()));
+		const sounds = new Set(signalArray.filter(signal => this.isSoundEnabled(signal)).map(signal => signal.sound.getSound()));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 
 	}
 
 
-	private sendSignalTelemetry(cue: AccessibilitySignal, source: string | undefined): void {
+	private sendSignalTelemetry(signal: AccessibilitySignal, source: string | undefined): void {
 		const isScreenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
-		const key = cue.name + (source ? `::${source}` : '') + (isScreenReaderOptimized ? '{screenReaderOptimized}' : '');
+		const key = signal.name + (source ? `::${source}` : '') + (isScreenReaderOptimized ? '{screenReaderOptimized}' : '');
 		// Only send once per user session
 		if (this.sentTelemetry.has(key) || this.getVolumeInPercent() === 0) {
 			return;
@@ -107,7 +107,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 
 			comment: 'This data is collected to understand how signals are used and if more signals should be added.';
 		}>('signal.played', {
-			signal: cue.name,
+			signal: signal.name,
 			source: source ?? '',
 			isScreenReaderOptimized,
 		});
@@ -214,7 +214,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 			() => event.signal.announcementMessage ? this.configurationService.getValue<'auto' | 'off' | 'userGesture' | 'always' | 'never'>(event.signal.settingsKey + '.announcement') : false
 		);
 		return derived(reader => {
-			/** @description alert enabled */
+			/** @description announcement enabled */
 			const setting = settingObservable.read(reader);
 			if (
 				!this.screenReaderAttached.read(reader)
@@ -240,8 +240,8 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		return Event.fromObservableLight(this.isSoundEnabledCache.get({ signal }));
 	}
 
-	public onAnnouncementEnabledChanged(cue: AccessibilitySignal): Event<void> {
-		return Event.fromObservableLight(this.isAnnouncementEnabledCache.get({ signal: cue }));
+	public onAnnouncementEnabledChanged(signal: AccessibilitySignal): Event<void> {
+		return Event.fromObservableLight(this.isAnnouncementEnabledCache.get({ signal }));
 	}
 }
 
