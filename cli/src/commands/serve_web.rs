@@ -5,6 +5,8 @@
 
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::fs;
+use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -13,7 +15,6 @@ use std::time::{Duration, Instant};
 use const_format::concatcp;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
-use tempfile::{tempdir, TempDir};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::pin;
 
@@ -77,21 +78,15 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 	legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 	let platform: crate::update_service::Platform = PreReqChecker::new().verify().await?;
-	let token_file = if !args.without_connection_token {
+	if !args.without_connection_token {
 		// Ensure there's a defined connection token, since if multiple server versions
 		// are excuted, they will need to have a single shared token.
-		let connection_token = args
-			.connection_token
-			.clone()
-			.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-		let tf = ConnectionTokenFile::new(&connection_token)
+		let token_path = ctx.paths.root().join("serve-web-token");
+		let token = mint_connection_token(&token_path, args.connection_token.clone())
 			.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
-		args.connection_token = Some(connection_token);
-		args.connection_token_file = Some(tf.path().to_string_lossy().to_string());
-		Some(tf)
-	} else {
-		None
-	};
+		args.connection_token = Some(token);
+		args.connection_token_file = Some(token_path.to_string_lossy().to_string());
+	}
 
 	let cm = ConnectionManager::new(&ctx, platform, args.clone());
 	let key = get_server_key_half(&ctx.paths);
@@ -143,7 +138,6 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 	};
 
 	r.map_err(CodeError::CouldNotListenOnInterface)?;
-	drop(token_file); // ensure it lives long enough
 
 	Ok(0)
 }
@@ -789,20 +783,29 @@ struct StartArgs {
 	opener: BarrierOpener<Result<StartData, String>>,
 }
 
-struct ConnectionTokenFile {
-	path: PathBuf,
-	_dir: TempDir, // implements Drop to delete the dir
-}
+fn mint_connection_token(path: &Path, prefer_token: Option<String>) -> std::io::Result<String> {
+	#[cfg(not(windows))]
+	use std::os::unix::fs::OpenOptionsExt;
 
-impl ConnectionTokenFile {
-	fn new(connection_token: &str) -> std::io::Result<Self> {
-		let d = tempdir()?;
-		let path = d.path().join("connection-token");
-		std::fs::write(&path, connection_token)?;
-		Ok(ConnectionTokenFile { path, _dir: d })
+	let mut f = fs::OpenOptions::new();
+	f.create(true);
+	f.write(true);
+	f.read(true);
+	#[cfg(not(windows))]
+	f.mode(0o600);
+	let mut f = f.open(path)?;
+
+	if prefer_token.is_none() {
+		let mut t = String::new();
+		f.read_to_string(&mut t)?;
+		let t = t.trim();
+		if !t.is_empty() {
+			return Ok(t.to_string());
+		}
 	}
 
-	fn path(&self) -> &Path {
-		&self.path
-	}
+	f.set_len(0)?;
+	let prefer_token = prefer_token.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+	f.write_all(prefer_token.as_bytes())?;
+	Ok(prefer_token)
 }
