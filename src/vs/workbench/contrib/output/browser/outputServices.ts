@@ -125,6 +125,14 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			}
 		}));
 
+		this._register(this.loggerService.onDidChangeLogLevel(_level => {
+			this.setLevelContext();
+			this.setLevelIsDefaultContext();
+		}));
+		this._register(this.defaultLogLevelsService.onDidChangeDefaultLogLevels(() => {
+			this.setLevelIsDefaultContext();
+		}));
+
 		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
 	}
 
@@ -204,34 +212,30 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return this.instantiationService.createInstance(OutputChannel, channelData);
 	}
 
+	private setLevelContext(): void {
+		const descriptor = this.activeChannel?.outputChannelDescriptor;
+		const channelLogLevel = descriptor?.log ? this.loggerService.getLogLevel(descriptor.file) : undefined;
+		this.activeOutputChannelLevelContext.set(channelLogLevel !== undefined ? LogLevelToString(channelLogLevel) : '');
+	}
+
+	private async setLevelIsDefaultContext(): Promise<void> {
+		const descriptor = this.activeChannel?.outputChannelDescriptor;
+		if (descriptor?.log) {
+			const channelLogLevel = this.loggerService.getLogLevel(descriptor.file);
+			const channelDefaultLogLevel = await this.defaultLogLevelsService.getDefaultLogLevel(descriptor.extensionId);
+			this.activeOutputChannelLevelIsDefaultContext.set(channelDefaultLogLevel === channelLogLevel);
+		} else {
+			this.activeOutputChannelLevelIsDefaultContext.set(false);
+		}
+	}
+
 	private setActiveChannel(channel: OutputChannel | undefined): void {
 		this.activeChannel = channel;
 		const descriptor = channel?.outputChannelDescriptor;
 		this.activeFileOutputChannelContext.set(!!descriptor?.file);
 		this.activeOutputChannelLevelSettableContext.set(descriptor !== undefined && SetLogLevelAction.isLevelSettable(descriptor));
-		const setLevelContext = (): void => {
-			const channelLogLevel = descriptor?.log ? this.loggerService.getLogLevel(descriptor.file) : undefined;
-			this.activeOutputChannelLevelContext.set(channelLogLevel !== undefined ? LogLevelToString(channelLogLevel) : '');
-		};
-		const setLevelIsDefaultContext = async (): Promise<void> => {
-			const descriptor = this.activeChannel?.outputChannelDescriptor;
-			if (descriptor?.log) {
-				const channelLogLevel = this.loggerService.getLogLevel(descriptor.file);
-				const channelDefaultLogLevel = await this.defaultLogLevelsService.getDefaultLogLevel(descriptor.extensionId);
-				this.activeOutputChannelLevelIsDefaultContext.set(channelDefaultLogLevel === channelLogLevel);
-			} else {
-				this.activeOutputChannelLevelIsDefaultContext.set(false);
-			}
-		};
-		this._register(this.defaultLogLevelsService.onDidChangeDefaultLogLevels(() => {
-			setLevelIsDefaultContext();
-		}));
-		setLevelIsDefaultContext();
-		this._register(this.loggerService.onDidChangeLogLevel(_level => {
-			setLevelContext();
-			setLevelIsDefaultContext();
-		}));
-		setLevelContext();
+		this.setLevelIsDefaultContext();
+		this.setLevelContext();
 
 		if (this.activeChannel) {
 			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
