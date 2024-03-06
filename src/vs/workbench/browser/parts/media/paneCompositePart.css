@@ -20,10 +20,9 @@
 	display: none;
 }
 
-.monaco-workbench .pane-composite-part > .header-or-footer.bottom {
+.monaco-workbench .pane-composite-part > .header-or-footer.footer {
 	border-top: 1px solid var(--vscode-sideBarSectionHeader-border);
 }
-
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container {
