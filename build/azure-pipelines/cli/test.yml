@@ -1,5 +1,5 @@
 steps:
-  - template: build/azure-pipelines/cli/install-rust-posix.yml@self
+  - template: ./install-rust-posix.yml@self
 
   - script: cargo clippy -- -D warnings
     workingDirectory: cli
