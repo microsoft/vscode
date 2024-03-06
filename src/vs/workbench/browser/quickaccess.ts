@@ -129,7 +129,7 @@ export class PickerEditorState extends Disposable {
 		this.openedEditors.clear();
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		this.reset();
 		super.dispose();
 	}
