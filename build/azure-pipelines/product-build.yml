@@ -151,517 +151,527 @@ resources:
       source: 'VS Code 7PM Kick-Off'
       trigger: true
 
-stages:
-  - stage: Compile
-    jobs:
-      - job: Compile
-        pool: 1es-ubuntu-20.04-x64
-        variables:
-          VSCODE_ARCH: x64
-        steps:
-          - template: product-compile.yml
-            parameters:
-              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
 
-  - stage: CompileCLI
-    dependsOn: []
-    jobs:
-      - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-        - job: CLILinuxX64
-          pool: 1es-ubuntu-20.04-x64
-          steps:
-            - template: ./linux/cli-build-linux.yml
-              parameters:
-                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
-
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
-        - job: CLILinuxGnuARM
-          pool: 1es-ubuntu-20.04-x64
-          steps:
-            - template: ./linux/cli-build-linux.yml
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
-                VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
-
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
-        - job: CLIAlpineX64
-          pool: 1es-ubuntu-20.04-x64
-          steps:
-            - template: ./alpine/cli-build-alpine.yml
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
-
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
-        - job: CLIAlpineARM64
-          pool: 1es-ubuntu-20.04-arm64
-          steps:
-            - bash: sudo apt update && sudo apt install -y unzip
-              displayName: Install unzip
-            - template: ./alpine/cli-build-alpine.yml
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
-
-      - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
-        - job: CLIMacOSX64
-          pool:
-            vmImage: macOS-11
-          steps:
-            - template: ./darwin/cli-build-darwin.yml
-              parameters:
-                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
-
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
-        - job: CLIMacOSARM64
-          pool:
-            vmImage: macOS-11
-          steps:
-            - template: ./darwin/cli-build-darwin.yml
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
-
-      - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-        - job: CLIWindowsX64
-          pool: 1es-windows-2019-x64
-          steps:
-            - template: ./win32/cli-build-win32.yml
-              parameters:
-                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
-
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-        - job: CLIWindowsARM64
-          pool: 1es-windows-2019-x64
-          steps:
-            - template: ./win32/cli-build-win32.yml
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
-
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
-    - stage: Windows
-      dependsOn:
-        - Compile
-        - CompileCLI
-      pool: 1es-windows-2019-x64
-      jobs:
-        - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-          - job: WindowsUnitTests
-            displayName: Unit Tests
-            timeoutInMinutes: 60
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    stages:
+      - stage: Compile
+        jobs:
+          - job: Compile
+            pool: 1es-ubuntu-20.04-x64
             variables:
               VSCODE_ARCH: x64
             steps:
-              - template: win32/product-build-win32.yml
+              - template: product-compile.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_ARCH: x64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: true
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: false
-          - job: WindowsIntegrationTests
-            displayName: Integration Tests
-            timeoutInMinutes: 60
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: win32/product-build-win32.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_ARCH: x64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: true
-                  VSCODE_RUN_SMOKE_TESTS: false
-          - job: WindowsSmokeTests
-            displayName: Smoke Tests
-            timeoutInMinutes: 60
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: win32/product-build-win32.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_ARCH: x64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: true
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
-          - job: Windows
-            timeoutInMinutes: 120
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: win32/product-build-win32.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_ARCH: x64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-
-          - job: WindowsCLISign
-            timeoutInMinutes: 90
-            steps:
-              - template:  win32/product-build-win32-cli-sign.yml
-                parameters:
-                  VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
-                  VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-          - job: WindowsARM64
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: win32/product-build-win32.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: false
-
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
-    - stage: Linux
-      dependsOn:
-        - Compile
-        - CompileCLI
-      pool: 1es-ubuntu-20.04-x64
-      jobs:
-        - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-          - job: Linuxx64UnitTest
-            displayName: Unit Tests
-            variables:
-              VSCODE_ARCH: x64
-              NPM_ARCH: x64
-              DISPLAY: ":10"
-            steps:
-              - template: linux/product-build-linux.yml
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: true
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: false
-          - job: Linuxx64IntegrationTest
-            displayName: Integration Tests
-            variables:
-              VSCODE_ARCH: x64
-              NPM_ARCH: x64
-              DISPLAY: ":10"
-            steps:
-              - template: linux/product-build-linux.yml
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: true
-                  VSCODE_RUN_SMOKE_TESTS: false
-          - job: Linuxx64SmokeTest
-            displayName: Smoke Tests
-            variables:
-              VSCODE_ARCH: x64
-              NPM_ARCH: x64
-              DISPLAY: ":10"
-            steps:
-              - template: linux/product-build-linux.yml
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: true
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
-          - job: Linuxx64
-            variables:
-              VSCODE_ARCH: x64
-              NPM_ARCH: x64
-              DISPLAY: ":10"
-            steps:
-              - template: linux/product-build-linux.yml
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
-          - job: LinuxSnap
-            dependsOn:
-              - Linuxx64
-            container: snapcraft
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: linux/snap-build-linux.yml
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
-          - job: LinuxArmhf
-            variables:
-              VSCODE_ARCH: armhf
-              NPM_ARCH: arm
-            steps:
-              - template: linux/product-build-linux.yml
-                parameters:
-                  VSCODE_ARCH: armhf
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: false
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
-          - job: LinuxArm64
-            variables:
-              VSCODE_ARCH: arm64
-              NPM_ARCH: arm64
-            steps:
-              - template: linux/product-build-linux.yml
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: false
-
-  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
-    - stage: Alpine
-      dependsOn:
-        - Compile
-        - CompileCLI
-      pool: 1es-ubuntu-20.04-x64
-      jobs:
-        - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
-          - job: LinuxAlpine
-            variables:
-              VSCODE_ARCH: x64
-              NPM_ARCH: x64
-            steps:
-              - template: alpine/product-build-alpine.yml
-
-        - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
-          - job: LinuxAlpineArm64
-            timeoutInMinutes: 120
-            variables:
-              VSCODE_ARCH: arm64
-              NPM_ARCH: arm64
-            steps:
-              - template: alpine/product-build-alpine.yml
-
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
-    - stage: macOS
-      dependsOn:
-        - Compile
-        - CompileCLI
-      pool:
-        vmImage: macOS-11
-      variables:
-        BUILDSECMON_OPT_IN: true
-      jobs:
-        - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-          - job: macOSUnitTest
-            displayName: Unit Tests
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: darwin/product-build-darwin.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: true
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: false
-          - job: macOSIntegrationTest
-            displayName: Integration Tests
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: darwin/product-build-darwin.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: true
-                  VSCODE_RUN_SMOKE_TESTS: false
-          - job: macOSSmokeTest
-            displayName: Smoke Tests
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: darwin/product-build-darwin.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: true
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:
-          - job: macOS
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: darwin/product-build-darwin.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: false
-
-          - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
-            - job: macOSTest
-              timeoutInMinutes: 90
-              variables:
-                VSCODE_ARCH: x64
+      - stage: CompileCLI
+        dependsOn: []
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+            - job: CLILinuxX64
+              pool: 1es-ubuntu-20.04-x64
               steps:
-                - template: darwin/product-build-darwin.yml
+                - template: ./linux/cli-build-linux.yml
+                  parameters:
+                    VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
+
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
+            - job: CLILinuxGnuARM
+              pool: 1es-ubuntu-20.04-x64
+              steps:
+                - template: ./linux/cli-build-linux.yml
                   parameters:
                     VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                    VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                    VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                    VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
+                    VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
 
-          - job: macOSSign
-            dependsOn:
-              - macOS
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: darwin/product-build-darwin-sign.yml
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
+            - job: CLIAlpineX64
+              pool: 1es-ubuntu-20.04-x64
+              steps:
+                - template: ./alpine/cli-build-alpine.yml
+                  parameters:
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
 
-          - job: macOSCLISign
-            timeoutInMinutes: 90
-            steps:
-              - template: darwin/product-build-darwin-cli-sign.yml
-                parameters:
-                  VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
-                  VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
+            - job: CLIAlpineARM64
+              pool: 1es-ubuntu-20.04-arm64
+              steps:
+                - bash: sudo apt update && sudo apt install -y unzip
+                  displayName: Install unzip
+                - template: ./alpine/cli-build-alpine.yml
+                  parameters:
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
-          - job: macOSARM64
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: darwin/product-build-darwin.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: false
-                  VSCODE_RUN_INTEGRATION_TESTS: false
-                  VSCODE_RUN_SMOKE_TESTS: false
+          - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+            - job: CLIMacOSX64
+              pool:
+                vmImage: macOS-11
+              steps:
+                - template: ./darwin/cli-build-darwin.yml
+                  parameters:
+                    VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
 
-          - job: macOSARM64Sign
-            dependsOn:
-              - macOSARM64
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: darwin/product-build-darwin-sign.yml
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
+            - job: CLIMacOSARM64
+              pool:
+                vmImage: macOS-11
+              steps:
+                - template: ./darwin/cli-build-darwin.yml
+                  parameters:
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
-          - job: macOSUniversal
-            dependsOn:
-              - macOS
-              - macOSARM64
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: universal
-            steps:
-              - template: darwin/product-build-darwin-universal.yml
+          - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+            - job: CLIWindowsX64
+              pool: 1es-windows-2019-x64
+              steps:
+                - template: ./win32/cli-build-win32.yml
+                  parameters:
+                    VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
 
-          - job: macOSUniversalSign
-            dependsOn:
-              - macOSUniversal
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: universal
-            steps:
-              - template: darwin/product-build-darwin-sign.yml
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+            - job: CLIWindowsARM64
+              pool: 1es-windows-2019-x64
+              steps:
+                - template: ./win32/cli-build-win32.yml
+                  parameters:
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
-  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
-    - stage: Web
-      dependsOn:
-        - Compile
-      pool: 1es-ubuntu-20.04-x64
-      jobs:
-        - ${{ if eq(parameters.VSCODE_BUILD_WEB, true) }}:
-          - job: Web
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: web/product-build-web.yml
+      - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
+        - stage: Windows
+          dependsOn:
+            - Compile
+            - CompileCLI
+          pool: 1es-windows-2019-x64
+          jobs:
+            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+              - job: WindowsUnitTests
+                displayName: Unit Tests
+                timeoutInMinutes: 60
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: win32/product-build-win32.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_ARCH: x64
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: true
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: false
+              - job: WindowsIntegrationTests
+                displayName: Integration Tests
+                timeoutInMinutes: 60
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: win32/product-build-win32.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_ARCH: x64
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: true
+                      VSCODE_RUN_SMOKE_TESTS: false
+              - job: WindowsSmokeTests
+                displayName: Smoke Tests
+                timeoutInMinutes: 60
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: win32/product-build-win32.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_ARCH: x64
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: true
 
-  - ${{ if eq(variables['VSCODE_PUBLISH'], 'true') }}:
-    - stage: Publish
-      dependsOn: []
-      pool: 1es-windows-2019-x64
-      variables:
-        - name: BUILDS_API_URL
-          value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      jobs:
-        - job: PublishBuild
-          timeoutInMinutes: 180
-          displayName: Publish Build
-          steps:
-            - template: product-publish.yml
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
+              - job: Windows
+                timeoutInMinutes: 120
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: win32/product-build-win32.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_ARCH: x64
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                      VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                      VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-    - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
-      - stage: ApproveRelease
-        dependsOn: [] # run in parallel to compile stage
-        pool: 1es-ubuntu-20.04-x64
-        jobs:
-          - deployment: ApproveRelease
-            displayName: "Approve Release"
-            environment: "vscode"
-            variables:
-              skipComponentGovernanceDetection: true
-            strategy:
-              runOnce:
-                deploy:
+              - job: WindowsCLISign
+                timeoutInMinutes: 90
+                steps:
+                  - template:  win32/product-build-win32-cli-sign.yml
+                    parameters:
+                      VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+                      VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+              - job: WindowsARM64
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: arm64
+                steps:
+                  - template: win32/product-build-win32.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_ARCH: arm64
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: false
+
+      - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
+        - stage: Linux
+          dependsOn:
+            - Compile
+            - CompileCLI
+          pool: 1es-ubuntu-20.04-x64
+          jobs:
+            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+              - job: Linuxx64UnitTest
+                displayName: Unit Tests
+                variables:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
+                  DISPLAY: ":10"
+                steps:
+                  - template: linux/product-build-linux.yml
+                    parameters:
+                      VSCODE_ARCH: x64
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: true
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: false
+              - job: Linuxx64IntegrationTest
+                displayName: Integration Tests
+                variables:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
+                  DISPLAY: ":10"
+                steps:
+                  - template: linux/product-build-linux.yml
+                    parameters:
+                      VSCODE_ARCH: x64
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: true
+                      VSCODE_RUN_SMOKE_TESTS: false
+              - job: Linuxx64SmokeTest
+                displayName: Smoke Tests
+                variables:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
+                  DISPLAY: ":10"
+                steps:
+                  - template: linux/product-build-linux.yml
+                    parameters:
+                      VSCODE_ARCH: x64
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: true
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
+              - job: Linuxx64
+                variables:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
+                  DISPLAY: ":10"
+                steps:
+                  - template: linux/product-build-linux.yml
+                    parameters:
+                      VSCODE_ARCH: x64
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                      VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                      VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
+              - job: LinuxSnap
+                dependsOn:
+                  - Linuxx64
+                container: snapcraft
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: linux/snap-build-linux.yml
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
+              - job: LinuxArmhf
+                variables:
+                  VSCODE_ARCH: armhf
+                  NPM_ARCH: arm
+                steps:
+                  - template: linux/product-build-linux.yml
+                    parameters:
+                      VSCODE_ARCH: armhf
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: false
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
+              - job: LinuxArm64
+                variables:
+                  VSCODE_ARCH: arm64
+                  NPM_ARCH: arm64
+                steps:
+                  - template: linux/product-build-linux.yml
+                    parameters:
+                      VSCODE_ARCH: arm64
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: false
+
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
+        - stage: Alpine
+          dependsOn:
+            - Compile
+            - CompileCLI
+          pool: 1es-ubuntu-20.04-x64
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
+              - job: LinuxAlpine
+                variables:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
+                steps:
+                  - template: alpine/product-build-alpine.yml
+
+            - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+              - job: LinuxAlpineArm64
+                timeoutInMinutes: 120
+                variables:
+                  VSCODE_ARCH: arm64
+                  NPM_ARCH: arm64
+                steps:
+                  - template: alpine/product-build-alpine.yml
+
+      - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
+        - stage: macOS
+          dependsOn:
+            - Compile
+            - CompileCLI
+          pool:
+            vmImage: macOS-11
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+              - job: macOSUnitTest
+                displayName: Unit Tests
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: darwin/product-build-darwin.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: true
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: false
+              - job: macOSIntegrationTest
+                displayName: Integration Tests
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: darwin/product-build-darwin.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: true
+                      VSCODE_RUN_SMOKE_TESTS: false
+              - job: macOSSmokeTest
+                displayName: Smoke Tests
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: darwin/product-build-darwin.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: true
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:
+              - job: macOS
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: darwin/product-build-darwin.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: false
+
+              - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
+                - job: macOSTest
+                  timeoutInMinutes: 90
+                  variables:
+                    VSCODE_ARCH: x64
                   steps:
-                    - checkout: none
+                    - template: darwin/product-build-darwin.yml
+                      parameters:
+                        VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                        VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                        VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                        VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                        VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-    - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
-      - stage: Release
-        dependsOn:
-          - Publish
-          - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
-            - ApproveRelease
-        pool: 1es-ubuntu-20.04-x64
-        jobs:
-          - job: ReleaseBuild
-            displayName: Release Build
-            steps:
-              - template: product-release.yml
-                parameters:
-                  VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+              - job: macOSSign
+                dependsOn:
+                  - macOS
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: darwin/product-build-darwin-sign.yml
+
+              - job: macOSCLISign
+                timeoutInMinutes: 90
+                steps:
+                  - template: darwin/product-build-darwin-cli-sign.yml
+                    parameters:
+                      VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
+                      VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
+              - job: macOSARM64
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: arm64
+                steps:
+                  - template: darwin/product-build-darwin.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_UNIT_TESTS: false
+                      VSCODE_RUN_INTEGRATION_TESTS: false
+                      VSCODE_RUN_SMOKE_TESTS: false
+
+              - job: macOSARM64Sign
+                dependsOn:
+                  - macOSARM64
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: arm64
+                steps:
+                  - template: darwin/product-build-darwin-sign.yml
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
+              - job: macOSUniversal
+                dependsOn:
+                  - macOS
+                  - macOSARM64
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: universal
+                steps:
+                  - template: darwin/product-build-darwin-universal.yml
+
+              - job: macOSUniversalSign
+                dependsOn:
+                  - macOSUniversal
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: universal
+                steps:
+                  - template: darwin/product-build-darwin-sign.yml
+
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
+        - stage: Web
+          dependsOn:
+            - Compile
+          pool: 1es-ubuntu-20.04-x64
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_WEB, true) }}:
+              - job: Web
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: web/product-build-web.yml
+
+      - ${{ if eq(variables['VSCODE_PUBLISH'], 'true') }}:
+        - stage: Publish
+          dependsOn: []
+          pool: 1es-windows-2019-x64
+          variables:
+            - name: BUILDS_API_URL
+              value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
+          jobs:
+            - job: PublishBuild
+              timeoutInMinutes: 180
+              displayName: Publish Build
+              steps:
+                - template: product-publish.yml
+
+        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
+          - stage: ApproveRelease
+            dependsOn: [] # run in parallel to compile stage
+            pool: 1es-ubuntu-20.04-x64
+            jobs:
+              - deployment: ApproveRelease
+                displayName: "Approve Release"
+                environment: "vscode"
+                variables:
+                  skipComponentGovernanceDetection: true
+                strategy:
+                  runOnce:
+                    deploy:
+                      steps:
+                        - checkout: none
+
+        - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+          - stage: Release
+            dependsOn:
+              - Publish
+              - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
+                - ApproveRelease
+            pool: 1es-ubuntu-20.04-x64
+            jobs:
+              - job: ReleaseBuild
+                displayName: Release Build
+                steps:
+                  - template: product-release.yml
+                    parameters:
+                      VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
