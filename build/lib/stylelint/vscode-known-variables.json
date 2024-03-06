@@ -790,8 +790,6 @@
 		"--vscode-hover-maxWidth",
 		"--vscode-hover-sourceWhiteSpace",
 		"--vscode-hover-whiteSpace",
-		"--vscode-inline-chat-cropped",
-		"--vscode-inline-chat-expanded",
 		"--vscode-inline-chat-quick-voice-height",
 		"--vscode-inline-chat-quick-voice-width",
 		"--vscode-editor-dictation-widget-height",
