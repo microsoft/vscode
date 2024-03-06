@@ -137,9 +137,25 @@ export interface InlineChatWidgetViewState {
 }
 
 export interface IInlineChatWidgetConstructionOptions {
-	menuId: MenuId;
+	/**
+	 * The telemetry source for all commands of this widget
+	 */
+	telemetrySource: string;
+	/**
+	 * The menu that is inside the input editor, use for send, dictation
+	 */
+	inputMenuId: MenuId;
+	/**
+	 * The menu that next to the input editor, use for close, config etc
+	 */
 	widgetMenuId: MenuId;
-	statusMenuId: MenuId;
+	/**
+	 * The menu that rendered as button bar, use for accept, discard etc
+	 */
+	statusMenuId: MenuId | { menu: MenuId; options: IWorkbenchButtonBarOptions };
+	/**
+	 * The men that rendered in the lower right corner, use for feedback
+	 */
 	feedbackMenuId: MenuId;
 }
 
@@ -381,8 +397,8 @@ export class InlineChatWidget {
 
 		// toolbars
 
-		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.menuId, {
-			telemetrySource: 'interactiveEditorWidget-toolbar',
+		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.inputMenuId, {
+			telemetrySource: _options.telemetrySource,
 			toolbarOptions: { primaryGroup: 'main' },
 			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			hoverDelegate
@@ -393,24 +409,16 @@ export class InlineChatWidget {
 
 
 		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.widgetToolbar, _options.widgetMenuId, {
-			telemetrySource: 'interactiveEditorWidget-toolbar',
+			telemetrySource: _options.telemetrySource,
 			toolbarOptions: { primaryGroup: 'main' },
 			hoverDelegate
 		}));
 
-		const workbenchMenubarOptions: IWorkbenchButtonBarOptions = {
-			telemetrySource: 'interactiveEditorWidget-toolbar',
-			buttonConfigProvider: action => {
-				if (action.id === ACTION_REGENERATE_RESPONSE) {
-					return { showIcon: true, showLabel: false, isSecondary: true };
-				} else if (action.id === ACTION_VIEW_IN_CHAT || action.id === ACTION_ACCEPT_CHANGES) {
-					return { isSecondary: false };
-				} else {
-					return { isSecondary: true };
-				}
-			}
-		};
-		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, _options.statusMenuId, workbenchMenubarOptions);
+
+		const statusMenuId = _options.statusMenuId instanceof MenuId ? _options.statusMenuId : _options.statusMenuId.menu;
+		const statusMenuOptions = _options.statusMenuId instanceof MenuId ? undefined : _options.statusMenuId.options;
+
+		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, statusMenuId, statusMenuOptions);
 		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusButtonBar);
 
@@ -981,10 +989,24 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		}));
 
 		this.widget = this._instaService.createInstance(InlineChatWidget, this.editor, {
-			menuId: MENU_INLINE_CHAT_INPUT,
+			telemetrySource: 'interactiveEditorWidget-toolbar',
+			inputMenuId: MENU_INLINE_CHAT_INPUT,
 			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
-			statusMenuId: MENU_INLINE_CHAT_WIDGET_STATUS,
-			feedbackMenuId: MENU_INLINE_CHAT_WIDGET_FEEDBACK
+			feedbackMenuId: MENU_INLINE_CHAT_WIDGET_FEEDBACK,
+			statusMenuId: {
+				menu: MENU_INLINE_CHAT_WIDGET_STATUS,
+				options: {
+					buttonConfigProvider: action => {
+						if (action.id === ACTION_REGENERATE_RESPONSE) {
+							return { showIcon: true, showLabel: false, isSecondary: true };
+						} else if (action.id === ACTION_VIEW_IN_CHAT || action.id === ACTION_ACCEPT_CHANGES) {
+							return { isSecondary: false };
+						} else {
+							return { isSecondary: true };
+						}
+					}
+				}
+			}
 		});
 		this._disposables.add(this.widget.onDidChangeHeight(() => this._relayout()));
 		this._disposables.add(this.widget);

@@ -292,7 +292,8 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			InlineChatWidget,
 			fakeParentEditor,
 			{
-				menuId: MENU_CELL_CHAT_INPUT,
+				telemetrySource: 'notebook-generate-cell',
+				inputMenuId: MENU_CELL_CHAT_INPUT,
 				widgetMenuId: MENU_CELL_CHAT_WIDGET,
 				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
 				feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
@@ -895,4 +896,3 @@ export class EditStrategy {
 
 
 registerNotebookContribution(NotebookChatController.id, NotebookChatController);
-
