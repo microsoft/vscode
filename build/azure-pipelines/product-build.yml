@@ -159,7 +159,8 @@ resources:
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
-    sourceAnalysisPool: 1es-windows-2022-x64
+    sdl:
+      sourceAnalysisPool: 1es-windows-2022-x64
     stages:
       - stage: Compile
         jobs:
