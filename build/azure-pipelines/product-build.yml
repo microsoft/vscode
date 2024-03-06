@@ -170,6 +170,12 @@ extends:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            templateContext:
+              outputs:
+                - output: pipelineArtifact
+                  path: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+                  artifactName: Compilation
+                  displayName: Publish compilation artifact
 
       - stage: CompileCLI
         dependsOn: []
