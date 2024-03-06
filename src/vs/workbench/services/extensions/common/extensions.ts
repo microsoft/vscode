@@ -519,7 +519,7 @@ export interface IExtensionService {
 	stopExtensionHosts(reason: string): Promise<boolean>;
 
 	/**
-	 * Start extension hosts. If updates are provided, the extension hosts are started with the given updates.
+	 * Starts the extension hosts. If updates are provided, the extension hosts are started with the given updates.
 	 */
 	startExtensionHosts(updates?: { readonly toAdd: readonly IExtension[]; readonly toRemove: readonly string[] }): Promise<void>;
 
