@@ -4282,6 +4282,12 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 	) { }
 }
 
+export enum ChatLocation {
+	Panel = 1,
+	Terminal = 2,
+	Notebook = 3
+}
+
 export class LanguageModelChatSystemMessage {
 	content: string;
 

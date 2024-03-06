@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentService, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentService, IChatAgentRequest, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService, IChatProgress, InteractiveSessionVoteDirection, ChatUserAction } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -273,6 +273,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			agentId: this._terminalAgentId,
 			message: this._lastInput,
 			variables: { variables: [] },
+			location: ChatAgentLocation.Terminal
 		};
 		try {
 			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, [], cancellationToken);
@@ -370,4 +371,3 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatWidget?.rawValue?.dispose();
 	}
 }
-
