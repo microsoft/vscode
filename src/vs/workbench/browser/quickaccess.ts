@@ -93,7 +93,7 @@ export class PickerEditorState extends Disposable {
 	async openTransientEditor(editor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined> {
 		editor.options = { ...editor.options, transient: true };
 		const openEditor = await this.editorService.openEditor(editor, group);
-		if (openEditor?.input) {
+		if (openEditor?.input && openEditor.input !== this._editorViewState?.editor) {
 			this.openedEditors.add(openEditor.input);
 		}
 		return openEditor;
