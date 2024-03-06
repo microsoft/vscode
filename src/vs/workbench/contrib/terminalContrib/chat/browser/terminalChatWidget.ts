@@ -52,21 +52,8 @@ export class TerminalChatWidget extends Disposable {
 		this._container.classList.add('terminal-inline-chat');
 		terminalElement.appendChild(this._container);
 
-		// The inline chat widget requires a parent editor that it bases the diff view on, since the
-		// terminal doesn't use that feature we can just pass in an unattached editor instance.
-		const fakeParentEditorElement = document.createElement('div');
-		const fakeParentEditor = this._instantiationService.createInstance(
-			CodeEditorWidget,
-			fakeParentEditorElement,
-			{
-				extraEditorClassName: 'ignore-panel-bg'
-			},
-			{ isSimpleWidget: true }
-		);
-
 		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
-			fakeParentEditor,
 			{
 				inputMenuId: MENU_TERMINAL_CHAT_INPUT,
 				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,
