@@ -99,19 +99,19 @@ export class SpeechService extends Disposable implements ISpeechService {
 				type SpeechToTextSessionClassification = {
 					owner: 'bpasero';
 					comment: 'An event that fires when a speech to text session is created';
-					context: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Context of the session.' };
-					duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Duration of the session.' };
-					recognized: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If speech was recognized.' };
+					context: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Context of the session.' };
+					sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Duration of the session.' };
+					sessionRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If speech was recognized.' };
 				};
 				type SpeechToTextSessionEvent = {
 					context: string;
-					duration: number;
-					recognized: boolean;
+					sessionDuration: number;
+					sessionRecognized: boolean;
 				};
 				this.telemetryService.publicLog2<SpeechToTextSessionEvent, SpeechToTextSessionClassification>('speechToTextSession', {
 					context,
-					duration: Date.now() - sessionStart,
-					recognized: sessionRecognized
+					sessionDuration: Date.now() - sessionStart,
+					sessionRecognized
 				});
 			}
 
@@ -204,13 +204,13 @@ export class SpeechService extends Disposable implements ISpeechService {
 		type KeywordRecognitionClassification = {
 			owner: 'bpasero';
 			comment: 'An event that fires when a speech keyword detection is started';
-			recognized: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the keyword was recognized.' };
+			keywordRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the keyword was recognized.' };
 		};
 		type KeywordRecognitionEvent = {
-			recognized: boolean;
+			keywordRecognized: boolean;
 		};
 		this.telemetryService.publicLog2<KeywordRecognitionEvent, KeywordRecognitionClassification>('keywordRecognition', {
-			recognized: status === KeywordRecognitionStatus.Recognized
+			keywordRecognized: status === KeywordRecognitionStatus.Recognized
 		});
 
 		return status;
