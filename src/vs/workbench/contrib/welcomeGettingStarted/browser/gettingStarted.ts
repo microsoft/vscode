@@ -148,6 +148,7 @@ export class GettingStartedPage extends EditorPane {
 	private recentlyOpenedList?: GettingStartedIndexList<RecentEntry>;
 	private startList?: GettingStartedIndexList<IWelcomePageStartEntry>;
 	private gettingStartedList?: GettingStartedIndexList<IResolvedWalkthrough>;
+	private videoList?: GettingStartedIndexList<IWelcomePageStartEntry>;
 
 	private stepsSlide!: HTMLElement;
 	private categoriesSlide!: HTMLElement;
@@ -345,7 +346,13 @@ export class GettingStartedPage extends EditorPane {
 		this.dispatchListeners.clear();
 
 		this.container.querySelectorAll('[x-dispatch]').forEach(element => {
-			const [command, argument] = (element.getAttribute('x-dispatch') ?? '').split(':');
+			const dispatch = element.getAttribute('x-dispatch') ?? '';
+			let command, argument;
+			if (dispatch.startsWith('openLink:https')) {
+				[command, argument] = ['openLink', dispatch.replace('openLink:', '')];
+			} else {
+				[command, argument] = dispatch.split(':');
+			}
 			if (command) {
 				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
 					e.stopPropagation();
@@ -433,12 +440,12 @@ export class GettingStartedPage extends EditorPane {
 				}
 				break;
 			}
-			case 'openExtensionPage': {
-				this.commandService.executeCommand('extension.open', argument);
+			case 'hideVideosContent': {
+				this.hideVideosContent();
 				break;
 			}
-			case 'hideExtension': {
-				this.hideExtension(argument);
+			case 'openLink': {
+				this.openerService.open(argument);
 				break;
 			}
 			default: {
@@ -455,9 +462,9 @@ export class GettingStartedPage extends EditorPane {
 		this.gettingStartedList?.rerender();
 	}
 
-	private hideExtension(extensionId: string) {
-		this.setHiddenCategories([...this.getHiddenCategories().add(extensionId)]);
-		this.registerDispatchListeners();
+	private hideVideosContent() {
+		this.setHiddenCategories([...this.getHiddenCategories().add('videos')]);
+		this.videoList?.setEntries(undefined);
 	}
 
 	private markAllStepsComplete() {
@@ -808,6 +815,7 @@ export class GettingStartedPage extends EditorPane {
 		const startList = this.buildStartList();
 		const recentList = this.buildRecentlyOpenedList();
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
+		const videoList = this.buildVideosList();
 
 		const footer = $('.footer', {},
 			$('p.showOnStartup', {},
@@ -818,19 +826,38 @@ export class GettingStartedPage extends EditorPane {
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
 				this.container.classList.remove('noWalkthroughs');
-				reset(rightColumn, gettingStartedList.getDomElement());
+				if (videoList.itemCount > 0) {
+					reset(rightColumn, videoList.getDomElement(), gettingStartedList.getDomElement());
+				} else {
+					reset(rightColumn, gettingStartedList.getDomElement());
+				}
 			}
 			else {
 				this.container.classList.add('noWalkthroughs');
-				reset(rightColumn);
+				if (videoList.itemCount > 0) {
+					reset(rightColumn, videoList.getDomElement());
+				}
+				else {
+					reset(rightColumn);
+				}
+			}
+			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
+			layoutRecentList();
+		};
 
+		const layoutVideos = () => {
+			if (videoList.itemCount > 0) {
+				reset(rightColumn, videoList.getDomElement(), gettingStartedList.getDomElement());
+			}
+			else {
+				reset(rightColumn, gettingStartedList.getDomElement());
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
 			layoutRecentList();
 		};
 
 		const layoutRecentList = () => {
-			if (this.container.classList.contains('noWalkthroughs')) {
+			if (this.container.classList.contains('noWalkthroughs') && videoList.itemCount === 0) {
 				recentList.setLimit(10);
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
@@ -840,6 +867,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 		};
 
+		videoList.onDidChange(layoutVideos);
 		gettingStartedList.onDidChange(layoutLists);
 		layoutLists();
 
@@ -1090,6 +1118,61 @@ export class GettingStartedPage extends EditorPane {
 		return gettingStartedList;
 	}
 
+	private buildVideosList(): GettingStartedIndexList<IWelcomePageStartEntry> {
+
+		const renderFeaturedExtensions = (entry: IWelcomePageStartEntry): HTMLElement => {
+
+			const descriptionContent = $('.description-content', {},);
+
+			reset(descriptionContent, ...renderLabelWithIcons(entry.description));
+
+			const titleContent = $('h3.category-title.max-lines-3', { 'x-category-title-for': entry.id });
+			reset(titleContent, ...renderLabelWithIcons(entry.title));
+
+			return $('button.getting-started-category',
+				{
+					'x-dispatch': 'openLink:' + entry.command,
+					'title': entry.description
+				},
+				$('.main-content', {},
+					this.iconWidgetFor(entry),
+					titleContent,
+					$('a.codicon.codicon-close.hide-category-button', {
+						'tabindex': 0,
+						'x-dispatch': 'hideVideosContent',
+						'title': localize('close', "Hide"),
+						'role': 'button',
+						'aria-label': localize('closeAriaLabel', "Hide"),
+					}),
+				));
+		};
+
+		if (this.videoList) {
+			this.videoList.dispose();
+		}
+		const videoList = this.videoList = new GettingStartedIndexList(
+			{
+				title: '',
+				klass: 'getting-started-videos',
+				limit: 1,
+				renderElement: renderFeaturedExtensions,
+				contextService: this.contextService,
+			});
+
+		videoList.setEntries([{
+			id: 'videos',
+			title: 'Watch Tutorials',
+			description: 'Learn VS Code\'s must-have features in short and practical tutorials',
+			icon: { type: 'icon', icon: Codicon.play },
+			command: 'https://www.youtube.com/watch?v=B-s71n0dHUk&list=PLj6YeMhvp2S5UgiQnBfvD7XgOMKs3O_G6&index=1',
+			order: 0,
+			when: ContextKeyExpr.true(),
+		}]);
+		videoList.onDidChange(() => this.registerDispatchListeners());
+
+		return videoList;
+	}
+
 	layout(size: Dimension) {
 		this.detailsScrollbar?.scanDomNode();
 
@@ -1099,6 +1182,7 @@ export class GettingStartedPage extends EditorPane {
 		this.startList?.layout(size);
 		this.gettingStartedList?.layout(size);
 		this.recentlyOpenedList?.layout(size);
+		this.videoList?.layout(size);
 
 		if (this.editorInput?.selectedStep && this.currentMediaType) {
 			this.mediaDisposables.clear();
