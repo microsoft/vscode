@@ -1598,7 +1598,7 @@ export class ReloadAction extends ExtensionAction {
 		this.enabled = true;
 		this.class = ReloadAction.EnabledClass;
 		this.tooltip = runtimeState.reason;
-		this.label = runtimeState.action === ExtensionRuntimeActionType.Reload ? localize('reload required', 'Reload {0}', this.productService.nameShort)
+		this.label = runtimeState.action === ExtensionRuntimeActionType.Reload ? localize('reload window', 'Reload Window')
 			: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart {0}', this.productService.nameShort)
 				: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', 'Update {0}', this.productService.nameShort) : '';
 	}
