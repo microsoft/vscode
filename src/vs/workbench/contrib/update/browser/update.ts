@@ -173,6 +173,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super();
@@ -316,8 +317,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		);
 	}
 
-	// windows fast updates (target === system)
+	// windows fast updates
 	private onUpdateDownloaded(update: IUpdate): void {
+		if (this.configurationService.getValue('update.enableWindowsBackgroundUpdates') && this.productService.target === 'user') {
+			return;
+		}
+
 		if (!this.shouldShowNotification()) {
 			return;
 		}
