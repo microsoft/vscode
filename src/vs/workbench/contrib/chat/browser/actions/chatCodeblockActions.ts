@@ -95,11 +95,7 @@ export function registerChatCodeBlockActions() {
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			let context = args[0];
-			if (!context) {
-				context = accessibleViewService.getCodeBlockContext();
-			}
+			const context = args[0];
 			if (!isCodeBlockActionContext(context) || isResponseFiltered(context)) {
 				return;
 			}
