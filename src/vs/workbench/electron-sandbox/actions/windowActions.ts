@@ -6,7 +6,7 @@
 import 'vs/css!./media/actions';
 import { URI } from 'vs/base/common/uri';
 import { localize, localize2 } from 'vs/nls';
-import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { ApplyZoomTarget, MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL, applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -37,9 +37,8 @@ export class CloseWindowAction extends Action2 {
 		super({
 			id: CloseWindowAction.ID,
 			title: {
-				value: localize('closeWindow', "Close Window"),
+				...localize2('closeWindow', "Close Window"),
 				mnemonicTitle: localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window"),
-				original: 'Close Window'
 			},
 			f1: true,
 			keybinding: {
@@ -68,9 +67,6 @@ abstract class BaseZoomAction extends Action2 {
 	private static readonly ZOOM_LEVEL_SETTING_KEY = 'window.zoomLevel';
 	private static readonly ZOOM_PER_WINDOW_SETTING_KEY = 'window.zoomPerWindow';
 
-	private static readonly MAX_ZOOM_LEVEL = 8;
-	private static readonly MIN_ZOOM_LEVEL = -8;
-
 	constructor(desc: Readonly<IAction2Options>) {
 		super(desc);
 	}
@@ -87,7 +83,7 @@ abstract class BaseZoomAction extends Action2 {
 
 		let level: number;
 		if (typeof levelOrReset === 'number') {
-			level = levelOrReset;
+			level = Math.round(levelOrReset); // prevent fractional zoom levels
 		} else {
 
 			// reset to 0 when we apply to all windows
@@ -106,9 +102,7 @@ abstract class BaseZoomAction extends Action2 {
 			}
 		}
 
-		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
-
-		if (level > BaseZoomAction.MAX_ZOOM_LEVEL || level < BaseZoomAction.MIN_ZOOM_LEVEL) {
+		if (level > MAX_ZOOM_LEVEL || level < MIN_ZOOM_LEVEL) {
 			return; // https://github.com/microsoft/vscode/issues/48357
 		}
 
@@ -126,9 +120,8 @@ export class ZoomInAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomIn',
 			title: {
-				value: localize('zoomIn', "Zoom In"),
+				...localize2('zoomIn', "Zoom In"),
 				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
-				original: 'Zoom In'
 			},
 			category: Categories.View,
 			f1: true,
@@ -156,9 +149,8 @@ export class ZoomOutAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomOut',
 			title: {
-				value: localize('zoomOut', "Zoom Out"),
+				...localize2('zoomOut', "Zoom Out"),
 				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
-				original: 'Zoom Out'
 			},
 			category: Categories.View,
 			f1: true,
@@ -190,9 +182,8 @@ export class ZoomResetAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomReset',
 			title: {
-				value: localize('zoomReset', "Reset Zoom"),
+				...localize2('zoomReset', "Reset Zoom"),
 				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"),
-				original: 'Reset Zoom'
 			},
 			category: Categories.View,
 			f1: true,
@@ -221,7 +212,7 @@ abstract class BaseSwitchWindow extends Action2 {
 	};
 
 	private readonly closeDirtyWindowAction: IQuickInputButton = {
-		iconClass: 'dirty-window ' + Codicon.closeDirty,
+		iconClass: 'dirty-window ' + ThemeIcon.asClassName(Codicon.closeDirty),
 		tooltip: localize('close', "Close Window"),
 		alwaysVisible: true
 	};

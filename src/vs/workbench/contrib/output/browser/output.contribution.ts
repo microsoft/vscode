@@ -16,10 +16,11 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -28,7 +29,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -223,11 +224,11 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const outputService = accessor.get(IOutputService);
-				const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
+				const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 				const activeChannel = outputService.getActiveChannel();
 				if (activeChannel) {
 					activeChannel.clear();
-					accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+					accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 				}
 			}
 		}));
@@ -407,16 +408,30 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				const editorService = accessor.get(IEditorService);
 				const fileConfigurationService = accessor.get(IFilesConfigurationService);
 
-				const entries: IOutputChannelQuickPickItem[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
-					.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
-
-				const argName = args && typeof args === 'string' ? args : undefined;
 				let entry: IOutputChannelQuickPickItem | undefined;
-				if (argName) {
-					entry = entries.find(e => e.id === argName);
+				const argName = args && typeof args === 'string' ? args : undefined;
+				const extensionChannels: IOutputChannelQuickPickItem[] = [];
+				const coreChannels: IOutputChannelQuickPickItem[] = [];
+				for (const c of outputService.getChannelDescriptors()) {
+					if (c.file && c.log) {
+						const e = { id: c.id, label: c.label, channel: c };
+						if (c.extensionId) {
+							extensionChannels.push(e);
+						} else {
+							coreChannels.push(e);
+						}
+						if (e.id === argName) {
+							entry = e;
+						}
+					}
 				}
 				if (!entry) {
-					entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log File") });
+					const entries: QuickPickInput[] = [...extensionChannels.sort((a, b) => a.label.localeCompare(b.label))];
+					if (entries.length && coreChannels.length) {
+						entries.push({ type: 'separator' });
+						entries.push(...coreChannels.sort((a, b) => a.label.localeCompare(b.label)));
+					}
+					entry = <IOutputChannelQuickPickItem | undefined>await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log File") });
 				}
 				if (entry) {
 					const resource = assertIsDefined(entry.channel.file);

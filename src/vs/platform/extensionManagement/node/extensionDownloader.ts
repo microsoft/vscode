@@ -99,6 +99,7 @@ export class ExtensionsDownloader extends Disposable {
 
 	private shouldVerifySignature(extension: IGalleryExtension): boolean {
 		if (!extension.isSigned) {
+			this.logService.info(`Extension is not signed: ${extension.identifier.id}`);
 			return false;
 		}
 
@@ -110,7 +111,11 @@ export class ExtensionsDownloader extends Disposable {
 		await this.cleanUpPromise;
 
 		const location = joinPath(this.extensionsDownloadDir, `${this.getName(extension)}${ExtensionsDownloader.SignatureArchiveExtension}`);
-		await this.downloadFile(extension, location, location => this.extensionGalleryService.downloadSignatureArchive(extension, location));
+		try {
+			await this.downloadFile(extension, location, location => this.extensionGalleryService.downloadSignatureArchive(extension, location));
+		} catch (error) {
+			throw new ExtensionManagementError(error.message, ExtensionManagementErrorCode.DownloadSignature);
+		}
 		return location;
 	}
 

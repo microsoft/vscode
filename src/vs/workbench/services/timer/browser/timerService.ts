@@ -66,6 +66,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWorkbenchContributions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -363,6 +364,16 @@ export interface IStartupMetrics {
 		 * * Happens in parallel to other things, depends on async timing
 		 */
 		readonly ellapsedEditorRestore: number;
+
+		/**
+		 * The time it took to create all workbench contributions on the starting and ready
+		 * lifecycle phase, thus blocking `ellapsedWorkbench`.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willCreateWorkbenchContributions/1` and `didCreateWorkbenchContributions/2` performance marks.
+		 *
+		 */
+		readonly ellapsedWorkbenchContributions: number;
 
 		/**
 		 * The time it took to create the workbench.
@@ -686,6 +697,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedEditorRestore: this._marks.getDuration('code/willRestoreEditors', 'code/didRestoreEditors'),
 				ellapsedViewletRestore: this._marks.getDuration('code/willRestoreViewlet', 'code/didRestoreViewlet'),
 				ellapsedPanelRestore: this._marks.getDuration('code/willRestorePanel', 'code/didRestorePanel'),
+				ellapsedWorkbenchContributions: this._marks.getDuration('code/willCreateWorkbenchContributions/1', 'code/didCreateWorkbenchContributions/2'),
 				ellapsedWorkbench: this._marks.getDuration('code/willStartWorkbench', 'code/didStartWorkbench'),
 				ellapsedExtensionsReady: this._marks.getDuration(startMark, 'code/didLoadExtensions'),
 				ellapsedRenderer: this._marks.getDuration('code/didStartRenderer', 'code/didStartWorkbench')

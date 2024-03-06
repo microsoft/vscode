@@ -156,6 +156,11 @@
 	cursor: pointer;
 }
 
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container.empty,
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container.empty .monaco-tree-sticky-container-shadow {
+	display: none;
+}
+
 .monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-container-shadow{
 	position: absolute;
 	bottom: -3px;

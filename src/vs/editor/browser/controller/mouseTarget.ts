@@ -20,6 +20,7 @@ import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
+import { Mutable } from 'vs/base/common/types';
 
 const enum HitTestResultType {
 	Unknown,
@@ -672,7 +673,7 @@ export class MouseTargetFactory {
 			const res = ctx.getFullLineRangeAtCoord(request.mouseVerticalOffset);
 			const pos = res.range.getStartPosition();
 			let offset = Math.abs(request.relativePos.x);
-			const detail: IMouseTargetMarginData = {
+			const detail: Mutable<IMouseTargetMarginData> = {
 				isAfterLines: res.isAfterLines,
 				glyphMarginLeft: ctx.layoutInfo.glyphMarginLeft,
 				glyphMarginWidth: ctx.layoutInfo.glyphMarginWidth,
@@ -684,6 +685,9 @@ export class MouseTargetFactory {
 
 			if (offset <= ctx.layoutInfo.glyphMarginWidth) {
 				// On the glyph margin
+				const modelCoordinate = ctx.viewModel.coordinatesConverter.convertViewPositionToModelPosition(res.range.getStartPosition());
+				const lanes = ctx.viewModel.glyphLanes.getLanesAtLine(modelCoordinate.lineNumber);
+				detail.glyphMarginLane = lanes[Math.floor(offset / ctx.lineHeight)];
 				return request.fulfillMargin(MouseTargetType.GUTTER_GLYPH_MARGIN, pos, res.range, detail);
 			}
 			offset -= ctx.layoutInfo.glyphMarginWidth;

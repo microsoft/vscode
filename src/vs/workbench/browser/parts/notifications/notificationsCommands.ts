@@ -19,9 +19,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { hash } from 'vs/base/common/hash';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -142,11 +142,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			primary: KeyMod.CtrlCmd | KeyCode.Backspace
 		},
 		handler: (accessor, args?) => {
-			const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
+			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification && !notification.hasProgress) {
 				notification.close();
-				accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+				accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 			}
 		}
 	});
@@ -354,7 +354,7 @@ type NotificationActionMetricsClassification = {
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run from a notification.' };
 	actionLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the action that was run from a notification.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the notification where an action was run.' };
-	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification where an action was run is silent or not.' };
+	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the notification where an action was run is silent or not.' };
 	owner: 'bpasero';
 	comment: 'Tracks when actions are fired from notifcations and how they were fired.';
 };

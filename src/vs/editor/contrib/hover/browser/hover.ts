@@ -294,10 +294,16 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position) {
+		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position && target.detail.glyphMarginLane) {
 			this._contentWidget?.hide();
 			const glyphWidget = this._getOrCreateGlyphWidget();
-			glyphWidget.startShowingAt(target.position.lineNumber);
+			glyphWidget.startShowingAt(target.position.lineNumber, target.detail.glyphMarginLane);
+			return;
+		}
+		if (target.type === MouseTargetType.GUTTER_LINE_NUMBERS && target.position) {
+			this._contentWidget?.hide();
+			const glyphWidget = this._getOrCreateGlyphWidget();
+			glyphWidget.startShowingAt(target.position.lineNumber, 'lineNo');
 			return;
 		}
 		if (_sticky) {

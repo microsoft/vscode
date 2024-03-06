@@ -14,7 +14,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, workspaceTrustToString, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -85,6 +85,9 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
  */
 
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.workspaceTrustRequestHandler';
+
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -100,11 +103,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
 	}
 
-	private async registerListeners(): Promise<void> {
-		await this.workspaceTrustManagementService.workspaceResolved;
+	private registerListeners(): void {
 
 		// Open files trust request
 		this._register(this.workspaceTrustRequestService.onDidInitiateOpenFilesTrustRequest(async () => {
+			await this.workspaceTrustManagementService.workspaceResolved;
+
 			// Details
 			const markdownDetails = [
 				this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
@@ -145,6 +149,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		// Workspace trust request
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
+			await this.workspaceTrustManagementService.workspaceResolved;
+
 			// Title
 			const message = this.useWorkspaceLanguage ?
 				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
@@ -222,7 +228,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
  */
 export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchContribution {
 
-	private readonly entryId = `status.workspaceTrust.${this.workspaceContextService.getWorkspace().id}`;
+	private readonly entryId = `status.workspaceTrust`;
 
 	private readonly statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 
@@ -253,7 +259,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 			if (this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 				this.registerListeners();
-				this.createStatusbarEntry();
+				this.updateStatusbarEntry(this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 				// Show modal dialog
 				if (this.hostService.hasFocus) {
@@ -555,12 +561,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	//#region Statusbar
 
-	private createStatusbarEntry(): void {
-		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkspaceTrusted());
-		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
-		this.statusbarService.updateEntryVisibility(this.entryId, false);
-	}
-
 	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
 		const text = workspaceTrustToString(trusted);
 
@@ -625,14 +625,21 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 	private updateStatusbarEntry(trusted: boolean): void {
-		this.statusbarEntryAccessor.value?.update(this.getStatusbarEntry(trusted));
-		this.statusbarService.updateEntryVisibility(this.entryId, !trusted);
+		if (trusted && this.statusbarEntryAccessor.value) {
+			this.statusbarEntryAccessor.clear();
+			return;
+		}
+
+		if (!trusted && !this.statusbarEntryAccessor.value) {
+			const entry = this.getStatusbarEntry(trusted);
+			this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+		}
 	}
 
 	//#endregion
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Ready);
+registerWorkbenchContribution2(WorkspaceTrustRequestHandler.ID, WorkspaceTrustRequestHandler, WorkbenchPhase.BlockRestore);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustUXHandler, LifecyclePhase.Restored);
 
 
@@ -682,7 +689,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_TRUST_COMMAND_ID,
-			title: { original: 'Configure Workspace Trust Settings', value: localize('configureWorkspaceTrustSettings', "Configure Workspace Trust Settings") },
+			title: localize2('configureWorkspaceTrustSettings', "Configure Workspace Trust Settings"),
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: WORKSPACES_CATEGORY,
 			f1: true
@@ -700,7 +707,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_TRUST_COMMAND_ID,
-			title: { original: 'Manage Workspace Trust', value: localize('manageWorkspaceTrust', "Manage Workspace Trust") },
+			title: localize2('manageWorkspaceTrust', "Manage Workspace Trust"),
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: WORKSPACES_CATEGORY,
 			f1: true,

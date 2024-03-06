@@ -33,6 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { PostEditWidgetManager } from './postEditWidget';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 
@@ -55,12 +56,19 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		return editor.getContribution<CopyPasteController>(CopyPasteController.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
-
-	private _currentCopyOperation?: {
+	/**
+	 * Global tracking the last copy operation.
+	 *
+	 * This is shared across all editors so that you can copy and paste between groups.
+	 *
+	 * TODO: figure out how to make this work with multiple windows
+	 */
+	private static _currentCopyOperation?: {
 		readonly handle: string;
 		readonly dataTransferPromise: CancelablePromise<VSDataTransfer>;
 	};
+
+	private readonly _editor: ICodeEditor;
 
 	private _currentPasteOperation?: CancelablePromise<void>;
 	private _pasteAsActionContext?: { readonly preferredId: string | undefined };
@@ -203,8 +211,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return dataTransfer;
 		});
 
-		this._currentCopyOperation?.dataTransferPromise.cancel();
-		this._currentCopyOperation = { handle: handle, dataTransferPromise: promise };
+		CopyPasteController._currentCopyOperation?.dataTransferPromise.cancel();
+		CopyPasteController._currentCopyOperation = { handle: handle, dataTransferPromise: promise };
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
@@ -212,6 +220,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
+		MessageController.get(this._editor)?.closeMessage();
 		this._currentPasteOperation?.cancel();
 		this._currentPasteOperation = undefined;
 
@@ -221,7 +230,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		if (!this.isPasteAsEnabled()) {
+		if (
+			!this.isPasteAsEnabled()
+			&& !this._pasteAsActionContext // Still enable if paste as was explicitly requested
+		) {
 			return;
 		}
 
@@ -240,8 +252,19 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		const allProviders = this._languageFeaturesService.documentPasteEditProvider
 			.ordered(model)
-			.filter(provider => provider.pasteMimeTypes?.some(type => matchesMimeType(type, allPotentialMimeTypes)));
+			.filter(provider => {
+				if (this._pasteAsActionContext?.preferredId) {
+					if (this._pasteAsActionContext.preferredId !== provider.id) {
+						return false;
+					}
+				}
+
+				return provider.pasteMimeTypes?.some(type => matchesMimeType(type, allPotentialMimeTypes));
+			});
 		if (!allProviders.length) {
+			if (this._pasteAsActionContext?.preferredId) {
+				this.showPasteAsNoEditMessage(selections, this._pasteAsActionContext?.preferredId);
+			}
 			return;
 		}
 
@@ -256,6 +279,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		} else {
 			this.doPasteInline(allProviders, selections, dataTransfer, metadata, { trigger: 'implicit' });
 		}
+	}
+
+	private showPasteAsNoEditMessage(selections: readonly Selection[], editId: string) {
+		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", editId), selections[0].getStartPosition());
 	}
 
 	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, context: DocumentPasteContext): void {
@@ -339,6 +366,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				if (!providerEdits.length) {
+					if (context.only) {
+						this.showPasteAsNoEditMessage(selections, context.only);
+					}
 					return;
 				}
 
@@ -413,8 +443,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async mergeInDataFromCopy(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken): Promise<void> {
-		if (metadata?.id && this._currentCopyOperation?.handle === metadata.id) {
-			const toMergeDataTransfer = await this._currentCopyOperation.dataTransferPromise;
+		if (metadata?.id && CopyPasteController._currentCopyOperation?.handle === metadata.id) {
+			const toMergeDataTransfer = await CopyPasteController._currentCopyOperation.dataTransferPromise;
 			if (token.isCancellationRequested) {
 				return;
 			}

@@ -548,6 +548,22 @@ export interface CompletionList {
 }
 
 /**
+ * Info provided on partial acceptance.
+ */
+export interface PartialAcceptInfo {
+	kind: PartialAcceptTriggerKind;
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export const enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2,
+}
+
+/**
  * How a suggest provider was triggered.
  */
 export const enum CompletionTriggerKind {
@@ -718,7 +734,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	/**
 	 * Will be called when an item is partially accepted.
 	 */
-	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
@@ -749,6 +765,7 @@ export interface CodeAction {
 	isPreferred?: boolean;
 	isAI?: boolean;
 	disabled?: string;
+	ranges?: IRange[];
 }
 
 export const enum CodeActionTriggerType {
@@ -1651,6 +1668,19 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
+export interface NewSymbolName {
+	readonly newSymbolName: string;
+	readonly tags?: readonly NewSymbolNameTag[];
+}
+
+export interface NewSymbolNamesProvider {
+	provideNewSymbolNames(model: model.ITextModel, range: IRange, token: CancellationToken): ProviderResult<NewSymbolName[]>;
+}
+
 export interface Command {
 	id: string;
 	title: string;
@@ -1694,6 +1724,14 @@ export interface CommentInfo {
 	threads: CommentThread[];
 	pendingCommentThreads?: PendingCommentThread[];
 	commentingRanges: CommentingRanges;
+}
+
+
+/**
+ * @internal
+ */
+export interface CommentingRangeResourceHint {
+	schemes: readonly string[];
 }
 
 /**
@@ -1775,6 +1813,12 @@ export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
 	fileComments: boolean;
+}
+
+export interface CommentAuthorInformation {
+	name: string;
+	iconPath?: UriComponents;
+
 }
 
 /**
@@ -2122,4 +2166,25 @@ export interface MappedEditsProvider {
 		context: MappedEditsContext,
 		token: CancellationToken
 	): Promise<WorkspaceEdit | null>;
+}
+
+export interface IInlineEdit {
+	text: string;
+	range: IRange;
+	accepted?: Command;
+	rejected?: Command;
+}
+
+export interface IInlineEditContext {
+	triggerKind: InlineEditTriggerKind;
+}
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
+export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
+	freeInlineEdit(edit: T): void;
 }

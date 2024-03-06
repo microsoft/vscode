@@ -39,7 +39,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { EditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessionsLogService';
-import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -87,7 +88,7 @@ const openLocalFolderCommand: IAction2Options = {
 };
 const showOutputChannelCommand: IAction2Options = {
 	id: 'workbench.editSessions.actions.showOutputChannel',
-	title: { value: localize('show log', 'Show Log'), original: 'Show Log' },
+	title: localize2('show log', "Show Log"),
 	category: EDIT_SESSION_SYNC_CATEGORY
 };
 const installAdditionalContinueOnOptionsCommand = {
@@ -898,7 +899,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private generateStandaloneOptionCommand(commandId: string, qualifiedName: string, category: string | ILocalizedString | undefined, when: ContextKeyExpression | undefined, remoteGroup: string | undefined) {
-		const command = {
+		const command: IAction2Options = {
 			id: `${continueWorkingOnCommand.id}.${commandId}`,
 			title: { original: qualifiedName, value: qualifiedName },
 			category: typeof category === 'string' ? { original: category, value: category } : category,

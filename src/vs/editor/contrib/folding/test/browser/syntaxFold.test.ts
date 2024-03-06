@@ -29,6 +29,8 @@ class TestFoldingRangeProvider implements FoldingRangeProvider {
 }
 
 suite('Syntax folding', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function r(start: number, end: number): IndentRange {
 		return { start, end };
 	}
@@ -109,5 +111,4 @@ suite('Syntax folding', () => {
 
 		model.dispose();
 	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

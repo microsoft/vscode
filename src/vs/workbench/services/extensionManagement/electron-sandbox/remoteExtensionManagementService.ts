@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -44,7 +44,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		super(channel, userDataProfileService, userDataProfilesService, remoteUserDataProfilesService, uriIdentityService);
 	}
 
-	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+	override async install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {
 		const local = await super.install(vsix, options);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
@@ -65,7 +65,10 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		} catch (error) {
 			switch (error.name) {
 				case ExtensionManagementErrorCode.Download:
+				case ExtensionManagementErrorCode.DownloadSignature:
+				case ExtensionManagementErrorCode.Gallery:
 				case ExtensionManagementErrorCode.Internal:
+				case ExtensionManagementErrorCode.Unknown:
 					try {
 						this.logService.error(`Error while installing '${extension.identifier.id}' extension in the remote server.`, toErrorMessage(error));
 						return await this.downloadAndInstall(extension, installOptions || {});
@@ -84,7 +87,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		this.logService.info(`Downloading the '${extension.identifier.id}' extension locally and install`);
 		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
 		installOptions = { ...installOptions, donotIncludePackAndDependencies: true };
-		const installed = await this.getInstalled(ExtensionType.User);
+		const installed = await this.getInstalled(ExtensionType.User, undefined, installOptions.productVersion);
 		const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(compatible, CancellationToken.None);
 		if (workspaceExtensions.length) {
 			this.logService.info(`Downloading the workspace dependencies and packed extensions of '${compatible.identifier.id}' locally and install`);

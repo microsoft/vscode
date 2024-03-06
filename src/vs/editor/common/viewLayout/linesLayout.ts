@@ -644,6 +644,17 @@ export class LinesLayout {
 		let currentVerticalOffset = startLineNumberVerticalOffset;
 		let currentLineRelativeOffset = currentVerticalOffset;
 
+		// IE (all versions) cannot handle units above about 1,533,908 px, so every 500k pixels bring numbers down
+		const STEP_SIZE = 500000;
+		let bigNumbersDelta = 0;
+		if (startLineNumberVerticalOffset >= STEP_SIZE) {
+			// Compute a delta that guarantees that lines are positioned at `lineHeight` increments
+			bigNumbersDelta = Math.floor(startLineNumberVerticalOffset / STEP_SIZE) * STEP_SIZE;
+			bigNumbersDelta = Math.floor(bigNumbersDelta / lineHeight) * lineHeight;
+
+			currentLineRelativeOffset -= bigNumbersDelta;
+		}
+
 		const linesOffsets: number[] = [];
 
 		const verticalCenter = verticalOffset1 + (verticalOffset2 - verticalOffset1) / 2;
@@ -710,6 +721,7 @@ export class LinesLayout {
 		}
 
 		return {
+			bigNumbersDelta: bigNumbersDelta,
 			startLineNumber: startLineNumber,
 			endLineNumber: endLineNumber,
 			relativeVerticalOffset: linesOffsets,

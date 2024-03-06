@@ -7,11 +7,14 @@ import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { checksum } from 'vs/base/node/crypto';
 import { Promises } from 'vs/base/node/pfs';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('Crypto', () => {
 
 	let testDir: string;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'crypto');

@@ -33,6 +33,8 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./media/tree';
 import { localize } from 'vs/nls';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -679,6 +681,7 @@ export interface ITreeFindToggleOpts {
 	readonly inputActiveOptionBorder: string | undefined;
 	readonly inputActiveOptionForeground: string | undefined;
 	readonly inputActiveOptionBackground: string | undefined;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export class ModeToggle extends Toggle {
@@ -687,6 +690,7 @@ export class ModeToggle extends Toggle {
 			icon: Codicon.listFilter,
 			title: localize('filter', "Filter"),
 			isChecked: opts.isChecked ?? false,
+			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
@@ -700,6 +704,7 @@ export class FuzzyToggle extends Toggle {
 			icon: Codicon.searchFuzzy,
 			title: localize('fuzzySearch', "Fuzzy Match"),
 			isChecked: opts.isChecked ?? false,
+			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
@@ -802,8 +807,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 			this.elements.root.style.boxShadow = `0 0 8px 2px ${styles.listFilterWidgetShadow}`;
 		}
 
-		this.modeToggle = this._register(new ModeToggle({ ...styles.toggleStyles, isChecked: mode === TreeFindMode.Filter }));
-		this.matchTypeToggle = this._register(new FuzzyToggle({ ...styles.toggleStyles, isChecked: matchType === TreeFindMatchType.Fuzzy }));
+		const toggleHoverDelegate = this._register(createInstantHoverDelegate());
+		this.modeToggle = this._register(new ModeToggle({ ...styles.toggleStyles, isChecked: mode === TreeFindMode.Filter, hoverDelegate: toggleHoverDelegate }));
+		this.matchTypeToggle = this._register(new FuzzyToggle({ ...styles.toggleStyles, isChecked: matchType === TreeFindMatchType.Fuzzy, hoverDelegate: toggleHoverDelegate }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
 		this.onDidChangeMatchType = Event.map(this.matchTypeToggle.onChange, () => this.matchTypeToggle.checked ? TreeFindMatchType.Fuzzy : TreeFindMatchType.Contiguous, this._store);
 
@@ -1172,7 +1178,7 @@ class FindController<T, TFilterData> implements IDisposable {
 	}
 }
 
-interface StickyScrollNode<T, TFilterData> {
+export interface StickyScrollNode<T, TFilterData> {
 	readonly node: ITreeNode<T, TFilterData>;
 	readonly startIndex: number;
 	readonly endIndex: number;
@@ -1180,26 +1186,27 @@ interface StickyScrollNode<T, TFilterData> {
 	readonly position: number;
 }
 
+function stickyScrollNodeStateEquals<T, TFilterData>(node1: StickyScrollNode<T, TFilterData>, node2: StickyScrollNode<T, TFilterData>) {
+	return node1.position === node2.position && stickyScrollNodeEquals(node1, node2);
+}
+
 function stickyScrollNodeEquals<T, TFilterData>(node1: StickyScrollNode<T, TFilterData>, node2: StickyScrollNode<T, TFilterData>) {
-	return node1.position === node2.position &&
-		node1.node.element === node2.node.element &&
+	return node1.node.element === node2.node.element &&
 		node1.startIndex === node2.startIndex &&
 		node1.height === node2.height &&
 		node1.endIndex === node2.endIndex;
 }
 
-class StickyScrollState<T, TFilterData, TRef> extends Disposable {
+class StickyScrollState<T, TFilterData, TRef> {
 
 	constructor(
 		readonly stickyNodes: StickyScrollNode<T, TFilterData>[] = []
-	) {
-		super();
-	}
+	) { }
 
 	get count(): number { return this.stickyNodes.length; }
 
 	equal(state: StickyScrollState<T, TFilterData, TRef>): boolean {
-		return equals(this.stickyNodes, state.stickyNodes, stickyScrollNodeEquals);
+		return equals(this.stickyNodes, state.stickyNodes, stickyScrollNodeStateEquals);
 	}
 
 	lastNodePartiallyVisible(): boolean {
@@ -1216,8 +1223,39 @@ class StickyScrollState<T, TFilterData, TRef> extends Disposable {
 		return secondLastStickyNode.position + secondLastStickyNode.height !== lastStickyNode.position;
 	}
 
-	addDisposable(disposable: IDisposable): void {
-		this._register(disposable);
+	animationStateChanged(previousState: StickyScrollState<T, TFilterData, TRef>): boolean {
+		if (!equals(this.stickyNodes, previousState.stickyNodes, stickyScrollNodeEquals)) {
+			return false;
+		}
+
+		if (this.count === 0) {
+			return false;
+		}
+
+		const lastStickyNode = this.stickyNodes[this.count - 1];
+		const previousLastStickyNode = previousState.stickyNodes[previousState.count - 1];
+
+		return lastStickyNode.position !== previousLastStickyNode.position;
+	}
+}
+
+export interface IStickyScrollDelegate<T, TFilterData> {
+	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[];
+}
+
+class DefaultStickyScrollDelegate<T, TFilterData> implements IStickyScrollDelegate<T, TFilterData> {
+
+	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[] {
+
+		for (let i = 0; i < stickyNodes.length; i++) {
+			const stickyNode = stickyNodes[i];
+			const stickyNodeBottom = stickyNode.position + stickyNode.height;
+			if (stickyNodeBottom > maxWidgetHeight || i >= stickyScrollMaxItemCount) {
+				return stickyNodes.slice(0, i);
+			}
+		}
+
+		return stickyNodes;
 	}
 }
 
@@ -1226,20 +1264,12 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 	readonly onDidChangeHasFocus: Event<boolean>;
 	readonly onContextMenu: Event<ITreeContextMenuEvent<T>>;
 
+	private readonly stickyScrollDelegate: IStickyScrollDelegate<T, TFilterData>;
+
 	private stickyScrollMaxItemCount: number;
 	private readonly maxWidgetViewRatio = 0.4;
 
 	private readonly _widget: StickyScrollWidget<T, TFilterData, TRef>;
-
-	private get firstVisibleNode() {
-		const index = this.view.firstVisibleIndex;
-
-		if (index < 0 || index >= this.view.length) {
-			return undefined;
-		}
-
-		return this.view.element(index);
-	}
 
 	constructor(
 		private readonly tree: AbstractTree<T, TFilterData, TRef>,
@@ -1254,7 +1284,9 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		const stickyScrollOptions = this.validateStickySettings(options);
 		this.stickyScrollMaxItemCount = stickyScrollOptions.stickyScrollMaxItemCount;
 
-		this._widget = this._register(new StickyScrollWidget(view.getScrollableElement(), view, model, renderers, treeDelegate, options.accessibilityProvider));
+		this.stickyScrollDelegate = options.stickyScrollDelegate ?? new DefaultStickyScrollDelegate();
+
+		this._widget = this._register(new StickyScrollWidget(view.getScrollableElement(), view, tree, renderers, treeDelegate, options.accessibilityProvider));
 		this.onDidChangeHasFocus = this._widget.onDidChangeHasFocus;
 		this.onContextMenu = this._widget.onContextMenu;
 
@@ -1277,8 +1309,23 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return this._widget.getNode(node);
 	}
 
+	private getNodeAtHeight(height: number): ITreeNode<T, TFilterData> | undefined {
+		let index;
+		if (height === 0) {
+			index = this.view.firstVisibleIndex;
+		} else {
+			index = this.view.indexAt(height + this.view.scrollTop);
+		}
+
+		if (index < 0 || index >= this.view.length) {
+			return undefined;
+		}
+
+		return this.view.element(index);
+	}
+
 	private update() {
-		const firstVisibleNode = this.firstVisibleNode;
+		const firstVisibleNode = this.getNodeAtHeight(0);
 
 		// Don't render anything if there are no elements
 		if (!firstVisibleNode || this.tree.scrollTop === 0) {
@@ -1292,38 +1339,31 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 
 	private findStickyState(firstVisibleNode: ITreeNode<T, TFilterData>): StickyScrollState<T, TFilterData, TRef> | undefined {
 		const stickyNodes: StickyScrollNode<T, TFilterData>[] = [];
-		const maximumStickyWidgetHeight = this.view.renderHeight * this.maxWidgetViewRatio;
 		let firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData> | undefined = firstVisibleNode;
 		let stickyNodesHeight = 0;
 
 		let nextStickyNode = this.getNextStickyNode(firstVisibleNodeUnderWidget, undefined, stickyNodesHeight);
-		while (nextStickyNode && stickyNodesHeight + nextStickyNode.height < maximumStickyWidgetHeight) {
+		while (nextStickyNode) {
 
 			stickyNodes.push(nextStickyNode);
 			stickyNodesHeight += nextStickyNode.height;
 
-			if (stickyNodes.length >= this.stickyScrollMaxItemCount) {
-				break;
-			}
-
-			firstVisibleNodeUnderWidget = this.getNextVisibleNode(firstVisibleNodeUnderWidget);
-			if (!firstVisibleNodeUnderWidget) {
-				break;
+			if (stickyNodes.length <= this.stickyScrollMaxItemCount) {
+				firstVisibleNodeUnderWidget = this.getNextVisibleNode(nextStickyNode);
+				if (!firstVisibleNodeUnderWidget) {
+					break;
+				}
 			}
 
 			nextStickyNode = this.getNextStickyNode(firstVisibleNodeUnderWidget, nextStickyNode.node, stickyNodesHeight);
 		}
 
-		return stickyNodes.length ? new StickyScrollState(stickyNodes) : undefined;
+		const contrainedStickyNodes = this.constrainStickyNodes(stickyNodes);
+		return contrainedStickyNodes.length ? new StickyScrollState(contrainedStickyNodes) : undefined;
 	}
 
-	private getNextVisibleNode(node: ITreeNode<T, TFilterData>): ITreeNode<T, TFilterData> | undefined {
-		const nodeIndex = this.getNodeIndex(node);
-		if (nodeIndex === -1 || nodeIndex === this.view.length - 1) {
-			return undefined;
-		}
-		const nextNode = this.view.element(nodeIndex + 1);
-		return nextNode;
+	private getNextVisibleNode(previousStickyNode: StickyScrollNode<T, TFilterData>): ITreeNode<T, TFilterData> | undefined {
+		return this.getNodeAtHeight(previousStickyNode.position + previousStickyNode.height);
 	}
 
 	private getNextStickyNode(firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined, stickyNodesHeight: number): StickyScrollNode<T, TFilterData> | undefined {
@@ -1356,7 +1396,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		const height = this.treeDelegate.getHeight(node);
 		const { startIndex, endIndex } = this.getNodeRange(node);
 
-		const position = this.calculateStickyNodePosition(endIndex, currentStickyNodesHeight);
+		const position = this.calculateStickyNodePosition(endIndex, currentStickyNodesHeight, height);
 
 		return { node, position, height, startIndex, endIndex };
 	}
@@ -1380,7 +1420,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return undefined;
 	}
 
-	private calculateStickyNodePosition(lastDescendantIndex: number, stickyRowPositionTop: number): number {
+	private calculateStickyNodePosition(lastDescendantIndex: number, stickyRowPositionTop: number, stickyNodeHeight: number): number {
 		let lastChildRelativeTop = this.view.getRelativeTop(lastDescendantIndex);
 
 		// If the last descendant is only partially visible at the top of the view, getRelativeTop() returns null
@@ -1400,11 +1440,39 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		const topOfLastChild = lastChildRelativeTop * this.view.renderHeight;
 		const bottomOfLastChild = topOfLastChild + lastChildHeight;
 
-		if (stickyRowPositionTop > topOfLastChild && stickyRowPositionTop <= bottomOfLastChild) {
-			return topOfLastChild;
+		if (stickyRowPositionTop + stickyNodeHeight > bottomOfLastChild && stickyRowPositionTop <= bottomOfLastChild) {
+			return bottomOfLastChild - stickyNodeHeight;
 		}
 
 		return stickyRowPositionTop;
+	}
+
+	private constrainStickyNodes(stickyNodes: StickyScrollNode<T, TFilterData>[]): StickyScrollNode<T, TFilterData>[] {
+		if (stickyNodes.length === 0) {
+			return [];
+		}
+
+		// Check if sticky nodes need to be constrained
+		const maximumStickyWidgetHeight = this.view.renderHeight * this.maxWidgetViewRatio;
+		const lastStickyNode = stickyNodes[stickyNodes.length - 1];
+		if (stickyNodes.length <= this.stickyScrollMaxItemCount && lastStickyNode.position + lastStickyNode.height <= maximumStickyWidgetHeight) {
+			return stickyNodes;
+		}
+
+		// constrain sticky nodes
+		const constrainedStickyNodes = this.stickyScrollDelegate.constrainStickyScrollNodes(stickyNodes, this.stickyScrollMaxItemCount, maximumStickyWidgetHeight);
+
+		if (!constrainedStickyNodes.length) {
+			return [];
+		}
+
+		// Validate constraints
+		const lastConstrainedStickyNode = constrainedStickyNodes[constrainedStickyNodes.length - 1];
+		if (constrainedStickyNodes.length > this.stickyScrollMaxItemCount || lastConstrainedStickyNode.position + lastConstrainedStickyNode.height > maximumStickyWidgetHeight) {
+			throw new Error('stickyScrollDelegate violates constraints');
+		}
+
+		return constrainedStickyNodes;
 	}
 
 	private getParentNode(node: ITreeNode<T, TFilterData>): ITreeNode<T, TFilterData> | undefined {
@@ -1418,10 +1486,8 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return this.model.getListRenderCount(nodeLocation) > 1;
 	}
 
-	private getNodeIndex(node: ITreeNode<T, TFilterData>, nodeLocation?: TRef): number {
-		if (nodeLocation === undefined) {
-			nodeLocation = this.model.getNodeLocation(node);
-		}
+	private getNodeIndex(node: ITreeNode<T, TFilterData>): number {
+		const nodeLocation = this.model.getNodeLocation(node);
 		const nodeIndex = this.model.getListIndex(nodeLocation);
 		return nodeIndex;
 	}
@@ -1469,6 +1535,10 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 	}
 
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+		if (!optionsUpdate.stickyScrollMaxItemCount) {
+			return;
+		}
+
 		const validatedOptions = this.validateStickySettings(optionsUpdate);
 		if (this.stickyScrollMaxItemCount !== validatedOptions.stickyScrollMaxItemCount) {
 			this.stickyScrollMaxItemCount = validatedOptions.stickyScrollMaxItemCount;
@@ -1477,7 +1547,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 	}
 
 	validateStickySettings(options: IAbstractTreeOptionsUpdate): { stickyScrollMaxItemCount: number } {
-		let stickyScrollMaxItemCount = 5;
+		let stickyScrollMaxItemCount = 7;
 		if (typeof options.stickyScrollMaxItemCount === 'number') {
 			stickyScrollMaxItemCount = Math.max(options.stickyScrollMaxItemCount, 1);
 		}
@@ -1489,6 +1559,8 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 	private readonly _rootDomNode: HTMLElement;
 	private _previousState: StickyScrollState<T, TFilterData, TRef> | undefined;
+	private _previousElements: HTMLElement[] = [];
+	private _previousStateDisposables: DisposableStore = new DisposableStore();
 
 	private stickyScrollFocus: StickyScrollFocus<T, TFilterData, TRef>;
 	readonly onDidChangeHasFocus: Event<boolean>;
@@ -1497,15 +1569,17 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	constructor(
 		container: HTMLElement,
 		private readonly view: List<ITreeNode<T, TFilterData>>,
-		private readonly model: ITreeModel<T, TFilterData, TRef>,
+		private readonly tree: AbstractTree<T, TFilterData, TRef>,
 		private readonly treeRenderers: TreeRenderer<T, TFilterData, TRef, any>[],
 		private readonly treeDelegate: IListVirtualDelegate<ITreeNode<T, TFilterData>>,
 		private readonly accessibilityProvider: IListAccessibilityProvider<T> | undefined,
 	) {
 
-		this._rootDomNode = document.createElement('div');
-		this._rootDomNode.classList.add('monaco-tree-sticky-container');
+		this._rootDomNode = $('.monaco-tree-sticky-container.empty');
 		container.appendChild(this._rootDomNode);
+
+		const shadow = $('.monaco-tree-sticky-container-shadow');
+		this._rootDomNode.appendChild(shadow);
 
 		this.stickyScrollFocus = new StickyScrollFocus(this._rootDomNode, view);
 		this.onDidChangeHasFocus = this.stickyScrollFocus.onDidChangeHasFocus;
@@ -1534,7 +1608,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		const isVisible = !!state && state.count > 0;
 
 		// If state has not changed, do nothing
-		if ((!wasVisible && !isVisible) || (wasVisible && isVisible && this._previousState!.equal(state!))) {
+		if ((!wasVisible && !isVisible) || (wasVisible && isVisible && this._previousState!.equal(state))) {
 			return;
 		}
 
@@ -1543,41 +1617,48 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			this.setVisible(isVisible);
 		}
 
-		// Remove previous state
-		this._previousState?.dispose();
-		this._previousState = state;
-
 		if (!isVisible) {
+			this._previousState = undefined;
+			this._previousElements = [];
+			this._previousStateDisposables.clear();
 			return;
 		}
 
-		const elements = Array(state.count);
-		for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
-			const stickyNode = state.stickyNodes[stickyIndex];
+		const lastStickyNode = state.stickyNodes[state.count - 1];
 
-			const { element, disposable } = this.createElement(stickyNode, stickyIndex, state.count);
-			elements[stickyIndex] = element;
+		// If the new state is only a change in the last node's position, update the position of the last element
+		if (this._previousState && state.animationStateChanged(this._previousState)) {
+			this._previousElements[this._previousState.count - 1].style.top = `${lastStickyNode.position}px`;
+		}
+		// create new dom elements
+		else {
+			this._previousStateDisposables.clear();
 
-			this._rootDomNode.appendChild(element);
-			state.addDisposable(disposable);
+			const elements = Array(state.count);
+			for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
+				const stickyNode = state.stickyNodes[stickyIndex];
+
+				const { element, disposable } = this.createElement(stickyNode, stickyIndex, state.count);
+				elements[stickyIndex] = element;
+
+				this._rootDomNode.appendChild(element);
+				this._previousStateDisposables.add(disposable);
+			}
+
+			this.stickyScrollFocus.updateElements(elements, state);
+
+			this._previousElements = elements;
 		}
 
-		this.stickyScrollFocus.updateElements(elements, state);
-
-		// Add shadow element to the end of the widget
-		const shadow = $('.monaco-tree-sticky-container-shadow');
-		this._rootDomNode.appendChild(shadow);
-		state.addDisposable(toDisposable(() => shadow.remove()));
+		this._previousState = state;
 
 		// Set the height of the widget to the bottom of the last sticky node
-		const lastStickyNode = state.stickyNodes[state.count - 1];
 		this._rootDomNode.style.height = `${lastStickyNode.position + lastStickyNode.height}px`;
 	}
 
 	private createElement(stickyNode: StickyScrollNode<T, TFilterData>, stickyIndex: number, stickyNodesTotal: number): { element: HTMLElement; disposable: IDisposable } {
 
-		const nodeLocation = this.model.getNodeLocation(stickyNode.node);
-		const nodeIndex = this.model.getListIndex(nodeLocation);
+		const nodeIndex = stickyNode.startIndex;
 
 		// Sticky element container
 		const stickyElement = document.createElement('div');
@@ -1600,7 +1681,12 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			throw new Error(`No renderer found for template id ${nodeTemplateId}`);
 		}
 
-		const nodeCopy = new Proxy(stickyNode.node, {});
+		// To make sure we do not influence the original node, we create a copy of the node
+		// We need to check if it is already a unique instance of the node by the delegate
+		let nodeCopy = stickyNode.node;
+		if (nodeCopy === this.tree.getNode(this.tree.getNodeLocation(stickyNode.node))) {
+			nodeCopy = new Proxy(stickyNode.node, {});
+		}
 
 		// Render the element
 		const templateData = renderer.renderTemplate(stickyElement);
@@ -1646,7 +1732,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	}
 
 	private setVisible(visible: boolean): void {
-		this._rootDomNode.style.display = visible ? 'block' : 'none';
+		this._rootDomNode.classList.toggle('empty', !visible);
 
 		if (!visible) {
 			this.stickyScrollFocus.updateElements([], undefined);
@@ -1667,7 +1753,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 	dispose(): void {
 		this.stickyScrollFocus.dispose();
-		this._previousState?.dispose();
+		this._previousStateDisposables.dispose();
 		this._rootDomNode.remove();
 	}
 }
@@ -1687,8 +1773,10 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 	private _domHasFocus: boolean = false;
 	private get domHasFocus(): boolean { return this._domHasFocus; }
 	private set domHasFocus(hasFocus: boolean) {
-		this._domHasFocus = hasFocus;
-		this._onDidChangeHasFocus.fire(hasFocus);
+		if (hasFocus !== this._domHasFocus) {
+			this._onDidChangeHasFocus.fire(hasFocus);
+			this._domHasFocus = hasFocus;
+		}
 	}
 
 	constructor(
@@ -1727,7 +1815,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 			if (stickyIndex === -1) {
 				throw new Error('Context menu should not be triggered when element is not in sticky scroll widget');
 			}
-			this.toggleStickyScrollFocused(true);
+			this.container.focus();
 			this.setFocus(stickyIndex);
 			return;
 		}
@@ -1775,8 +1863,6 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
-
-		this.container.focus();
 	}
 
 	updateElements(elements: HTMLElement[], state: StickyScrollState<T, TFilterData, TRef> | undefined): void {
@@ -1974,6 +2060,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly findWidgetEnabled?: boolean;
 	readonly findWidgetStyles?: IFindWidgetStyles;
 	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
+	readonly stickyScrollDelegate?: IStickyScrollDelegate<any, TFilterData>;
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
@@ -2470,7 +2557,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.findController = new FindController(this, this.model, this.view, filter!, _options.contextViewProvider, opts);
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
-			this.disposables.add(this.findController!);
+			this.disposables.add(this.findController);
 			this.onDidChangeFindMode = this.findController.onDidChangeMode;
 			this.onDidChangeFindMatchType = this.findController.onDidChangeMatchType;
 		} else {
@@ -2802,7 +2889,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	focusPreviousPage(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): Promise<void> {
-		return this.view.focusPreviousPage(browserEvent, filter);
+		return this.view.focusPreviousPage(browserEvent, filter, () => this.stickyScrollController?.height ?? 0);
 	}
 
 	focusLast(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
@@ -2879,7 +2966,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			const node = queue.shift()!;
 
 			if (node !== root && node.collapsible) {
-				state.expanded[getId(node.element!)] = node.collapsed ? 0 : 1;
+				state.expanded[getId(node.element)] = node.collapsed ? 0 : 1;
 			}
 
 			queue.push(...node.children);

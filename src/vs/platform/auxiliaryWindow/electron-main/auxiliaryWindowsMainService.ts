@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, WebContents, app } from 'electron';
+import { BrowserWindow, BrowserWindowConstructorOptions, HandlerDetails, WebContents, app } from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
@@ -12,7 +12,8 @@ import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/e
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
+import { IWindowState, defaultAuxWindowState } from 'vs/platform/window/electron-main/window';
+import { WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
 
 export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
 
@@ -24,7 +25,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	private readonly _onDidUnmaximizeWindow = this._register(new Emitter<IAuxiliaryWindow>());
 	readonly onDidUnmaximizeWindow = this._onDidUnmaximizeWindow.event;
 
-	private readonly _onDidChangeFullScreen = this._register(new Emitter<IAuxiliaryWindow>());
+	private readonly _onDidChangeFullScreen = this._register(new Emitter<{ window: IAuxiliaryWindow; fullscreen: boolean }>());
 	readonly onDidChangeFullScreen = this._onDidChangeFullScreen.event;
 
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: IAuxiliaryWindow; x: number; y: number }>());
@@ -70,12 +71,41 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		});
 	}
 
-	createWindow(): BrowserWindowConstructorOptions {
-		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, undefined, {
+	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
+		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, this.validateWindowState(details), {
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
 			}
 		});
+	}
+
+	private validateWindowState(details: HandlerDetails): IWindowState {
+		const windowState: IWindowState = {};
+
+		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=800,height=600
+		for (const feature of features) {
+			const [key, value] = feature.split('=');
+			switch (key) {
+				case 'width':
+					windowState.width = parseInt(value, 10);
+					break;
+				case 'height':
+					windowState.height = parseInt(value, 10);
+					break;
+				case 'left':
+					windowState.x = parseInt(value, 10);
+					break;
+				case 'top':
+					windowState.y = parseInt(value, 10);
+					break;
+			}
+		}
+
+		const state = WindowStateValidator.validateWindowState(this.logService, windowState) ?? defaultAuxWindowState();
+
+		this.logService.trace('[aux window] using window state', state);
+
+		return state;
 	}
 
 	registerWindow(webContents: WebContents): void {
@@ -88,8 +118,8 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 		disposables.add(auxiliaryWindow.onDidMaximize(() => this._onDidMaximizeWindow.fire(auxiliaryWindow)));
 		disposables.add(auxiliaryWindow.onDidUnmaximize(() => this._onDidUnmaximizeWindow.fire(auxiliaryWindow)));
-		disposables.add(auxiliaryWindow.onDidEnterFullScreen(() => this._onDidChangeFullScreen.fire(auxiliaryWindow)));
-		disposables.add(auxiliaryWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire(auxiliaryWindow)));
+		disposables.add(auxiliaryWindow.onDidEnterFullScreen(() => this._onDidChangeFullScreen.fire({ window: auxiliaryWindow, fullscreen: true })));
+		disposables.add(auxiliaryWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: auxiliaryWindow, fullscreen: false })));
 		disposables.add(auxiliaryWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: auxiliaryWindow, x, y })));
 
 		Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose());

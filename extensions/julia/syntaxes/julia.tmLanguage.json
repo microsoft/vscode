@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/8747e069119b24bff2703374d7961e3446a74034",
+	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/ca657621631c568fdce35fb583c97b8d0b7a226c",
 	"name": "Julia",
 	"scopeName": "source.julia",
 	"comment": "This grammar is used by Atom (Oniguruma), GitHub (PCRE), and VSCode (Oniguruma),\nso all regexps must be compatible with both engines.\n\nSpecs:\n- https://github.com/kkos/oniguruma/blob/master/doc/RE\n- https://www.pcre.org/current/doc/html/",
@@ -47,6 +47,9 @@
 		},
 		{
 			"include": "#symbol"
+		},
+		{
+			"include": "#punctuation"
 		}
 	],
 	"repository": {
@@ -316,6 +319,10 @@
 				{
 					"match": "\\b(?<![:_])(?:export)\\b",
 					"name": "keyword.control.export.julia"
+				},
+				{
+					"match": "\\b(?<![:_])(?:public)\\b",
+					"name": "keyword.control.public.julia"
 				},
 				{
 					"match": "\\b(?<![:_])(?:import)\\b",
@@ -1060,6 +1067,21 @@
 				},
 				{
 					"include": "#symbol"
+				},
+				{
+					"include": "#punctuation"
+				}
+			]
+		},
+		"punctuation": {
+			"patterns": [
+				{
+					"match": ",",
+					"name": "punctuation.separator.comma.julia"
+				},
+				{
+					"match": ";",
+					"name": "punctuation.separator.semicolon.julia"
 				}
 			]
 		}

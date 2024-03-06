@@ -127,6 +127,8 @@ async function detectAvailableWindowsProfiles(
 				{ path: `${process.env['HOMEDRIVE']}\\msys64\\usr\\bin\\bash.exe`, isUnsafe: true },
 			],
 			args: ['--login', '-i'],
+			// CHERE_INVOKING retains current working directory
+			env: { CHERE_INVOKING: '1' },
 			icon: Codicon.terminalBash,
 			isAutoDetected: true
 		});
@@ -154,7 +156,7 @@ async function detectAvailableWindowsProfiles(
 			}
 		} catch (e) {
 			if (logIfWslNotInstalled) {
-				logService?.info('WSL is not installed, so could not detect WSL profiles');
+				logService?.trace('WSL is not installed, so could not detect WSL profiles');
 				logIfWslNotInstalled = false;
 			}
 		}

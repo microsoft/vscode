@@ -7,7 +7,7 @@ import { CodeWindow } from 'vs/base/browser/window';
 import { ResourceMap } from 'vs/base/common/map';
 import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -130,7 +130,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		const sourcePart = this.editorGroupService.getPart(sourceID);
 		const targetPart = this.editorGroupService.getPart(targetID);
 
-		if ((sourcePart as IAuxiliaryEditorPart).windowId !== (targetPart as IAuxiliaryEditorPart).windowId) {
+		if (sourcePart.windowId !== targetPart.windowId) {
 			return;
 		}
 

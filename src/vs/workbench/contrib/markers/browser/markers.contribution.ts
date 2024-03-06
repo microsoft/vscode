@@ -23,7 +23,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -34,6 +35,7 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -90,10 +92,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // configuration
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'problems',
-	'order': 101,
-	'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
-	'type': 'object',
+	...problemsConfigurationNodeBase,
 	'properties': {
 		'problems.autoReveal': {
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
@@ -121,12 +120,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
 			],
 		},
-		'problems.visibility': {
-			type: 'boolean',
-			default: true,
-			tags: ['experimental'],
-			description: localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
-		}
 	}
 });
 
@@ -318,7 +311,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.problems.focus',
-			title: { value: Messages.MARKERS_PANEL_SHOW_LABEL, original: 'Focus Problems (Errors, Warnings, Infos)' },
+			title: Messages.MARKERS_PANEL_SHOW_LABEL,
 			category: Categories.View,
 			f1: true,
 		});
@@ -453,7 +446,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKERS_VIEW_SHOW_MULTILINE_MESSAGE,
-			title: { value: localize('show multiline', "Show message in multiple lines"), original: 'Problems: Show message in multiple lines' },
+			title: localize2('show multiline', "Show message in multiple lines"),
 			category: localize('problems', "Problems"),
 			menu: {
 				id: MenuId.CommandPalette,
@@ -471,7 +464,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKERS_VIEW_SHOW_SINGLELINE_MESSAGE,
-			title: { value: localize('show singleline', "Show message in single line"), original: 'Problems: Show message in single line' },
+			title: localize2('show singleline', "Show message in single line"),
 			category: localize('problems', "Problems"),
 			menu: {
 				id: MenuId.CommandPalette,

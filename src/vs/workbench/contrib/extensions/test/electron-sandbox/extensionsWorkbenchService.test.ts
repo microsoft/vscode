@@ -12,7 +12,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
 	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { anExtensionManagementServerService, TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
@@ -51,6 +51,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Mutable } from 'vs/base/common/types';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -86,13 +87,13 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 
-		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			onInstallExtension: installEvent.event,
+		instantiationService.stub(IWorkbenchExtensionManagementService, {
 			onDidInstallExtensions: didInstallEvent.event,
-			onUninstallExtension: uninstallEvent.event,
-			onDidUninstallExtension: didUninstallEvent.event,
-			onDidChangeProfile: Event.None,
+			onInstallExtension: installEvent.event as any,
+			onUninstallExtension: uninstallEvent.event as any,
+			onDidUninstallExtension: didUninstallEvent.event as any,
 			onDidUpdateExtensionMetadata: Event.None,
+			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
@@ -119,7 +120,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		instantiationService.stub(INotificationService, { prompt: () => null! });
 
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,
 			extensions: [],
 			async whenInstalledExtensionsRegistered() { return true; }
@@ -131,6 +132,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 	});
 
 	test('test gallery extension', async () => {
@@ -365,7 +367,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			const extension = page.firstPage[0];
 			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-			testObject.install(extension);
 			const identifier = gallery.identifier;
 
 			// Installing
@@ -450,7 +451,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extension = page.firstPage[0];
 		assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-		testObject.install(extension);
 		installEvent.fire({ identifier: gallery.identifier, source: gallery });
 		const promise = Event.toPromise(testObject.onChange);
 
@@ -470,7 +470,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			const extension = page.firstPage[0];
 			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-			testObject.install(extension);
 			disposableStore.add(testObject.onChange(target));
 
 			// Installing
@@ -695,9 +694,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+		instantiationService.stub(INotificationService, {
 			prompt(severity, message, choices, options) {
 				options!.onCancel!();
+				return null!;
 			}
 		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
@@ -715,9 +715,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+		instantiationService.stub(INotificationService, {
 			prompt(severity, message, choices, options) {
 				choices[0].run();
+				return null!;
 			}
 		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
@@ -837,9 +838,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.a'] });
 		const extensionC = aLocalExtension('c');
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+		instantiationService.stub(INotificationService, {
 			prompt(severity, message, choices, options) {
 				options!.onCancel!();
+				return null!;
 			}
 		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
@@ -877,9 +879,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.c'] });
 		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.a'] });
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+		instantiationService.stub(INotificationService, {
 			prompt(severity, message, choices, options) {
 				options!.onCancel!();
+				return null!;
 			}
 		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
@@ -1662,9 +1665,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
 			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
 		};
-		instantiationService.stub(IConfigurationService, <Partial<IConfigurationService>>{
+		instantiationService.stub(IConfigurationService, {
 			onDidChangeConfiguration: () => { return undefined!; },
-			getValue: (key?: string) => {
+			getValue: (key?: any) => {
 				return key ? values[key] : undefined;
 			},
 			updateValue: async (key: string, value: any) => {

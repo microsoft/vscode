@@ -97,7 +97,7 @@ suite('MarkdownRenderer', () => {
 					codeBlockRenderer: simpleCodeBlockRenderer
 				});
 				result.dispose();
-				setTimeout(resolve, 50);
+				setTimeout(resolve, 10);
 			});
 		});
 
@@ -116,8 +116,8 @@ suite('MarkdownRenderer', () => {
 				setTimeout(() => {
 					result.dispose();
 					resolveCodeBlockRendering(document.createElement('code'));
-					setTimeout(resolve, 50);
-				}, 50);
+					setTimeout(resolve, 10);
+				}, 10);
 			});
 		});
 
@@ -513,6 +513,30 @@ suite('MarkdownRenderer', () => {
 				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
 				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
 			});
+
+			test('code block header with more backticks', () => {
+				const incompleteCodeblock = 'some text\n`````js\nconst';
+				const tokens = marked.lexer(incompleteCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n`````');
+				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+			});
+
+			test('code block header containing codeblock', () => {
+				const incompleteCodeblock = `some text
+\`\`\`\`\`js
+const x = 1;
+\`\`\`
+const y = 2;
+\`\`\`
+// foo`;
+				const tokens = marked.lexer(incompleteCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n`````');
+				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+			});
 		});
 
 		function simpleMarkdownTestSuite(name: string, delimiter: string): void {
@@ -675,6 +699,42 @@ suite('MarkdownRenderer', () => {
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target 2', () => {
+				const incomplete = 'foo [text](http://microsoft.com';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with extra stuff', () => {
+				const incomplete = '[before `text` after](http://microsoft.com';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with extra stuff and arg', () => {
+				const incomplete = '[before `text` after](http://microsoft.com "more text ';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with arg', () => {
+				const incomplete = 'foo [text](http://microsoft.com "more text here ';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '")');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 

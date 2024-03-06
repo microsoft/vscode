@@ -4,23 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { inputLatency } from 'vs/base/browser/performance';
+import { CodeWindow } from 'vs/base/browser/window';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
+import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
+import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
+import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/blockDecorations';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
 import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
+import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
@@ -36,26 +41,21 @@ import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDeco
 import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/selections';
 import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
-import { Position } from 'vs/editor/common/core/position';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { GlyphMarginLane, IGlyphMarginLanesModel } from 'vs/editor/common/model';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { IViewModel } from 'vs/editor/common/viewModel';
-import { getThemeTypeSelector, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
-import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/blockDecorations';
-import { inputLatency } from 'vs/base/browser/performance';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
-import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { GlyphMarginLane } from 'vs/editor/common/model';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeWindow } from 'vs/base/browser/window';
+import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 
 
 export interface IContentWidgetData {
@@ -243,60 +243,36 @@ export class View extends ViewEventHandler {
 		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
 	}
 
-	private _computeGlyphMarginLaneCount(): number {
+	private _computeGlyphMarginLanes(): IGlyphMarginLanesModel {
 		const model = this._context.viewModel.model;
-		type Glyph = { range: Range; lane: GlyphMarginLane };
+		const laneModel = this._context.viewModel.glyphLanes;
+		type Glyph = { range: Range; lane: GlyphMarginLane; persist?: boolean };
 		let glyphs: Glyph[] = [];
+		let maxLineNumber = 0;
 
 		// Add all margin decorations
 		glyphs = glyphs.concat(model.getAllMarginDecorations().map((decoration) => {
-			const lane = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Left;
-			return { range: decoration.range, lane };
+			const lane = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Center;
+			maxLineNumber = Math.max(maxLineNumber, decoration.range.endLineNumber);
+			return { range: decoration.range, lane, persist: decoration.options.glyphMargin?.persistLane };
 		}));
 
 		// Add all glyph margin widgets
 		glyphs = glyphs.concat(this._glyphMarginWidgets.getWidgets().map((widget) => {
 			const range = model.validateRange(widget.preference.range);
+			maxLineNumber = Math.max(maxLineNumber, range.endLineNumber);
 			return { range, lane: widget.preference.lane };
 		}));
 
 		// Sorted by their start position
 		glyphs.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 
-		let leftDecRange: Range | null = null;
-		let rightDecRange: Range | null = null;
-		for (const decoration of glyphs) {
-
-			if (decoration.lane === GlyphMarginLane.Left && (!leftDecRange || Range.compareRangesUsingEnds(leftDecRange, decoration.range) < 0)) {
-				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
-				leftDecRange = decoration.range;
-			}
-
-			if (decoration.lane === GlyphMarginLane.Right && (!rightDecRange || Range.compareRangesUsingEnds(rightDecRange, decoration.range) < 0)) {
-				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
-				rightDecRange = decoration.range;
-			}
-
-			if (leftDecRange && rightDecRange) {
-
-				if (leftDecRange.endLineNumber < rightDecRange.startLineNumber) {
-					// there's no chance for `leftDecRange` to ever intersect something going further
-					leftDecRange = null;
-					continue;
-				}
-
-				if (rightDecRange.endLineNumber < leftDecRange.startLineNumber) {
-					// there's no chance for `rightDecRange` to ever intersect something going further
-					rightDecRange = null;
-					continue;
-				}
-
-				// leftDecRange and rightDecRange are intersecting or touching => we need two lanes
-				return 2;
-			}
+		laneModel.reset(maxLineNumber);
+		for (const glyph of glyphs) {
+			laneModel.push(glyph.lane, glyph.range, glyph.persist);
 		}
 
-		return 1;
+		return laneModel;
 	}
 
 	private _createPointerHandlerHelper(): IPointerHandlerHelper {
@@ -491,7 +467,8 @@ export class View extends ViewEventHandler {
 			prepareRenderText: () => {
 				if (this._shouldRecomputeGlyphMarginLanes) {
 					this._shouldRecomputeGlyphMarginLanes = false;
-					this._context.configuration.setGlyphMarginDecorationLaneCount(this._computeGlyphMarginLaneCount());
+					const model = this._computeGlyphMarginLanes();
+					this._context.configuration.setGlyphMarginDecorationLaneCount(model.requiredLanes);
 				}
 				inputLatency.onRenderStart();
 			},

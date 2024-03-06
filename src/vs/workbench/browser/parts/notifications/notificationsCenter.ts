@@ -25,10 +25,10 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { mainWindow } from 'vs/base/browser/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -59,7 +59,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IAccessibleNotificationService private readonly accessibleNotificationService: IAccessibleNotificationService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
@@ -173,7 +173,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		const notificationsToolBar = this._register(new ActionBar(toolbarContainer, {
 			ariaLabel: localize('notificationsToolbar', "Notification Center Actions"),
 			actionRunner,
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === ConfigureDoNotDisturbAction.ID) {
 					return this._register(this.instantiationService.createInstance(DropdownMenuActionViewItem, action, {
 						getActions() {
@@ -208,6 +208,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 							return actions;
 						},
 					}, this.contextMenuService, {
+						...options,
 						actionRunner,
 						classNames: action.class,
 						keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
@@ -383,7 +384,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			if (!notification.hasProgress) {
 				notification.close();
 			}
-			this.accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+			this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		}
 	}
 }

@@ -375,9 +375,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const result = new Map<string, IWebExtension>();
 		const extensionInfos: IExtensionInfo[] = [];
 		await Promise.all(extensionGalleryResources.map(async extensionGalleryResource => {
-			const webExtension = await this.toWebExtensionFromExtensionGalleryResource(extensionGalleryResource);
-			result.set(webExtension.identifier.id.toLowerCase(), webExtension);
-			extensionInfos.push({ id: webExtension.identifier.id, version: webExtension.version });
+			try {
+				const webExtension = await this.toWebExtensionFromExtensionGalleryResource(extensionGalleryResource);
+				result.set(webExtension.identifier.id.toLowerCase(), webExtension);
+				extensionInfos.push({ id: webExtension.identifier.id, version: webExtension.version });
+			} catch (error) {
+				this.logService.info(`Ignoring additional builtin extension from gallery resource ${extensionGalleryResource.toString()} because there is an error while converting it into web extension`, getErrorMessage(error));
+			}
 		}));
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, CancellationToken.None);
 		for (const galleryExtension of galleryExtensions) {
@@ -935,6 +939,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			if (migratedLocation) {
 				update = true;
 				webExtension.location = migratedLocation;
+			}
+			if (isUndefined(webExtension.metadata?.hasPreReleaseVersion) && webExtension.metadata?.preRelease) {
+				update = true;
+				webExtension.metadata.hasPreReleaseVersion = true;
 			}
 			return webExtension;
 		}));
