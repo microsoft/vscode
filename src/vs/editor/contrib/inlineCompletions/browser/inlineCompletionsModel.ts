@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Permutation } from 'vs/base/common/arrays';
 import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -22,7 +23,7 @@ import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostT
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
-import { Permutation, addPositions, getNewRanges, lengthOfText, subtractPositions } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { addPositions, getNewRanges, lengthOfText, subtractPositions } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

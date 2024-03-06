@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy } from 'vs/base/common/arrays';
+import { Permutation, compareBy } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorunOpts } from 'vs/base/common/observable';
@@ -160,25 +160,4 @@ export function inverseEdits(model: TextModel, edits: ISingleEditOperation[]): I
 		inverseEdits.push({ range: newRanges[i], text: model.getValueInRange(edits[i].range) });
 	}
 	return inverseEdits;
-}
-
-export class Permutation {
-	constructor(private readonly _indexMap: number[]) { }
-
-	public static createSortPermutation<T>(arr: readonly T[], compareFn: (a: T, b: T) => number): Permutation {
-		const sortIndices = Array.from(arr.keys()).sort((index1, index2) => compareFn(arr[index1], arr[index2]));
-		return new Permutation(sortIndices);
-	}
-
-	apply<T>(arr: readonly T[]): T[] {
-		return arr.map((_, index) => arr[this._indexMap[index]]);
-	}
-
-	inverse(): Permutation {
-		const inverseIndexMap = this._indexMap.slice();
-		for (let i = 0; i < this._indexMap.length; i++) {
-			inverseIndexMap[this._indexMap[i]] = i;
-		}
-		return new Permutation(inverseIndexMap);
-	}
 }
