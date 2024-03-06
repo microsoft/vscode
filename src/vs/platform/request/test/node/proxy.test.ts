@@ -11,8 +11,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 
 suite("proxy support", () => {
 	const urlWithDomain = parseUrl("https://example.com/some/path");
+	const urlWithDomainAndPort = parseUrl("https://example.com:80/some/path");
 	const urlWithSubdomain = parseUrl("https://internal.example.com/some/path");
 	const urlWithIPv4 = parseUrl("https://127.0.0.1/some/path");
+	const urlWithIPv4AndPort = parseUrl("https://127.0.0.1:80/some/path");
 	const urlWithIPv6 = parseUrl("https://[::1]/some/path");
 
 	test("returns true if no denylists are provided", () => {
@@ -46,11 +48,22 @@ suite("proxy support", () => {
 		assert.strictEqual(urlMatchDenyList(urlWithSubdomain, ['.otherexample.com']), false);
 	});
 
+	test("match hostname with ports", () => {
+		assert.strictEqual(urlMatchDenyList(urlWithDomainAndPort, ['example.com:80']), true);
+		assert.strictEqual(urlMatchDenyList(urlWithDomainAndPort, ['otherexample.com:80']), false);
+		assert.strictEqual(urlMatchDenyList(urlWithDomainAndPort, ['example.com:70']), false);
+	});
+
 	test("match IP addresses", () => {
 		assert.strictEqual(urlMatchDenyList(urlWithIPv4, ['example.com']), false);
 		assert.strictEqual(urlMatchDenyList(urlWithIPv6, ['example.com']), false);
 		assert.strictEqual(urlMatchDenyList(urlWithIPv4, ['127.0.0.1']), true);
 		assert.strictEqual(urlMatchDenyList(urlWithIPv6, ['::1']), true);
+	});
+
+	test("match IP addresses with port", () => {
+		assert.strictEqual(urlMatchDenyList(urlWithIPv4AndPort, ['127.0.0.1:80']), true);
+		assert.strictEqual(urlMatchDenyList(urlWithIPv4AndPort, ['127.0.0.1:70']), false);
 	});
 
 	test("match IP addresses with range deny list", () => {
