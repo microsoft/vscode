@@ -541,7 +541,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				const interalSelector = typeConverters.LanguageSelector.from(selector);
 				let notebook: vscode.NotebookDocument | undefined;
 				if (targetsNotebooks(interalSelector)) {
-					notebook = extHostNotebook.notebookDocuments.find(value => Boolean(value.getCell(document.uri)))?.apiNotebook;
+					notebook = extHostNotebook.notebookDocuments.find(value => value.apiNotebook.getCells().find(c => c.document === document))?.apiNotebook;
 				}
 				return score(interalSelector, document.uri, document.languageId, true, notebook?.uri, notebook?.notebookType);
 			},
@@ -1677,6 +1677,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ThreadFocus: extHostTypes.ThreadFocus,
 			RelatedInformationType: extHostTypes.RelatedInformationType,
 			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
+			PartialAcceptTriggerKind: extHostTypes.PartialAcceptTriggerKind,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
 			ChatResponseFileTreePart: extHostTypes.ChatResponseFileTreePart,

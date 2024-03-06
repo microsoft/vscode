@@ -46,8 +46,6 @@ class SimpleTestProvider extends Disposable implements IChatProvider {
 	async prepareSession(): Promise<IChat> {
 		return {
 			id: SimpleTestProvider.sessionId++,
-			responderUsername: 'test',
-			requesterUsername: 'test',
 		};
 	}
 
@@ -108,7 +106,7 @@ suite('Chat', () => {
 		instantiationService.stub(IChatContributionService, new MockChatContributionService(
 			[
 				{ extensionId: nullExtensionDescription.identifier, name: 'testAgent', isDefault: true },
-				{ extensionId: nullExtensionDescription.identifier, name: chatAgentWithUsedContextId, isDefault: true },
+				{ extensionId: nullExtensionDescription.identifier, name: chatAgentWithUsedContextId },
 			]));
 
 		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
@@ -120,6 +118,7 @@ suite('Chat', () => {
 			},
 		} satisfies IChatAgentImplementation;
 		testDisposables.add(chatAgentService.registerAgent('testAgent', agent));
+		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' }, fullName: 'test' });
 	});
 
 	test('retrieveSession', async () => {
@@ -210,6 +209,7 @@ suite('Chat', () => {
 
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContext.id, chatAgentWithUsedContext));
+		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' }, fullName: 'test' });
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
 

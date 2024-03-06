@@ -124,8 +124,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const viewModelPlaceholder = this.widget.viewModel?.inputPlaceholder;
-			const placeholder = viewModelPlaceholder ?? '';
+			const defaultAgent = this.chatAgentService.getDefaultAgent();
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -136,7 +135,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: placeholder,
+							contentText: viewModel.inputPlaceholder ?? defaultAgent?.metadata.description ?? '',
 							color: this.getPlaceholderColor()
 						}
 					}

@@ -5,7 +5,7 @@
 
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI as uri, UriComponents } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind, IDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind, IDebugVisualization, DataBreakpointSetType } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto
@@ -225,7 +225,14 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id, dto.mode);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType, dto.mode);
+				this.debugService.addDataBreakpoint({
+					description: dto.label,
+					src: { type: DataBreakpointSetType.Variable, dataId: dto.dataId },
+					canPersist: dto.canPersist,
+					accessTypes: dto.accessTypes,
+					accessType: dto.accessType,
+					mode: dto.mode
+				});
 			}
 		}
 		return Promise.resolve();
@@ -436,19 +443,20 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					logMessage: fbp.logMessage,
 					functionName: fbp.name
 				};
-			} else if ('dataId' in bp) {
+			} else if ('src' in bp) {
 				const dbp = <IDataBreakpoint>bp;
-				return <IDataBreakpointDto>{
+				return {
 					type: 'data',
 					id: dbp.getId(),
-					dataId: dbp.dataId,
+					dataId: dbp.src.type === DataBreakpointSetType.Variable ? dbp.src.dataId : dbp.src.address,
 					enabled: dbp.enabled,
 					condition: dbp.condition,
 					hitCondition: dbp.hitCondition,
 					logMessage: dbp.logMessage,
+					accessType: dbp.accessType,
 					label: dbp.description,
 					canPersist: dbp.canPersist
-				};
+				} satisfies IDataBreakpointDto;
 			} else {
 				const sbp = <IBreakpoint>bp;
 				return <ISourceBreakpointDto>{
