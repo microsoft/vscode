@@ -400,7 +400,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		// enable the editor hover, otherwise the content controller will see it
 		// as disabled and hide it on the first mouse move (#193149)
 		this.defaultHoverLockout.clear();
-		hoverController?.showContentHover(range, HoverStartSource.Mouse, undefined, { focus, mode: HoverStartMode.Immediate, extended: false });
+		hoverController?.showContentHover(range, HoverStartSource.Mouse, undefined, { focus, mode: HoverStartMode.Immediate });
 	}
 
 	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {

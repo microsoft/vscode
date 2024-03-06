@@ -35,22 +35,21 @@ import 'vs/css!./hover';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
-	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
+	// || Boolean("true") done "weirdly" so that a lint warning prevents you from pushing this
 	;
 
 interface IHoverSettings {
 	readonly enabled: boolean;
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
-	readonly showExtendedHover: boolean;
 }
 
 interface IHoverState {
 	mouseDown: boolean;
-	// TODO @aiday-mar maybe not needed, investigate this
+	// TODO@aiday-mar maybe not needed, investigate this
 	contentHoverFocused: boolean;
+	// TODO@aiday-mar do not place this here
 	activatedByDecoratorClick: boolean;
-	overrideShowExtendedHover: boolean | undefined;
 }
 
 export class HoverController extends Disposable implements IEditorContribution {
@@ -69,8 +68,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _hoverState: IHoverState = {
 		mouseDown: false,
 		contentHoverFocused: false,
-		activatedByDecoratorClick: false,
-		overrideShowExtendedHover: undefined
+		activatedByDecoratorClick: false
 	};
 
 	constructor(
@@ -105,8 +103,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hoverSettings = {
 			enabled: hoverOpts.enabled,
 			sticky: hoverOpts.sticky,
-			hidingDelay: hoverOpts.delay,
-			showExtendedHover: hoverOpts.showExtendedHover
+			hidingDelay: hoverOpts.delay
 		};
 
 		if (hoverOpts.enabled) {
@@ -293,7 +290,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		const contentWidget = this._getOrCreateContentWidget();
 
-		if (contentWidget.showsOrWillShow(mouseEvent, this.isHoverExtended)) {
+		if (contentWidget.showsOrWillShow(mouseEvent)) {
 			this._glyphWidget?.hide();
 			return;
 		}
@@ -330,7 +327,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 			resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded ||
 			(resolvedKeyboardEvent.kind === ResultKind.KbFound
 				&& (resolvedKeyboardEvent.commandId === 'editor.action.showHover'
-					|| resolvedKeyboardEvent.commandId === 'editor.action.showExtendedHover')
+					|| resolvedKeyboardEvent.commandId === 'editor.action.showMoreHoverInformation'
+					|| resolvedKeyboardEvent.commandId === 'editor.action.showLessHoverInformation')
 				&& this._contentWidget?.isVisible
 			)
 		);
@@ -365,7 +363,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 		this._hoverState.activatedByDecoratorClick = false;
 		this._hoverState.contentHoverFocused = false;
-		this._hoverState.overrideShowExtendedHover = undefined;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
 	}
@@ -394,9 +391,12 @@ export class HoverController extends Disposable implements IEditorContribution {
 		activatedByColorDecoratorClick: boolean = false,
 		hoverOptions: IHoverOptions
 	): void {
-		this._hoverState.overrideShowExtendedHover = hoverOptions.extended;
 		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, source, hoverOptions);
+	}
+
+	public zoomInFocusedContents(zoomIn: boolean): void {
+		this._getOrCreateContentWidget().zoomInFocusedContents(zoomIn);
 	}
 
 	public focus(): void {
@@ -447,11 +447,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.isVisible;
 	}
 
-	public get isHoverExtended(): boolean {
-		return this._hoverState.overrideShowExtendedHover !== undefined ?
-			this._hoverState.overrideShowExtendedHover : this._hoverSettings.showExtendedHover;
-	}
-
 	public override dispose(): void {
 		super.dispose();
 		this._unhookListeners();
@@ -477,7 +472,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 				comment: [
 					'Label for action that will trigger the showing/focusing of a hover in the editor.',
 					'If the hover is not visible, it will show the hover.',
-					'This allows users to show the hover without using the mouse.'
+					'This allows for users to show the hover without using the mouse.'
 				]
 			}, "Show or Focus Hover"),
 			metadata: {
@@ -488,7 +483,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 						type: 'object',
 						properties: {
 							'focus': {
-								description: 'Controls if and when the hover should take focus upon being triggered by this action. Applies to the extended hover too.',
+								description: 'Controls if and when the hover should take focus upon being triggered by this action.',
 								enum: [HoverFocusBehavior.NoAutoFocus, HoverFocusBehavior.FocusIfVisible, HoverFocusBehavior.AutoFocusImmediately],
 								enumDescriptions: [
 									nls.localize('showOrFocusHover.focus.noAutoFocus', 'The hover will not automatically take focus.'),
@@ -512,39 +507,98 @@ class ShowOrFocusHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		showOrFocusHover(editor, args, false);
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const controller = HoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+
+		const focusArgument = args?.focus;
+		let focusOption = HoverFocusBehavior.FocusIfVisible;
+		if (Object.values(HoverFocusBehavior).includes(focusArgument)) {
+			focusOption = focusArgument;
+		} else if (typeof focusArgument === 'boolean' && focusArgument) {
+			focusOption = HoverFocusBehavior.AutoFocusImmediately;
+		}
+
+		const showContentHover = (focus: boolean) => {
+			const position = editor.getPosition();
+			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+			controller.showContentHover(range, HoverStartSource.Keyboard, false, { mode: HoverStartMode.Immediate, focus });
+		};
+
+		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
+
+		if (controller.isHoverVisible) {
+			if (focusOption !== HoverFocusBehavior.NoAutoFocus) {
+				controller.focus();
+			} else {
+				showContentHover(accessibilitySupportEnabled);
+			}
+		} else {
+			showContentHover(accessibilitySupportEnabled || focusOption === HoverFocusBehavior.AutoFocusImmediately);
+		}
 	}
 }
 
-class ShowOrFocusExtendedHoverAction extends EditorAction {
+// Need to make the individual parts of the hover focusable so can use the action here
+class ShowMoreHoverInformationAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showExtendedHover',
+			id: 'editor.action.showMoreHoverInformation',
 			label: nls.localize({
-				key: 'showOrFocusExtendedHover',
+				key: 'showMoreHoverInformation',
 				comment: [
-					'Label for action that will trigger the showing/focusing of an extended hover in the editor.',
-					'If the extended hover is not visible, it will show the extended hover.',
-					'This allows users to show the extended hover without using the mouse.'
+					'Label for action that will trigger showing more hover information.',
 				]
-			}, "Show or Focus Extended Hover"),
-			alias: 'Show or Focus Extended Hover',
-			precondition: undefined,
+			}, "Show More Hover Information"),
+			alias: 'Show More Hover Information',
+			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyH),
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		showOrFocusHover(editor, args, true);
+		zoomHover(editor, true);
 	}
 }
 
-function showOrFocusHover(editor: ICodeEditor, args: any, extended: boolean) {
+class ShowLessHoverInformationAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.showLessHoverInformation',
+			label: nls.localize({
+				key: 'showLessHoverInformation',
+				comment: [
+					'Label for action that will trigger showing less hover information.',
+				]
+			}, "Show Less Hover Information"),
+			alias: 'Show Less Hover Information',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		zoomHover(editor, false);
+	}
+}
+
+function zoomHover(editor: ICodeEditor, zoomIn: boolean) {
+	console.log('inside of zoomHover');
 	if (!editor.hasModel()) {
 		return;
 	}
@@ -553,32 +607,7 @@ function showOrFocusHover(editor: ICodeEditor, args: any, extended: boolean) {
 	if (!controller) {
 		return;
 	}
-
-	const focusArgument = args?.focus;
-	let focusOption = HoverFocusBehavior.FocusIfVisible;
-	if (Object.values(HoverFocusBehavior).includes(focusArgument)) {
-		focusOption = focusArgument;
-	} else if (typeof focusArgument === 'boolean' && focusArgument) {
-		focusOption = HoverFocusBehavior.AutoFocusImmediately;
-	}
-
-	const showContentHover = (focus: boolean) => {
-		const position = editor.getPosition();
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		controller.showContentHover(range, HoverStartSource.Keyboard, false, { extended, mode: HoverStartMode.Immediate, focus });
-	};
-
-	const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
-
-	if (controller.isHoverVisible) {
-		if (focusOption !== HoverFocusBehavior.NoAutoFocus && controller.isHoverExtended === extended) {
-			controller.focus();
-		} else {
-			showContentHover(accessibilitySupportEnabled);
-		}
-	} else {
-		showContentHover(accessibilitySupportEnabled || focusOption === HoverFocusBehavior.AutoFocusImmediately);
-	}
+	controller.zoomInFocusedContents(zoomIn);
 }
 
 class ShowDefinitionPreviewHoverAction extends EditorAction {
@@ -617,7 +646,7 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 
 		const promise = goto.startFindDefinitionFromCursor(position);
 		promise.then(() => {
-			controller.showContentHover(range, HoverStartSource.Keyboard, false, { mode: HoverStartMode.Immediate, focus: true, extended: false });
+			controller.showContentHover(range, HoverStartSource.Keyboard, false, { mode: HoverStartMode.Immediate, focus: true });
 		});
 	}
 }
@@ -870,7 +899,8 @@ class GoToBottomHoverAction extends EditorAction {
 
 registerEditorContribution(HoverController.ID, HoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
-registerEditorAction(ShowOrFocusExtendedHoverAction);
+registerEditorAction(ShowMoreHoverInformationAction);
+registerEditorAction(ShowLessHoverInformationAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 registerEditorAction(ScrollUpHoverAction);
 registerEditorAction(ScrollDownHoverAction);

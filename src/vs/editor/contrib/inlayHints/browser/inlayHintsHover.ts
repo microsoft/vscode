@@ -70,7 +70,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		return [];
 	}
 
-	override computeAsync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], showExtendedHover: boolean, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	override computeAsync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<MarkdownHover> {
 		if (!(anchor instanceof InlayHintsHoverAnchor)) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -92,11 +92,11 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 				itemTooltip = part.item.hint.tooltip;
 			}
 			if (itemTooltip) {
-				executor.emitOne(new MarkdownHover(this, anchor.range, [itemTooltip], false, 0));
+				executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [itemTooltip], false, 0));
 			}
 			// (1.2) Inlay dbl-click gesture
 			if (isNonEmptyArray(part.item.hint.textEdits)) {
-				executor.emitOne(new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double-click to insert"))], false, 10001));
+				executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double-click to insert"))], false, 10001));
 			}
 
 			// (2) Inlay Label Part Tooltip
@@ -107,7 +107,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 				partTooltip = part.part.tooltip;
 			}
 			if (partTooltip) {
-				executor.emitOne(new MarkdownHover(this, anchor.range, [partTooltip], false, 1));
+				executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [partTooltip], false, 1));
 			}
 
 			// (2.2) Inlay Label Part Help Hover
@@ -130,20 +130,20 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 					linkHint = new MarkdownString(`[${localize('hint.cmd', "Execute Command")}](${asCommandLink(part.part.command)} "${part.part.command.title}") (${kb})`, { isTrusted: true });
 				}
 				if (linkHint) {
-					executor.emitOne(new MarkdownHover(this, anchor.range, [linkHint], false, 10000));
+					executor.emitOne(new MarkdownHover(this, undefined, anchor.range, [linkHint], false, 10000));
 				}
 			}
 
 
 			// (3) Inlay Label Part Location tooltip
-			const iterable = await this._resolveInlayHintLabelPartHover(part, showExtendedHover, token);
+			const iterable = await this._resolveInlayHintLabelPartHover(part, token);
 			for await (const item of iterable) {
 				executor.emitOne(item);
 			}
 		});
 	}
 
-	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, showExtendedHover: boolean = false, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
+	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
 		if (!part.part.location) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -154,9 +154,9 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			if (!this._languageFeaturesService.hoverProvider.has(model)) {
 				return AsyncIterableObject.EMPTY;
 			}
-			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), showExtendedHover, token)
+			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal));
+				.map(item => new MarkdownHover(this, undefined, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal));
 		} finally {
 			ref.dispose();
 		}

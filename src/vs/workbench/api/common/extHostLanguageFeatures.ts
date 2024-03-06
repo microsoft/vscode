@@ -260,25 +260,12 @@ class HoverAdapter {
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	async provideHover(resource: URI, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
-		return this._provideHover(resource, position, false, token);
-	}
-
-	async provideExtendedHover(resource: URI, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
-		return this._provideHover(resource, position, true, token);
-	}
-
-	async _provideHover(resource: URI, position: IPosition, showExtendedHover: boolean, token: CancellationToken): Promise<languages.Hover | undefined> {
+	async provideHover(resource: URI, _request: IPosition | { position: IPosition; zoomIn: boolean }, token: CancellationToken): Promise<languages.Hover | undefined> {
+		const position = 'position' in _request ? _request.position : _request;
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
-
-		let provideHoverFunc: (document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken) => languages.ProviderResult<vscode.Hover>;
-		if (showExtendedHover && typeof this._provider['provideExtendedHover'] === 'function') {
-			provideHoverFunc = this._provider.provideExtendedHover;
-		} else {
-			provideHoverFunc = this._provider.provideHover;
-		}
-		const value = await provideHoverFunc(doc, pos, token);
+		const request = 'position' in _request ? { position: pos, zoomIn: _request.zoomIn } : pos;
+		const value = await this._provider.provideHover(doc, request, token);
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}
@@ -2106,12 +2093,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
-		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token), undefined, token);
-	}
-
-	$provideExtendedHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
-		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideExtendedHover(URI.revive(resource), position, token), undefined, token);
+	$provideHover(handle: number, resource: UriComponents, request: IPosition | { position: IPosition; zoomIn: boolean }, token: CancellationToken): Promise<languages.Hover | undefined> {
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), request, token), undefined, token);
 	}
 
 	// --- debug hover

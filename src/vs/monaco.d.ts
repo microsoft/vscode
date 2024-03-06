@@ -4051,10 +4051,6 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		above?: boolean;
-		/**
-		 * Whether to show the extended hover information by default
-		 */
-		showExtendedHover?: boolean;
 	}
 
 	/**
@@ -6767,6 +6763,21 @@ declare namespace monaco.languages {
 		 * current position itself.
 		 */
 		range?: IRange;
+		/**
+		 * Zoom possibility
+		 */
+		zoomPossibility?: ZoomPossibility;
+	}
+
+	export interface ZoomPossibility {
+		/**
+		 * Can zoom in
+		 */
+		canZoomIn?: boolean;
+		/**
+		 * Can zoom out
+		 */
+		canZoomOut?: boolean;
 	}
 
 	/**
@@ -6779,13 +6790,12 @@ declare namespace monaco.languages {
 		 * position will be merged by the editor. A hover can have a range which defaults
 		 * to the word range at the position when omitted.
 		 */
-		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
-		/**
-		 * Provide an extended hover for the given position and document. Multiple hovers at the same
-		 * position will be merged by the editor. A hover can have a range which defaults
-		 * to the word range at the position when omitted.
-		 */
-		provideExtendedHover?(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+		provideHover(model: editor.ITextModel, request: Position | HoverZoomRequest, token: CancellationToken): ProviderResult<Hover>;
+	}
+
+	export interface HoverZoomRequest {
+		position: Position;
+		zoomIn: boolean;
 	}
 
 	export enum CompletionItemKind {

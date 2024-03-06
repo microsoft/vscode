@@ -10,6 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { HoverProvider } from 'vs/editor/common/languages';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 
@@ -18,6 +19,10 @@ export interface IHoverPart {
 	 * The creator of this hover part.
 	 */
 	readonly owner: IEditorHoverParticipant;
+	/**
+	 * hover provider
+	 */
+	readonly provider: HoverProvider | undefined;
 	/**
 	 * The range where this hover part applies.
 	 */
@@ -124,8 +129,8 @@ export interface IEditorHoverRenderContext {
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
-	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], showExtendedHover: boolean): T[];
-	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], showExtendedHover: boolean, token: CancellationToken): AsyncIterableObject<T>;
+	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
+	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
 }

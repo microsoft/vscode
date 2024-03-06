@@ -25,7 +25,6 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 
 /**
  * Register information about a new language.
@@ -474,35 +473,28 @@ export function registerSignatureHelpProvider(languageSelector: LanguageSelector
 export function registerHoverProvider(languageSelector: LanguageSelector, provider: languages.HoverProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.hoverProvider.register(languageSelector, {
-		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<languages.Hover | undefined> => {
-			const word = model.getWordAtPosition(position);
-			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): languages.Hover | undefined =>
-				processHover(value, position, word)
-			);
-		},
-		provideExtendedHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<languages.Hover | undefined> => {
-			if (typeof provider['provideExtendedHover'] === 'function') {
-				const word = model.getWordAtPosition(position);
-				return Promise.resolve<languages.Hover | null | undefined>(provider.provideExtendedHover(model, position, token)).then((value): languages.Hover | undefined =>
-					processHover(value, position, word)
-				);
+		provideHover: (model: model.ITextModel, request: Position | languages.HoverZoomRequest, token: CancellationToken): Promise<languages.Hover | undefined> => {
+			let position: Position;
+			if (request instanceof Position) {
+				position = request;
+			} else {
+				position = request.position;
 			}
-			return Promise.resolve(undefined);
+			const word = model.getWordAtPosition(position);
+			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, request, token)).then((value): languages.Hover | undefined => {
+				if (!value) {
+					return undefined;
+				}
+				if (!value.range && word) {
+					value.range = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+				}
+				if (!value.range) {
+					value.range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+				}
+				return value;
+			});
 		}
 	});
-}
-
-function processHover(value: languages.Hover | null | undefined, position: Position, word: IWordAtPosition | null) {
-	if (!value) {
-		return undefined;
-	}
-	if (!value.range && word) {
-		value.range = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-	}
-	if (!value.range) {
-		value.range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-	}
-	return value;
 }
 
 /**

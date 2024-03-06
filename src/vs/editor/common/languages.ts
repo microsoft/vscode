@@ -167,6 +167,23 @@ export interface Hover {
 	 * current position itself.
 	 */
 	range?: IRange;
+
+	/**
+	 * Zoom possibility
+	 */
+	zoomPossibility?: ZoomPossibility;
+}
+
+export interface ZoomPossibility {
+	/**
+	 * Can zoom in
+	 */
+	canZoomIn?: boolean;
+
+	/**
+	 * Can zoom out
+	 */
+	canZoomOut?: boolean;
 }
 
 /**
@@ -179,13 +196,12 @@ export interface HoverProvider {
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
-	/**
-	 * Provide an extended hover for the given position and document. Multiple hovers at the same
-	 * position will be merged by the editor. A hover can have a range which defaults
-	 * to the word range at the position when omitted.
-	 */
-	provideExtendedHover?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, request: Position | HoverZoomRequest, token: CancellationToken): ProviderResult<Hover>;
+}
+
+export interface HoverZoomRequest {
+	position: Position;
+	zoomIn: boolean;
 }
 
 /**

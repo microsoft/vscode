@@ -21,10 +21,12 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { HoverProvider } from 'vs/editor/common/languages';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
 		public readonly owner: IEditorHoverParticipant<InlineCompletionsHover>,
+		public readonly provider: HoverProvider | undefined,
 		public readonly range: Range,
 		public readonly controller: InlineCompletionsController
 	) { }
@@ -89,7 +91,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 
 		const controller = InlineCompletionsController.get(this._editor);
 		if (controller && controller.shouldShowHoverAt(anchor.range)) {
-			return [new InlineCompletionsHover(this, anchor.range, controller)];
+			return [new InlineCompletionsHover(this, undefined, anchor.range, controller)];
 		}
 		return [];
 	}

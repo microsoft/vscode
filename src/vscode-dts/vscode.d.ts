@@ -3083,7 +3083,32 @@ declare module 'vscode' {
 		 * @returns A hover or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Hover>;
+		provideHover(document: TextDocument, request: Position | HoverZoomRequest, token: CancellationToken): ProviderResult<Hover>;
+	}
+
+	/**
+	 * Hover zoom request
+	 */
+	export interface HoverZoomRequest {
+		/**
+		 * Position of the request
+		 */
+		position: Position;
+		/**
+		 * Whether to zoom in at that position
+		 */
+		zoomIn: boolean;
+	}
+
+	/**
+	 * Meta data concerning the hover provider
+	 */
+	export interface HoverProviderMetadata {
+
+		/**
+		 * Boolean which indicates whether the hover information is zoomable
+		 */
+		canZoom?: boolean;
 	}
 
 	/**
@@ -13969,7 +13994,7 @@ declare module 'vscode' {
 		 * @param provider A hover provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable;
+		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider, metaData?: HoverProviderMetadata): Disposable;
 
 		/**
 		 * Register a provider that locates evaluatable expressions in text documents.

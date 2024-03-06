@@ -22,6 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { HoverProvider } from 'vs/editor/common/languages';
 
 const $ = dom.$;
 
@@ -29,6 +30,7 @@ export class MarkdownHover implements IHoverPart {
 
 	constructor(
 		public readonly owner: IEditorHoverParticipant<MarkdownHover>,
+		public readonly provider: HoverProvider | undefined,
 		public readonly range: Range,
 		public readonly contents: IMarkdownString[],
 		public readonly isBeforeContent: boolean,
@@ -57,7 +59,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
-		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], false, 2000);
+		return new MarkdownHover(this, undefined, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], false, 2000);
 	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
@@ -81,12 +83,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		let stopRenderingMessage = false;
 		if (stopRenderingLineAfter >= 0 && lineLength > stopRenderingLineAfter && anchor.range.startColumn >= stopRenderingLineAfter) {
 			stopRenderingMessage = true;
-			result.push(new MarkdownHover(this, anchor.range, [{
+			result.push(new MarkdownHover(this, undefined, anchor.range, [{
 				value: nls.localize('stopped rendering', "Rendering paused for long line for performance reasons. This can be configured via `editor.stopRenderingLineAfter`.")
 			}], false, index++));
 		}
 		if (!stopRenderingMessage && typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
-			result.push(new MarkdownHover(this, anchor.range, [{
+			result.push(new MarkdownHover(this, undefined, anchor.range, [{
 				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
 			}], false, index++));
 		}
@@ -107,13 +109,13 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++));
+			result.push(new MarkdownHover(this, undefined, range, asArray(hoverMessage), isBeforeContent, index++));
 		}
 
 		return result;
 	}
 
-	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], showExtendedHover: boolean, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<MarkdownHover> {
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -125,11 +127,11 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 
 		const position = new Position(anchor.range.startLineNumber, anchor.range.startColumn);
-		return getHover(this._languageFeaturesService.hoverProvider, model, position, showExtendedHover, token)
+		return getHover(this._languageFeaturesService.hoverProvider, model, position, token)
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
-				return new MarkdownHover(this, rng, item.hover.contents, false, item.ordinal);
+				return new MarkdownHover(this, item.provider, rng, item.hover.contents, false, item.ordinal);
 			});
 	}
 

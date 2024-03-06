@@ -15,7 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { HoverZoomRequest, TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,13 +26,15 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 
 const $ = dom.$;
 
 export interface IHoverOptions {
 	mode: HoverStartMode;
 	focus: boolean;
-	extended: boolean;
 }
 
 export class ContentHoverController extends Disposable {
@@ -43,11 +45,16 @@ export class ContentHoverController extends Disposable {
 	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
+	private _currentFocusIndex: number = -1;
+	private _fragment: DocumentFragment | undefined;
+	private _childrenElements: HTMLCollection | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 
@@ -64,6 +71,7 @@ export class ContentHoverController extends Disposable {
 		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 
 		this._register(this._hoverOperation.onResult((result) => {
+			console.log('result in onResult : ', result);
 			if (!this._computer.anchor) {
 				// invalid state, ignore result
 				return;
@@ -145,7 +153,7 @@ export class ContentHoverController extends Disposable {
 
 	private _startHoverOperationIfNecessary(anchor: HoverAnchor, source: HoverStartSource, insistOnKeepingHoverVisible: boolean, opts: IHoverOptions): void {
 
-		if (this._computer.anchor && this._computer.anchor.equals(anchor) && this._computer.showExtendedHover === opts.extended) {
+		if (this._computer.anchor && this._computer.anchor.equals(anchor)) {
 			// We have to start a hover operation at the exact same anchor as before, so no work is needed
 			return;
 		}
@@ -154,7 +162,6 @@ export class ContentHoverController extends Disposable {
 		this._computer.shouldFocus = opts.focus;
 		this._computer.source = source;
 		this._computer.insistOnKeepingHoverVisible = insistOnKeepingHoverVisible;
-		this._computer.showExtendedHover = opts.extended;
 		this._hoverOperation.start(opts.mode);
 	}
 
@@ -169,6 +176,7 @@ export class ContentHoverController extends Disposable {
 		}
 		this._currentResult = hoverResult;
 		if (this._currentResult) {
+			console.log('this._currentResult : ', this._currentResult);
 			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
 		} else {
 			this._widget.hide();
@@ -207,14 +215,26 @@ export class ContentHoverController extends Disposable {
 		this._setCurrentResult(hoverResult);
 	}
 
+	public get currentResult(): HoverResult | null {
+		return this._currentResult;
+	}
+
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
 		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
 
 		const disposables = new DisposableStore();
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
-		const fragment = document.createDocumentFragment();
+		this._fragment = document.createDocumentFragment();
+
+		//
+		disposables.add(this._widget.focusTracker.onDidBlur(() => {
+			this._currentFocusIndex = -1;
+			console.log('this._currentFocusIndex : ', this._currentFocusIndex);
+		}));
+		//
 
 		let colorPicker: IEditorHoverColorPickerWidget | null = null;
+		const fragment = this._fragment;
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
@@ -231,13 +251,33 @@ export class ContentHoverController extends Disposable {
 			}
 		}
 
+		console.log('fragment : ', this._fragment);
+		this._childrenElements = this._fragment.children;
+		console.log('this._childernElements : ', this._childrenElements);
+
+		for (let i = 0; i < this._fragment.children.length; i++) {
+			console.log('this._fragment.children : ', this._fragment.children);
+			const element = this._fragment.children.item(i);
+			if (element && element instanceof HTMLElement) {
+				const currentIndex = i;
+				element.tabIndex = 0;
+				const focusTracker = this._register(dom.trackFocus(element));
+				disposables.add(focusTracker.onDidFocus(() => {
+					// update the index which is focused and associated provider
+					// so that we know the current associated provider
+					this._currentFocusIndex = currentIndex;
+					console.log('this._currentFocusIndex : ', this._currentFocusIndex);
+				}));
+			}
+		}
+
 		const isBeforeContent = messages.some(m => m.isBeforeContent);
 
 		if (statusBar.hasContent) {
-			fragment.appendChild(statusBar.hoverElement);
+			this._fragment.appendChild(statusBar.hoverElement);
 		}
 
-		if (fragment.hasChildNodes()) {
+		if (this._fragment.hasChildNodes()) {
 			if (highlightRange) {
 				const highlightDecoration = this._editor.createDecorationsCollection();
 				highlightDecoration.set([{
@@ -249,7 +289,7 @@ export class ContentHoverController extends Disposable {
 				}));
 			}
 
-			this._widget.showAt(fragment, new ContentHoverVisibleData(
+			this._widget.showAt(this._fragment, new ContentHoverVisibleData(
 				anchor.initialMousePosX,
 				anchor.initialMousePosY,
 				colorPicker,
@@ -261,6 +301,7 @@ export class ContentHoverController extends Disposable {
 				isBeforeContent,
 				disposables
 			));
+			console.log('this._fragment.children : ', this._fragment.children);
 		} else {
 			disposables.dispose();
 		}
@@ -313,7 +354,7 @@ export class ContentHoverController extends Disposable {
 	/**
 	 * Returns true if the hover shows now or will show.
 	 */
-	public showsOrWillShow(mouseEvent: IEditorMouseEvent, showExtendedHover: boolean): boolean {
+	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
 
 		if (this._widget.isResizing) {
 			return true;
@@ -347,7 +388,7 @@ export class ContentHoverController extends Disposable {
 			}
 		}
 
-		const showHoverOptions = { mode: HoverStartMode.Delayed, extended: showExtendedHover, focus: false };
+		const showHoverOptions = { mode: HoverStartMode.Delayed, focus: false };
 		if (anchorCandidates.length === 0) {
 			return this._startShowingOrUpdateHover(null, HoverStartSource.Mouse, mouseEvent, showHoverOptions);
 		}
@@ -358,6 +399,46 @@ export class ContentHoverController extends Disposable {
 
 	public startShowingAtRange(range: Range, source: HoverStartSource, opts: IHoverOptions): void {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), source, null, opts);
+	}
+
+	public async zoomInFocusedContents(zoomIn: boolean): Promise<void> {
+		console.log('zoomInFocusedContents of ContentHoverController');
+		if (this._currentFocusIndex !== -1 && this._currentResult) {
+			const message = this._currentResult.messages[this._currentFocusIndex];
+			console.log('message : ', message);
+			const provider = message.provider;
+			const model = this._editor.getModel();
+			if (!model || !provider) {
+				return;
+			}
+			// Need to find the right anchor
+			const position = new Position(this._currentResult.anchor.range.startLineNumber, this._currentResult.anchor.range.startColumn);
+			const request: HoverZoomRequest = { position, zoomIn };
+			console.log('request : ', request);
+			const result = await Promise.resolve(provider.provideHover(model, request, CancellationToken.None));
+			console.log('result : ', result);
+
+			const children = this._widget.contentsDomNode.children;
+			console.log('children : ', children);
+			const item = children.item(this._currentFocusIndex);
+			console.log('item : ', item);
+
+			if (result?.contents && (!item || item instanceof HTMLElement)) {
+				const markdownHoverElement = $('div.hover-row.markdown-hover');
+				const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
+				const renderer = this._register(new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService));
+				this._register(renderer.onDidRenderAsync(() => {
+					hoverContentsElement.className = 'hover-contents code-hover-contents';
+				}));
+				for (const mdstring of result.contents) {
+					const renderedContents = this._register(renderer.render(mdstring));
+					hoverContentsElement.appendChild(renderedContents.element);
+				}
+
+				console.log('markdownHoverElement : ', markdownHoverElement);
+				item?.replaceWith(markdownHoverElement);
+			}
+		}
 	}
 
 	public getWidgetContent(): string | undefined {
@@ -503,6 +584,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
 	private _minimumSize: dom.Dimension;
 	private _contentWidth: number | undefined;
+	private _focusTracker: dom.IFocusTracker;
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
@@ -522,6 +604,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public get isFocused(): boolean {
 		return this._hoverFocusedKey.get() ?? false;
+	}
+
+	public get focusTracker(): dom.IFocusTracker {
+		return this._focusTracker;
 	}
 
 	constructor(
@@ -553,11 +639,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 				this._updateFont();
 			}
 		}));
-		const focusTracker = this._register(dom.trackFocus(this._resizableNode.domNode));
-		this._register(focusTracker.onDidFocus(() => {
+		this._focusTracker = this._register(dom.trackFocus(this._resizableNode.domNode));
+		this._register(this._focusTracker.onDidFocus(() => {
 			this._hoverFocusedKey.set(true);
 		}));
-		this._register(focusTracker.onDidBlur(() => {
+		this._register(this._focusTracker.onDidBlur(() => {
 			this._hoverFocusedKey.set(false);
 		}));
 		this._setHoverData(undefined);
@@ -966,6 +1052,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	public goToBottom(): void {
 		this._hover.scrollbar.setScrollPosition({ scrollTop: this._hover.scrollbar.getScrollDimensions().scrollHeight });
 	}
+
+	public get contentsDomNode(): HTMLElement {
+		return this._hover.contentsDomNode;
+	}
 }
 
 export class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
@@ -1023,10 +1113,6 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 	private _insistOnKeepingHoverVisible: boolean = false;
 	public get insistOnKeepingHoverVisible(): boolean { return this._insistOnKeepingHoverVisible; }
 	public set insistOnKeepingHoverVisible(value: boolean) { this._insistOnKeepingHoverVisible = value; }
-
-	private _showExtendedHover: boolean = false;
-	public get showExtendedHover(): boolean { return this._showExtendedHover; }
-	public set showExtendedHover(value: boolean) { this._showExtendedHover = value; }
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -1086,7 +1172,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 				if (!participant.computeAsync) {
 					return AsyncIterableObject.EMPTY;
 				}
-				return participant.computeAsync(anchor, lineDecorations, this._showExtendedHover, token);
+				return participant.computeAsync(anchor, lineDecorations, token);
 			})
 		);
 	}
@@ -1100,7 +1186,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
 		let result: IHoverPart[] = [];
 		for (const participant of this._participants) {
-			result = result.concat(participant.computeSync(this._anchor, lineDecorations, this._showExtendedHover));
+			result = result.concat(participant.computeSync(this._anchor, lineDecorations));
 		}
 
 		return coalesce(result);
