@@ -362,7 +362,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	calculateCodeBlocks(markdown: string): void {
-		if (!this._currentProvider) {
+		if (!this._currentProvider || this._currentProvider.options.id !== AccessibleViewProviderId.Chat) {
 			return;
 		}
 		if (this._currentProvider.options.language && this._currentProvider.options.language !== 'markdown') {
