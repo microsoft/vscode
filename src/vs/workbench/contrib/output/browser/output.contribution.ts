@@ -348,47 +348,21 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			icon: Codicon.gear,
 			order: 6
 		}));
-		const registeredLogLevels = new Map<LogLevel, IDisposable>();
-		this._register(toDisposable(() => dispose(registeredLogLevels.values())));
-		const registerLogLevels = (logLevels: LogLevel[]) => {
-			let order = 0;
-			for (const logLevel of logLevels) {
-				const { original, value } = LogLevelToLocalizedString(logLevel);
-				registeredLogLevels.set(logLevel, registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: `workbench.action.output.activeOutputLogLevel.${logLevel}`,
-							title: value,
-							toggled: CONTEXT_ACTIVE_OUTPUT_LEVEL.isEqualTo(original),
-							menu: {
-								id: logLevelMenu,
-								order: order++,
-								group: '0_level'
-							}
-						});
-					}
-					async run(accessor: ServicesAccessor): Promise<void> {
-						const channel = that.outputService.getActiveChannel();
-						if (channel) {
-							const channelDescriptor = that.outputService.getChannelDescriptor(channel.id);
-							if (channelDescriptor?.log && channelDescriptor.file) {
-								return accessor.get(ILoggerService).setLogLevel(channelDescriptor.file, logLevel);
-							}
-						}
-					}
-				}));
-			}
+
+		let order = 0;
+		const registerLogLevel = (logLevel: LogLevel) => {
+			const { original, value } = LogLevelToLocalizedString(logLevel);
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `workbench.action.output.activeOutputLogLevelDefault`,
-						title: nls.localize('logLevelDefault.label', "Set As Default"),
+						id: `workbench.action.output.activeOutputLogLevel.${logLevel}`,
+						title: value,
+						toggled: CONTEXT_ACTIVE_OUTPUT_LEVEL.isEqualTo(original),
 						menu: {
 							id: logLevelMenu,
-							order,
-							group: '1_default'
-						},
-						precondition: CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT.negate()
+							order: order++,
+							group: '0_level'
+						}
 					});
 				}
 				async run(accessor: ServicesAccessor): Promise<void> {
@@ -396,14 +370,44 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					if (channel) {
 						const channelDescriptor = that.outputService.getChannelDescriptor(channel.id);
 						if (channelDescriptor?.log && channelDescriptor.file) {
-							const logLevel = accessor.get(ILoggerService).getLogLevel(channelDescriptor.file);
-							return await accessor.get(IDefaultLogLevelsService).setDefaultLogLevel(logLevel, channelDescriptor.extensionId);
+							return accessor.get(ILoggerService).setLogLevel(channelDescriptor.file, logLevel);
 						}
 					}
 				}
 			}));
 		};
-		registerLogLevels([LogLevel.Trace, LogLevel.Debug, LogLevel.Info, LogLevel.Warning, LogLevel.Error, LogLevel.Off]);
+
+		registerLogLevel(LogLevel.Trace);
+		registerLogLevel(LogLevel.Debug);
+		registerLogLevel(LogLevel.Info);
+		registerLogLevel(LogLevel.Warning);
+		registerLogLevel(LogLevel.Error);
+		registerLogLevel(LogLevel.Off);
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.output.activeOutputLogLevelDefault`,
+					title: nls.localize('logLevelDefault.label', "Set As Default"),
+					menu: {
+						id: logLevelMenu,
+						order,
+						group: '1_default'
+					},
+					precondition: CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT.negate()
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const channel = that.outputService.getActiveChannel();
+				if (channel) {
+					const channelDescriptor = that.outputService.getChannelDescriptor(channel.id);
+					if (channelDescriptor?.log && channelDescriptor.file) {
+						const logLevel = accessor.get(ILoggerService).getLogLevel(channelDescriptor.file);
+						return await accessor.get(IDefaultLogLevelsService).setDefaultLogLevel(logLevel, channelDescriptor.extensionId);
+					}
+				}
+			}
+		}));
 	}
 
 	private registerShowLogsAction(): void {
