@@ -45,6 +45,7 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditor = 'accessibility.verbosity.diffEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
+	TerminalChat = 'accessibility.verbosity.terminalChat',
 	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook',
@@ -57,6 +58,7 @@ export const enum AccessibilityVerbositySettingId {
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
+	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	Chat = 'panelChat',
@@ -541,6 +543,17 @@ const configuration: IConfigurationNode = {
 				'sound': {
 					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on loop while the response has been received."),
 					...soundFeatureBase
+				},
+			}
+		},
+		'accessibility.signals.voiceRecordingStarted': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.voiceRecordingStarted', "Indicates when the voice recording has started."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.voiceRecordingStarted.sound', "Plays a sound when the voice recording has started."),
+					...soundFeatureBase,
+					'default': 'on'
 				},
 			}
 		},

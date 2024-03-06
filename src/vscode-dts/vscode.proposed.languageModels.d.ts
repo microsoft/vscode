@@ -15,7 +15,7 @@ declare module 'vscode' {
 		/**
 		 * An async iterable that is a stream of text chunks forming the overall response.
 		 *
-		 * *Note* that this stream will error when during receiving an error occurrs.
+		 * *Note* that this stream will error when during data receiving an error occurrs.
 		 */
 		stream: AsyncIterable<string>;
 	}
@@ -87,8 +87,10 @@ declare module 'vscode' {
 		constructor(content: string);
 	}
 
+	/**
+	 * Different types of language model messages.
+	 */
 	export type LanguageModelChatMessage = LanguageModelChatSystemMessage | LanguageModelChatUserMessage | LanguageModelChatAssistantMessage;
-
 
 	/**
 	 * An event describing the change in the set of available language models.
@@ -109,7 +111,8 @@ declare module 'vscode' {
 	 *
 	 * Consumers of language models should check the code property to determine specific
 	 * failure causes, like `if(someError.code === vscode.LanguageModelError.NotFound.name) {...}`
-	 * for the case of referring to an unknown language model.
+	 * for the case of referring to an unknown language model. For unspecified errors the `cause`-property
+	 * will contain the actual error.
 	 */
 	export class LanguageModelError extends Error {
 
@@ -167,27 +170,25 @@ declare module 'vscode' {
 		/**
 		 * Make a chat request using a language model.
 		 *
-		 * *Note* that language model use may be subject to access restrictions and user consent. This function will return a rejected promise
-		 * if access to the language model is not possible. Reasons for this can be:
+		 * - *Note 1:* language model use may be subject to access restrictions and user consent.
 		 *
-		 * - user consent not given
-		 * - quote limits exceeded
-		 * - model does not exist
+		 * - *Note 2:* language models are contributed by other extensions and as they evolve and change,
+		 * the set of available language models may change over time. Therefore it is strongly recommend to check
+		 * {@link languageModels} for aviailable values and handle missing language models gracefully.
 		 *
-		 * @param languageModel A language model identifier. See {@link languageModels} for aviailable values.
+		 * This function will return a rejected promise if making a request to the language model is not
+		 * possible. Reasons for this can be:
+		 *
+		 * - user consent not given, see {@link LanguageModelError.NoPermissions `NoPermissions`}
+		 * - model does not exist, see {@link LanguageModelError.NotFound `NotFound`}
+		 * - quota limits exceeded, see {@link LanguageModelError.cause `LanguageModelError.cause`}
+		 *
+		 * @param languageModel A language model identifier.
 		 * @param messages An array of message instances.
-		 * @param options Objects that control the request.
+		 * @param options Options that control the request.
 		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
 		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
 		 */
-		// TODO@API refine doc
-		// TODO@API ✅ ExtensionContext#permission#languageModels: { languageModel: string: LanguageModelAccessInformation}
-		// TODO@API ✅ define specific error types?
-		// TODO@API ✅ NAME: sendChatRequest, fetchChatResponse, makeChatRequest, chat, chatRequest sendChatRequest
-		// TODO@API ✅ NAME: LanguageModelChatXYZMessage
-		// TODO@API ✅ errors on everything that prevents us to make the actual request
-		// TODO@API ✅ double auth
-		// TODO@API ✅ NAME: LanguageModelChatResponse, ChatResponse, ChatRequestResponse
 		export function sendChatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		/**

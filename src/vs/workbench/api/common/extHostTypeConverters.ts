@@ -2672,6 +2672,29 @@ export namespace TerminalQuickFix {
 	}
 }
 
+export namespace PartialAcceptInfo {
+	export function to(info: languages.PartialAcceptInfo): types.PartialAcceptInfo {
+		return {
+			kind: PartialAcceptTriggerKind.to(info.kind),
+		};
+	}
+}
+
+export namespace PartialAcceptTriggerKind {
+	export function to(kind: languages.PartialAcceptTriggerKind): types.PartialAcceptTriggerKind {
+		switch (kind) {
+			case languages.PartialAcceptTriggerKind.Word:
+				return types.PartialAcceptTriggerKind.Word;
+			case languages.PartialAcceptTriggerKind.Line:
+				return types.PartialAcceptTriggerKind.Line;
+			case languages.PartialAcceptTriggerKind.Suggest:
+				return types.PartialAcceptTriggerKind.Suggest;
+			default:
+				return types.PartialAcceptTriggerKind.Unknown;
+		}
+	}
+}
+
 export namespace DebugTreeItem {
 	export function from(item: vscode.DebugTreeItem, id: number): IDebugVisualizationTreeItem {
 		return {

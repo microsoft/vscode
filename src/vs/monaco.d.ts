@@ -6957,6 +6957,22 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	 * Info provided on partial acceptance.
+	 */
+	export interface PartialAcceptInfo {
+		kind: PartialAcceptTriggerKind;
+	}
+
+	/**
+	 * How a partial acceptance was triggered.
+	 */
+	export enum PartialAcceptTriggerKind {
+		Word = 0,
+		Line = 1,
+		Suggest = 2
+	}
+
+	/**
 	 * How a suggest provider was triggered.
 	 */
 	export enum CompletionTriggerKind {
@@ -7102,7 +7118,7 @@ declare namespace monaco.languages {
 		/**
 		 * Will be called when an item is partially accepted.
 		 */
-		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/

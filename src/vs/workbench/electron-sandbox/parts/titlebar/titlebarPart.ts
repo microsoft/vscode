@@ -26,7 +26,7 @@ import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titleb
 import { IEditorGroupsContainer, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 
 export class NativeTitlebarPart extends BrowserTitlebarPart {
 
@@ -59,7 +59,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 	constructor(
 		id: string,
-		targetWindow: Window,
+		targetWindow: CodeWindow,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,

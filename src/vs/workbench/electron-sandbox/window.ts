@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindowId, getWindows } from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindows } from 'vs/base/browser/dom';
 import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
@@ -107,7 +107,7 @@ export class NativeWindow extends BaseWindow {
 		@IMenuService private readonly menuService: IMenuService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly nativeEnvironmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -131,7 +131,7 @@ export class NativeWindow extends BaseWindow {
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
 		@IHostService hostService: IHostService
 	) {
-		super(mainWindow, undefined, hostService);
+		super(mainWindow, undefined, hostService, nativeEnvironmentService);
 
 		this.mainPartEditorService = editorService.createScoped('main', this._store);
 
@@ -353,7 +353,7 @@ export class NativeWindow extends BaseWindow {
 		this._register(Event.debounce(this.editorService.onDidVisibleEditorsChange, () => undefined, 0, undefined, undefined, undefined, this._store)(() => this.maybeCloseWindow()));
 
 		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.environmentService.filesToWait;
+		const filesToWait = this.nativeEnvironmentService.filesToWait;
 		if (filesToWait) {
 			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}
@@ -412,7 +412,7 @@ export class NativeWindow extends BaseWindow {
 			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, windowId => !!hasWindow(windowId)), windowId => ({ maximized: true, windowId })),
 			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, windowId => !!hasWindow(windowId)), windowId => ({ maximized: false, windowId }))
 		)(e => this.layoutService.updateWindowMaximizedState(getWindowById(e.windowId)!.window, e.maximized)));
-		this.layoutService.updateWindowMaximizedState(mainWindow, this.environmentService.window.maximized ?? false);
+		this.layoutService.updateWindowMaximizedState(mainWindow, this.nativeEnvironmentService.window.maximized ?? false);
 
 		// Detect panel position to determine minimum width
 		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
@@ -582,7 +582,7 @@ export class NativeWindow extends BaseWindow {
 	}
 
 	private maybeCloseWindow(): void {
-		const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty') || this.environmentService.args.wait;
+		const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty') || this.nativeEnvironmentService.args.wait;
 		if (!closeWhenEmpty) {
 			return; // return early if configured to not close when empty
 		}
@@ -671,29 +671,6 @@ export class NativeWindow extends BaseWindow {
 		if (this.environmentService.enableSmokeTestDriver) {
 			this.setupDriver();
 		}
-
-		// Patch methods that we need to work properly
-		this.patchMethods();
-	}
-
-	private patchMethods(): void {
-
-		// Enable `window.focus()` to work in Electron by
-		// asking the main process to focus the window.
-		// https://github.com/electron/electron/issues/25578
-		const that = this;
-		const originalWindowFocus = mainWindow.focus.bind(mainWindow);
-		mainWindow.focus = function () {
-			if (that.environmentService.extensionTestsLocationURI) {
-				return; // no focus when we are running tests from CLI
-			}
-
-			originalWindowFocus();
-
-			if (!mainWindow.document.hasFocus()) {
-				that.nativeHostService.focusWindow({ targetWindowId: getWindowId(mainWindow) });
-			}
-		};
 	}
 
 	private async handleWarnings(): Promise<void> {
@@ -731,11 +708,11 @@ export class NativeWindow extends BaseWindow {
 			let installLocationUri: URI;
 			if (isMacintosh) {
 				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
-				installLocationUri = dirname(dirname(dirname(URI.file(this.environmentService.appRoot))));
+				installLocationUri = dirname(dirname(dirname(URI.file(this.nativeEnvironmentService.appRoot))));
 			} else {
 				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
 				// appRoot = /usr/share/code-insiders/resources/app
-				installLocationUri = dirname(dirname(URI.file(this.environmentService.appRoot)));
+				installLocationUri = dirname(dirname(URI.file(this.nativeEnvironmentService.appRoot)));
 			}
 
 			for (const folder of this.contextService.getWorkspace().folders) {
@@ -753,7 +730,7 @@ export class NativeWindow extends BaseWindow {
 
 		// macOS 10.13 and 10.14 warning
 		if (isMacintosh) {
-			const majorVersion = this.environmentService.os.release.split('.')[0];
+			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
 			const eolReleases = new Map<string, string>([
 				['17', 'macOS High Sierra'],
 				['18', 'macOS Mojave'],

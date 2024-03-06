@@ -116,7 +116,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
-		@ILanguageService languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		this.container = layoutService.mainContainer;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -378,6 +378,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				await this.setProductIconTheme(DEFAULT_PRODUCT_ICON_THEME_ID, 'auto');
 			}
 		});
+		this.languageService.onDidChange(() => this.reloadCurrentFileIconTheme());
 
 		return Promise.all([this.getColorThemes(), this.getFileIconThemes(), this.getProductIconThemes()]).then(([ct, fit, pit]) => {
 			updateColorThemeConfigurationSchemas(ct);
