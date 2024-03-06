@@ -492,11 +492,8 @@ export class AccessibleView extends Disposable {
 	}
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean): IDisposable {
-		if (!showAccessibleViewHelp) {
-			// don't overwrite the current provider
-			this._currentProvider = provider;
-			this._accessibleViewCurrentProviderId.set(provider.id);
-		}
+		this._currentProvider = provider;
+		this._accessibleViewCurrentProviderId.set(provider.id);
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
 		let disableHelpHint = '';
@@ -684,6 +681,7 @@ export class AccessibleView extends Disposable {
 		const navigationHint = this._getNavigationHint();
 		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
 		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab)).");
+		const chatHints = this._getChatHints();
 
 		let hint = localize('intro', "In the accessible view, you can:\n");
 		if (navigationHint) {
@@ -695,6 +693,37 @@ export class AccessibleView extends Disposable {
 		if (toolbarHint) {
 			hint += ' - ' + toolbarHint + '\n';
 		}
+		if (chatHints) {
+			hint += chatHints;
+		}
+		return hint;
+	}
+
+	private _getChatHints(): string | undefined {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
+			return;
+		}
+		let hint = '';
+		const insertAtCursorKb = this._keybindingService.lookupKeybinding('workbench.action.chat.insertCodeBlock')?.getAriaLabel();
+		const insertIntoNewFileKb = this._keybindingService.lookupKeybinding('workbench.action.chat.insertIntoNewFile')?.getAriaLabel();
+		const runInTerminalKb = this._keybindingService.lookupKeybinding('workbench.action.chat.runInTerminal')?.getAriaLabel();
+
+		if (insertAtCursorKb) {
+			hint += localize('insertAtCursor', " - Insert the code block at the cursor ({0}).\n", insertAtCursorKb);
+		} else {
+			hint += localize('insertAtCursorNoKb', " - Insert the code block at the cursor by configuring a keybinding for the Chat: Insert Code Block command.\n");
+		}
+		if (insertIntoNewFileKb) {
+			hint += localize('insertIntoNewFile', " - Insert the code block into a new file ({0}).\n", insertIntoNewFileKb);
+		} else {
+			hint += localize('insertIntoNewFileNoKb', " - Insert the code block into a new file by configuring a keybinding for the Chat: Insert at Cursor command.\n");
+		}
+		if (runInTerminalKb) {
+			hint += localize('runInTerminal', " - Run the code block in the terminal ({0}).\n", runInTerminalKb);
+		} else {
+			hint += localize('runInTerminalNoKb', " - Run the coe block in the terminal by configuring a keybinding for the Chat: Insert into Terminal command.\n");
+		}
+
 		return hint;
 	}
 
