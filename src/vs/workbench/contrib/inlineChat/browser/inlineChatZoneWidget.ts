@@ -114,6 +114,12 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		return this.widget.getHeight() / lineHeight;
 	}
 
+	protected override _onWidth(_widthInPixel: number): void {
+		if (this._dimension) {
+			this._doLayout(this._dimension.height);
+		}
+	}
+
 	protected override _relayout() {
 		if (this._dimension) {
 			this._doLayout(this._dimension.height);
