@@ -36,7 +36,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
 
-export const LOCALIZED_START_INLINE_CHAT_STRING = localize2('run', 'Start Inline Chat');
+export const LOCALIZED_START_INLINE_CHAT_STRING = localize2('run', 'Start in Editor');
 export const START_INLINE_CHAT = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChat', 'Icon which spawns the inline chat from the editor toolbar.'));
 
 // some gymnastics to enable hold for speech without moving the StartSessionAction into the electron-layer
