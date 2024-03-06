@@ -1242,7 +1242,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.breakpoints;
 			},
 			get activeStackItem() {
-				checkProposedApiEnabled(extension, 'debugFocus');
+				if (!isProposedApiEnabled(extension, 'debugFocus')) {
+					return undefined;
+				}
 				return extHostDebugService.activeStackItem;
 			},
 			registerDebugVisualizationProvider(id, provider) {
