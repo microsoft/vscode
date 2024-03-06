@@ -5,7 +5,7 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - template: ../distro/download-distro.yml
+  - template: build/azure-pipelines/distro/download-distro.yml@self
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
