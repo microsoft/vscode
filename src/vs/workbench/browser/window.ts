@@ -46,7 +46,6 @@ export abstract class BaseWindow extends Disposable {
 		super();
 
 		this.enableWindowFocusOnElementFocus(targetWindow);
-
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
@@ -55,7 +54,7 @@ export abstract class BaseWindow extends Disposable {
 	//#region focus handling in multi-window applications
 
 	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
-		const originalFocus = HTMLElement.prototype.focus;
+		const originalFocus = targetWindow.HTMLElement.prototype.focus;
 
 		const that = this;
 		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
