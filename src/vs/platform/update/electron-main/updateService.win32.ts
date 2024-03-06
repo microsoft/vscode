@@ -273,12 +273,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		this.setState(State.Downloading);
 		this.availableUpdate = { packagePath };
+		this.setState(State.Downloaded(update));
 
 		if (fastUpdatesEnabled) {
 			if (this.productService.target === 'user') {
 				this.doApplyUpdate();
-			} else {
-				this.setState(State.Downloaded(update));
 			}
 		} else {
 			this.setState(State.Ready(update));
