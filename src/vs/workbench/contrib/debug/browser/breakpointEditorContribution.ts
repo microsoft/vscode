@@ -328,7 +328,21 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 					}
 				} else if (canSetBreakpoints) {
 					if (e.event.middleButton) {
-						this.showBreakpointWidget(lineNumber, undefined, BreakpointWidgetContext.LOG_MESSAGE);
+						const action = this.configurationService.getValue<IDebugConfiguration>('debug').gutterMiddleClickAction;
+						if (action !== 'none') {
+							let context: BreakpointWidgetContext;
+							switch (action) {
+								case 'logpoint':
+									context = BreakpointWidgetContext.LOG_MESSAGE;
+									break;
+								case 'conditionalBreakpoint':
+									context = BreakpointWidgetContext.CONDITION;
+									break;
+								case 'triggeredBreakpoint':
+									context = BreakpointWidgetContext.TRIGGER_POINT;
+							}
+							this.showBreakpointWidget(lineNumber, undefined, context);
+						}
 					} else {
 						this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 					}
