@@ -162,7 +162,7 @@ steps:
       condition: succeededOrFailed()
 
   - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - task: PublishPipelineArtifact@0
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: .build\crashes
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -177,7 +177,7 @@ steps:
 
     # In order to properly symbolify above crash reports
     # (if any), we need the compiled native modules too
-    - task: PublishPipelineArtifact@0
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: node_modules
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -190,7 +190,7 @@ steps:
       continueOnError: true
       condition: failed()
 
-    - task: PublishPipelineArtifact@0
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: .build\logs
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
