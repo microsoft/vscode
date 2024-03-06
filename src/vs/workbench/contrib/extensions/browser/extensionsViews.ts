@@ -522,7 +522,7 @@ export class ExtensionsListView extends ViewPane {
 			result = local.filter(e => !e.isBuiltin && matchingText(e));
 			result = this.sortExtensions(result, options);
 		} else {
-			result = local.filter(e => (!e.isBuiltin || e.outdated || e.reloadRequiredStatus !== undefined) && matchingText(e));
+			result = local.filter(e => (!e.isBuiltin || e.outdated || e.runtimeState !== undefined) && matchingText(e));
 			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(e.identifier.value, e); return result; }, new ExtensionIdentifierMap<IExtensionDescription>());
 
 			const defaultSort = (e1: IExtension, e2: IExtension) => {
@@ -551,21 +551,21 @@ export class ExtensionsListView extends ViewPane {
 			};
 
 			const outdated: IExtension[] = [];
-			const reloadRequired: IExtension[] = [];
+			const actionRequired: IExtension[] = [];
 			const noActionRequired: IExtension[] = [];
 			result.forEach(e => {
 				if (e.outdated) {
 					outdated.push(e);
 				}
-				else if (e.reloadRequiredStatus) {
-					reloadRequired.push(e);
+				else if (e.runtimeState) {
+					actionRequired.push(e);
 				}
 				else {
 					noActionRequired.push(e);
 				}
 			});
 
-			result = [...outdated.sort(defaultSort), ...reloadRequired.sort(defaultSort), ...noActionRequired.sort(defaultSort)];
+			result = [...outdated.sort(defaultSort), ...actionRequired.sort(defaultSort), ...noActionRequired.sort(defaultSort)];
 		}
 		return result;
 	}
