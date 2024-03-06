@@ -175,35 +175,11 @@
 	cursor: pointer;
 }
 
-/* .monaco-editor .inline-chat .markdownMessage .message * {
-	margin: unset;
-}
-
-.monaco-editor .inline-chat .markdownMessage .message code {
-	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
-	color: var(--vscode-textPreformat-foreground);
-	background-color: var(--vscode-textPreformat-background);
-	padding: 1px 3px;
-	border-radius: 4px;
-} */
-
 
 .monaco-editor .inline-chat .chatMessage .chatMessageContent .value {
-	-webkit-line-clamp: initial;
-	-webkit-box-orient: vertical;
 	overflow: hidden;
-	display: -webkit-box;
 	-webkit-user-select: text;
 	user-select: text;
-}
-
-.monaco-editor .inline-chat .chatMessage .chatMessageContent[state="cropped"] .value {
-	-webkit-line-clamp: var(--vscode-inline-chat-cropped, 3);
-}
-
-.monaco-editor .inline-chat .chatMessage .chatMessageContent[state="expanded"] .value {
-	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
 }
 
 .monaco-editor .inline-chat .followUps {
