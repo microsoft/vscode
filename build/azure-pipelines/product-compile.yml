@@ -146,6 +146,12 @@ steps:
     - script: tar -cz --ignore-failed-read --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
       displayName: Compress compilation artifact
 
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+        artifactName: Compilation
+      displayName: Publish compilation artifact
+
     - script: yarn download-builtin-extensions-cg
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
