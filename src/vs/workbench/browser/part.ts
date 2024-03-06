@@ -6,7 +6,7 @@
 import 'vs/css!./media/part';
 import { Component } from 'vs/workbench/common/component';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, IDimension, getActiveDocument } from 'vs/base/browser/dom';
+import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -16,14 +16,13 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IPartOptions {
 	readonly hasTitle?: boolean;
-	readonly hasFooter?: () => boolean;
 	readonly borderWidth?: () => number;
 }
 
 export interface ILayoutContentResult {
 	readonly titleSize: IDimension;
 	readonly contentSize: IDimension;
-	readonly footerSize: IDimension;
+	readonly compositeBarSize: IDimension;
 }
 
 /**
@@ -35,13 +34,16 @@ export abstract class Part extends Component implements ISerializableView {
 	private _dimension: Dimension | undefined;
 	get dimension(): Dimension | undefined { return this._dimension; }
 
+	private _contentPosition: IDomPosition | undefined;
+	get contentPosition(): IDomPosition | undefined { return this._contentPosition; }
+
 	protected _onDidVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onDidVisibilityChange = this._onDidVisibilityChange.event;
 
 	private parent: HTMLElement | undefined;
 	private titleArea: HTMLElement | undefined;
 	private contentArea: HTMLElement | undefined;
-	private footerArea: HTMLElement | undefined;
+	private compositeBarArea: HTMLElement | undefined;
 	private partLayout: PartLayout | undefined;
 
 	constructor(
@@ -78,7 +80,6 @@ export abstract class Part extends Component implements ISerializableView {
 		this.parent = parent;
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
-		this.footerArea = this.createFooterArea(parent, options);
 
 		this.partLayout = new PartLayout(this.options, this.contentArea);
 
@@ -121,19 +122,44 @@ export abstract class Part extends Component implements ISerializableView {
 	}
 
 	/**
-	 * Subclasses override to provide a footer area implementation.
+	 * Creates the composite bar and sets the proper position.
 	 */
-	protected createFooterArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
-		return undefined;
+	protected setCompositeBarArea(compositeBarContainer: HTMLElement, position: 'top' | 'bottom'): void {
+		if (this.compositeBarArea) {
+			throw new Error('Composite bar already exists');
+		}
+
+		if (!this.parent || !this.titleArea) {
+			return;
+		}
+
+		if (position === 'top') {
+			prepend(this.parent, compositeBarContainer);
+			compositeBarContainer.classList.add('top');
+		} else {
+			this.parent.appendChild(compositeBarContainer);
+			compositeBarContainer.classList.add('bottom');
+		}
+
+		this.compositeBarArea = compositeBarContainer;
+		this.partLayout?.setCompositeBarVisibility(true);
+		this.relayout();
 	}
 
-	/**
-	 * Returns the footer area container.
-	 */
-	protected getFooterArea(): HTMLElement | undefined {
-		return this.footerArea;
+	protected removeCompositeBarArea(): void {
+		if (this.compositeBarArea) {
+			this.compositeBarArea.remove();
+			this.compositeBarArea = undefined;
+			this.partLayout?.setCompositeBarVisibility(false);
+			this.relayout();
+		}
 	}
 
+	private relayout() {
+		if (this.dimension && this.contentPosition) {
+			this.layout(this.dimension.width, this.dimension.height, this.contentPosition.top, this.contentPosition.left);
+		}
+	}
 	/**
 	 * Layout title and content area in the given dimension.
 	 */
@@ -155,8 +181,9 @@ export abstract class Part extends Component implements ISerializableView {
 	abstract minimumHeight: number;
 	abstract maximumHeight: number;
 
-	layout(width: number, height: number, _top: number, _left: number): void {
+	layout(width: number, height: number, top: number, left: number): void {
 		this._dimension = new Dimension(width, height);
+		this._contentPosition = { top, left };
 	}
 
 	setVisible(visible: boolean) {
@@ -171,7 +198,9 @@ export abstract class Part extends Component implements ISerializableView {
 class PartLayout {
 
 	private static readonly TITLE_HEIGHT = 35;
-	private static readonly FOOTER_HEIGHT = 35;
+	private static readonly COMPOSITE_BAR_HEIGHT = 35;
+
+	private compositeBarAreaVisible: boolean = false;
 
 	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
 
@@ -186,11 +215,11 @@ class PartLayout {
 		}
 
 		// Footer Size: Width (Fill), Height (Variable)
-		let footerSize: Dimension;
-		if (this.options.hasFooter?.()) {
-			footerSize = new Dimension(width, Math.min(height, PartLayout.FOOTER_HEIGHT));
+		let compositeBarSize: Dimension;
+		if (this.compositeBarAreaVisible) {
+			compositeBarSize = new Dimension(width, Math.min(height, PartLayout.COMPOSITE_BAR_HEIGHT));
 		} else {
-			footerSize = Dimension.None;
+			compositeBarSize = Dimension.None;
 		}
 
 		let contentWidth = width;
@@ -199,14 +228,18 @@ class PartLayout {
 		}
 
 		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(contentWidth, height - titleSize.height - footerSize.height);
+		const contentSize = new Dimension(contentWidth, height - titleSize.height - compositeBarSize.height);
 
 		// Content
 		if (this.contentArea) {
 			size(this.contentArea, contentSize.width, contentSize.height);
 		}
 
-		return { titleSize, contentSize, footerSize };
+		return { titleSize, contentSize, compositeBarSize };
+	}
+
+	setCompositeBarVisibility(visible: boolean): void {
+		this.compositeBarAreaVisible = visible;
 	}
 }
 

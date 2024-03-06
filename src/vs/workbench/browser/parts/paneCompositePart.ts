@@ -15,7 +15,7 @@ import { IView } from 'vs/base/browser/ui/grid/grid';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from 'vs/workbench/browser/parts/paneCompositeBar';
-import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, hide, show, IDomPosition } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -39,6 +39,12 @@ import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Composite } from 'vs/workbench/browser/composite';
 import { ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+
+export enum CompositeBarPosition {
+	TOP,
+	TITLE,
+	BOTTOM
+}
 
 export interface IPaneCompositePart extends IView {
 
@@ -108,12 +114,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private readonly location: ViewContainerLocation;
 	private titleContainer: HTMLElement | undefined;
-	private footerContainer: HTMLElement | undefined;
-	private footerDispoables = this._register(new DisposableStore());
+	private separateCompositeBarContainer: HTMLElement | undefined;
+	private separateCompositeBarDispoables = this._register(new DisposableStore());
 	private paneCompositeBarContainer: HTMLElement | undefined;
 	private paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
-	private titleCompositeBarVisible: boolean = false;
-	private footerCompositeBarVisible: boolean = false;
+	private compositeBarPosition: CompositeBarPosition | undefined = undefined;
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
 	private globalToolBar: ToolBar | undefined;
@@ -121,7 +126,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private blockOpening = false;
 	protected contentDimension: Dimension | undefined;
-	protected contentPosition: IDomPosition | undefined;
 
 	constructor(
 		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,
@@ -243,6 +247,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			this.createEmptyPaneMessage(contentArea);
 		}
 
+		this.updateCompositeBar();
+
 		const focusTracker = this._register(trackFocus(parent));
 		this._register(focusTracker.onDidFocus(() => this.paneFocusContextKey.set(true)));
 		this._register(focusTracker.onDidBlur(() => this.paneFocusContextKey.set(false)));
@@ -331,96 +337,78 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		};
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
 
-		this.updateTitleArea();
 		return titleLabel;
 	}
 
-	protected updateTitleArea(): void {
-		if (!this.titleContainer) {
+	protected updateCompositeBar(): void {
+		const wasCompositeBarVisible = this.compositeBarPosition !== undefined;
+		const isCompositeBarVisible = this.shouldShowCompositeBar();
+		const previousPosition = this.compositeBarPosition;
+		const newPosition = isCompositeBarVisible ? this.getCompositeBarPosition() : undefined;
+
+		// Only update if the visibility or position has changed
+		if (previousPosition === newPosition) {
 			return;
 		}
 
-		const wasTitleCompositeBarVisible = this.titleCompositeBarVisible;
-		this.titleCompositeBarVisible = this.shouldShowTitleCompositeBar();
-		if (this.titleCompositeBarVisible) {
-			if (!this.paneCompositeBar.value) {
-				this.titleContainer.classList.add('has-composite-bar');
-				this.paneCompositeBarContainer = prepend(this.titleContainer, $('.composite-bar-container'));
-				this.paneCompositeBar.value = this.createCompositeBar();
-				this.paneCompositeBar.value.create(this.paneCompositeBarContainer);
+		// Remove old composite bar
+		if (wasCompositeBarVisible) {
+			const previousCompositeBarContainer = previousPosition === CompositeBarPosition.TITLE ? this.titleContainer : this.separateCompositeBarContainer;
+			if (!this.paneCompositeBarContainer || !this.paneCompositeBar.value || !previousCompositeBarContainer) {
+				throw new Error('Composite bar containers should exist when removing the previous composite bar');
 			}
-		} else if (wasTitleCompositeBarVisible) {
-			this.titleContainer.classList.remove('has-composite-bar');
-			if (!this.footerCompositeBarVisible) {
-				this.removeCompositeBar();
+
+			this.paneCompositeBarContainer.remove();
+			this.paneCompositeBarContainer = undefined;
+			this.paneCompositeBar.value = undefined;
+
+			previousCompositeBarContainer.classList.remove('has-composite-bar');
+
+			if (previousPosition !== CompositeBarPosition.TITLE) {
+				this.removeCompositeBarArea();
 			}
 		}
+
+		// Create new composite bar
+		const newCompositeBarContainer = newPosition === CompositeBarPosition.TITLE ? this.titleContainer : this.createCompositeBarArea();
+		if (isCompositeBarVisible) {
+
+			if (this.paneCompositeBarContainer || this.paneCompositeBar.value || !newCompositeBarContainer) {
+				throw new Error('Invalid composite bar state when creating the new composite bar');
+			}
+
+			newCompositeBarContainer.classList.add('has-composite-bar');
+			this.paneCompositeBarContainer = prepend(newCompositeBarContainer, $('.composite-bar-container'));
+			this.paneCompositeBar.value = this.createCompositeBar();
+			this.paneCompositeBar.value.create(this.paneCompositeBarContainer);
+
+			if (newPosition !== CompositeBarPosition.TITLE) {
+				this.setCompositeBarArea(newCompositeBarContainer, newPosition === CompositeBarPosition.BOTTOM ? 'bottom' : 'top');
+			}
+		}
+
+		this.compositeBarPosition = newPosition;
 	}
 
-	protected override createFooterArea(parent: HTMLElement): HTMLElement {
-		this.footerContainer = super.createFooterArea(parent);
-		this.updateFooterArea();
+	protected override createCompositeBarArea(): HTMLElement {
+		const compositeBarArea = super.createCompositeBarArea();
+		this.separateCompositeBarContainer = compositeBarArea;
 
-		return this.footerContainer;
+		this.separateCompositeBarDispoables.add(addDisposableListener(compositeBarArea, EventType.CONTEXT_MENU, e => {
+			this.onCompositeBarAreaContextMenu(new StandardMouseEvent(getWindow(compositeBarArea), e));
+		}));
+		this.separateCompositeBarDispoables.add(Gesture.addTarget(compositeBarArea));
+		this.separateCompositeBarDispoables.add(addDisposableListener(compositeBarArea, GestureEventType.Contextmenu, e => {
+			this.onCompositeBarAreaContextMenu(new StandardMouseEvent(getWindow(compositeBarArea), e));
+		}));
+
+		return compositeBarArea;
 	}
 
-	protected updateFooterArea(): void {
-		if (!this.footerContainer) {
-			return;
-		}
-
-		const wasFooterCompositeBarVisible = this.footerCompositeBarVisible;
-		this.footerCompositeBarVisible = this.shouldShowFooterCompositeBar();
-		if (this.footerCompositeBarVisible) {
-			if (!this.paneCompositeBar.value) {
-				this.footerContainer.classList.add('has-composite-bar');
-				this.paneCompositeBarContainer = prepend(this.footerContainer, $('.composite-bar-container'));
-				this.paneCompositeBar.value = this.createCompositeBar();
-				this.paneCompositeBar.value.create(this.paneCompositeBarContainer);
-
-				this.setFooterVisibility(true);
-			}
-		} else if (wasFooterCompositeBarVisible) {
-			if (!this.titleCompositeBarVisible) {
-				this.removeCompositeBar();
-			}
-			this.footerContainer.classList.remove('has-composite-bar');
-			this.setFooterVisibility(false);
-		}
-	}
-
-	protected removeCompositeBar(): void {
-		this.paneCompositeBarContainer?.remove();
-		this.paneCompositeBarContainer = undefined;
-		this.paneCompositeBar.clear();
-	}
-
-	private setFooterVisibility(visible: boolean): void {
-		if (!this.footerContainer) {
-			return;
-		}
-
-		if (visible) {
-			show(this.footerContainer);
-
-			// Only add listener if the footer is visible
-			this.footerDispoables.add(addDisposableListener(this.footerContainer, EventType.CONTEXT_MENU, e => {
-				this.onFooterAreaContextMenu(new StandardMouseEvent(getWindow(this.footerContainer), e));
-			}));
-			this.footerDispoables.add(Gesture.addTarget(this.footerContainer));
-			this.footerDispoables.add(addDisposableListener(this.footerContainer, GestureEventType.Contextmenu, e => {
-				this.onFooterAreaContextMenu(new StandardMouseEvent(getWindow(this.footerContainer), e));
-			}));
-		} else {
-			hide(this.footerContainer);
-
-			// Dispose any footer area listener
-			this.footerDispoables.clear();
-		}
-
-		if (this.contentDimension && this.contentPosition) {
-			this.layout(this.contentDimension.width, this.contentDimension.height, this.contentPosition.top, this.contentPosition.left);
-		}
+	protected override removeCompositeBarArea(): void {
+		this.separateCompositeBarContainer = undefined;
+		this.separateCompositeBarDispoables.clear();
+		super.removeCompositeBarArea();
 	}
 
 	protected createCompositeBar(): PaneCompositeBar {
@@ -518,7 +506,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		this.contentDimension = new Dimension(width, height);
-		this.contentPosition = { top, left };
 
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
@@ -533,7 +520,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private layoutCompositeBar(): void {
 		if (this.contentDimension && this.dimension && this.paneCompositeBar.value) {
 			let availableWidth = this.contentDimension.width - 16; // take padding into account
-			if (this.toolBar && this.titleCompositeBarVisible) {
+			if (this.toolBar && this.compositeBarPosition === CompositeBarPosition.TITLE) {
 				availableWidth = Math.max(AbstractPaneCompositePart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
 			}
 			this.paneCompositeBar.value.layout(availableWidth, this.dimension.height);
@@ -563,7 +550,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
-		if (this.shouldShowTitleCompositeBar()) {
+		if (this.shouldShowCompositeBar() && this.getCompositeBarPosition() === CompositeBarPosition.TITLE) {
 			return this.onCompositeBarContextMenu(event);
 		} else {
 			const activePaneComposite = this.getActivePaneComposite() as PaneComposite;
@@ -580,10 +567,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 	}
 
-	private onFooterAreaContextMenu(event: StandardMouseEvent): void {
-		if (this.shouldShowFooterCompositeBar() && this.paneCompositeBar.value) {
-			return this.onCompositeBarContextMenu(event);
-		}
+	private onCompositeBarAreaContextMenu(event: StandardMouseEvent): void {
+		return this.onCompositeBarContextMenu(event);
 	}
 
 	private onCompositeBarContextMenu(event: StandardMouseEvent): void {
@@ -614,8 +599,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return undefined;
 	}
 
-	protected abstract shouldShowTitleCompositeBar(): boolean;
-	protected abstract shouldShowFooterCompositeBar(): boolean;
+	protected abstract shouldShowCompositeBar(): boolean;
 	protected abstract getCompositeBarOptions(): IPaneCompositeBarOptions;
+	protected abstract getCompositeBarPosition(): CompositeBarPosition;
 
 }

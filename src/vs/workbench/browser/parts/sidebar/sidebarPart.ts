@@ -21,7 +21,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { AbstractPaneCompositePart, CompositeBarPosition } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ActivityBarCompositeBar, ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -80,7 +80,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.SIDEBAR_PART,
-			{ hasTitle: true, hasFooter: () => this.shouldShowFooterCompositeBar(), borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 },
+			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
 			SidebarFocusContext.bindTo(contextKeyService),
@@ -112,9 +112,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	private onDidChangeActivityBarLocation(): void {
-		this.removeCompositeBar();
-		this.updateTitleArea();
-		this.updateFooterArea();
+		this.updateCompositeBar();
 
 		const id = this.getActiveComposite()?.getId();
 		if (id) {
@@ -170,7 +168,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
-				position: () => this.shouldShowFooterCompositeBar() ? HoverPosition.ABOVE : HoverPosition.BELOW,
+				position: () => this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.BOTTOM ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
 			fillExtraContextMenuActions: actions => {
 				const viewsSubmenuAction = this.getViewsSubmenuAction();
@@ -201,19 +199,22 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM;
 	}
 
-	protected shouldShowTitleCompositeBar(): boolean {
-		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
-	}
-
-	protected shouldShowFooterCompositeBar(): boolean {
-		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.BOTTOM;
-	}
-
 	private shouldShowActivityBar(): boolean {
 		if (this.shouldShowCompositeBar()) {
 			return false;
 		}
 		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.HIDDEN;
+	}
+
+	protected getCompositeBarPosition(): CompositeBarPosition {
+		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		switch (activityBarPosition) {
+			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
+			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
+			case ActivityBarPosition.HIDDEN:
+			case ActivityBarPosition.SIDE:
+			default: return CompositeBarPosition.TITLE;
+		}
 	}
 
 	private rememberActivityBarVisiblePosition(): void {
