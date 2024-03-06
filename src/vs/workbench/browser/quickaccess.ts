@@ -59,7 +59,7 @@ export class PickerEditorState extends Disposable {
 		group: IEditorGroup;
 		state: ICodeEditorViewState | IDiffEditorViewState | undefined;
 	} | undefined = undefined;
-	private openedEditors = new Set<EditorInput>(); // editors that were opened between set and restore
+	private readonly openedEditors = new Set<EditorInput>(); // editors that were opened between set and restore
 
 	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();
