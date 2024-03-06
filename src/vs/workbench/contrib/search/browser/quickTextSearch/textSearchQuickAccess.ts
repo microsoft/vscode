@@ -121,9 +121,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				this.editorViewState.set();
 				const itemMatch = item.match;
 				this.editorSequencer.queue(async () => {
-					await this._editorService.openEditor({
+					await this.editorViewState.openTransientEditor({
 						resource: itemMatch.parent().resource,
-						options: { transient: true, preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+						options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
 					});
 				});
 			}
@@ -134,7 +134,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			// gesture and not e.g. when focus was lost because that
 			// could mean the user clicked into the editor directly.
 			if (reason === QuickInputHideReason.Gesture) {
-				this.editorViewState.restore(true);
+				this.editorViewState.restore();
 			}
 		}));
 

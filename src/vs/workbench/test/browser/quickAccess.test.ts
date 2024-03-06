@@ -367,25 +367,19 @@ suite('QuickAccess', () => {
 			}
 		};
 		const input3 = {
-			resource: URI.parse('foo://bar3'),
-			options: {
-				transient: true
-			}
+			resource: URI.parse('foo://bar3')
 		};
 		const input4 = {
-			resource: URI.parse('foo://bar4'),
-			options: {
-				transient: true
-			}
+			resource: URI.parse('foo://bar4')
 		};
 
 		const editor = await editorService.openEditor(input1);
 		assert.strictEqual(editor, editorService.activeEditorPane);
 		editorViewState.set();
 		await editorService.openEditor(input2);
-		await editorService.openEditor(input3);
-		await editorService.openEditor(input4);
-		await editorViewState.restore(true);
+		await editorViewState.openTransientEditor(input3);
+		await editorViewState.openTransientEditor(input4);
+		await editorViewState.restore();
 
 		assert.strictEqual(part.activeGroup.activeEditor?.resource, input1.resource);
 		assert.deepStrictEqual(part.activeGroup.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(e => e.resource), [input1.resource, input2.resource]);

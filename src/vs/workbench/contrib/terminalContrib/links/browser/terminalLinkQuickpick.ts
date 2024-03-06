@@ -16,7 +16,6 @@ import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/bro
 import type { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
 import { Sequencer, timeout } from 'vs/base/common/async';
 import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -34,7 +33,6 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
 	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
@@ -147,7 +145,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 				// gesture and not e.g. when focus was lost because that
 				// could mean the user clicked into the editor directly.
 				if (reason === QuickInputHideReason.Gesture) {
-					this._editorViewState.restore(true);
+					this._editorViewState.restore();
 				}
 				disposables.dispose();
 				if (pick.selectedItems.length === 0) {
@@ -268,9 +266,9 @@ export class TerminalLinkQuickpick extends DisposableStore {
 
 		this._editorViewState.set();
 		this._editorSequencer.queue(async () => {
-			await this._editorService.openEditor({
+			await this._editorViewState.openTransientEditor({
 				resource: link.uri,
-				options: { transient: true, preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
+				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
 			});
 		});
 	}

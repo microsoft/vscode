@@ -11,10 +11,11 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import { IUntitledTextResourceEditorInput, IUntypedEditorInput, GroupIdentifier, IEditorPane } from 'vs/workbench/common/editor';
 
 export const inQuickPickContextKeyValue = 'inQuickOpen';
 export const InQuickPickContextKey = new RawContextKey<boolean>(inQuickPickContextKeyValue, false, localize('inQuickOpen', "Whether keyboard focus is inside the quick open control"));
@@ -62,12 +63,6 @@ export class PickerEditorState extends Disposable {
 
 	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();
-
-		this._register(this.editorService.onWillOpenEditor((e) => {
-			if (this._editorViewState && this._editorViewState.editor !== e.editor) {
-				this.openedEditors.add(e.editor);
-			}
-		}));
 		this._register(this.editorService.onDidCloseEditor((e) => {
 			if (this._editorViewState) {
 				this.openedEditors.delete(e.editor);
@@ -91,26 +86,37 @@ export class PickerEditorState extends Disposable {
 
 	}
 
-	async restore(shouldCloseTransientEditors = false): Promise<void> {
+	/**
+	 * Open a transient editor such that it may be closed when the state is restored.
+	 * Note that, when the state is restored, if the editor is no longer transient, it will not be closed.
+	 */
+	async openTransientEditor(editor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined> {
+		editor.options = { ...editor.options, transient: true };
+		const openEditor = await this.editorService.openEditor(editor, group);
+		if (openEditor?.input) {
+			this.openedEditors.add(openEditor.input);
+		}
+		return openEditor;
+	}
+
+	async restore(): Promise<void> {
 		if (this._editorViewState) {
 			const options: IEditorOptions = {
 				viewState: this._editorViewState.state,
 				preserveFocus: true /* import to not close the picker as a result */
 			};
-			if (shouldCloseTransientEditors) {
-				// close any transient editors that are still open and were opened by this instance of EditorViewState
-				const groups = this.editorService.visibleEditorPanes.map(group => group.group);
+			// close any transient editors that are still open and were opened by this instance of EditorViewState
+			const groups = this.editorService.visibleEditorPanes.map(group => group.group);
 
-				const closeEditorPromises: Promise<boolean> = Promise.resolve(true);
-				this.openedEditors.forEach(openedEditor => {
-					groups.forEach(group => {
-						if (group.contains(openedEditor) && group.isTransient(openedEditor)) {
-							closeEditorPromises.then(() => group.closeEditor(openedEditor));
-						}
-					});
+			const closeEditorPromises: Promise<boolean> = Promise.resolve(true);
+			this.openedEditors.forEach(openedEditor => {
+				groups.forEach(group => {
+					if (group.contains(openedEditor) && group.isTransient(openedEditor)) {
+						closeEditorPromises.then(() => group.closeEditor(openedEditor));
+					}
 				});
-				await closeEditorPromises;
-			}
+			});
+			await closeEditorPromises;
 
 			await this._editorViewState.group.openEditor(this._editorViewState.editor, options);
 
