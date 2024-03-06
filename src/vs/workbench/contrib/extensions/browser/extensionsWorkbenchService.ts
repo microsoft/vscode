@@ -862,7 +862,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (!this.isAutoUpdateEnabled()) {
 				return;
 			}
-			if ((e.type === StateType.CheckingForUpdates && e.explicit) || e.type === StateType.AvailableForDownload || e.type === StateType.Downloading) {
+			if ((e.type === StateType.CheckingForUpdates && e.explicit) || e.type === StateType.AvailableForDownload || e.type === StateType.Downloaded) {
 				this.eventuallyCheckForUpdates(true);
 			}
 		}));
@@ -1520,7 +1520,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private getProductUpdateVersion(): IProductVersion | undefined {
 		switch (this.updateService.state.type) {
 			case StateType.AvailableForDownload:
-			case StateType.Downloading:
 			case StateType.Downloaded:
 			case StateType.Updating:
 			case StateType.Ready:
