@@ -60,7 +60,7 @@ registerAction2(class extends Action2 {
 
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
-			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
+			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.category + '#' + walkthroughID.step;
 
 			// We're trying to open the welcome page from the Help menu
 			if (!selectedCategory && !selectedStep) {

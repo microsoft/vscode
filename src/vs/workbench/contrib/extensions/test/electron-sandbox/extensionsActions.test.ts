@@ -56,7 +56,7 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IUpdateService } from 'vs/platform/update/common/update';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -137,7 +137,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 
 	instantiationService.stub(IUserDataSyncEnablementService, disposables.add(instantiationService.createInstance(UserDataSyncEnablementService)));
 
-	instantiationService.stub(IUpdateService, { onStateChange: Event.None });
+	instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 	instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 }
@@ -1010,7 +1010,7 @@ suite('ReloadAction', () => {
 		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) }]);
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, 'Please reload Visual Studio Code to enable this extension.');
+		assert.strictEqual(testObject.tooltip, `Please reload ${instantiationService.get(IProductService).nameLong} to enable this extension.`);
 	});
 
 	test('Test ReloadAction when extension is newly installed and reload is not required', async () => {
@@ -1078,7 +1078,7 @@ suite('ReloadAction', () => {
 		uninstallEvent.fire({ identifier: local.identifier });
 		didUninstallEvent.fire({ identifier: local.identifier });
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, 'Please reload Visual Studio Code to complete the uninstallation of this extension.');
+		assert.strictEqual(testObject.tooltip, `Please reload ${instantiationService.get(IProductService).nameLong} to complete the uninstallation of this extension.`);
 	});
 
 	test('Test ReloadAction when extension is uninstalled and can be removed', async () => {
@@ -1146,7 +1146,7 @@ suite('ReloadAction', () => {
 
 		return new Promise<void>(c => {
 			disposables.add(testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to enable the updated extension.') {
+				if (testObject.enabled && testObject.tooltip === `Please reload ${instantiationService.get(IProductService).nameLong} to enable the updated extension.`) {
 					c();
 				}
 			}));
@@ -1200,7 +1200,7 @@ suite('ReloadAction', () => {
 		await testObject.update();
 
 		assert.ok(testObject.enabled);
-		assert.strictEqual('Please reload Visual Studio Code to disable this extension.', testObject.tooltip);
+		assert.strictEqual(`Please reload ${instantiationService.get(IProductService).nameLong} to disable this extension.`, testObject.tooltip);
 	});
 
 	test('Test ReloadAction when extension enablement is toggled when running', async () => {
@@ -1243,7 +1243,7 @@ suite('ReloadAction', () => {
 		await workbenchService.setEnablement(extensions[0], EnablementState.EnabledGlobally);
 		await testObject.update();
 		assert.ok(testObject.enabled);
-		assert.strictEqual('Please reload Visual Studio Code to enable this extension.', testObject.tooltip);
+		assert.strictEqual(`Please reload ${instantiationService.get(IProductService).nameLong} to enable this extension.`, testObject.tooltip);
 	});
 
 	test('Test ReloadAction when extension enablement is toggled when not running', async () => {
@@ -1290,7 +1290,7 @@ suite('ReloadAction', () => {
 		await workbenchService.setEnablement(extensions[0], EnablementState.EnabledGlobally);
 		await testObject.update();
 		assert.ok(testObject.enabled);
-		assert.strictEqual('Please reload Visual Studio Code to enable this extension.', testObject.tooltip);
+		assert.strictEqual(`Please reload ${instantiationService.get(IProductService).nameLong} to enable this extension.`, testObject.tooltip);
 	});
 
 	test('Test ReloadAction when a localization extension is newly installed', async () => {
@@ -1441,7 +1441,7 @@ suite('ReloadAction', () => {
 
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, 'Please reload Visual Studio Code to enable this extension.');
+		assert.strictEqual(testObject.tooltip, `Please reload ${instantiationService.get(IProductService).nameLong} to enable this extension.`);
 	});
 
 	test('Test ReloadAction when ui extension is disabled on remote server and installed in local server', async () => {
@@ -1480,7 +1480,7 @@ suite('ReloadAction', () => {
 
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, 'Please reload Visual Studio Code to enable this extension.');
+		assert.strictEqual(testObject.tooltip, `Please reload ${instantiationService.get(IProductService).nameLong} to enable this extension.`);
 	});
 
 	test('Test ReloadAction for remote ui extension is disabled when it is installed and enabled in local server', async () => {
