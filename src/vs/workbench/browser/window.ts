@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, EventHelper, EventType, focusWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { matchesScheme, Schemas } from 'vs/base/common/network';
-import { isIOS, isMacintosh, isNative } from 'vs/base/common/platform';
+import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -45,11 +45,7 @@ export abstract class BaseWindow extends Disposable {
 	) {
 		super();
 
-		if (isNative) {
-			this.enableNativeWindowFocus(targetWindow);
-		}
 		this.enableWindowFocusOnElementFocus(targetWindow);
-
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
@@ -57,37 +53,48 @@ export abstract class BaseWindow extends Disposable {
 
 	//#region focus handling in multi-window applications
 
-	protected enableNativeWindowFocus(targetWindow: CodeWindow): void {
-		const originalWindowFocus = targetWindow.focus.bind(targetWindow);
+	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
+		const originalFocus = targetWindow.HTMLElement.prototype.focus;
 
 		const that = this;
-		targetWindow.focus = function () {
-			originalWindowFocus();
-
-			if (
-				!that.environmentService.extensionTestsLocationURI && 	// never steal focus when running tests
-				!targetWindow.document.hasFocus()						// skip when already having focus
-			) {
-				// Enable `window.focus()` to work in Electron by
-				// asking the main process to focus the window.
-				// https://github.com/electron/electron/issues/25578
-				that.hostService.focus(targetWindow);
-			}
-		};
-	}
-
-	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
-		const originalFocus = HTMLElement.prototype.focus;
-
 		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
 
 			// Ensure the window the element belongs to is focused
 			// in scenarios where auxiliary windows are present
-			focusWindow(this);
+			that.onElementFocus(getWindow(this));
 
 			// Pass to original focus() method
 			originalFocus.apply(this, [options]);
 		};
+	}
+
+	private onElementFocus(targetWindow: CodeWindow): void {
+		const activeWindow = getActiveWindow();
+		if (activeWindow !== targetWindow && activeWindow.document.hasFocus()) {
+
+			// Call original focus()
+			targetWindow.focus();
+
+			// In Electron, `window.focus()` fails to bring the window
+			// to the front if multiple windows exist in the same process
+			// group (floating windows). As such, we ask the host service
+			// to focus the window which can take care of bringin the
+			// window to the front.
+			//
+			// To minimise disruption by bringing windows to the front
+			// by accident, we only do this if the window is not already
+			// focused and the active window is not the target window
+			// but has focus. This is an indication that multiple windows
+			// are opened in the same process group while the target window
+			// is not focused.
+
+			if (
+				!this.environmentService.extensionTestsLocationURI &&
+				!targetWindow.document.hasFocus()
+			) {
+				this.hostService.focus(targetWindow);
+			}
+		}
 	}
 
 	//#endregion

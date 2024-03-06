@@ -213,7 +213,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		} catch (e) {
 			this._logService.error(e, agent.extension);
-			return { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", toErrorMessage(e)), responseIsIncomplete: true } };
+			return { errorDetails: { message: localize('errorResponse', "Error from participant: {0}", toErrorMessage(e)), responseIsIncomplete: true } };
 
 		} finally {
 			stream.close();
@@ -353,6 +353,7 @@ class ExtHostChatAgent {
 	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
 	private _isSticky: boolean | undefined;
+	private _requester: vscode.ChatRequesterInformation | undefined;
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -436,7 +437,7 @@ class ExtHostChatAgent {
 			updateScheduled = true;
 			queueMicrotask(() => {
 				this._proxy.$updateAgent(this._handle, {
-					description: this._description ?? '',
+					description: this._description,
 					fullName: this._fullName,
 					icon: !this._iconPath ? undefined :
 						this._iconPath instanceof URI ? this._iconPath :
@@ -454,6 +455,7 @@ class ExtHostChatAgent {
 					sampleRequest: this._sampleRequest,
 					supportIssueReporting: this._supportIssueReporting,
 					isSticky: this._isSticky,
+					requester: this._requester
 				});
 				updateScheduled = false;
 			});
@@ -601,6 +603,13 @@ class ExtHostChatAgent {
 			set isSticky(v) {
 				that._isSticky = v;
 				updateMetadataSoon();
+			},
+			set requester(v) {
+				that._requester = v;
+				updateMetadataSoon();
+			},
+			get requester() {
+				return that._requester;
 			},
 			dispose() {
 				disposed = true;

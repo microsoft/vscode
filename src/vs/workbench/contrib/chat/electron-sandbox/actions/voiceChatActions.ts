@@ -1066,7 +1066,7 @@ class KeywordActivationStatusEntry extends Disposable {
 	) {
 		super();
 
-		CommandsRegistry.registerCommand(KeywordActivationStatusEntry.STATUS_COMMAND, () => this.commandService.executeCommand('workbench.action.openSettings', KEYWORD_ACTIVIATION_SETTING_ID));
+		this._register(CommandsRegistry.registerCommand(KeywordActivationStatusEntry.STATUS_COMMAND, () => this.commandService.executeCommand('workbench.action.openSettings', KEYWORD_ACTIVIATION_SETTING_ID)));
 
 		this.registerListeners();
 		this.updateStatusEntry();

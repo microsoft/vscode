@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { disposeIfDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue, ExtensionEditorTab, ExtensionRuntimeActionType } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -73,6 +73,7 @@ import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConst
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IUpdateService } from 'vs/platform/update/common/update';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -1562,7 +1563,9 @@ export class ReloadAction extends ExtensionAction {
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
+		@IUpdateService private readonly updateService: IUpdateService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
@@ -1572,27 +1575,53 @@ export class ReloadAction extends ExtensionAction {
 	update(): void {
 		this.enabled = false;
 		this.tooltip = '';
+		this.class = ReloadAction.DisabledClass;
+
 		if (!this.extension) {
 			return;
 		}
+
 		const state = this.extension.state;
 		if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
 			return;
 		}
+
 		if (this.extension.local && this.extension.local.manifest && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.localizations && this.extension.local.manifest.contributes.localizations.length > 0) {
 			return;
 		}
 
-		const reloadTooltip = this.extension.reloadRequiredStatus;
-		this.enabled = reloadTooltip !== undefined;
-		this.label = reloadTooltip !== undefined ? localize('reload required', 'Reload Required') : '';
-		this.tooltip = reloadTooltip !== undefined ? reloadTooltip : '';
+		const runtimeState = this.extension.runtimeState;
+		if (!runtimeState) {
+			return;
+		}
 
-		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
+		this.enabled = true;
+		this.class = ReloadAction.EnabledClass;
+		this.tooltip = runtimeState.reason;
+		this.label = runtimeState.action === ExtensionRuntimeActionType.Reload ? localize('reload required', 'Reload {0}', this.productService.nameShort)
+			: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart {0}', this.productService.nameShort)
+				: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', 'Update {0}', this.productService.nameShort) : '';
 	}
 
-	override run(): Promise<any> {
-		return Promise.resolve(this.hostService.reload());
+	override async run(): Promise<any> {
+		const runtimeState = this.extension?.runtimeState;
+
+		if (runtimeState?.action === ExtensionRuntimeActionType.Reload) {
+			return this.hostService.reload();
+		}
+
+		else if (runtimeState?.action === ExtensionRuntimeActionType.DownloadUpdate) {
+			return this.updateService.downloadUpdate();
+		}
+
+		else if (runtimeState?.action === ExtensionRuntimeActionType.ApplyUpdate) {
+			return this.updateService.applyUpdate();
+		}
+
+		else if (runtimeState?.action === ExtensionRuntimeActionType.QuitAndInstall) {
+			return this.updateService.quitAndInstall();
+		}
+
 	}
 }
 

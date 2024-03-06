@@ -25,18 +25,18 @@ export class CodeBlockModelCollection extends Disposable {
 		this.clear();
 	}
 
-	get(responseId: string, codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> | undefined {
-		const uri = this.getUri(responseId, codeBlockIndex);
+	get(sessionId: string, responseId: string, codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> | undefined {
+		const uri = this.getUri(sessionId, responseId, codeBlockIndex);
 		return this._models.get(uri);
 	}
 
-	getOrCreate(responseId: string, codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> {
-		const existing = this.get(responseId, codeBlockIndex);
+	getOrCreate(sessionId: string, responseId: string, codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> {
+		const existing = this.get(sessionId, responseId, codeBlockIndex);
 		if (existing) {
 			return existing;
 		}
 
-		const uri = this.getUri(responseId, codeBlockIndex);
+		const uri = this.getUri(sessionId, responseId, codeBlockIndex);
 		const ref = this.textModelService.createModelReference(uri);
 		this._models.set(uri, ref);
 		return ref;
@@ -47,7 +47,7 @@ export class CodeBlockModelCollection extends Disposable {
 		this._models.clear();
 	}
 
-	private getUri(responseId: string, index: number): URI {
-		return URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: `/${responseId}/${index}` });
+	private getUri(sessionId: string, responseId: string, index: number): URI {
+		return URI.from({ scheme: Schemas.vscodeChatCodeBlock, authority: sessionId, path: `/${responseId}/${index}` });
 	}
 }

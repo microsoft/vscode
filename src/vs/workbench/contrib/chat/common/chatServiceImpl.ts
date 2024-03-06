@@ -388,8 +388,8 @@ export class ChatService extends Disposable implements IChatService {
 			}
 
 			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(token) ?? undefined;
-			const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
-				model,
+			const welcomeModel = welcomeMessage && this.instantiationService.createInstance(
+				ChatWelcomeMessageModel,
 				welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item),
 				await defaultAgent.provideSampleQuestions?.(token) ?? []
 			);

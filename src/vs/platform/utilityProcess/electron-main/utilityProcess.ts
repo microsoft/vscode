@@ -212,7 +212,10 @@ export class UtilityProcess extends Disposable {
 		const started = this.doStart(configuration);
 
 		if (started && configuration.payload) {
-			this.postMessage(configuration.payload);
+			const posted = this.postMessage(configuration.payload);
+			if (posted) {
+				this.log('payload sent via postMessage()', Severity.Info);
+			}
 		}
 
 		return started;
@@ -363,12 +366,14 @@ export class UtilityProcess extends Disposable {
 		}));
 	}
 
-	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): void {
+	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): boolean {
 		if (!this.process) {
-			return; // already killed, crashed or never started
+			return false; // already killed, crashed or never started
 		}
 
 		this.process.postMessage(message, transfer);
+
+		return true;
 	}
 
 	connect(payload?: unknown): Electron.MessagePortMain {

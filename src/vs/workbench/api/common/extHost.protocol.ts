@@ -1277,11 +1277,6 @@ export interface MainThreadUrlsShape extends IDisposable {
 
 export interface IChatDto {
 	id: number;
-	requesterUsername: string;
-	requesterAvatarIconUri?: UriComponents;
-	responderUsername: string;
-	responderAvatarIconUri?: UriComponents;
-	inputPlaceholder?: string;
 }
 
 export interface IChatRequestDto {

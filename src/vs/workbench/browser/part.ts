@@ -50,7 +50,7 @@ export abstract class Part extends Component implements ISerializableView {
 	) {
 		super(id, themeService, storageService);
 
-		layoutService.registerPart(this);
+		this._register(layoutService.registerPart(this));
 	}
 
 	protected override onThemeChange(theme: IColorTheme): void {
@@ -193,7 +193,10 @@ export abstract class MultiWindowParts<T extends IMultiWindowPart> extends Compo
 	registerPart(part: T): IDisposable {
 		this._parts.add(part);
 
-		return this._register(toDisposable(() => this.unregisterPart(part)));
+		return this._register(toDisposable(() => {
+			this.unregisterPart(part);
+			part = undefined!; // helps to avoid a memory leak with closures where part is captured
+		}));
 	}
 
 	protected unregisterPart(part: T): void {
