@@ -35,7 +35,7 @@ import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browse
 import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
-import { IInlineChatMessageAppender, InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { EditorBasedInlineChatWidget, IInlineChatMessageAppender } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -79,7 +79,7 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		readonly notebookViewZone: INotebookViewZone,
 		readonly domNode: HTMLElement,
 		readonly widgetContainer: HTMLElement,
-		readonly inlineChatWidget: InlineChatWidget,
+		readonly inlineChatWidget: EditorBasedInlineChatWidget,
 		readonly parentEditor: CodeEditorWidget,
 		private readonly _languageService: ILanguageService,
 	) {
@@ -145,7 +145,7 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		}
 	}
 
-	private _layoutWidget(inlineChatWidget: InlineChatWidget, widgetContainer: HTMLElement) {
+	private _layoutWidget(inlineChatWidget: EditorBasedInlineChatWidget, widgetContainer: HTMLElement) {
 		const layoutConfiguration = this._notebookEditor.notebookOptions.getLayoutConfiguration();
 		const rightMargin = layoutConfiguration.cellRightMargin;
 		const leftMargin = this._notebookEditor.notebookOptions.getCellEditorContainerLeftMargin();
@@ -289,7 +289,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		fakeParentEditor.setModel(result);
 
 		const inlineChatWidget = this._widgetDisposableStore.add(this._instantiationService.createInstance(
-			InlineChatWidget,
+			EditorBasedInlineChatWidget,
 			fakeParentEditor,
 			{
 				telemetrySource: 'notebook-generate-cell',

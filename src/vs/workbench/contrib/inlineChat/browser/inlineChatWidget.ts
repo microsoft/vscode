@@ -116,6 +116,14 @@ export const _inputEditorOptions: IEditorConstructionOptions = {
 	lineHeight: 20
 };
 
+const _codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+	isSimpleWidget: true,
+	contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+		SnippetController2.ID,
+		SuggestController.ID
+	])
+};
+
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
 	renderMarginRevertIcon: false,
@@ -174,7 +182,7 @@ export class InlineChatWidget {
 
 	private static _modelPool: number = 1;
 
-	private readonly _elements = h(
+	protected readonly _elements = h(
 		'div.inline-chat@root',
 		[
 			h('div.body', [
@@ -207,7 +215,7 @@ export class InlineChatWidget {
 	private readonly _chatMessageContents: HTMLDivElement;
 	private readonly _chatMessageScrollable: DomScrollableElement;
 
-	private readonly _store = new DisposableStore();
+	protected readonly _store = new DisposableStore();
 	private readonly _slashCommands = this._store.add(new DisposableStore());
 
 	private readonly _inputEditor: IActiveCodeEditor;
@@ -222,16 +230,8 @@ export class InlineChatWidget {
 
 	private readonly _progressBar: ProgressBar;
 
-	private readonly _previewDiffEditor: Lazy<EmbeddedDiffEditorWidget>;
-	private readonly _previewDiffModel = this._store.add(new MutableDisposable());
 
-	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
-
-	private readonly _previewCreateTitle: ResourceLabel;
-	private readonly _previewCreateEditor: Lazy<ICodeEditor>;
-	private readonly _previewCreateDispoable = this._store.add(new MutableDisposable());
-
-	private readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
+	protected readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
 	private readonly _onDidChangeLayout = this._store.add(new MicrotaskEmitter<void>());
@@ -256,31 +256,22 @@ export class InlineChatWidget {
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 
 	constructor(
-		private readonly _parentEditor: ICodeEditor,
 		options: IInlineChatWidgetConstructionOptions,
+		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@ILogService private readonly _logService: ILogService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 	) {
 
 		// input editor logic
-		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				SnippetController2.ID,
-				SuggestController.ID
-			])
-		};
-
-		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(CodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions);
+		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(CodeEditorWidget, this._elements.editor, _inputEditorOptions, _codeEditorWidgetOptions);
 		this._updateAriaLabel();
 		this._store.add(this._inputEditor);
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
@@ -438,15 +429,6 @@ export class InlineChatWidget {
 		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(feedbackToolbar);
 
-		// preview editors
-		this._previewDiffEditor = new Lazy(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {
-			useInlineViewWhenSpaceIsLimited: false,
-			..._previewEditorEditorOptions,
-			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
-		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, _parentEditor)));
-
-		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
-		this._previewCreateEditor = new Lazy(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, _parentEditor)));
 
 		this._elements.followUps.tabIndex = 0;
 		this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
@@ -487,36 +469,16 @@ export class InlineChatWidget {
 		return this._elements.root;
 	}
 
-	layout(_dim: Dimension) {
+	layout(widgetDim: Dimension) {
 		this._isLayouting = true;
 		try {
-			if (this._accessibleViewer.value) {
-				this._accessibleViewer.value.width = _dim.width - 12;
-			}
-			this._chatMessageContents.style.width = `${_dim.width - 10}px`;
-			this._chatMessageContents.style.maxHeight = `270px`;
-
 			const widgetToolbarWidth = getTotalWidth(this._elements.widgetToolbar);
 			const editorToolbarWidth = getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */;
-			const innerEditorWidth = _dim.width - editorToolbarWidth - widgetToolbarWidth;
-			const dim = new Dimension(innerEditorWidth, _dim.height);
-			if (!this._lastDim || !Dimension.equals(this._lastDim, dim)) {
-				this._lastDim = dim;
-				this._inputEditor.layout(new Dimension(innerEditorWidth, this._inputEditor.getContentHeight()));
-				this._elements.placeholder.style.width = `${innerEditorWidth  /* input-padding*/}px`;
-
-				if (this._previewDiffEditor.hasValue) {
-					const previewDiffDim = new Dimension(_dim.width - 12, Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())));
-					this._elements.previewDiff.style.width = `${previewDiffDim.width}px`;
-					this._elements.previewDiff.style.height = `${previewDiffDim.height}px`;
-					this._previewDiffEditor.value.layout(previewDiffDim);
-				}
-
-				if (this._previewCreateEditor.hasValue) {
-					const previewCreateDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())));
-					this._previewCreateEditor.value.layout(previewCreateDim);
-					this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
-				}
+			const innerEditorWidth = widgetDim.width - editorToolbarWidth - widgetToolbarWidth;
+			const inputDim = new Dimension(innerEditorWidth, widgetDim.height);
+			if (!this._lastDim || !Dimension.equals(this._lastDim, inputDim)) {
+				this._lastDim = inputDim;
+				this._doLayout(widgetDim, inputDim);
 
 				this._onDidChangeLayout.fire();
 			}
@@ -525,18 +487,22 @@ export class InlineChatWidget {
 		}
 	}
 
+	protected _doLayout(widgetDimension: Dimension, inputDimension: Dimension): void {
+		this._chatMessageContents.style.width = `${widgetDimension.width - 10}px`;
+		this._chatMessageContents.style.maxHeight = `270px`;
+		this._inputEditor.layout(new Dimension(inputDimension.width, this._inputEditor.getContentHeight()));
+		this._elements.placeholder.style.width = `${inputDimension.width}px`;
+	}
+
 	getHeight(): number {
 		const editorHeight = this._inputEditor.getContentHeight() + 12 /* padding and border */;
 		const progressHeight = getTotalHeight(this._elements.progress);
 		const detectedIntentHeight = getTotalHeight(this._elements.detectedIntent);
 		const chatResponseHeight = getTotalHeight(this._chatMessageContents) + 16 /*padding*/;
 		const followUpsHeight = getTotalHeight(this._elements.followUps);
-		const previewDiffHeight = this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
-		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
-		const previewCreateHeight = this._previewCreateEditor.hasValue && this._previewCreateEditor.value.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())) : 0;
-		const accessibleViewHeight = this._accessibleViewer.value?.height ?? 0;
+
 		const statusHeight = getTotalHeight(this._elements.status);
-		return progressHeight + editorHeight + detectedIntentHeight + followUpsHeight + chatResponseHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + accessibleViewHeight + statusHeight + 18 /* padding */ + 8 /*shadow*/;
+		return progressHeight + editorHeight + detectedIntentHeight + followUpsHeight + chatResponseHeight + statusHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
@@ -724,10 +690,7 @@ export class InlineChatWidget {
 		this._elements.statusToolbar.classList.add('hidden');
 		this._elements.feedbackToolbar.classList.add('hidden');
 		this.updateInfo('');
-		this.hideCreatePreview();
-		this.hideEditsPreview();
 
-		this._accessibleViewer.clear();
 		this._elements.accessibleViewer.classList.toggle('hidden', true);
 
 		this._onDidChangeHeight.fire();
@@ -739,79 +702,6 @@ export class InlineChatWidget {
 
 	hasFocus() {
 		return this.domNode.contains(getActiveElement());
-	}
-
-	// --- preview
-
-	showEditsPreview(hunks: HunkData, textModel0: ITextModel, textModelN: ITextModel) {
-
-		if (hunks.size === 0) {
-			this.hideEditsPreview();
-			return;
-		}
-
-		this._elements.previewDiff.classList.remove('hidden');
-
-		this._previewDiffEditor.value.setModel({ original: textModel0, modified: textModelN });
-
-		// joined ranges
-		let originalLineRange: LineRange | undefined;
-		let modifiedLineRange: LineRange | undefined;
-		for (const item of hunks.getInfo()) {
-			const [first0] = item.getRanges0();
-			const [firstN] = item.getRangesN();
-
-			originalLineRange = !originalLineRange ? LineRange.fromRangeInclusive(first0) : originalLineRange.join(LineRange.fromRangeInclusive(first0));
-			modifiedLineRange = !modifiedLineRange ? LineRange.fromRangeInclusive(firstN) : modifiedLineRange.join(LineRange.fromRangeInclusive(firstN));
-		}
-
-		if (!originalLineRange || !modifiedLineRange) {
-			this.hideEditsPreview();
-			return;
-		}
-
-		const hiddenOriginal = invertLineRange(originalLineRange, textModel0);
-		const hiddenModified = invertLineRange(modifiedLineRange, textModelN);
-		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lr => asRange(lr, textModel0)), 'diff-hidden');
-		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lr => asRange(lr, textModelN)), 'diff-hidden');
-		this._previewDiffEditor.value.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
-
-		this._onDidChangeHeight.fire();
-	}
-
-	hideEditsPreview() {
-		this._elements.previewDiff.classList.add('hidden');
-		if (this._previewDiffEditor.hasValue) {
-			this._previewDiffEditor.value.setModel(null);
-		}
-		this._previewDiffModel.clear();
-		this._onDidChangeHeight.fire();
-	}
-
-	async showCreatePreview(model: IUntitledTextEditorModel): Promise<void> {
-		this._elements.previewCreateTitle.classList.remove('hidden');
-		this._elements.previewCreate.classList.remove('hidden');
-
-		const ref = await this._textModelResolverService.createModelReference(model.resource);
-		this._previewCreateDispoable.value = ref;
-		this._previewCreateTitle.element.setFile(model.resource, { fileKind: FileKind.FILE });
-
-		this._previewCreateEditor.value.setModel(ref.object.textEditorModel);
-		this._onDidChangeHeight.fire();
-	}
-
-	hideCreatePreview() {
-		this._elements.previewCreateTitle.classList.add('hidden');
-		this._elements.previewCreate.classList.add('hidden');
-		this._previewCreateEditor.rawValue?.setModel(null);
-		this._previewCreateDispoable.clear();
-		this._previewCreateTitle.element.clear();
-		this._onDidChangeHeight.fire();
-	}
-
-	showsAnyPreview() {
-		return !this._elements.previewDiff.classList.contains('hidden') ||
-			!this._elements.previewCreate.classList.contains('hidden');
 	}
 
 	// --- slash commands
@@ -903,7 +793,85 @@ export class InlineChatWidget {
 		this._slashCommands.add(this._inputEditor.onDidChangeModelContent(updateSlashDecorations));
 		updateSlashDecorations();
 	}
+}
 
+export class EditorBasedInlineChatWidget extends InlineChatWidget {
+
+	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
+
+	private readonly _previewDiffEditor: Lazy<EmbeddedDiffEditorWidget>;
+	private readonly _previewDiffModel = this._store.add(new MutableDisposable());
+
+	private readonly _previewCreateTitle: ResourceLabel;
+	private readonly _previewCreateEditor: Lazy<ICodeEditor>;
+	private readonly _previewCreateDispoable = this._store.add(new MutableDisposable());
+
+	constructor(
+		private readonly _parentEditor: ICodeEditor,
+		options: IInlineChatWidgetConstructionOptions,
+		@IModelService modelService: IModelService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
+		@ILogService logService: ILogService,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+	) {
+		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService, keybindingService, accessibilityService, configurationService, accessibleViewService, logService, textModelResolverService, chatAgentService,);
+
+		// preview editors
+		this._previewDiffEditor = new Lazy(() => this._store.add(instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {
+			useInlineViewWhenSpaceIsLimited: false,
+			..._previewEditorEditorOptions,
+			onlyShowAccessibleDiffViewer: accessibilityService.isScreenReaderOptimized(),
+		}, { modifiedEditor: _codeEditorWidgetOptions, originalEditor: _codeEditorWidgetOptions }, _parentEditor)));
+
+		this._previewCreateTitle = this._store.add(instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
+		this._previewCreateEditor = new Lazy(() => this._store.add(instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, _codeEditorWidgetOptions, _parentEditor)));
+	}
+
+	// --- layout
+
+	override getHeight(): number {
+		const result = super.getHeight();
+		const previewDiffHeight = this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
+		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
+		const previewCreateHeight = this._previewCreateEditor.hasValue && this._previewCreateEditor.value.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())) : 0;
+		const accessibleViewHeight = this._accessibleViewer.value?.height ?? 0;
+		return result + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + accessibleViewHeight;
+	}
+
+	protected override _doLayout(widgetDimension: Dimension, inputDimension: Dimension): void {
+		super._doLayout(widgetDimension, inputDimension);
+
+		if (this._accessibleViewer.value) {
+			this._accessibleViewer.value.width = widgetDimension.width - 12;
+		}
+
+		if (this._previewDiffEditor.hasValue) {
+			const previewDiffDim = new Dimension(widgetDimension.width - 12, Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())));
+			this._elements.previewDiff.style.width = `${previewDiffDim.width}px`;
+			this._elements.previewDiff.style.height = `${previewDiffDim.height}px`;
+			this._previewDiffEditor.value.layout(previewDiffDim);
+		}
+
+		if (this._previewCreateEditor.hasValue) {
+			const previewCreateDim = new Dimension(inputDimension.width, Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())));
+			this._previewCreateEditor.value.layout(previewCreateDim);
+			this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
+		}
+	}
+
+	override reset() {
+		this.hideCreatePreview();
+		this.hideEditsPreview();
+		this._accessibleViewer.clear();
+		super.reset();
+	}
 
 	// --- accessible viewer
 
@@ -921,6 +889,79 @@ export class InlineChatWidget {
 
 		this._onDidChangeHeight.fire();
 
+	}
+
+	// --- preview
+
+	showEditsPreview(hunks: HunkData, textModel0: ITextModel, textModelN: ITextModel) {
+
+		if (hunks.size === 0) {
+			this.hideEditsPreview();
+			return;
+		}
+
+		this._elements.previewDiff.classList.remove('hidden');
+
+		this._previewDiffEditor.value.setModel({ original: textModel0, modified: textModelN });
+
+		// joined ranges
+		let originalLineRange: LineRange | undefined;
+		let modifiedLineRange: LineRange | undefined;
+		for (const item of hunks.getInfo()) {
+			const [first0] = item.getRanges0();
+			const [firstN] = item.getRangesN();
+
+			originalLineRange = !originalLineRange ? LineRange.fromRangeInclusive(first0) : originalLineRange.join(LineRange.fromRangeInclusive(first0));
+			modifiedLineRange = !modifiedLineRange ? LineRange.fromRangeInclusive(firstN) : modifiedLineRange.join(LineRange.fromRangeInclusive(firstN));
+		}
+
+		if (!originalLineRange || !modifiedLineRange) {
+			this.hideEditsPreview();
+			return;
+		}
+
+		const hiddenOriginal = invertLineRange(originalLineRange, textModel0);
+		const hiddenModified = invertLineRange(modifiedLineRange, textModelN);
+		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lr => asRange(lr, textModel0)), 'diff-hidden');
+		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lr => asRange(lr, textModelN)), 'diff-hidden');
+		this._previewDiffEditor.value.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
+
+		this._onDidChangeHeight.fire();
+	}
+
+	hideEditsPreview() {
+		this._elements.previewDiff.classList.add('hidden');
+		if (this._previewDiffEditor.hasValue) {
+			this._previewDiffEditor.value.setModel(null);
+		}
+		this._previewDiffModel.clear();
+		this._onDidChangeHeight.fire();
+	}
+
+	async showCreatePreview(model: IUntitledTextEditorModel): Promise<void> {
+		this._elements.previewCreateTitle.classList.remove('hidden');
+		this._elements.previewCreate.classList.remove('hidden');
+
+		const ref = await this._textModelResolverService.createModelReference(model.resource);
+		this._previewCreateDispoable.value = ref;
+		this._previewCreateTitle.element.setFile(model.resource, { fileKind: FileKind.FILE });
+
+		this._previewCreateEditor.value.setModel(ref.object.textEditorModel);
+		this._onDidChangeHeight.fire();
+	}
+
+	hideCreatePreview() {
+		this._elements.previewCreateTitle.classList.add('hidden');
+		this._elements.previewCreate.classList.add('hidden');
+		this._previewCreateEditor.rawValue?.setModel(null);
+		this._previewCreateDispoable.clear();
+		this._previewCreateTitle.element.clear();
+		this._onDidChangeHeight.fire();
+	}
+
+	showsAnyPreview() {
+		return !this._elements.previewDiff.classList.contains('hidden') ||
+			!this._elements.previewCreate.classList.contains('hidden');
 	}
 }
 

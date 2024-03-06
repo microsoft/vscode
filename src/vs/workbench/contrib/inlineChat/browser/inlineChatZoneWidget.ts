@@ -15,12 +15,12 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { InlineChatWidget } from './inlineChatWidget';
+import { EditorBasedInlineChatWidget } from './inlineChatWidget';
 
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
-	readonly widget: InlineChatWidget;
+	readonly widget: EditorBasedInlineChatWidget;
 
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
@@ -42,7 +42,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			this._ctxCursorPosition.reset();
 		}));
 
-		this.widget = this._instaService.createInstance(InlineChatWidget, this.editor, {
+		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, this.editor, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			inputMenuId: MENU_INLINE_CHAT_INPUT,
 			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
