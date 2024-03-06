@@ -150,8 +150,6 @@ resources:
     - pipeline: vscode-7pm-kick-off
       source: 'VS Code 7PM Kick-Off'
       trigger: true
-
-resources:
   repositories:
     - repository: 1esPipelines
       type: git
