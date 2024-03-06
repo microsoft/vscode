@@ -5987,7 +5987,7 @@ export const EditorOptions = {
 	)),
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
-		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops. Full tab deletion occurs upon removing indentation.") }
+		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace aligns with tab stops.") }
 	)),
 	wordBreak: register(new EditorStringEnumOption(
 		EditorOption.wordBreak, 'wordBreak',
