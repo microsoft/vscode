@@ -51,10 +51,11 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
-import { BREAKPOINTS_VIEW_ID, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_BREAKPOINT_HAS_MODES, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, DEBUG_SCHEME, DebuggerString, IBaseBreakpoint, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDataBreakpoint, IDebugModel, IDebugService, IEnablement, IExceptionBreakpoint, IFunctionBreakpoint, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
+import { BREAKPOINTS_VIEW_ID, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_BREAKPOINT_HAS_MODES, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_BREAKPOINT_ITEM_IS_DATA_BYTES, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, DEBUG_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebuggerString, IBaseBreakpoint, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugModel, IDebugService, IEnablement, IExceptionBreakpoint, IFunctionBreakpoint, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
 import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, FunctionBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const $ = dom.$;
 
@@ -87,6 +88,7 @@ export class BreakpointsView extends ViewPane {
 	private ignoreLayout = false;
 	private menu: IMenu;
 	private breakpointItemType: IContextKey<string | undefined>;
+	private breakpointIsDataBytes: IContextKey<boolean | undefined>;
 	private breakpointHasMultipleModes: IContextKey<boolean>;
 	private breakpointSupportsCondition: IContextKey<boolean>;
 	private _inputBoxData: InputBoxData | undefined;
@@ -120,6 +122,7 @@ export class BreakpointsView extends ViewPane {
 		this.menu = menuService.createMenu(MenuId.DebugBreakpointsContext, contextKeyService);
 		this._register(this.menu);
 		this.breakpointItemType = CONTEXT_BREAKPOINT_ITEM_TYPE.bindTo(contextKeyService);
+		this.breakpointIsDataBytes = CONTEXT_BREAKPOINT_ITEM_IS_DATA_BYTES.bindTo(contextKeyService);
 		this.breakpointHasMultipleModes = CONTEXT_BREAKPOINT_HAS_MODES.bindTo(contextKeyService);
 		this.breakpointSupportsCondition = CONTEXT_BREAKPOINT_SUPPORTS_CONDITION.bindTo(contextKeyService);
 		this.breakpointInputFocused = CONTEXT_BREAKPOINT_INPUT_FOCUSED.bindTo(contextKeyService);
@@ -142,7 +145,7 @@ export class BreakpointsView extends ViewPane {
 			new ExceptionBreakpointInputRenderer(this, this.debugService, this.contextViewService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer, this.menu, this.breakpointSupportsCondition, this.breakpointItemType),
 			new FunctionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.labelService),
-			this.instantiationService.createInstance(DataBreakpointsRenderer, this.menu, this.breakpointHasMultipleModes, this.breakpointSupportsCondition, this.breakpointItemType),
+			this.instantiationService.createInstance(DataBreakpointsRenderer, this.menu, this.breakpointHasMultipleModes, this.breakpointSupportsCondition, this.breakpointItemType, this.breakpointIsDataBytes),
 			new DataBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.labelService),
 			this.instantiationService.createInstance(InstructionBreakpointsRenderer),
 		], {
@@ -266,6 +269,7 @@ export class BreakpointsView extends ViewPane {
 		const session = this.debugService.getViewModel().focusedSession;
 		const conditionSupported = element instanceof ExceptionBreakpoint ? element.supportsCondition : (!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointSupportsCondition.set(conditionSupported);
+		this.breakpointIsDataBytes.set(element instanceof DataBreakpoint && element.src.type === DataBreakpointSetType.Address);
 
 		const secondary: IAction[] = [];
 		createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
@@ -740,6 +744,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 		private breakpointHasMultipleModes: IContextKey<boolean>,
 		private breakpointSupportsCondition: IContextKey<boolean>,
 		private breakpointItemType: IContextKey<string | undefined>,
+		private breakpointIsDataBytes: IContextKey<boolean | undefined>,
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
@@ -816,10 +821,12 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointHasMultipleModes.set(this.debugService.getModel().getBreakpointModes('data').length > 1);
 		this.breakpointItemType.set('dataBreakpoint');
+		this.breakpointIsDataBytes.set(dataBreakpoint.src.type === DataBreakpointSetType.Address);
 		createAndFillInActionBarActions(this.menu, { arg: dataBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(dataBreakpoint.getId(), data.actionBar.domNode);
+		this.breakpointIsDataBytes.reset();
 	}
 
 	disposeTemplate(templateData: IBaseBreakpointWithIconTemplateData): void {
@@ -1418,6 +1425,166 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const debugService = accessor.get(IDebugService);
 		debugService.addFunctionBreakpoint();
+	}
+});
+
+abstract class MemoryBreakpointAction extends Action2 {
+	async run(accessor: ServicesAccessor, existingBreakpoint?: IDataBreakpoint): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		const session = debugService.getViewModel().focusedSession;
+		if (!session) {
+			return;
+		}
+
+		let defaultValue = undefined;
+		if (existingBreakpoint && existingBreakpoint.src.type === DataBreakpointSetType.Address) {
+			defaultValue = `${existingBreakpoint.src.address} + ${existingBreakpoint.src.bytes}`;
+		}
+
+		const quickInput = accessor.get(IQuickInputService);
+		const notifications = accessor.get(INotificationService);
+		const range = await this.getRange(quickInput, defaultValue);
+		if (!range) {
+			return;
+		}
+
+		let info: IDataBreakpointInfoResponse | undefined;
+		try {
+			info = await session.dataBytesBreakpointInfo(range.address, range.bytes);
+		} catch (e) {
+			notifications.error(localize('dataBreakpointError', "Failed to set data breakpoint at {0}: {1}", range.address, e.message));
+		}
+
+		if (!info?.dataId) {
+			return;
+		}
+
+		let accessType: DebugProtocol.DataBreakpointAccessType = 'write';
+		if (info.accessTypes && info.accessTypes?.length > 1) {
+			const accessTypes = info.accessTypes.map(type => ({ label: type }));
+			const selectedAccessType = await quickInput.pick(accessTypes, { placeHolder: localize('dataBreakpointAccessType', "Select the access type to monitor") });
+			if (!selectedAccessType) {
+				return;
+			}
+
+			accessType = selectedAccessType.label;
+		}
+
+		const src: DataBreakpointSource = { type: DataBreakpointSetType.Address, ...range };
+		if (existingBreakpoint) {
+			await debugService.removeDataBreakpoints(existingBreakpoint.getId());
+		}
+
+		await debugService.addDataBreakpoint({
+			description: info.description,
+			src,
+			canPersist: true,
+			accessTypes: info.accessTypes,
+			accessType: accessType,
+			initialSessionData: { session, dataId: info.dataId }
+		});
+	}
+
+	private getRange(quickInput: IQuickInputService, defaultValue?: string) {
+		return new Promise<{ address: string; bytes: number } | undefined>(resolve => {
+			const input = quickInput.createInputBox();
+			input.prompt = localize('dataBreakpointMemoryRangePrompt', "Enter a memory range in which to break");
+			input.placeholder = localize('dataBreakpointMemoryRangePlaceholder', 'Absolute range (0x1234 - 0x1300) or range of bytes after an address (0x1234 + 0xff)');
+			if (defaultValue) {
+				input.value = defaultValue;
+				input.valueSelection = [0, defaultValue.length];
+			}
+			input.onDidChangeValue(e => {
+				const err = this.parseAddress(e, false);
+				input.validationMessage = err?.error;
+			});
+			input.onDidAccept(() => {
+				const r = this.parseAddress(input.value, true);
+				if ('error' in r) {
+					input.validationMessage = r.error;
+				} else {
+					resolve(r);
+				}
+				input.dispose();
+			});
+			input.onDidHide(() => {
+				resolve(undefined);
+				input.dispose();
+			});
+			input.ignoreFocusOut = true;
+			input.show();
+		});
+	}
+
+	private parseAddress(range: string, isFinal: false): { error: string } | undefined;
+	private parseAddress(range: string, isFinal: true): { error: string } | { address: string; bytes: number };
+	private parseAddress(range: string, isFinal: boolean): { error: string } | { address: string; bytes: number } | undefined {
+		const parts = /^(\S+)\s*(?:([+-])\s*(\S+))?/.exec(range);
+		if (!parts) {
+			return { error: localize('dataBreakpointAddrFormat', 'Address should be a range of numbers the form "[Start] - [End]" or "[Start] + [Bytes]"') };
+		}
+
+		const isNum = (e: string) => isFinal ? /^0x[0-9a-f]*|[0-9]*$/i.test(e) : /^0x[0-9a-f]+|[0-9]+$/i.test(e);
+		const [, startStr, sign = '+', endStr = '1'] = parts;
+
+		for (const n of [startStr, endStr]) {
+			if (!isNum(n)) {
+				return { error: localize('dataBreakpointAddrStartEnd', 'Number must be a decimal integer or hex value starting with \"0x\", got {0}', n) };
+			}
+		}
+
+		if (!isFinal) {
+			return;
+		}
+
+		const start = BigInt(startStr);
+		const end = BigInt(endStr);
+		const address = `0x${start.toString(16)}`;
+		if (sign === '-') {
+			return { address, bytes: Number(start - end) };
+		}
+
+		return { address, bytes: Number(end) };
+	}
+}
+
+registerAction2(class extends MemoryBreakpointAction {
+	constructor() {
+		super({
+			id: 'workbench.debug.viewlet.action.addDataBreakpointOnAddress',
+			title: {
+				...localize2('addDataBreakpointOnAddress', "Add Data Breakpoint at Address"),
+				mnemonicTitle: localize({ key: 'miDataBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Data Breakpoint..."),
+			},
+			f1: true,
+			icon: icons.watchExpressionsAddDataBreakpoint,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 11,
+				when: ContextKeyExpr.and(CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, ContextKeyExpr.equals('view', BREAKPOINTS_VIEW_ID))
+			}, {
+				id: MenuId.MenubarNewBreakpointMenu,
+				group: '1_breakpoints',
+				order: 4,
+				when: CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED
+			}]
+		});
+	}
+});
+
+registerAction2(class extends MemoryBreakpointAction {
+	constructor() {
+		super({
+			id: 'workbench.debug.viewlet.action.editDataBreakpointOnAddress',
+			title: localize2('editDataBreakpointOnAddress', "Edit Address..."),
+			menu: [{
+				id: MenuId.DebugBreakpointsContext,
+				when: ContextKeyExpr.and(CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, CONTEXT_BREAKPOINT_ITEM_IS_DATA_BYTES),
+				group: 'navigation',
+				order: 15,
+			}]
+		});
 	}
 });
 

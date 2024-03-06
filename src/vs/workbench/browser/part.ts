@@ -50,7 +50,7 @@ export abstract class Part extends Component implements ISerializableView {
 	) {
 		super(id, themeService, storageService);
 
-		layoutService.registerPart(this);
+		this._register(layoutService.registerPart(this));
 	}
 
 	protected override onThemeChange(theme: IColorTheme): void {
@@ -59,10 +59,6 @@ export abstract class Part extends Component implements ISerializableView {
 		if (this.parent) {
 			super.onThemeChange(theme);
 		}
-	}
-
-	override updateStyles(): void {
-		super.updateStyles();
 	}
 
 	/**

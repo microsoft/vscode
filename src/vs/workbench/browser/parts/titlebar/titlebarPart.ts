@@ -49,7 +49,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { EditorCommandsContextActionRunner } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { IEditorCommandsContext, IEditorPartOptionsChangeEvent, IToolbarActions } from 'vs/workbench/common/editor';
-import { mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION } from 'vs/workbench/browser/parts/titlebar/titlebarActions';
 import { IView } from 'vs/base/browser/ui/grid/grid';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
@@ -258,7 +258,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	constructor(
 		id: string,
-		targetWindow: Window,
+		targetWindow: CodeWindow,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,

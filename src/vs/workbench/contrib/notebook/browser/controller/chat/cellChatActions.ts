@@ -209,7 +209,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
-		NotebookChatController.get(context.notebookEditor)?.dismiss();
+		NotebookChatController.get(context.notebookEditor)?.dismiss(false);
 	}
 });
 

@@ -158,6 +158,7 @@ export class SearchView extends ViewPane {
 	private treeAccessibilityProvider: SearchAccessibilityProvider;
 
 	private treeViewKey: IContextKey<boolean>;
+	private aiResultsVisibleKey: IContextKey<boolean>;
 
 	private _visibleMatches: number = 0;
 
@@ -218,6 +219,7 @@ export class SearchView extends ViewPane {
 		this.hasFilePatternKey = Constants.SearchContext.ViewHasFilePatternKey.bindTo(this.contextKeyService);
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
+		this.aiResultsVisibleKey = Constants.SearchContext.AIResultsVisibleKey.bindTo(this.contextKeyService);
 
 		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
@@ -294,12 +296,33 @@ export class SearchView extends ViewPane {
 		this.treeViewKey.set(visible);
 	}
 
+	get aiResultsVisible(): boolean {
+		return this.aiResultsVisibleKey.get() ?? false;
+	}
+
+	private set aiResultsVisible(visible: boolean) {
+		this.aiResultsVisibleKey.set(visible);
+	}
+
 	setTreeView(visible: boolean): void {
 		if (visible === this.isTreeLayoutViewVisible) {
 			return;
 		}
 		this.isTreeLayoutViewVisible = visible;
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this.refreshTree();
+	}
+
+	async setAIResultsVisible(visible: boolean): Promise<void> {
+		if (visible === this.aiResultsVisible) {
+			return;
+		}
+		this.aiResultsVisible = visible;
+		if (visible) {
+			this.model.addAIResults();
+		} else {
+			this.model.disableAIResults();
+		}
 		this.refreshTree();
 	}
 
@@ -693,7 +716,7 @@ export class SearchView extends ViewPane {
 
 	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const folderMatches = this.searchResult.folderMatches()
-			.filter(fm => !fm.isEmpty())
+			.filter(fm => !fm.isEmpty() && (this.aiResultsVisible || fm.hasDownstreamNonAIResults()))
 			.sort(searchMatchComparer);
 
 		if (folderMatches.length === 1) {
@@ -712,7 +735,11 @@ export class SearchView extends ViewPane {
 		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
-		return Iterable.map(matches, match => {
+		return Iterable.filter(Iterable.map(matches, match => {
+
+			if (!this.aiResultsVisible && !match.hasDownstreamNonAIResults()) {
+				return undefined;
+			}
 			let children;
 			if (match instanceof FileMatch) {
 				children = this.createFileIterator(match);
@@ -723,11 +750,15 @@ export class SearchView extends ViewPane {
 			const collapsed = (collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand')) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 
 			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
-		});
+		}), (item): item is ICompressedTreeElement<RenderableMatch> => !!item);
 	}
 
 	private createFileIterator(fileMatch: FileMatch): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const matches = fileMatch.matches().sort(searchMatchComparer);
+		let matches = fileMatch.matches().sort(searchMatchComparer);
+
+		if (!this.aiResultsVisible) {
+			matches = matches.filter(e => !e.aiContributed);
+		}
 		return Iterable.map(matches, r => (<ICompressedTreeElement<RenderableMatch>>{ element: r, incompressible: true }));
 	}
 

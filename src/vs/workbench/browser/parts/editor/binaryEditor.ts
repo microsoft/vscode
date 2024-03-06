@@ -13,6 +13,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorPlaceholder, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
@@ -33,12 +34,13 @@ export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		private readonly callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService, storageService);
+		super(id, group, telemetryService, themeService, storageService);
 	}
 
 	override getTitle(): string {

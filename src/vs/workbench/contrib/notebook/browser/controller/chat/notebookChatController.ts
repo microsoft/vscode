@@ -702,7 +702,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			this._inlineChatSessionService.releaseSession(this._activeSession);
 		} catch (_err) { }
 
-		this.dismiss();
+		this.dismiss(false);
 	}
 
 	async focusAbove() {
@@ -772,7 +772,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._strategy?.cancel();
 		this._activeRequestCts?.cancel();
 		this._widget?.discardChange();
-		this.dismiss();
+		this.dismiss(true);
 	}
 
 	async feedbackLast(kind: InlineChatResponseFeedbackKind) {
@@ -783,25 +783,25 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	}
 
 
-	dismiss() {
-		// move focus back to the cell above
-		if (this._widget) {
-			const widgetIndex = this._widget.afterModelPosition;
-			const currentFocus = this._notebookEditor.getFocus();
+	dismiss(discard: boolean) {
+		const widget = this._widget;
+		const widgetIndex = widget?.afterModelPosition;
+		const currentFocus = this._notebookEditor.getFocus();
+		const isWidgetFocused = currentFocus.start === widgetIndex && currentFocus.end === widgetIndex;
 
-			if (currentFocus.start === widgetIndex && currentFocus.end === widgetIndex) {
-				// focus is on the widget
-				if (widgetIndex === 0) {
-					// on top of all cells
-					if (this._notebookEditor.getLength() > 0) {
-						this._notebookEditor.focusNotebookCell(this._notebookEditor.cellAt(0)!, 'container');
-					}
-				} else {
-					const cell = this._notebookEditor.cellAt(widgetIndex - 1);
-					if (cell) {
-						this._notebookEditor.focusNotebookCell(cell, 'container');
-					}
-				}
+		if (widget && isWidgetFocused) {
+			// change focus only when the widget is focused
+			const editingCell = widget.getEditingCell();
+			const shouldFocusEditingCell = editingCell && !discard;
+			const shouldFocusTopCell = widgetIndex === 0 && this._notebookEditor.getLength() > 0;
+			const shouldFocusAboveCell = widgetIndex !== 0 && this._notebookEditor.cellAt(widgetIndex - 1);
+
+			if (shouldFocusEditingCell) {
+				this._notebookEditor.focusNotebookCell(editingCell, 'container');
+			} else if (shouldFocusTopCell) {
+				this._notebookEditor.focusNotebookCell(this._notebookEditor.cellAt(0)!, 'container');
+			} else if (shouldFocusAboveCell) {
+				this._notebookEditor.focusNotebookCell(this._notebookEditor.cellAt(widgetIndex - 1)!, 'container');
 			}
 		}
 
@@ -815,8 +815,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	}
 
 	public override dispose(): void {
-		this.dismiss();
-
+		this.dismiss(false);
 		super.dispose();
 	}
 }

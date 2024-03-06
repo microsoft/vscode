@@ -15,20 +15,22 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { FileAccess, AppResourcePath } from 'vs/base/common/network';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { Codicon } from 'vs/base/common/codicons';
 
 interface IStorageData {
-	dontShowPrompt: boolean;
-	commit: string | undefined;
+	readonly dontShowPrompt: boolean;
+	readonly commit: string | undefined;
 }
 
 class IntegrityStorage {
+
 	private static readonly KEY = 'integrityService';
 
-	private storageService: IStorageService;
 	private value: IStorageData | null;
 
-	constructor(storageService: IStorageService) {
-		this.storageService = storageService;
+	constructor(private readonly storageService: IStorageService) {
 		this.value = this._read();
 	}
 
@@ -37,6 +39,7 @@ class IntegrityStorage {
 		if (!jsonValue) {
 			return null;
 		}
+
 		try {
 			return JSON.parse(jsonValue);
 		} catch (err) {
@@ -58,36 +61,108 @@ export class IntegrityService implements IIntegrityService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _storage: IntegrityStorage;
-	private _isPurePromise: Promise<IntegrityTestResult>;
+	private readonly _storage = new IntegrityStorage(this.storageService);
+
+	private readonly _isPurePromise = this._isPure();
+	isPure(): Promise<IntegrityTestResult> {
+		return this._isPurePromise;
+	}
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@IChecksumService private readonly checksumService: IChecksumService
+		@IChecksumService private readonly checksumService: IChecksumService,
+		@ILogService private readonly logService: ILogService,
+		@IBannerService private readonly bannerService: IBannerService
 	) {
-		this._storage = new IntegrityStorage(storageService);
-
-		this._isPurePromise = this._isPure();
-
-		this.isPure().then(r => {
-			if (r.isPure) {
-				return; // all is good
-			}
-
-			this._prompt();
-		});
+		this._compute();
 	}
 
-	private _prompt(): void {
+	private async _compute(): Promise<void> {
+		const { isPure } = await this.isPure();
+		if (isPure) {
+			return; // all is good
+		}
+
+		this.logService.warn(`
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!	Installation has been modified on disk and is UNSUPPORTED. Please reinstall !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+`);
+
 		const storedData = this._storage.get();
 		if (storedData?.dontShowPrompt && storedData.commit === this.productService.commit) {
 			return; // Do not prompt
 		}
 
+		this._showBanner();
+		this._showNotification();
+	}
+
+	private async _isPure(): Promise<IntegrityTestResult> {
+		const expectedChecksums = this.productService.checksums || {};
+
+		await this.lifecycleService.when(LifecyclePhase.Eventually);
+
+		const allResults = await Promise.all(Object.keys(expectedChecksums).map(filename => this._resolve(<AppResourcePath>filename, expectedChecksums[filename])));
+
+		let isPure = true;
+		for (let i = 0, len = allResults.length; i < len; i++) {
+			if (!allResults[i].isPure) {
+				isPure = false;
+				break;
+			}
+		}
+
+		return {
+			isPure,
+			proof: allResults
+		};
+	}
+
+	private async _resolve(filename: AppResourcePath, expected: string): Promise<ChecksumPair> {
+		const fileUri = FileAccess.asFileUri(filename);
+
+		try {
+			const checksum = await this.checksumService.checksum(fileUri);
+
+			return IntegrityService._createChecksumPair(fileUri, checksum, expected);
+		} catch (error) {
+			return IntegrityService._createChecksumPair(fileUri, '', expected);
+		}
+	}
+
+	private static _createChecksumPair(uri: URI, actual: string, expected: string): ChecksumPair {
+		return {
+			uri: uri,
+			actual: actual,
+			expected: expected,
+			isPure: (actual === expected)
+		};
+	}
+
+	private _showBanner(): void {
+		const checksumFailMoreInfoUrl = this.productService.checksumFailMoreInfoUrl;
+
+		this.bannerService.show({
+			id: 'installation.corrupt',
+			message: localize('integrity.banner', "Your {0} installation appears to be corrupt. Please reinstall.", this.productService.nameShort),
+			icon: Codicon.warning,
+			actions: checksumFailMoreInfoUrl ? [
+				{
+					label: localize('integrity.moreInformation', "More Information"),
+					href: checksumFailMoreInfoUrl
+				}
+			] : undefined
+		});
+	}
+
+	private _showNotification(): void {
 		const checksumFailMoreInfoUrl = this.productService.checksumFailMoreInfoUrl;
 		const message = localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", this.productService.nameShort);
 		if (checksumFailMoreInfoUrl) {
@@ -114,55 +189,10 @@ export class IntegrityService implements IIntegrityService {
 			this.notificationService.notify({
 				severity: Severity.Warning,
 				message,
-				sticky: true
+				sticky: true,
+				priority: NotificationPriority.URGENT
 			});
 		}
-	}
-
-	isPure(): Promise<IntegrityTestResult> {
-		return this._isPurePromise;
-	}
-
-	private async _isPure(): Promise<IntegrityTestResult> {
-		const expectedChecksums = this.productService.checksums || {};
-
-		await this.lifecycleService.when(LifecyclePhase.Eventually);
-
-		const allResults = await Promise.all(Object.keys(expectedChecksums).map(filename => this._resolve(<AppResourcePath>filename, expectedChecksums[filename])));
-
-		let isPure = true;
-		for (let i = 0, len = allResults.length; i < len; i++) {
-			if (!allResults[i].isPure) {
-				isPure = false;
-				break;
-			}
-		}
-
-		return {
-			isPure: isPure,
-			proof: allResults
-		};
-	}
-
-	private async _resolve(filename: AppResourcePath, expected: string): Promise<ChecksumPair> {
-		const fileUri = FileAccess.asFileUri(filename);
-
-		try {
-			const checksum = await this.checksumService.checksum(fileUri);
-
-			return IntegrityService._createChecksumPair(fileUri, checksum, expected);
-		} catch (error) {
-			return IntegrityService._createChecksumPair(fileUri, '', expected);
-		}
-	}
-
-	private static _createChecksumPair(uri: URI, actual: string, expected: string): ChecksumPair {
-		return {
-			uri: uri,
-			actual: actual,
-			expected: expected,
-			isPure: (actual === expected)
-		};
 	}
 }
 
