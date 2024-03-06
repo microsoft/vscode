@@ -59,6 +59,8 @@ steps:
           archiveType: zip
           archiveFile: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
 
-      - publish: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
+          artifactName: $(ASSET_ID)
         displayName: Publish signed artifact with ID $(ASSET_ID)
-        artifact: $(ASSET_ID)

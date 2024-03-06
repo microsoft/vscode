@@ -82,6 +82,8 @@ steps:
   - script: pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
     displayName: Archive build
 
-  - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
-    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
-    displayName: Publish client archive
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+      artifactName: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+    displayName: Publish macOS unsigned client archive

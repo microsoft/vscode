@@ -8,21 +8,23 @@ parameters:
 steps:
   - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
     - ${{ if contains(parameters.VSCODE_CLI_ARTIFACT, 'win32') }}:
-      - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
-        artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
+          artifactName: ${{ parameters.VSCODE_CLI_ARTIFACT }}
         displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
 
     - ${{ else }}:
       - ${{ if contains(parameters.VSCODE_CLI_ARTIFACT, 'darwin') }}:
-        - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
-          artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
+        - task: 1ES.PublishPipelineArtifact@1
+          inputs:
+            targetPath: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
+            artifactName: ${{ parameters.VSCODE_CLI_ARTIFACT }}
           displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
 
       - ${{ else }}:
-        - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
-          artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
+        - task: 1ES.PublishPipelineArtifact@1
+          inputs:
+            targetPath: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
+            artifactName: ${{ parameters.VSCODE_CLI_ARTIFACT }}
           displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
-
-    - publish: $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}/_manifest
-      displayName: Publish SBOM
-      artifact: sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
