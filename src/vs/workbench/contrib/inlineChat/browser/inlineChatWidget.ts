@@ -258,8 +258,8 @@ export class InlineChatWidget {
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 
 	constructor(
-		private readonly parentEditor: ICodeEditor,
-		_options: IInlineChatWidgetConstructionOptions,
+		private readonly _parentEditor: ICodeEditor,
+		options: IInlineChatWidgetConstructionOptions,
 		@IModelService private readonly _modelService: IModelService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -282,7 +282,7 @@ export class InlineChatWidget {
 			])
 		};
 
-		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, this.parentEditor);
+		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, this._parentEditor);
 		this._updateAriaLabel();
 		this._store.add(this._inputEditor);
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
@@ -395,8 +395,8 @@ export class InlineChatWidget {
 
 		// toolbars
 
-		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.inputMenuId, {
-			telemetrySource: _options.telemetrySource,
+		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, options.inputMenuId, {
+			telemetrySource: options.telemetrySource,
 			toolbarOptions: { primaryGroup: 'main' },
 			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			hoverDelegate
@@ -406,15 +406,15 @@ export class InlineChatWidget {
 		this._store.add(this._progressBar);
 
 
-		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.widgetToolbar, _options.widgetMenuId, {
-			telemetrySource: _options.telemetrySource,
+		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.widgetToolbar, options.widgetMenuId, {
+			telemetrySource: options.telemetrySource,
 			toolbarOptions: { primaryGroup: 'main' },
 			hoverDelegate
 		}));
 
 
-		const statusMenuId = _options.statusMenuId instanceof MenuId ? _options.statusMenuId : _options.statusMenuId.menu;
-		const statusMenuOptions = _options.statusMenuId instanceof MenuId ? undefined : _options.statusMenuId.options;
+		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
+		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
 
 		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, statusMenuId, statusMenuOptions);
 		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
@@ -429,7 +429,7 @@ export class InlineChatWidget {
 			}
 		};
 
-		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, _options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
 		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(feedbackToolbar);
 
@@ -438,10 +438,10 @@ export class InlineChatWidget {
 			useInlineViewWhenSpaceIsLimited: false,
 			..._previewEditorEditorOptions,
 			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
-		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
+		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, _parentEditor)));
 
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
-		this._previewCreateEditor = new Lazy(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor)));
+		this._previewCreateEditor = new Lazy(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, _parentEditor)));
 
 		this._elements.chatMessageContent.tabIndex = 0;
 		this._elements.chatMessageContent.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
@@ -517,8 +517,8 @@ export class InlineChatWidget {
 				}
 
 
-				const lineHeight = this.parentEditor.getOption(EditorOption.lineHeight);
-				const editorHeight = this.parentEditor.getLayoutInfo().height;
+				const lineHeight = this._parentEditor.getOption(EditorOption.lineHeight);
+				const editorHeight = this._parentEditor.getLayoutInfo().height;
 				const editorHeightInLines = Math.floor(editorHeight / lineHeight);
 				this._elements.root.style.setProperty('--vscode-inline-chat-cropped', String(Math.floor(editorHeightInLines / 5)));
 				this._elements.root.style.setProperty('--vscode-inline-chat-expanded', String(Math.floor(editorHeightInLines / 3)));
@@ -954,7 +954,7 @@ export class InlineChatWidget {
 			this._elements.accessibleViewer,
 			session,
 			hunkData,
-			new AccessibleHunk(this.parentEditor, session, hunkData)
+			new AccessibleHunk(this._parentEditor, session, hunkData)
 		);
 
 		this._onDidChangeHeight.fire();
