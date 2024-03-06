@@ -167,7 +167,7 @@ extends:
             variables:
               VSCODE_ARCH: x64
             steps:
-              - template: ./product-compile.yml@self
+              - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
