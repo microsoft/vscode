@@ -92,9 +92,6 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			}
 		}
 
-		// Store the existing selection if there was one.
-		const visibleSelection = visibleQuickAccess?.picker?.valueSelection;
-
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
 		const disposables = new DisposableStore();
@@ -150,11 +147,6 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		// may not call this and then our disposables would leak that rely
 		// on the onDidHide event.
 		picker.show();
-
-		// If the previous picker had a selection, we should set that in the new picker.
-		if (visibleSelection) {
-			picker.valueSelection = visibleSelection;
-		}
 
 		// Pick mode: return with promise
 		if (pick) {

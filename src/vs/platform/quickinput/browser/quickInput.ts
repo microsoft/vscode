@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -31,7 +31,7 @@ import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -162,6 +162,7 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _lastSeverity: Severity | undefined;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
+	private readonly onWillHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
 	private readonly onDisposeEmitter = this._register(new Emitter<void>());
 
 	protected readonly visibleDisposables = this._register(new DisposableStore());
@@ -351,6 +352,11 @@ class QuickInput extends Disposable implements IQuickInput {
 	}
 
 	readonly onDidHide = this.onDidHideEmitter.event;
+
+	willHide(reason = QuickInputHideReason.Other): void {
+		this.onWillHideEmitter.fire({ reason });
+	}
+	readonly onWillHide = this.onWillHideEmitter.event;
 
 	protected update() {
 		if (!this.visible) {
@@ -725,15 +731,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		return this.ui.keyMods;
 	}
 
-	get valueSelection() {
-		const selection = this.ui.inputBox.getSelection();
-		if (!selection) {
-			return undefined;
-		}
-		return [selection.start, selection.end];
-	}
-
-	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
+	set valueSelection(valueSelection: Readonly<[number, number]>) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();
@@ -1162,15 +1160,7 @@ export class InputBox extends QuickInput implements IInputBox {
 		this.update();
 	}
 
-	get valueSelection() {
-		const selection = this.ui.inputBox.getSelection();
-		if (!selection) {
-			return undefined;
-		}
-		return [selection.start, selection.end];
-	}
-
-	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
+	set valueSelection(valueSelection: Readonly<[number, number]>) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();
@@ -1274,24 +1264,16 @@ export class QuickWidget extends QuickInput implements IQuickWidget {
 	}
 }
 
-export class QuickInputHoverDelegate implements IHoverDelegate {
-	private lastHoverHideTime = 0;
-	readonly placement = 'element';
-
-	get delay() {
-		if (Date.now() - this.lastHoverHideTime < 200) {
-			return 0; // show instantly when a hover was recently shown
-		}
-
-		return this.configurationService.getValue<number>('workbench.hover.delay');
-	}
+export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 
 	constructor(
-		private readonly configurationService: IConfigurationService,
-		private readonly hoverService: IHoverService
-	) { }
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService
+	) {
+		super('element', false, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+	}
 
-	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
 		// Only show the hover hint if the content is of a decent size
 		const showHoverHint = (
 			options.content instanceof HTMLElement
@@ -1299,9 +1281,9 @@ export class QuickInputHoverDelegate implements IHoverDelegate {
 				: typeof options.content === 'string'
 					? options.content
 					: options.content.value
-		).length > 20;
-		return this.hoverService.showHover({
-			...options,
+		).includes('\n');
+
+		return {
 			persistence: {
 				hideOnKeyDown: false,
 			},
@@ -1309,10 +1291,6 @@ export class QuickInputHoverDelegate implements IHoverDelegate {
 				showHoverHint,
 				skipFadeInAnimation: true,
 			},
-		}, focus);
-	}
-
-	onDidHideHover(): void {
-		this.lastHoverHideTime = Date.now();
+		};
 	}
 }

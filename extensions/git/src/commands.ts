@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -23,7 +23,7 @@ import { RemoteSourceAction } from './api/git-base';
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
 	get description(): string { return ''; }
-	get alwaysShow(): boolean { return false; }
+	get alwaysShow(): boolean { return true; }
 }
 
 class CreateBranchItem extends CheckoutCommandItem {
@@ -1194,7 +1194,7 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 		// Must extract these now because opening a new document will change the activeTextEditor reference
-		const previousVisibleRange = activeTextEditor?.visibleRanges[0];
+		const previousVisibleRanges = activeTextEditor?.visibleRanges;
 		const previousURI = activeTextEditor?.document.uri;
 		const previousSelection = activeTextEditor?.selection;
 
@@ -1225,8 +1225,13 @@ export class CommandCenter {
 				opts.selection = previousSelection;
 				const editor = await window.showTextDocument(document, opts);
 				// This should always be defined but just in case
-				if (previousVisibleRange) {
-					editor.revealRange(previousVisibleRange);
+				if (previousVisibleRanges && previousVisibleRanges.length > 0) {
+					let rangeToReveal = previousVisibleRanges[0];
+					if (previousSelection && previousVisibleRanges.length > 1) {
+						// In case of multiple visible ranges, find the one that intersects with the selection
+						rangeToReveal = previousVisibleRanges.find(r => r.intersection(previousSelection)) ?? rangeToReveal;
+					}
+					editor.revealRange(rangeToReveal);
 				}
 			}
 		}
@@ -2461,9 +2466,10 @@ export class CommandCenter {
 		const createBranchFrom = new CreateBranchFromItem();
 		const checkoutDetached = new CheckoutDetachedItem();
 		const picks: QuickPickItem[] = [];
+		const commands: QuickPickItem[] = [];
 
 		if (!opts?.detached) {
-			picks.push(createBranch, createBranchFrom, checkoutDetached);
+			commands.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
 		const disposables: Disposable[] = [];
@@ -2477,7 +2483,7 @@ export class CommandCenter {
 		quickPick.show();
 
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickPick.items = picks;
+		quickPick.items = [...commands, ...picks];
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
@@ -2492,6 +2498,22 @@ export class CommandCenter {
 
 				c(undefined);
 			})));
+			disposables.push(quickPick.onDidChangeValue(value => {
+				switch (true) {
+					case value === '':
+						quickPick.items = [...commands, ...picks];
+						break;
+					case commands.length === 0:
+						quickPick.items = picks;
+						break;
+					case picks.length === 0:
+						quickPick.items = commands;
+						break;
+					default:
+						quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
+						break;
+				}
+			}));
 		});
 
 		dispose(disposables);
@@ -2597,49 +2619,75 @@ export class CommandCenter {
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
+		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
 
-		let rawBranchName = defaultName;
-
-		if (!rawBranchName) {
-			// Branch name
-			if (!initialValue) {
-				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
-				const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
-
-				initialValue = `${branchPrefix}${branchName}`;
-			}
-
-			// Branch name selection
-			const initialValueSelection: [number, number] | undefined =
-				initialValue.startsWith(branchPrefix) ? [branchPrefix.length, initialValue.length] : undefined;
-
-			rawBranchName = await window.showInputBox({
-				placeHolder: l10n.t('Branch name'),
-				prompt: l10n.t('Please provide a new branch name'),
-				value: initialValue,
-				valueSelection: initialValueSelection,
-				ignoreFocusOut: true,
-				validateInput: (name: string) => {
-					const validateName = new RegExp(branchValidationRegex);
-					const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
-					if (validateName.test(sanitizedName)) {
-						// If the sanitized name that we will use is different than what is
-						// in the input box, show an info message to the user informing them
-						// the branch name that will be used.
-						return name === sanitizedName
-							? null
-							: {
-								message: l10n.t('The new branch will be "{0}"', sanitizedName),
-								severity: InputBoxValidationSeverity.Info
-							};
-					}
-
-					return l10n.t('Branch name needs to match regex: {0}', branchValidationRegex);
-				}
-			});
+		if (defaultName) {
+			return sanitizeBranchName(defaultName, branchWhitespaceChar);
 		}
 
-		return sanitizeBranchName(rawBranchName || '', branchWhitespaceChar);
+		const getBranchName = async (): Promise<string> => {
+			const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
+			return `${branchPrefix}${branchName}`;
+		};
+
+		const getValueSelection = (value: string): [number, number] | undefined => {
+			return value.startsWith(branchPrefix) ? [branchPrefix.length, value.length] : undefined;
+		};
+
+		const getValidationMessage = (name: string): string | InputBoxValidationMessage | undefined => {
+			const validateName = new RegExp(branchValidationRegex);
+			const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
+			if (validateName.test(sanitizedName)) {
+				// If the sanitized name that we will use is different than what is
+				// in the input box, show an info message to the user informing them
+				// the branch name that will be used.
+				return name === sanitizedName
+					? undefined
+					: {
+						message: l10n.t('The new branch will be "{0}"', sanitizedName),
+						severity: InputBoxValidationSeverity.Info
+					};
+			}
+
+			return l10n.t('Branch name needs to match regex: {0}', branchValidationRegex);
+		};
+
+		const disposables: Disposable[] = [];
+		const inputBox = window.createInputBox();
+
+		inputBox.placeholder = l10n.t('Branch name');
+		inputBox.prompt = l10n.t('Please provide a new branch name');
+
+		inputBox.buttons = branchRandomNameEnabled ? [
+			{
+				iconPath: new ThemeIcon('refresh'),
+				tooltip: l10n.t('Regenerate Branch Name'),
+			}
+		] : [];
+
+		inputBox.value = initialValue ?? await getBranchName();
+		inputBox.valueSelection = getValueSelection(inputBox.value);
+		inputBox.validationMessage = getValidationMessage(inputBox.value);
+		inputBox.ignoreFocusOut = true;
+
+		inputBox.show();
+
+		const branchName = await new Promise<string | undefined>((resolve) => {
+			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
+			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+			disposables.push(inputBox.onDidChangeValue(value => {
+				inputBox.validationMessage = getValidationMessage(value);
+			}));
+			disposables.push(inputBox.onDidTriggerButton(async () => {
+				inputBox.value = await getBranchName();
+				inputBox.valueSelection = getValueSelection(inputBox.value);
+			}));
+		});
+
+		dispose(disposables);
+		inputBox.dispose();
+
+		return sanitizeBranchName(branchName || '', branchWhitespaceChar);
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
@@ -3949,6 +3997,37 @@ export class CommandCenter {
 	@command('git.closeAllDiffEditors', { repository: true })
 	closeDiffEditors(repository: Repository): void {
 		repository.closeDiffEditors(undefined, undefined, true);
+	}
+
+	@command('git.closeAllUnmodifiedEditors')
+	closeUnmodifiedEditors(): void {
+		const editorTabsToClose: Tab[] = [];
+
+		// Collect all modified files
+		const modifiedFiles: string[] = [];
+		for (const repository of this.model.repositories) {
+			modifiedFiles.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.mergeGroup.resourceStates.map(r => r.resourceUri.fsPath));
+		}
+
+		// Collect all editor tabs that are not dirty and not modified
+		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
+			if (tab.isDirty) {
+				continue;
+			}
+
+			if (tab.input instanceof TabInputText || tab.input instanceof TabInputNotebook) {
+				const { uri } = tab.input;
+				if (!modifiedFiles.find(p => pathEquals(p, uri.fsPath))) {
+					editorTabsToClose.push(tab);
+				}
+			}
+		}
+
+		// Close editors
+		window.tabGroups.close(editorTabsToClose, true);
 	}
 
 	@command('git.openRepositoriesInParentFolders')

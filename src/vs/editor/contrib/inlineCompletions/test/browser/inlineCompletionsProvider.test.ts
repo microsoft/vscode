@@ -19,7 +19,7 @@ import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/sing
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Selection } from 'vs/editor/common/core/selection';
 
@@ -775,9 +775,9 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					options.serviceCollection = new ServiceCollection();
 				}
 				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
-				options.serviceCollection.set(IAudioCueService, {
-					playAudioCue: async () => { },
-					isEnabled(cue: unknown) { return false; },
+				options.serviceCollection.set(IAccessibilitySignalService, {
+					playSignal: async () => { },
+					isSoundEnabled(signal: unknown) { return false; },
 				} as any);
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);

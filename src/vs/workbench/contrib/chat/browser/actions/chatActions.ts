@@ -120,7 +120,16 @@ export class ChatSubmitSecondaryAgentEditorAction extends EditorAction2 {
 			}
 
 			const widgetService = accessor.get(IChatWidgetService);
-			widgetService.getWidgetByInputUri(editorUri)?.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
+			const widget = widgetService.getWidgetByInputUri(editorUri);
+			if (!widget) {
+				return;
+			}
+
+			if (widget.getInput().match(/^\s*@/)) {
+				widget.acceptInput();
+			} else {
+				widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
+			}
 		}
 	}
 }

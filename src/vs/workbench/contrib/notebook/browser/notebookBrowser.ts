@@ -467,6 +467,7 @@ export interface INotebookEditor {
 	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
+	readonly onDidChangeFocus: Event<void>;
 	/**
 	 * An event emitted when the model of this editor has changed.
 	 */
@@ -521,7 +522,7 @@ export interface INotebookEditor {
 	/**
 	 * Focus the notebook cell list container
 	 */
-	focusContainer(): void;
+	focusContainer(clearSelection?: boolean): void;
 
 	hasEditorFocus(): boolean;
 	hasWebviewFocus(): boolean;
@@ -664,6 +665,11 @@ export interface INotebookEditor {
 	revealCellOffsetInCenter(cell: ICellViewModel, offset: number): void;
 
 	/**
+	 * Reveal `offset` in the list view into viewport center if it is outside of the viewport.
+	 */
+	revealOffsetInCenterIfOutsideViewport(offset: number): void;
+
+	/**
 	 * Convert the view range to model range
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
@@ -720,6 +726,7 @@ export interface INotebookEditor {
 	hideProgress(): void;
 
 	getAbsoluteTopOfElement(cell: ICellViewModel): number;
+	getHeightOfElement(cell: ICellViewModel): number;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {

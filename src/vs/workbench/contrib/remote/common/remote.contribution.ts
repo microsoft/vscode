@@ -9,7 +9,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { localize, localize2 } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -24,8 +24,6 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
@@ -144,100 +142,10 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 	}
 }
 
-class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-	) {
-		if (this._environmentService.remoteAuthority) {
-			this._checkInitialRemoteConnectionHealth();
-		}
-	}
-
-	private async _checkInitialRemoteConnectionHealth(): Promise<void> {
-		try {
-			await this._remoteAgentService.getRawEnvironment();
-
-			type RemoteConnectionSuccessClassification = {
-				owner: 'alexdima';
-				comment: 'The initial connection succeeded';
-				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
-				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected'; isMeasurement: true };
-				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
-			};
-			type RemoteConnectionSuccessEvent = {
-				web: boolean;
-				connectionTimeMs: number | undefined;
-				remoteName: string | undefined;
-			};
-			this._telemetryService.publicLog2<RemoteConnectionSuccessEvent, RemoteConnectionSuccessClassification>('remoteConnectionSuccess', {
-				web: isWeb,
-				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
-				remoteName: getRemoteName(this._environmentService.remoteAuthority)
-			});
-
-			await this._measureExtHostLatency();
-
-		} catch (err) {
-
-			type RemoteConnectionFailureClassification = {
-				owner: 'alexdima';
-				comment: 'The initial connection failed';
-				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
-				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
-				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connection failure'; isMeasurement: true };
-				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error message' };
-			};
-			type RemoteConnectionFailureEvent = {
-				web: boolean;
-				remoteName: string | undefined;
-				connectionTimeMs: number | undefined;
-				message: string;
-			};
-			this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
-				web: isWeb,
-				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
-				remoteName: getRemoteName(this._environmentService.remoteAuthority),
-				message: err ? err.message : ''
-			});
-
-		}
-	}
-
-	private async _measureExtHostLatency() {
-		const measurement = await remoteConnectionLatencyMeasurer.measure(this._remoteAgentService);
-		if (measurement === undefined) {
-			return;
-		}
-
-		type RemoteConnectionLatencyClassification = {
-			owner: 'connor4312';
-			comment: 'The latency to the remote extension host';
-			web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this is running on web' };
-			remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Anonymized remote name' };
-			latencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Latency to the remote, in milliseconds'; isMeasurement: true };
-		};
-		type RemoteConnectionLatencyEvent = {
-			web: boolean;
-			remoteName: string | undefined;
-			latencyMs: number;
-		};
-
-		this._telemetryService.publicLog2<RemoteConnectionLatencyEvent, RemoteConnectionLatencyClassification>('remoteConnectionLatency', {
-			web: isWeb,
-			remoteName: getRemoteName(this._environmentService.remoteAuthority),
-			latencyMs: measurement.current
-		});
-	}
-}
-
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 registerWorkbenchContribution2(LabelContribution.ID, LabelContribution, WorkbenchPhase.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Restored);
 registerWorkbenchContribution2(RemoteInvalidWorkspaceDetector.ID, RemoteInvalidWorkspaceDetector, WorkbenchPhase.BlockStartup);
-workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Restored);
 
 const enableDiagnostics = true;
 

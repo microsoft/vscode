@@ -11,7 +11,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestDiffProviderFactoryService } from 'vs/editor/browser/diff/testDiffProviderFactoryService';
+import { TestDiffProviderFactoryService } from 'vs/editor/test/browser/diff/testDiffProviderFactoryService';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { Range } from 'vs/editor/common/core/range';
@@ -44,6 +44,10 @@ import { TestWorkerService } from './testWorkerService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { Schemas } from 'vs/base/common/network';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { MockChatContributionService } from 'vs/workbench/contrib/chat/test/common/mockChatContributionService';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ChatAgentService, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 suite('InteractiveChatController', function () {
 	class TestController extends InlineChatController {
@@ -113,6 +117,9 @@ suite('InteractiveChatController', function () {
 		const serviceCollection = new ServiceCollection(
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IContextKeyService, contextKeyService],
+			[IChatContributionService, new MockChatContributionService(
+				[{ extensionId: nullExtensionDescription.identifier, name: 'testAgent', isDefault: true }])],
+			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IInlineChatService, inlineChatService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
@@ -146,6 +153,14 @@ suite('InteractiveChatController', function () {
 		);
 
 		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
+		const chatAgentService = instaService.get(IChatAgentService);
+		const agent = {
+			async invoke(request, progress, history, token) {
+				return {};
+			},
+		} satisfies IChatAgentImplementation;
+		store.add(chatAgentService.registerAgent('testAgent', agent));
+
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
 		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
@@ -512,18 +527,15 @@ suite('InteractiveChatController', function () {
 		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
 		await makeRequest();
 
-		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.LivePreview });
-		await makeRequest();
 
 		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Preview });
 		await makeRequest();
 
-		assert.strictEqual(requests.length, 3);
+		assert.strictEqual(requests.length, 2);
 
 		assert.strictEqual(requests[0].previewDocument.toString(), model.uri.toString()); // live
-		assert.strictEqual(requests[1].previewDocument.toString(), model.uri.toString()); // live preview
-		assert.strictEqual(requests[2].previewDocument.scheme, Schemas.vscode); // preview
-		assert.strictEqual(requests[2].previewDocument.authority, 'inline-chat');
+		assert.strictEqual(requests[1].previewDocument.scheme, Schemas.vscode); // preview
+		assert.strictEqual(requests[1].previewDocument.authority, 'inline-chat');
 	});
 
 	test('start with existing exchange', async function () {

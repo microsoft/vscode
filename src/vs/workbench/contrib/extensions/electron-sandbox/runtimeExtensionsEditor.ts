@@ -29,6 +29,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
+import { IExtensionFeaturesManagementService } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -64,6 +66,7 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 	private _profileSessionState: IContextKey<string>;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -77,8 +80,9 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IClipboardService clipboardService: IClipboardService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+		@IExtensionFeaturesManagementService extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 	) {
-		super(telemetryService, themeService, contextKeyService, extensionsWorkbenchService, extensionService, notificationService, contextMenuService, instantiationService, storageService, labelService, environmentService, clipboardService);
+		super(group, telemetryService, themeService, contextKeyService, extensionsWorkbenchService, extensionService, notificationService, contextMenuService, instantiationService, storageService, labelService, environmentService, clipboardService, extensionFeaturesManagementService);
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
 		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
 		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);

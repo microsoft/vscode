@@ -224,8 +224,11 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 				const textBuffer = cell.textBuffer;
 				const lastNonEmptyLine = this.findLastNonEmptyLine(textBuffer);
 				const deleteFromLineNumber = Math.max(lastNonEmptyLine + 1, cannotTouchLineNumber + 1);
-				const deletionRange = new Range(deleteFromLineNumber, 1, textBuffer.getLineCount(), textBuffer.getLineLastNonWhitespaceColumn(textBuffer.getLineCount()));
+				if (deleteFromLineNumber > textBuffer.getLineCount()) {
+					return;
+				}
 
+				const deletionRange = new Range(deleteFromLineNumber, 1, textBuffer.getLineCount(), textBuffer.getLineLastNonWhitespaceColumn(textBuffer.getLineCount()));
 				if (deletionRange.isEmpty()) {
 					return;
 				}
@@ -244,7 +247,7 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 	}
 }
 
-class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
+class InsertFinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -520,7 +523,7 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimWhitespaceParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(CodeActionOnSaveParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FormatOnSaveParticipant)));
-		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FinalNewLineParticipant)));
+		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(InsertFinalNewLineParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimFinalNewLinesParticipant)));
 	}
 }
