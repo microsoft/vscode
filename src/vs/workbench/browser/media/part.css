@@ -23,12 +23,12 @@
 }
 
 .monaco-workbench .part > .title,
-.monaco-workbench .part > .composite-bar-area {
-	display: none; /* Parts have to opt in to show  and composite bar area */
+.monaco-workbench .part > .header-or-footer {
+	display: none; /* Parts have to opt in to show area */
 }
 
 .monaco-workbench .part > .title,
-.monaco-workbench .part > .composite-bar-area {
+.monaco-workbench .part > .header-or-footer {
 	height: 35px;
 	display: flex;
 	box-sizing: border-box;
@@ -36,7 +36,7 @@
 }
 
 .monaco-workbench .part > .title,
-.monaco-workbench .part > .composite-bar-area {
+.monaco-workbench .part > .header-or-footer {
 	padding-left: 8px;
 	padding-right: 8px;
 }

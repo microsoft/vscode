@@ -438,7 +438,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		};
 	}
 
-	protected createCompositeBarArea(): HTMLElement {
+	protected createHeaderFooterCompositeBarArea(): HTMLElement {
 		return $('.composite.composite-bar-area');
 	}
 

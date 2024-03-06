@@ -114,8 +114,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private readonly location: ViewContainerLocation;
 	private titleContainer: HTMLElement | undefined;
-	private separateCompositeBarContainer: HTMLElement | undefined;
-	private separateCompositeBarDispoables = this._register(new DisposableStore());
+	private headerFooterCompositeBarContainer: HTMLElement | undefined;
+	private headerFooterCompositeBarDispoables = this._register(new DisposableStore());
 	private paneCompositeBarContainer: HTMLElement | undefined;
 	private paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private compositeBarPosition: CompositeBarPosition | undefined = undefined;
@@ -353,7 +353,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		// Remove old composite bar
 		if (wasCompositeBarVisible) {
-			const previousCompositeBarContainer = previousPosition === CompositeBarPosition.TITLE ? this.titleContainer : this.separateCompositeBarContainer;
+			const previousCompositeBarContainer = previousPosition === CompositeBarPosition.TITLE ? this.titleContainer : this.headerFooterCompositeBarContainer;
 			if (!this.paneCompositeBarContainer || !this.paneCompositeBar.value || !previousCompositeBarContainer) {
 				throw new Error('Composite bar containers should exist when removing the previous composite bar');
 			}
@@ -364,13 +364,15 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 			previousCompositeBarContainer.classList.remove('has-composite-bar');
 
-			if (previousPosition !== CompositeBarPosition.TITLE) {
-				this.removeCompositeBarArea();
+			if (previousPosition === CompositeBarPosition.TOP) {
+				this.removeFooterHeaderArea(true);
+			} else if (previousPosition === CompositeBarPosition.BOTTOM) {
+				this.removeFooterHeaderArea(false);
 			}
 		}
 
 		// Create new composite bar
-		const newCompositeBarContainer = newPosition === CompositeBarPosition.TITLE ? this.titleContainer : this.createCompositeBarArea();
+		const newCompositeBarContainer = newPosition === CompositeBarPosition.TITLE ? this.titleContainer : this.createHeaderFooterCompositeBarArea();
 		if (isCompositeBarVisible) {
 
 			if (this.paneCompositeBarContainer || this.paneCompositeBar.value || !newCompositeBarContainer) {
@@ -382,33 +384,39 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			this.paneCompositeBar.value = this.createCompositeBar();
 			this.paneCompositeBar.value.create(this.paneCompositeBarContainer);
 
-			if (newPosition !== CompositeBarPosition.TITLE) {
-				this.setCompositeBarArea(newCompositeBarContainer, newPosition === CompositeBarPosition.BOTTOM ? 'bottom' : 'top');
+			if (newPosition === CompositeBarPosition.TOP) {
+				this.setHeaderArea(newCompositeBarContainer);
+			} else if (newPosition === CompositeBarPosition.BOTTOM) {
+				this.setFooterArea(newCompositeBarContainer);
 			}
 		}
 
 		this.compositeBarPosition = newPosition;
 	}
 
-	protected override createCompositeBarArea(): HTMLElement {
-		const compositeBarArea = super.createCompositeBarArea();
-		this.separateCompositeBarContainer = compositeBarArea;
+	protected override createHeaderFooterCompositeBarArea(): HTMLElement {
+		const compositeBarArea = super.createHeaderFooterCompositeBarArea();
+		this.headerFooterCompositeBarContainer = compositeBarArea;
 
-		this.separateCompositeBarDispoables.add(addDisposableListener(compositeBarArea, EventType.CONTEXT_MENU, e => {
+		this.headerFooterCompositeBarDispoables.add(addDisposableListener(compositeBarArea, EventType.CONTEXT_MENU, e => {
 			this.onCompositeBarAreaContextMenu(new StandardMouseEvent(getWindow(compositeBarArea), e));
 		}));
-		this.separateCompositeBarDispoables.add(Gesture.addTarget(compositeBarArea));
-		this.separateCompositeBarDispoables.add(addDisposableListener(compositeBarArea, GestureEventType.Contextmenu, e => {
+		this.headerFooterCompositeBarDispoables.add(Gesture.addTarget(compositeBarArea));
+		this.headerFooterCompositeBarDispoables.add(addDisposableListener(compositeBarArea, GestureEventType.Contextmenu, e => {
 			this.onCompositeBarAreaContextMenu(new StandardMouseEvent(getWindow(compositeBarArea), e));
 		}));
 
 		return compositeBarArea;
 	}
 
-	protected override removeCompositeBarArea(): void {
-		this.separateCompositeBarContainer = undefined;
-		this.separateCompositeBarDispoables.clear();
-		super.removeCompositeBarArea();
+	private removeFooterHeaderArea(header: boolean): void {
+		this.headerFooterCompositeBarContainer = undefined;
+		this.headerFooterCompositeBarDispoables.clear();
+		if (header) {
+			this.removeHeaderArea();
+		} else {
+			this.removeFooterArea();
+		}
 	}
 
 	protected createCompositeBar(): PaneCompositeBar {

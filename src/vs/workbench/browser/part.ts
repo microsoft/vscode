@@ -20,9 +20,10 @@ export interface IPartOptions {
 }
 
 export interface ILayoutContentResult {
+	readonly headerSize: IDimension;
 	readonly titleSize: IDimension;
 	readonly contentSize: IDimension;
-	readonly compositeBarSize: IDimension;
+	readonly footerSize: IDimension;
 }
 
 /**
@@ -41,9 +42,10 @@ export abstract class Part extends Component implements ISerializableView {
 	readonly onDidVisibilityChange = this._onDidVisibilityChange.event;
 
 	private parent: HTMLElement | undefined;
+	private headerArea: HTMLElement | undefined;
 	private titleArea: HTMLElement | undefined;
 	private contentArea: HTMLElement | undefined;
-	private compositeBarArea: HTMLElement | undefined;
+	private footerArea: HTMLElement | undefined;
 	private partLayout: PartLayout | undefined;
 
 	constructor(
@@ -122,35 +124,67 @@ export abstract class Part extends Component implements ISerializableView {
 	}
 
 	/**
-	 * Creates the composite bar and sets the proper position.
+	 * Sets the header area
 	 */
-	protected setCompositeBarArea(compositeBarContainer: HTMLElement, position: 'top' | 'bottom'): void {
-		if (this.compositeBarArea) {
-			throw new Error('Composite bar already exists');
+	protected setHeaderArea(headerContainer: HTMLElement): void {
+		if (this.headerArea) {
+			throw new Error('Header already exists');
 		}
 
 		if (!this.parent || !this.titleArea) {
 			return;
 		}
 
-		if (position === 'top') {
-			prepend(this.parent, compositeBarContainer);
-			compositeBarContainer.classList.add('top');
-		} else {
-			this.parent.appendChild(compositeBarContainer);
-			compositeBarContainer.classList.add('bottom');
-		}
+		prepend(this.parent, headerContainer);
+		headerContainer.classList.add('header-or-footer');
+		headerContainer.classList.add('header');
 
-		this.compositeBarArea = compositeBarContainer;
-		this.partLayout?.setCompositeBarVisibility(true);
+		this.headerArea = headerContainer;
+		this.partLayout?.setHeaderVisibility(true);
 		this.relayout();
 	}
 
-	protected removeCompositeBarArea(): void {
-		if (this.compositeBarArea) {
-			this.compositeBarArea.remove();
-			this.compositeBarArea = undefined;
-			this.partLayout?.setCompositeBarVisibility(false);
+	/**
+	 * Sets the footer area
+	 */
+	protected setFooterArea(footerContainer: HTMLElement): void {
+		if (this.footerArea) {
+			throw new Error('Footer already exists');
+		}
+
+		if (!this.parent || !this.titleArea) {
+			return;
+		}
+
+		this.parent.appendChild(footerContainer);
+		footerContainer.classList.add('header-or-footer');
+		footerContainer.classList.add('footer');
+
+		this.footerArea = footerContainer;
+		this.partLayout?.setFooterVisibility(true);
+		this.relayout();
+	}
+
+	/**
+	 * removes the header area
+	 */
+	protected removeHeaderArea(): void {
+		if (this.headerArea) {
+			this.headerArea.remove();
+			this.headerArea = undefined;
+			this.partLayout?.setHeaderVisibility(false);
+			this.relayout();
+		}
+	}
+
+	/**
+	 * removes the footer area
+	 */
+	protected removeFooterArea(): void {
+		if (this.footerArea) {
+			this.footerArea.remove();
+			this.footerArea = undefined;
+			this.partLayout?.setFooterVisibility(false);
 			this.relayout();
 		}
 	}
@@ -197,10 +231,12 @@ export abstract class Part extends Component implements ISerializableView {
 
 class PartLayout {
 
+	private static readonly HEADER_HEIGHT = 35;
 	private static readonly TITLE_HEIGHT = 35;
-	private static readonly COMPOSITE_BAR_HEIGHT = 35;
+	private static readonly Footer_HEIGHT = 35;
 
-	private compositeBarAreaVisible: boolean = false;
+	private headerVisible: boolean = false;
+	private footerVisible: boolean = false;
 
 	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
 
@@ -214,12 +250,20 @@ class PartLayout {
 			titleSize = Dimension.None;
 		}
 
-		// Footer Size: Width (Fill), Height (Variable)
-		let compositeBarSize: Dimension;
-		if (this.compositeBarAreaVisible) {
-			compositeBarSize = new Dimension(width, Math.min(height, PartLayout.COMPOSITE_BAR_HEIGHT));
+		// Header Size: Width (Fill), Height (Variable)
+		let headerSize: Dimension;
+		if (this.headerVisible) {
+			headerSize = new Dimension(width, Math.min(height, PartLayout.HEADER_HEIGHT));
 		} else {
-			compositeBarSize = Dimension.None;
+			headerSize = Dimension.None;
+		}
+
+		// Footer Size: Width (Fill), Height (Variable)
+		let footerSize: Dimension;
+		if (this.footerVisible) {
+			footerSize = new Dimension(width, Math.min(height, PartLayout.Footer_HEIGHT));
+		} else {
+			footerSize = Dimension.None;
 		}
 
 		let contentWidth = width;
@@ -228,18 +272,22 @@ class PartLayout {
 		}
 
 		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(contentWidth, height - titleSize.height - compositeBarSize.height);
+		const contentSize = new Dimension(contentWidth, height - titleSize.height - headerSize.height - footerSize.height);
 
 		// Content
 		if (this.contentArea) {
 			size(this.contentArea, contentSize.width, contentSize.height);
 		}
 
-		return { titleSize, contentSize, compositeBarSize };
+		return { headerSize, titleSize, contentSize, footerSize };
 	}
 
-	setCompositeBarVisibility(visible: boolean): void {
-		this.compositeBarAreaVisible = visible;
+	setFooterVisibility(visible: boolean): void {
+		this.footerVisible = visible;
+	}
+
+	setHeaderVisibility(visible: boolean): void {
+		this.headerVisible = visible;
 	}
 }
 
