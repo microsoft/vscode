@@ -30,7 +30,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ILoggerService, LogLevel, LogLevelToLocalizedString } from 'vs/platform/log/common/log';
+import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from 'vs/platform/log/common/log';
 import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
 
 // Register Service
@@ -351,13 +351,12 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 
 		let order = 0;
 		const registerLogLevel = (logLevel: LogLevel) => {
-			const { original, value } = LogLevelToLocalizedString(logLevel);
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: `workbench.action.output.activeOutputLogLevel.${logLevel}`,
-						title: value,
-						toggled: CONTEXT_ACTIVE_OUTPUT_LEVEL.isEqualTo(original),
+						title: LogLevelToLocalizedString(logLevel).value,
+						toggled: CONTEXT_ACTIVE_OUTPUT_LEVEL.isEqualTo(LogLevelToString(logLevel)),
 						menu: {
 							id: logLevelMenu,
 							order: order++,

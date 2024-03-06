@@ -749,12 +749,12 @@ export function LogLevelToString(logLevel: LogLevel): string {
 
 export function LogLevelToLocalizedString(logLevel: LogLevel): ILocalizedString {
 	switch (logLevel) {
-		case LogLevel.Trace: return { original: 'trace', value: nls.localize('trace', "Trace") };
-		case LogLevel.Debug: return { original: 'debug', value: nls.localize('debug', "Debug") };
-		case LogLevel.Info: return { original: 'info', value: nls.localize('info', "Info") };
-		case LogLevel.Warning: return { original: 'warn', value: nls.localize('warn', "Warning") };
-		case LogLevel.Error: return { original: 'error', value: nls.localize('error', "Error") };
-		case LogLevel.Off: return { original: 'off', value: nls.localize('off', "Off") };
+		case LogLevel.Trace: return { original: 'Trace', value: nls.localize('trace', "Trace") };
+		case LogLevel.Debug: return { original: 'Debug', value: nls.localize('debug', "Debug") };
+		case LogLevel.Info: return { original: 'Info', value: nls.localize('info', "Info") };
+		case LogLevel.Warning: return { original: 'Warning', value: nls.localize('warn', "Warning") };
+		case LogLevel.Error: return { original: 'Error', value: nls.localize('error', "Error") };
+		case LogLevel.Off: return { original: 'Off', value: nls.localize('off', "Off") };
 	}
 }
 
