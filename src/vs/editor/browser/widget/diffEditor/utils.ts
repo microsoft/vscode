@@ -421,7 +421,7 @@ export function translatePosition(posInOriginal: Position, mappings: DetailedLin
 		return innerMapping.modifiedRange;
 	} else {
 		const l = lengthBetweenPositions(innerMapping.originalRange.getEndPosition(), posInOriginal);
-		return Range.fromPositions(addLength(innerMapping.modifiedRange.getEndPosition(), l));
+		return Range.fromPositions(l.addToPosition(innerMapping.modifiedRange.getEndPosition()));
 	}
 }
 
@@ -430,14 +430,6 @@ function lengthBetweenPositions(position1: Position, position2: Position): Range
 		return new RangeLength(0, position2.column - position1.column);
 	} else {
 		return new RangeLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
-	}
-}
-
-function addLength(position: Position, length: RangeLength): Position {
-	if (length.lineCount === 0) {
-		return new Position(position.lineNumber, position.column + length.columnCount);
-	} else {
-		return new Position(position.lineNumber + length.lineCount, length.columnCount + 1);
 	}
 }
 
