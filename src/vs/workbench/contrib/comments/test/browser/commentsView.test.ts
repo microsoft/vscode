@@ -49,6 +49,7 @@ class TestCommentThread implements CommentThread<IRange> {
 class TestCommentController implements ICommentController {
 	id: string = 'test';
 	label: string = 'Test Comments';
+	owner: string = 'test';
 	features = {};
 	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void> {
 		throw new Error('Method not implemented.');

@@ -248,6 +248,10 @@ export class MainThreadCommentController implements ICommentController {
 		return this._features;
 	}
 
+	get owner() {
+		return this._id;
+	}
+
 	constructor(
 		private readonly _proxy: ExtHostCommentsShape,
 		private readonly _commentService: ICommentService,
@@ -385,7 +389,7 @@ export class MainThreadCommentController implements ICommentController {
 	async getDocumentComments(resource: URI, token: CancellationToken) {
 		if (resource.scheme === Schemas.vscodeNotebookCell) {
 			return {
-				owner: this._uniqueId,
+				uniqueOwner: this._uniqueId,
 				label: this.label,
 				threads: [],
 				commentingRanges: {
@@ -407,7 +411,7 @@ export class MainThreadCommentController implements ICommentController {
 		const commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
 
 		return <ICommentInfo>{
-			owner: this._uniqueId,
+			uniqueOwner: this._uniqueId,
 			label: this.label,
 			threads: ret,
 			commentingRanges: {
@@ -421,7 +425,7 @@ export class MainThreadCommentController implements ICommentController {
 	async getNotebookComments(resource: URI, token: CancellationToken) {
 		if (resource.scheme !== Schemas.vscodeNotebookCell) {
 			return <INotebookCommentInfo>{
-				owner: this._uniqueId,
+				uniqueOwner: this._uniqueId,
 				label: this.label,
 				threads: []
 			};
@@ -436,7 +440,7 @@ export class MainThreadCommentController implements ICommentController {
 		}
 
 		return <INotebookCommentInfo>{
-			owner: this._uniqueId,
+			uniqueOwner: this._uniqueId,
 			label: this.label,
 			threads: ret
 		};

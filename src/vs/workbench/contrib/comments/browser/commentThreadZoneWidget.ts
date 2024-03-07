@@ -105,8 +105,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _contextKeyService: IContextKeyService;
 	private _scopedInstantiationService: IInstantiationService;
 
-	public get owner(): string {
-		return this._owner;
+	public get uniqueOwner(): string {
+		return this._uniqueOwner;
 	}
 	public get commentThread(): languages.CommentThread {
 		return this._commentThread;
@@ -120,7 +120,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	constructor(
 		editor: ICodeEditor,
-		private _owner: string,
+		private _uniqueOwner: string,
 		private _commentThread: languages.CommentThread,
 		private _pendingComment: string | undefined,
 		private _pendingEdits: { [key: number]: string } | undefined,
@@ -137,7 +137,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			[IContextKeyService, this._contextKeyService]
 		));
 
-		const controller = this.commentService.getCommentController(this._owner);
+		const controller = this.commentService.getCommentController(this._uniqueOwner);
 		if (controller) {
 			this._commentOptions = controller.options;
 		}
@@ -229,7 +229,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			CommentThreadWidget,
 			container,
 			this.editor,
-			this._owner,
+			this._uniqueOwner,
 			this.editor.getModel()!.uri,
 			this._contextKeyService,
 			this._scopedInstantiationService,
@@ -258,7 +258,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 							} else {
 								range = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.endColumn);
 							}
-							await this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, range);
+							await this.commentService.updateCommentThreadTemplate(this.uniqueOwner, this._commentThread.commentThreadHandle, range);
 						}
 					}
 				},
@@ -281,7 +281,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	private deleteCommentThread(): void {
 		this.dispose();
-		this.commentService.disposeCommentThread(this.owner, this._commentThread.threadId);
+		this.commentService.disposeCommentThread(this.uniqueOwner, this._commentThread.threadId);
 	}
 
 	public collapse() {
