@@ -63,8 +63,7 @@ suite('VoiceChat', () => {
 	class TestSpeechService implements ISpeechService {
 		_serviceBrand: undefined;
 
-		onDidRegisterSpeechProvider = Event.None;
-		onDidUnregisterSpeechProvider = Event.None;
+		onDidChangeHasSpeechProvider = Event.None;
 
 		readonly hasSpeechProvider = true;
 		readonly hasActiveSpeechToTextSession = false;

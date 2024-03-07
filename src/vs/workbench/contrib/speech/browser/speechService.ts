@@ -52,11 +52,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _onDidRegisterSpeechProvider = this._register(new Emitter<void>());
-	readonly onDidRegisterSpeechProvider = this._onDidRegisterSpeechProvider.event;
-
-	private readonly _onDidUnregisterSpeechProvider = this._register(new Emitter<void>());
-	readonly onDidUnregisterSpeechProvider = this._onDidUnregisterSpeechProvider.event;
+	private readonly _onDidChangeHasSpeechProvider = this._register(new Emitter<void>());
+	readonly onDidChangeHasSpeechProvider = this._onDidChangeHasSpeechProvider.event;
 
 	get hasSpeechProvider() { return this.providerExtensionsCount > 0; }
 
@@ -85,13 +82,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 			this.hasSpeechProviderContext.set(this.hasSpeechProvider);
 
-			if (delta.added.length > 0) {
-				this._onDidRegisterSpeechProvider.fire();
-			}
-
-			if (delta.removed.length > 0) {
-				this._onDidUnregisterSpeechProvider.fire();
-			}
+			this._onDidChangeHasSpeechProvider.fire();
 		});
 	}
 

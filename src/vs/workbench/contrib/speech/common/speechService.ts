@@ -68,8 +68,7 @@ export interface ISpeechService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onDidRegisterSpeechProvider: Event<void>;
-	readonly onDidUnregisterSpeechProvider: Event<void>;
+	readonly onDidChangeHasSpeechProvider: Event<void>;
 
 	readonly hasSpeechProvider: boolean;
 

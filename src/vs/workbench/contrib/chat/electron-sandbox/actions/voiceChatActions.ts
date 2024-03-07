@@ -921,7 +921,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private registerListeners(): void {
-		this._register(Event.runAndSubscribe(this.speechService.onDidRegisterSpeechProvider, () => {
+		this._register(Event.runAndSubscribe(this.speechService.onDidChangeHasSpeechProvider, () => {
 			this.updateConfiguration();
 			this.handleKeywordActivation();
 		}));
