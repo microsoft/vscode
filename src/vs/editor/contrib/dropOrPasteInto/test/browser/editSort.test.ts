@@ -31,7 +31,7 @@ suite('sortEditsByYieldTo', () => {
 			createTestEdit('a', { yieldTo: [{ kind: 'b' }] }),
 			createTestEdit('b'),
 		];
-		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind), ['b', 'a']);
+		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind?.value), ['b', 'a']);
 	});
 
 	test('Should handle chain of yield to', () => {
@@ -42,7 +42,7 @@ suite('sortEditsByYieldTo', () => {
 				createTestEdit('b'),
 			];
 
-			assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind), ['b', 'a', 'c']);
+			assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind?.value), ['b', 'a', 'c']);
 		}
 		{
 			const edits: DocumentOnDropEdit[] = [
@@ -51,7 +51,7 @@ suite('sortEditsByYieldTo', () => {
 				createTestEdit('b'),
 			];
 
-			assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind), ['b', 'a', 'c']);
+			assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind?.value), ['b', 'a', 'c']);
 		}
 	});
 
@@ -62,7 +62,7 @@ suite('sortEditsByYieldTo', () => {
 			createTestEdit('b'),
 		];
 
-		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind), ['c', 'a', 'b']);
+		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind?.value), ['c', 'a', 'b']);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
