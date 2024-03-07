@@ -154,14 +154,21 @@ resources:
     - repository: 1esPipelines
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
-      ref: refs/tags/release
+      ref: refs/heads/joao/support-tsa-options-yaml
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
     sdl:
       tsa:
-        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+        enabled: true
+        config:
+          codebaseName: 'devdiv_$(Build.Repository.Name)'
+          serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
+          instanceUrl: 'https://devdiv.visualstudio.com/defaultcollection'
+          projectName: 'DevDiv'
+          areaPath: "DevDiv\\VS Code (compliance tracking only)\\Visual Studio Code Client"
+          notificationAliases: ['monacotools@microsoft.com']
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
       sourceAnalysisPool: 1es-windows-2022-x64
