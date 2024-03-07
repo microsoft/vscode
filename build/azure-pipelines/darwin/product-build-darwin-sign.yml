@@ -62,4 +62,7 @@ steps:
     inputs:
       targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
       artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
-    displayName: Publish macOS client archive
+      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
+      sbomPackageVersion: $(Build.SourceVersion)
+    displayName: Publish client archive

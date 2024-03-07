@@ -216,12 +216,18 @@ steps:
       inputs:
         targetPath: $(CLIENT_PATH)
         artifactName: $(ARTIFACT_PREFIX)unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+        sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH) (unsigned)"
+        sbomPackageVersion: $(Build.SourceVersion)
       displayName: Publish client archive
 
     - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: $(SERVER_PATH)
         artifactName: $(ARTIFACT_PREFIX)vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Server"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
       displayName: Publish server archive
 
@@ -229,5 +235,8 @@ steps:
       inputs:
         targetPath: $(WEB_PATH)
         artifactName: $(ARTIFACT_PREFIX)vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
+        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
       displayName: Publish web server archive

@@ -63,4 +63,7 @@ steps:
         inputs:
           targetPath: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
           artifactName: $(ASSET_ID)
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
+          sbomPackageName: "VS Code Windows ${{ target }} CLI"
+          sbomPackageVersion: $(Build.SourceVersion)
         displayName: Publish signed artifact with ID $(ASSET_ID)

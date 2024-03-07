@@ -48,6 +48,7 @@ steps:
       (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH")
 
       # Export SNAP_PATH
+      echo "##vso[task.setvariable variable=SNAP_EXTRACTED_PATH]$(ls -d $SNAP_ROOT/code-*)"
       echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
     displayName: Prepare for publish
 
@@ -55,4 +56,7 @@ steps:
     inputs:
       targetPath: $(SNAP_PATH)
       artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
+      sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
+      sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
+      sbomPackageVersion: $(Build.SourceVersion)
     displayName: Publish snap package

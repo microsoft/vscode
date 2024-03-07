@@ -303,6 +303,9 @@ steps:
         inputs:
           targetPath: $(CLIENT_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
+          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
         displayName: Publish archive
 
@@ -310,6 +313,9 @@ steps:
         inputs:
           targetPath: $(SERVER_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
+          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
         displayName: Publish server archive
 
@@ -317,6 +323,9 @@ steps:
         inputs:
           targetPath: $(WEB_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
+          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
         displayName: Publish web server archive
 
@@ -324,6 +333,9 @@ steps:
         inputs:
           targetPath: $(SYSTEM_SETUP_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
+          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
         displayName: Publish system setup
 
@@ -331,5 +343,8 @@ steps:
         inputs:
           targetPath: $(USER_SETUP_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
+          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
         displayName: Publish user setup

@@ -92,14 +92,17 @@ steps:
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/include
           OPENSSL_STATIC: "1"
 
-  - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
-    - template: ../cli/cli-publish.yml@self
-      parameters:
-        VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
-        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+  - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+    - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_alpine_arm64_cli.tar.gz
+          artifactName: vscode_cli_alpine_arm64_cli
+        displayName: Publish vscode_cli_alpine_arm64_cli artifact
 
-  - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
-    - template: ../cli/cli-publish.yml@self
-      parameters:
-        VSCODE_CLI_ARTIFACT: vscode_cli_alpine_x64_cli
-        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+    - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_alpine_x64_cli.tar.gz
+          artifactName: vscode_cli_alpine_x64_cli
+        displayName: Publish vscode_cli_alpine_x64_cli artifact

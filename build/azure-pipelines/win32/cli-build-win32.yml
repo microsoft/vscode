@@ -67,14 +67,17 @@ steps:
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static/include
           RUSTFLAGS: "-C target-feature=+crt-static"
 
-  - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
-    - template: ../cli/cli-publish.yml@self
-      parameters:
-        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_arm64_cli
-        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+  - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+    - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_arm64_cli.tar.gz
+          artifactName: unsigned_vscode_cli_win32_arm64_cli
+        displayName: Publish unsigned_vscode_cli_win32_arm64_cli artifact
 
-  - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-    - template: ../cli/cli-publish.yml@self
-      parameters:
-        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_x64_cli
-        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+    - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_x64_cli.tar.gz
+          artifactName: unsigned_vscode_cli_win32_x64_cli
+        displayName: Publish unsigned_vscode_cli_win32_x64_cli artifact
