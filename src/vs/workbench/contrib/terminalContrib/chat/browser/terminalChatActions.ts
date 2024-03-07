@@ -29,7 +29,7 @@ registerActiveXtermAction({
 	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focusInAny),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		// TODO: This needs to change to check for a terminal location capable agent
 		CTX_INLINE_CHAT_HAS_PROVIDER
 	),
