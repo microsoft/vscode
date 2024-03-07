@@ -55,15 +55,15 @@ declare module 'vscode' {
 	}
 
 	export namespace chat {
-		export const skills: ReadonlyArray<ChatSkillDescription>;
 		export function registerSkill(skill: ChatSkill): Disposable;
 
+		export const skills: ReadonlyArray<ChatSkillDescription>;
 		// Can non-chat participant AI actions invoke skills, just at any random time?
+		// For chat participants, this should be part of the request
 		export function invokeSkill(skillName: string, parameters: Object, token: CancellationToken): Thenable<any>;
 	}
 
 	export interface ChatSkillDescription {
-		// Name conflicts????
 		name: string;
 		description: string;
 		parametersSchema: any; // JSON schema
