@@ -695,7 +695,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 	) {
 		super();
 
-		this._register(Event.runAndSubscribe(speechService.onDidRegisterSpeechProvider, () => this.updateConfiguration()));
+		this._register(Event.runAndSubscribe(speechService.onDidChangeHasSpeechProvider, () => this.updateConfiguration()));
 	}
 
 	private updateConfiguration(): void {

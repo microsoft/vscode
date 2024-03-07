@@ -30,7 +30,7 @@ export interface IVoiceChatService {
 	 * if the user says "at workspace slash fix this problem", the result
 	 * will be "@workspace /fix this problem".
 	 */
-	createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): IVoiceChatSession;
+	createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): Promise<IVoiceChatSession>;
 }
 
 export interface IVoiceChatTextEvent extends ISpeechToTextEvent {
@@ -114,7 +114,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		}
 	}
 
-	createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): IVoiceChatSession {
+	async createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): Promise<IVoiceChatSession> {
 		const disposables = new DisposableStore();
 		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
@@ -122,7 +122,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		let detectedSlashCommand = false;
 
 		const emitter = disposables.add(new Emitter<IVoiceChatTextEvent>());
-		const session = this.speechService.createSpeechToTextSession(token, 'chat');
+		const session = await this.speechService.createSpeechToTextSession(token, 'chat');
 
 		const phrases = this.createPhrases(options.model);
 		disposables.add(session.onDidChange(e => {

@@ -39,24 +39,34 @@ const enum Message {
 }
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
-	static readonly ID = 'terminal.Chat';
+	static readonly ID = 'terminal.chat';
 
 	static get(instance: ITerminalInstance): TerminalChatController | null {
 		return instance.getContribution<TerminalChatController>(TerminalChatController.ID);
 	}
 	/**
-	 * Currently focused chat widget. This is used to track action context since
-	 * 'active terminals' are only tracked for non-detached terminal instanecs.
+	 * Currently focused chat widget. This is used to track action context since 'active terminals'
+	 * are only tracked for non-detached terminal instanecs.
 	 */
 	static activeChatWidget?: TerminalChatController;
+
+	/**
+	 * The chat widget for the controller, this is lazy as we don't want to instantiate it until
+	 * both it's required and xterm is ready.
+	 */
 	private _chatWidget: Lazy<TerminalChatWidget> | undefined;
+
+	/**
+	 * The chat widget for the controller, this will be undefined if xterm is not ready yet (ie. the
+	 * terminal is still initializing).
+	 */
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
-	private readonly _requestActiveContextKey!: IContextKey<boolean>;
-	private readonly _terminalAgentRegisteredContextKey!: IContextKey<boolean>;
-	private readonly _responseTypeContextKey!: IContextKey<TerminalChatResponseTypes | undefined>;
-	private readonly _responseSupportsIssueReportingContextKey!: IContextKey<boolean>;
-	private readonly _sessionResponseVoteContextKey!: IContextKey<string | undefined>;
+	private readonly _requestActiveContextKey: IContextKey<boolean>;
+	private readonly _terminalAgentRegisteredContextKey: IContextKey<boolean>;
+	private readonly _responseTypeContextKey: IContextKey<TerminalChatResponseTypes | undefined>;
+	private readonly _responseSupportsIssueReportingContextKey: IContextKey<boolean>;
+	private readonly _sessionResponseVoteContextKey: IContextKey<string | undefined>;
 
 	private _messages = this._store.add(new Emitter<Message>());
 
@@ -90,14 +100,15 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	) {
 		super();
 
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
 		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.agentRegistered.bindTo(this._contextKeyService);
 		this._responseTypeContextKey = TerminalChatContextKeys.responseType.bindTo(this._contextKeyService);
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
+
+		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
+			return;
+		}
 
 		if (!this._chatAgentService.getAgent(this._terminalAgentId)) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
@@ -115,7 +126,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 		this._chatWidget = new Lazy(() => {
-
 			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance));
 			this._register(chatWidget.focusTracker.onDidFocus(() => {
 				TerminalChatController.activeChatWidget = this;
@@ -130,7 +140,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (!this._instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
-
 			return chatWidget;
 		});
 	}
@@ -161,7 +170,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				});
 			}
 		}
-		this._chatWidget?.rawValue?.inlineChatWidget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
+		this._chatWidget?.value.inlineChatWidget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 	}
 
 	cancel(): void {
@@ -169,15 +178,15 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._model.value?.cancelRequest(this._currentRequest);
 		}
 		this._requestActiveContextKey.set(false);
-		this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(false);
-		this._chatWidget?.rawValue?.inlineChatWidget.updateInfo('');
-		this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
+		this._chatWidget?.value.inlineChatWidget.updateProgress(false);
+		this._chatWidget?.value.inlineChatWidget.updateInfo('');
+		this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;
 
 	private _updatePlaceholder(): void {
-		const inlineChatWidget = this._chatWidget?.rawValue?.inlineChatWidget;
+		const inlineChatWidget = this._chatWidget?.value.inlineChatWidget;
 		if (inlineChatWidget) {
 			inlineChatWidget.placeholder = this._getPlaceholderText();
 		}
@@ -202,8 +211,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._model.value?.cancelRequest(this._currentRequest);
 		}
 		this._model.clear();
-		this._chatWidget?.rawValue?.hide();
-		this._chatWidget?.rawValue?.setValue(undefined);
+		this._chatWidget?.value.hide();
+		this._chatWidget?.value.setValue(undefined);
 		this._responseTypeContextKey.reset();
 		this._sessionResponseVoteContextKey.reset();
 		this._requestActiveContextKey.reset();
@@ -222,7 +231,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		const model = this._model.value;
 
-		this._lastInput = this._chatWidget?.rawValue?.input();
+		this._lastInput = this._chatWidget?.value?.input();
 		if (!this._lastInput) {
 			return;
 		}
@@ -251,10 +260,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					firstCodeBlock = match?.groups?.content.trim();
 					shellType = match?.groups?.language;
 					if (firstCodeBlock) {
-						this._chatWidget?.rawValue?.renderTerminalCommand(firstCodeBlock, shellType);
+						this._chatWidget?.value.renderTerminalCommand(firstCodeBlock, shellType);
 						this._chatAccessibilityService.acceptResponse(firstCodeBlock, accessibilityRequestId);
 						this._responseTypeContextKey.set(TerminalChatResponseTypes.TerminalCommand);
-						this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
+						this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 						this._messages.fire(Message.ACCEPT_INPUT);
 					}
 				}
@@ -279,27 +288,27 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		};
 		try {
 			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateChatMessage(undefined);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateFollowUps(undefined);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(true);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateInfo(localize('thinking', "Thinking\u2026"));
+			this._chatWidget?.value.inlineChatWidget.updateChatMessage(undefined);
+			this._chatWidget?.value.inlineChatWidget.updateFollowUps(undefined);
+			this._chatWidget?.value.inlineChatWidget.updateProgress(true);
+			this._chatWidget?.value.inlineChatWidget.updateInfo(localize('thinking', "Thinking\u2026"));
 			await task;
 		} catch (e) {
 
 		} finally {
 			this._requestActiveContextKey.set(false);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(false);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateInfo('');
-			this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
+			this._chatWidget?.value.inlineChatWidget.updateProgress(false);
+			this._chatWidget?.value.inlineChatWidget.updateInfo('');
+			this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 			if (this._currentRequest) {
 				model.completeResponse(this._currentRequest);
 			}
 			this._lastResponseContent = responseContent;
 			if (!firstCodeBlock && this._currentRequest) {
 				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
-				this._chatWidget?.rawValue?.renderMessage(responseContent, this._currentRequest.id);
+				this._chatWidget?.value.renderMessage(responseContent, this._currentRequest.id);
 				this._responseTypeContextKey.set(TerminalChatResponseTypes.Message);
-				this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
+				this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 				this._messages.fire(Message.ACCEPT_INPUT);
 			}
 			const supportIssueReporting = this._currentRequest?.response?.agent?.metadata?.supportIssueReporting;
@@ -310,7 +319,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	updateInput(text: string, selectAll = true): void {
-		const widget = this._chatWidget?.rawValue?.inlineChatWidget;
+		const widget = this._chatWidget?.value.inlineChatWidget;
 		if (widget) {
 			widget.value = text;
 			if (selectAll) {
@@ -320,23 +329,23 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	getInput(): string {
-		return this._chatWidget?.rawValue?.input() ?? '';
+		return this._chatWidget?.value.input() ?? '';
 	}
 
 	focus(): void {
-		this._chatWidget?.rawValue?.focus();
+		this._chatWidget?.value.focus();
 	}
 
 	hasFocus(): boolean {
-		return !!this._chatWidget?.rawValue?.hasFocus();
+		return !!this._chatWidget?.value.hasFocus();
 	}
 
 	acceptCommand(shouldExecute: boolean): void {
-		this._chatWidget?.rawValue?.acceptCommand(shouldExecute);
+		this._chatWidget?.value.acceptCommand(shouldExecute);
 	}
 
 	reveal(): void {
-		this._chatWidget?.rawValue?.reveal();
+		this._chatWidget?.value.reveal();
 	}
 
 	async viewInChat(): Promise<void> {
@@ -371,6 +380,5 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		super.dispose();
 		this.clear();
-		this._chatWidget?.rawValue?.dispose();
 	}
 }

@@ -23,13 +23,14 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
-		weight: KeybindingWeight.WorkbenchContrib,
+		// HACK: Force weight to be higher than the extension contributed keybinding to override it until it gets replaced
+		weight: KeybindingWeight.ExternalExtension + 1, // KeybindingWeight.WorkbenchContrib,
 	},
 	f1: true,
 	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focusInAny),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		// TODO: This needs to change to check for a terminal location capable agent
 		CTX_INLINE_CHAT_HAS_PROVIDER
 	),
