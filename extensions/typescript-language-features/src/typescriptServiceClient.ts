@@ -1039,7 +1039,7 @@ function getReportIssueArgsForError(
 	error: TypeScriptServerError,
 	tsServerLog: TsServerLog | undefined,
 	globalPlugins: readonly TypeScriptServerPlugin[],
-): { extensionId: string; issueTitle: string; issueBody: string } | undefined {
+): { extensionId: string; issueTitle: string; issueBody: string; data: string } | undefined {
 	if (!error.serverStack || !error.serverMessage) {
 		return undefined;
 	}
@@ -1047,7 +1047,7 @@ function getReportIssueArgsForError(
 	// Note these strings are intentionally not localized
 	// as we want users to file issues in english
 
-	const sections = [
+	const body = [
 		`❗️❗️❗️ Please fill in the sections below to help us diagnose the issue ❗️❗️❗️`,
 		`**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}`,
 		`**Steps to reproduce crash**
@@ -1056,6 +1056,8 @@ function getReportIssueArgsForError(
 2.
 3.`,
 	];
+
+	const sections = [];
 
 	if (globalPlugins.length) {
 		sections.push(
@@ -1100,8 +1102,8 @@ ${error.serverStack}
 	return {
 		extensionId: 'vscode.typescript-language-features',
 		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
-
-		issueBody: sections.join('\n\n')
+		issueBody: body.join('\n\n'),
+		data: sections.join('\n\n')
 	};
 }
 
