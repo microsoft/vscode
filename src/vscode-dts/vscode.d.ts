@@ -3060,7 +3060,7 @@ declare module 'vscode' {
 		/**
 		 * Zoom possibility
 		 */
-		zoomPossibility: ZoomPossibility;
+		zoomPossibility?: ZoomPossibility;
 
 		/**
 		 * Creates a new hover object.

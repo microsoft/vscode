@@ -23,8 +23,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { HoverProvider } from 'vs/editor/common/languages';
-import { zoomHover } from 'vs/editor/contrib/hover/browser/hover';
-import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { renderShowLessHoverAction, renderShowMoreHoverAction } from 'vs/editor/contrib/hover/browser/hoverUtils';
 
 const $ = dom.$;
 
@@ -162,7 +161,6 @@ export function renderMarkdownHovers(
 
 	const disposables = new DisposableStore();
 	for (const hoverPart of hoverParts) {
-
 		for (const contents of hoverPart.contents) {
 			if (isEmptyMarkdownString(contents)) {
 				continue;
@@ -177,37 +175,24 @@ export function renderMarkdownHovers(
 			const renderedContents = disposables.add(renderer.render(contents));
 			hoverContentsElement.appendChild(renderedContents.element);
 			console.log('hoverPart : ', hoverPart);
+			const actions = $('div.actions');
+			markdownHoverElement.appendChild(actions);
 			//
 			if (hoverPart.zoomPossibility?.canZoomOut === true) {
-				renderShowLessHoverAction(editor, markdownHoverElement);
+				const hoverAction = renderShowLessHoverAction(editor, actions);
+				hoverAction.actionContainer.style.paddingLeft = '5px';
+				hoverAction.actionContainer.style.paddingRight = '5px';
 			}
 			if (hoverPart.zoomPossibility?.canZoomIn === true) {
-				renderShowMoreHoverAction(editor, markdownHoverElement);
+				const hoverAction = renderShowMoreHoverAction(editor, actions);
+				hoverAction.actionContainer.style.paddingLeft = '5px';
+				hoverAction.actionContainer.style.paddingRight = '5px';
 			}
+			actions.style.display = 'flex';
 			//
 			context.fragment.appendChild(markdownHoverElement);
 			// check how to add menu bar to this html element associated to actions
 		}
 	}
 	return disposables;
-}
-
-export function renderShowLessHoverAction(editor: ICodeEditor, container: HTMLElement) {
-	HoverAction.render(container, {
-		label: nls.localize('show less', "Show Less"),
-		commandId: showLessHoverInformation,
-		run: () => {
-			zoomHover(editor, false);
-		}
-	}, null);
-}
-
-export function renderShowMoreHoverAction(editor: ICodeEditor, container: HTMLElement) {
-	HoverAction.render(container, {
-		label: nls.localize('show more', "Show More"),
-		commandId: showMoreHoverInformation,
-		run: () => {
-			zoomHover(editor, true);
-		}
-	}, null);
 }

@@ -29,7 +29,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { renderShowLessHoverAction, renderShowMoreHoverAction } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { renderShowLessHoverAction, renderShowMoreHoverAction } from 'vs/editor/contrib/hover/browser/hoverUtils';
 
 const $ = dom.$;
 
@@ -426,12 +426,21 @@ export class ContentHoverController extends Disposable {
 					const renderedContents = this._register(renderer.render(mdstring));
 					hoverContentsElement.appendChild(renderedContents.element);
 				}
+				const actions = $('div.actions');
+				markdownHoverElement.appendChild(actions);
+				//
 				if (result.zoomPossibility?.canZoomOut === true) {
-					renderShowLessHoverAction(this._editor, markdownHoverElement);
+					const hoverAction = renderShowLessHoverAction(this._editor, actions);
+					hoverAction.actionContainer.style.paddingLeft = '5px';
+					hoverAction.actionContainer.style.paddingRight = '5px';
 				}
 				if (result.zoomPossibility?.canZoomIn === true) {
-					renderShowMoreHoverAction(this._editor, markdownHoverElement);
+					const hoverAction = renderShowMoreHoverAction(this._editor, actions);
+					hoverAction.actionContainer.style.paddingLeft = '5px';
+					hoverAction.actionContainer.style.paddingRight = '5px';
 				}
+				actions.style.display = 'flex';
+
 				markdownHoverElement.tabIndex = 0;
 				const focusTracker = this._register(dom.trackFocus(markdownHoverElement));
 				const currentIndex = this._currentFocusIndex;
