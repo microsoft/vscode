@@ -230,7 +230,7 @@ extends:
                 name: 1es-mariner-2.0-arm64
                 os: linux
               steps:
-                - bash: sudo apt update && sudo apt install -y unzip
+                - bash: tdnf install unzip -y
                   displayName: Install unzip
                 - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
                   parameters:
