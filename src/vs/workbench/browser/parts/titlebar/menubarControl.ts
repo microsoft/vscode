@@ -189,7 +189,7 @@ export abstract class MenubarControl extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		// Listen to update service
-		this.updateService.onStateChange(() => this.onUpdateStateChange());
+		this._register(this.updateService.onStateChange(() => this.onUpdateStateChange()));
 
 		// Listen for changes in recently opened menu
 		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => { this.onDidChangeRecentlyOpened(); }));
