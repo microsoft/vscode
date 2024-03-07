@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, constObservable, disposableObservableValue, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
+import { ISettableObservable, autorun, constObservable, disposableObservableValue, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -277,8 +277,10 @@ export class InlineEditController extends Disposable {
 				.then(undefined, onUnexpectedExternalError);
 		}
 		this.freeEdit(data);
-		this._currentEdit.set(undefined, undefined);
-		this._isAccepting.set(false, undefined);
+		transaction((tx) => {
+			this._currentEdit.set(undefined, tx);
+			this._isAccepting.set(false, tx);
+		});
 	}
 
 	public jumpToCurrent(): void {
