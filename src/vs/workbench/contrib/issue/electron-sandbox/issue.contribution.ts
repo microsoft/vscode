@@ -49,8 +49,7 @@ class NativeIssueContribution extends BaseIssueContribution {
 				placeholder: localize('tasksQuickAccessPlaceholder', "Type the name of an extension to report on."),
 				helpEntries: [{
 					description: localize('openIssueReporter', "Open Issue Reporter"),
-					commandId: 'workbench.action.openIssueReporter',
-					commandCenterOrder: 50
+					commandId: 'workbench.action.openIssueReporter'
 				}]
 			});
 		};

@@ -36,7 +36,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		const extensionIdSet = new Set<string>();
 
 		// add regular open issue reporter button
-		const productLabel = localize("workbench.action.openIssueReporter.productName", "{0}", this.productService.nameLong);
+		const productLabel = this.productService.nameLong;
 		issuePicks.push({
 			label: productLabel,
 			ariaLabel: productLabel,
@@ -75,7 +75,6 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		menu.dispose();
 
 		issuePicks.push({ type: 'separator', label: localize('otherExtensions', "Other Extensions") });
-
 
 		// create picks from extensions
 		this.extensionService.extensions.forEach(extension => {
@@ -120,11 +119,12 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 					}
 				};
 			}
-		} else if (extension?.displayName) {
-			const highlights = matchesFuzzy(filter, extension.displayName, true);
+		} else if (extension) {
+			const label = extension.displayName ?? extension.name;
+			const highlights = matchesFuzzy(filter, label, true);
 			if (highlights) {
 				return {
-					label: extension.displayName,
+					label: label,
 					highlights: { label: highlights },
 					buttons: [{
 						iconClass: ThemeIcon.asClassName(Codicon.info),
