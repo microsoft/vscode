@@ -212,7 +212,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
 			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
 			case ActivityBarPosition.HIDDEN:
-			case ActivityBarPosition.SIDE:
+			case ActivityBarPosition.DEFAULT: // noop
 			default: return CompositeBarPosition.TITLE;
 		}
 	}
@@ -227,9 +227,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private getRememberedActivityBarVisiblePosition(): ActivityBarPosition {
 		const activityBarPosition = this.storageService.get(LayoutSettings.ACTIVITY_BAR_LOCATION, StorageScope.PROFILE);
 		switch (activityBarPosition) {
-			case ActivityBarPosition.SIDE: return ActivityBarPosition.SIDE;
+			case ActivityBarPosition.TOP: return ActivityBarPosition.TOP;
 			case ActivityBarPosition.BOTTOM: return ActivityBarPosition.BOTTOM;
-			default: return ActivityBarPosition.TOP;
+			default: return ActivityBarPosition.DEFAULT;
 		}
 	}
 

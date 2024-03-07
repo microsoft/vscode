@@ -48,7 +48,7 @@ export const enum LayoutSettings {
 }
 
 export const enum ActivityBarPosition {
-	SIDE = 'side',
+	DEFAULT = 'default',
 	TOP = 'top',
 	BOTTOM = 'bottom',
 	HIDDEN = 'hidden'

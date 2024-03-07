@@ -206,11 +206,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	protected getCompositeBarPosition(): CompositeBarPosition {
 		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		switch (activityBarPosition) {
+			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
 			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
 			case ActivityBarPosition.HIDDEN: return CompositeBarPosition.TITLE;
-			case ActivityBarPosition.SIDE: return CompositeBarPosition.TITLE;
-			case ActivityBarPosition.TOP:
-			default: return CompositeBarPosition.TOP;
+			case ActivityBarPosition.DEFAULT: return CompositeBarPosition.TITLE;
+			default: return CompositeBarPosition.TITLE;
 		}
 	}
 
