@@ -1159,7 +1159,7 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedCategory = categoryID;
 			this.editorInput.selectedStep = stepId;
 			this.currentWalkthrough = ourCategory;
-			this.buildCategorySlide(categoryID);
+			this.buildCategorySlide(categoryID, stepId);
 			this.setSlide('details');
 		});
 	}

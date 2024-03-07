@@ -1277,11 +1277,6 @@ export interface MainThreadUrlsShape extends IDisposable {
 
 export interface IChatDto {
 	id: number;
-	requesterUsername: string;
-	requesterAvatarIconUri?: UriComponents;
-	responderUsername: string;
-	responderAvatarIconUri?: UriComponents;
-	inputPlaceholder?: string;
 }
 
 export interface IChatRequestDto {
@@ -2360,14 +2355,14 @@ export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 export interface IThreadFocusDto {
 	kind: 'thread';
 	sessionId: string;
-	threadId: number | undefined;
+	threadId: number;
 }
 
 export interface IStackFrameFocusDto {
 	kind: 'stackFrame';
 	sessionId: string;
-	threadId: number | undefined;
-	frameId: number | undefined;
+	threadId: number;
+	frameId: number;
 }
 
 

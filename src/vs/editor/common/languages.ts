@@ -1901,7 +1901,7 @@ export interface PendingCommentThread {
 	body: string;
 	range: IRange | undefined;
 	uri: URI;
-	owner: string;
+	uniqueOwner: string;
 	isReply: boolean;
 }
 

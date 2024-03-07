@@ -219,6 +219,7 @@ export class QuickInputController extends Disposable {
 			inputBox.setFocus();
 		}));
 		// TODO: Turn into commands instead of handling KEY_DOWN
+		// Keybindings for the quickinput widget as a whole
 		this._register(dom.addStandardDisposableListener(container, dom.EventType.KEY_DOWN, (event) => {
 			if (dom.isAncestor(event.target, widget)) {
 				return; // Ignore event if target is inside widget to allow the widget to handle the event.

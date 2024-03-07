@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, IReference, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -19,11 +19,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { CellEditState, CellFocusMode, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -103,6 +103,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
 	private _editorTransientState: IWordWrapTransientState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
+	private _textModelRefChangeDisposable = this._register(new MutableDisposable());
 
 	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>());
 	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
@@ -299,6 +300,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._textModelRef.dispose();
 			this._textModelRef = undefined;
 		}
+		this._textModelRefChangeDisposable.clear();
 	}
 
 	getText(): string {
@@ -618,8 +620,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			if (!this._textModelRef) {
 				throw new Error(`Cannot resolve text model for ${this.uri}`);
 			}
-
-			this._register(this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent()));
+			this._textModelRefChangeDisposable.value = this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent());
 		}
 
 		return this.textModel!;

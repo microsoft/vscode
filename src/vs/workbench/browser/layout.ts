@@ -359,9 +359,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
 			].some(setting => e.affectsConfiguration(setting))) {
 				// Show Custom TitleBar if actions moved to the titlebar
-				const activityBarMovedToTop = e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) && this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
 				const editorActionsMovedToTitlebar = e.affectsConfiguration(LayoutSettings.EDITOR_ACTIONS_LOCATION) && this.configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION) === EditorActionsLocation.TITLEBAR;
-				if (activityBarMovedToTop || editorActionsMovedToTitlebar) {
+
+				let activityBarMovedToTopOrBottom = false;
+				if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+					const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+					activityBarMovedToTopOrBottom = activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM;
+				}
+
+				if (activityBarMovedToTopOrBottom || editorActionsMovedToTitlebar) {
 					if (this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) === CustomTitleBarVisibility.NEVER) {
 						this.configurationService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
 					}
@@ -1089,8 +1095,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		});
 	}
 
-	registerPart(part: Part): void {
-		this.parts.set(part.getId(), part);
+	registerPart(part: Part): IDisposable {
+		const id = part.getId();
+		this.parts.set(id, part);
+
+		return toDisposable(() => this.parts.delete(id));
 	}
 
 	protected getPart(key: Parts): Part {
@@ -2698,7 +2707,7 @@ class LayoutStateModel extends Disposable {
 		if (oldValue !== undefined) {
 			return !oldValue;
 		}
-		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.SIDE;
+		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT;
 	}
 
 	private setRuntimeValueAndFire<T extends StorageKeyType>(key: RuntimeStateKey<T>, value: T): void {
