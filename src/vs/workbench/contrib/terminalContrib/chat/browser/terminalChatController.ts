@@ -24,7 +24,7 @@ import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/te
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
 
-import { ChatModel, ChatRequestModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TerminalChatContextKeys, TerminalChatResponseTypes } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 const enum Message {
@@ -209,16 +209,19 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._requestActiveContextKey.reset();
 	}
 
-	private updateModel(): void {
+	async acceptInput(): Promise<void> {
 		const providerInfo = this._chatService.getProviderInfos()?.[0];
 		if (!providerInfo) {
 			return;
 		}
-		this._model ??= this._chatService.startSession(providerInfo.id, CancellationToken.None);
-	}
+		if (!this._model) {
+			this._model = this._chatService.startSession(providerInfo.id, CancellationToken.None);
+			if (!this._model) {
+				throw new Error('Could not start chat session');
+			}
+		}
+		const model = this._model;
 
-	async acceptInput(): Promise<void> {
-		this.updateModel();
 		this._lastInput = this._chatWidget?.rawValue?.input();
 		if (!this._lastInput) {
 			return;
@@ -258,7 +261,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			}
 		};
 
-		await this._model?.waitForInitialization();
+		await model.waitForInitialization();
 		const request: IParsedChatRequest = {
 			text: this._lastInput,
 			parts: []
@@ -266,16 +269,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const requestVarData: IChatRequestVariableData = {
 			variables: []
 		};
-		this._currentRequest = this._model?.addRequest(request, requestVarData);
+		this._currentRequest = model.addRequest(request, requestVarData);
 		const requestProps: IChatAgentRequest = {
-			sessionId: this._model!.sessionId,
+			sessionId: model.sessionId,
 			requestId: this._currentRequest!.id,
 			agentId: this._terminalAgentId,
 			message: this._lastInput,
 			variables: { variables: [] },
 		};
 		try {
-			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, [], cancellationToken);
+			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateChatMessage(undefined);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(true);
