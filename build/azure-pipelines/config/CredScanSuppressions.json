@@ -3,15 +3,18 @@
 	"suppressions": [
 		{
 			"file": [
-				"src/vs/base/test/common/uri.test.ts"
-			],
-			"_justification": "These are not passwords, they are URIs."
-		},
-		{
-			"file": [
+				"src/vs/base/test/common/uri.test.ts",
 				"src/vs/workbench/api/test/browser/extHostTelemetry.test.ts"
 			],
 			"_justification": "These are dummy credentials in tests."
+		},
+		{
+			"file": [
+				".build/web/extensions/github-authentication/dist/browser/extension.js",
+				".build/web/extensions/emmet/dist/browser/emmetBrowserMain.js.map",
+				".build/web/extensions/emmet/dist/browser/emmetBrowserMain.js"
+			],
+			"_justification": "These are safe to ignore, since they are built artifacts."
 		}
 	]
 }
