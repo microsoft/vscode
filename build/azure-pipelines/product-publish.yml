@@ -105,6 +105,7 @@ steps:
     inputs:
       targetPath: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
       artifactName: artifacts_processed_$(System.StageAttempt)
+      sbomEnabled: false
     displayName: Publish the artifacts processed for this stage attempt
     condition: always()
 

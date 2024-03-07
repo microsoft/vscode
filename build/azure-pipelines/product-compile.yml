@@ -150,6 +150,7 @@ steps:
       inputs:
         targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
         artifactName: Compilation
+        sbomEnabled: false
       displayName: Publish compilation artifact
 
     - script: yarn download-builtin-extensions-cg

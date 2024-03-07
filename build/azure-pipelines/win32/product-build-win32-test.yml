@@ -171,6 +171,7 @@ steps:
           artifactName: crash-dump-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
       condition: failed()
@@ -186,6 +187,7 @@ steps:
           artifactName: node-modules-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
       condition: failed()
@@ -199,6 +201,7 @@ steps:
           artifactName: logs-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true
       condition: succeededOrFailed()

@@ -206,6 +206,7 @@ steps:
           artifactName: crash-dump-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
       condition: failed()
@@ -221,6 +222,7 @@ steps:
           artifactName: node-modules-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
       condition: failed()
@@ -234,6 +236,7 @@ steps:
           artifactName: logs-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true
       condition: succeededOrFailed()

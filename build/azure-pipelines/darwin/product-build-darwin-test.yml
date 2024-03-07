@@ -164,6 +164,7 @@ steps:
           artifactName: crash-dump-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: crash-dump-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
       condition: failed()
@@ -179,6 +180,7 @@ steps:
           artifactName: node-modules-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: node-modules-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
       condition: failed()
@@ -192,6 +194,7 @@ steps:
           artifactName: logs-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: logs-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true
       condition: succeededOrFailed()
