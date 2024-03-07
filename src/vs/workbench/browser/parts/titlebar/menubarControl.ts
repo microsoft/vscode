@@ -474,7 +474,7 @@ export class CustomMenubarControl extends MenubarControl {
 				return new Action('update.downloading', localize('DownloadingUpdate', "Downloading Update..."), undefined, false);
 
 			case StateType.Downloaded:
-				return new Action('update.install', localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "Install &&Update..."), undefined, true, () =>
+				return isMacintosh ? null : new Action('update.install', localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "Install &&Update..."), undefined, true, () =>
 					this.updateService.applyUpdate());
 
 			case StateType.Updating:
