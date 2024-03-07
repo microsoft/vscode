@@ -71,13 +71,13 @@ steps:
     - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
       - task: 1ES.PublishPipelineArtifact@1
         inputs:
-          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_arm64_cli.tar.gz
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_arm64_cli.zip
           artifactName: unsigned_vscode_cli_win32_arm64_cli
         displayName: Publish unsigned_vscode_cli_win32_arm64_cli artifact
 
     - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
       - task: 1ES.PublishPipelineArtifact@1
         inputs:
-          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_x64_cli.tar.gz
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_x64_cli.zip
           artifactName: unsigned_vscode_cli_win32_x64_cli
         displayName: Publish unsigned_vscode_cli_win32_x64_cli artifact
