@@ -19,12 +19,12 @@ import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/ac
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-export interface ISpeechProviderContribution {
+export interface ISpeechProviderDescriptor {
 	readonly name: string;
 	readonly description?: string;
 }
 
-const speechProvidersExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISpeechProviderContribution[]>({
+const speechProvidersExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISpeechProviderDescriptor[]>({
 	extensionPoint: 'speechProviders',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.speechProvider', 'Contributes a Speech Provider'),
@@ -55,10 +55,10 @@ export class SpeechService extends Disposable implements ISpeechService {
 	private readonly _onDidChangeHasSpeechProvider = this._register(new Emitter<void>());
 	readonly onDidChangeHasSpeechProvider = this._onDidChangeHasSpeechProvider.event;
 
-	get hasSpeechProvider() { return this.providerExtensionsCount > 0; }
+	get hasSpeechProvider() { return this.providerDescriptors.size > 0 || this.providers.size > 0; }
 
 	private readonly providers = new Map<string, ISpeechProvider>();
-	private providerExtensionsCount = 0;
+	private readonly providerDescriptors = new Map<string, ISpeechProviderDescriptor>();
 
 	private readonly hasSpeechProviderContext = HasSpeechProvider.bindTo(this.contextKeyService);
 
@@ -78,11 +78,23 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	private handleAndRegisterSpeechExtensions(): void {
 		speechProvidersExtensionPoint.setHandler((extensions, delta) => {
-			this.providerExtensionsCount += delta.added.length - delta.removed.length;
+			const oldHasSpeechProvider = this.hasSpeechProvider;
 
-			this.hasSpeechProviderContext.set(this.hasSpeechProvider);
+			for (const extension of delta.removed) {
+				for (const descriptor of extension.value) {
+					this.providerDescriptors.delete(descriptor.name);
+				}
+			}
 
-			this._onDidChangeHasSpeechProvider.fire();
+			for (const extension of delta.added) {
+				for (const descriptor of extension.value) {
+					this.providerDescriptors.set(descriptor.name, descriptor);
+				}
+			}
+
+			if (oldHasSpeechProvider !== this.hasSpeechProvider) {
+				this.handleHasSpeechProviderChange();
+			}
 		});
 	}
 
@@ -91,9 +103,29 @@ export class SpeechService extends Disposable implements ISpeechService {
 			throw new Error(`Speech provider with identifier ${identifier} is already registered.`);
 		}
 
+		const oldHasSpeechProvider = this.hasSpeechProvider;
+
 		this.providers.set(identifier, provider);
 
-		return toDisposable(() => this.providers.delete(identifier));
+		if (oldHasSpeechProvider !== this.hasSpeechProvider) {
+			this.handleHasSpeechProviderChange();
+		}
+
+		return toDisposable(() => {
+			const oldHasSpeechProvider = this.hasSpeechProvider;
+
+			this.providers.delete(identifier);
+
+			if (oldHasSpeechProvider !== this.hasSpeechProvider) {
+				this.handleHasSpeechProviderChange();
+			}
+		});
+	}
+
+	private handleHasSpeechProviderChange(): void {
+		this.hasSpeechProviderContext.set(this.hasSpeechProvider);
+
+		this._onDidChangeHasSpeechProvider.fire();
 	}
 
 	private readonly _onDidStartSpeechToTextSession = this._register(new Emitter<void>());
@@ -110,7 +142,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 	async createSpeechToTextSession(token: CancellationToken, context: string = 'speech'): Promise<ISpeechToTextSession> {
 
 		// Send out extension activation to ensure providers can register
-		await this.extensionService.activateByEvent(`onSpeech`);
+		await this.extensionService.activateByEvent('onSpeech');
 
 		const provider = firstOrDefault(Array.from(this.providers.values()));
 		if (!provider) {
