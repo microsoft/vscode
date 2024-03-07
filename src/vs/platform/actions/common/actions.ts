@@ -195,6 +195,7 @@ export class MenuId {
 	static readonly SidebarTitle = new MenuId('SidebarTitle');
 	static readonly PanelTitle = new MenuId('PanelTitle');
 	static readonly AuxiliaryBarTitle = new MenuId('AuxiliaryBarTitle');
+	static readonly AuxiliaryBarHeader = new MenuId('AuxiliaryBarHeader');
 	static readonly TerminalInstanceContext = new MenuId('TerminalInstanceContext');
 	static readonly TerminalEditorInstanceContext = new MenuId('TerminalEditorInstanceContext');
 	static readonly TerminalNewDropdownContext = new MenuId('TerminalNewDropdownContext');
