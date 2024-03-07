@@ -29,6 +29,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
@@ -195,6 +196,15 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	public static get(editor: INotebookEditor): NotebookChatController | null {
 		return editor.getContribution<NotebookChatController>(NotebookChatController.id);
 	}
+
+	// History
+	private static _storageKey = 'inline-chat-history';
+	private static _promptHistory: string[] = [];
+	private _historyOffset: number = -1;
+	private _historyCandidate: string = '';
+	private _historyUpdate: (prompt: string) => void;
+
+
 	private _strategy: EditStrategy | undefined;
 	private _sessionCtor: CancelablePromise<void> | undefined;
 	private _activeSession?: Session;
@@ -220,6 +230,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@INotebookExecutionStateService private _executionStateService: INotebookExecutionStateService,
+		@IStorageService private readonly _storageService: IStorageService,
 
 	) {
 		super();
@@ -230,6 +241,18 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._ctxOuterFocusPosition = CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.bindTo(this._contextKeyService);
 
 		this._registerFocusTracker();
+
+		NotebookChatController._promptHistory = JSON.parse(this._storageService.get(NotebookChatController._storageKey, StorageScope.PROFILE, '[]'));
+		this._historyUpdate = (prompt: string) => {
+			const idx = NotebookChatController._promptHistory.indexOf(prompt);
+			if (idx >= 0) {
+				NotebookChatController._promptHistory.splice(idx, 1);
+			}
+			NotebookChatController._promptHistory.unshift(prompt);
+			this._historyOffset = -1;
+			this._historyCandidate = '';
+			this._storageService.store(NotebookChatController._storageKey, JSON.stringify(NotebookChatController._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
+		};
 	}
 
 	private _registerFocusTracker() {
@@ -262,6 +285,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				this._widget.dispose();
 				this._widget = undefined;
 				this._widgetDisposableStore.clear();
+
+				this._historyOffset = -1;
+				this._historyCandidate = '';
 
 				scheduleAtNextAnimationFrame(window, () => {
 					this._createWidget(index, input, autoSend);
@@ -425,6 +451,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		assertType(this._activeSession.lastInput);
 		const value = this._activeSession.lastInput.value;
+
+		this._historyUpdate(value);
+
 		const editor = this._widget.parentEditor;
 		const model = editor.getModel();
 
@@ -781,6 +810,39 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 	}
 
+	populateHistory(up: boolean) {
+		if (!this._widget) {
+			return;
+		}
+
+		const len = NotebookChatController._promptHistory.length;
+		if (len === 0) {
+			return;
+		}
+
+		if (this._historyOffset === -1) {
+			// remember the current value
+			this._historyCandidate = this._widget.inlineChatWidget.value;
+		}
+
+		const newIdx = this._historyOffset + (up ? 1 : -1);
+		if (newIdx >= len) {
+			// reached the end
+			return;
+		}
+
+		let entry: string;
+		if (newIdx < 0) {
+			entry = this._historyCandidate;
+			this._historyOffset = -1;
+		} else {
+			entry = NotebookChatController._promptHistory[newIdx];
+			this._historyOffset = newIdx;
+		}
+
+		this._widget.inlineChatWidget.value = entry;
+		this._widget.inlineChatWidget.selectAll();
+	}
 
 	async cancelCurrentRequest(discard: boolean) {
 		if (discard) {

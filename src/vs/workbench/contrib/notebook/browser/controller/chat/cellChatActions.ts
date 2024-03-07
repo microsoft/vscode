@@ -573,3 +573,43 @@ registerAction2(class extends NotebookAction {
 		NotebookChatController.get(context.notebookEditor)?.focusAbove();
 	}
 });
+
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.chat.previousFromHistory',
+				title: localize2('notebook.cell.chat.previousFromHistory', "Previous From History"),
+				precondition: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
+				keybinding: {
+					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
+					weight: KeybindingWeight.EditorCore + 10,
+					primary: KeyCode.UpArrow,
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.populateHistory(true);
+	}
+});
+
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.chat.nextFromHistory',
+				title: localize2('notebook.cell.chat.nextFromHistory', "Next From History"),
+				precondition: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
+				keybinding: {
+					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
+					weight: KeybindingWeight.EditorCore + 10,
+					primary: KeyCode.DownArrow
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.populateHistory(false);
+	}
+});
