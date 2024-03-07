@@ -62,11 +62,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	 */
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
-	private readonly _requestActiveContextKey!: IContextKey<boolean>;
-	private readonly _terminalAgentRegisteredContextKey!: IContextKey<boolean>;
-	private readonly _responseTypeContextKey!: IContextKey<TerminalChatResponseTypes | undefined>;
-	private readonly _responseSupportsIssueReportingContextKey!: IContextKey<boolean>;
-	private readonly _sessionResponseVoteContextKey!: IContextKey<string | undefined>;
+	private readonly _requestActiveContextKey: IContextKey<boolean>;
+	private readonly _terminalAgentRegisteredContextKey: IContextKey<boolean>;
+	private readonly _responseTypeContextKey: IContextKey<TerminalChatResponseTypes | undefined>;
+	private readonly _responseSupportsIssueReportingContextKey: IContextKey<boolean>;
+	private readonly _sessionResponseVoteContextKey: IContextKey<string | undefined>;
 
 	private _messages = this._store.add(new Emitter<Message>());
 
@@ -100,14 +100,15 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	) {
 		super();
 
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
 		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.agentRegistered.bindTo(this._contextKeyService);
 		this._responseTypeContextKey = TerminalChatContextKeys.responseType.bindTo(this._contextKeyService);
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
+
+		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
+			return;
+		}
 
 		if (!this._chatAgentService.getAgent(this._terminalAgentId)) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
