@@ -20,6 +20,10 @@
 	display: none;
 }
 
+.monaco-workbench .pane-composite-part > .header-or-footer.header {
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+}
+
 .monaco-workbench .pane-composite-part > .header-or-footer.footer {
 	border-top: 1px solid var(--vscode-sideBarSectionHeader-border);
 }
