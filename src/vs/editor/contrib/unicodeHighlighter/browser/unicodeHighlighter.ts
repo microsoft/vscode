@@ -32,7 +32,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { HoverProvider } from 'vs/editor/common/languages';
 
 export const warningIcon = registerIcon('extensions-warning-message', Codicon.warning, nls.localize('warningIcon', 'Icon shown with a warning message in the extensions editor.'));
 
@@ -393,7 +392,6 @@ class ViewportUnicodeHighlighter extends Disposable {
 export class UnicodeHighlighterHover implements IHoverPart {
 	constructor(
 		public readonly owner: IEditorHoverParticipant<UnicodeHighlighterHover>,
-		public readonly provider: HoverProvider | undefined,
 		public readonly range: Range,
 		public readonly decoration: IModelDecoration
 	) { }

@@ -251,7 +251,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <languages.HoverProvider>{
-			provideHover: (model: ITextModel, request: EditorPosition | languages.HoverZoomRequest, token: CancellationToken): Promise<languages.Hover | undefined> => {
+			provideHover: (model: ITextModel, request: EditorPosition | { position: EditorPosition; extend: boolean }, token: CancellationToken): Promise<languages.Hover | undefined> => {
 				return this._proxy.$provideHover(handle, model.uri, request, token);
 			}
 		}));

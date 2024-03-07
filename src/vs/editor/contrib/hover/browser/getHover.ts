@@ -24,7 +24,6 @@ export class HoverProviderResult {
 async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult | undefined> {
 	try {
 		const result = await Promise.resolve(provider.provideHover(model, position, token));
-		console.log('result of executeProvider : ', result);
 		if (result && isValid(result)) {
 			return new HoverProviderResult(provider, result, ordinal);
 		}

@@ -12,7 +12,7 @@ import { basename } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { CodeActionTriggerType, HoverProvider } from 'vs/editor/common/languages';
+import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
@@ -33,7 +33,6 @@ export class MarkerHover implements IHoverPart {
 
 	constructor(
 		public readonly owner: IEditorHoverParticipant<MarkerHover>,
-		public readonly provider: HoverProvider | undefined,
 		public readonly range: Range,
 		public readonly marker: IMarker,
 	) { }
@@ -85,7 +84,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkerHover(this, undefined, range, marker));
+			result.push(new MarkerHover(this, range, marker));
 		}
 
 		return result;

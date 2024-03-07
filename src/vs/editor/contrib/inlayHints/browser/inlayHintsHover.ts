@@ -24,6 +24,7 @@ import { localize } from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(
@@ -47,8 +48,9 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly _resolverService: ITextModelService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@ICommandService commandService: ICommandService
 	) {
-		super(editor, languageService, openerService, configurationService, languageFeaturesService);
+		super(editor, languageService, openerService, configurationService, languageFeaturesService, commandService);
 	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
@@ -156,7 +158,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			}
 			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new MarkdownHover(this, undefined, part.item.anchor.range, item.hover.contents, item.hover.zoomPossibility, false, 2 + item.ordinal));
+				.map(item => new MarkdownHover(this, undefined, part.item.anchor.range, item.hover.contents, item.hover.extensionMetadata, false, 2 + item.ordinal));
 		} finally {
 			ref.dispose();
 		}

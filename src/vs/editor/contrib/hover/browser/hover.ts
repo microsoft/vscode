@@ -35,7 +35,7 @@ import 'vs/css!./hover';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
-	// || Boolean("true") done "weirdly" so that a lint warning prevents you from pushing this
+	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
 	;
 
 interface IHoverSettings {
@@ -395,8 +395,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._getOrCreateContentWidget().startShowingAtRange(range, source, hoverOptions);
 	}
 
-	public zoomInFocusedContents(zoomIn: boolean): void {
-		this._getOrCreateContentWidget().zoomInFocusedContents(zoomIn);
+	public extendOrContractFocusedMessage(extend: boolean): void {
+		this._getOrCreateContentWidget().extendOrContractFocusedMessage(extend);
 	}
 
 	public focus(): void {
@@ -544,7 +544,6 @@ class ShowOrFocusHoverAction extends EditorAction {
 	}
 }
 
-// Need to make the individual parts of the hover focusable so can use the action here
 class ShowMoreHoverInformationAction extends EditorAction {
 
 	constructor() {
@@ -567,7 +566,7 @@ class ShowMoreHoverInformationAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		zoomHover(editor, true);
+		extendOrContractFocusedMessage(editor, true);
 	}
 }
 
@@ -593,21 +592,16 @@ class ShowLessHoverInformationAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		zoomHover(editor, false);
+		extendOrContractFocusedMessage(editor, false);
 	}
 }
 
-export function zoomHover(editor: ICodeEditor, zoomIn: boolean) {
-	console.log('inside of zoomHover');
-	if (!editor.hasModel()) {
-		return;
-	}
-
+export function extendOrContractFocusedMessage(editor: ICodeEditor, extend: boolean) {
 	const controller = HoverController.get(editor);
 	if (!controller) {
 		return;
 	}
-	controller.zoomInFocusedContents(zoomIn);
+	controller.extendOrContractFocusedMessage(extend);
 }
 
 class ShowDefinitionPreviewHoverAction extends EditorAction {

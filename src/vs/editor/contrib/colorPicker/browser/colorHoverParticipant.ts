@@ -11,7 +11,7 @@ import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser'
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { DocumentColorProvider, HoverProvider, IColorInformation } from 'vs/editor/common/languages';
+import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
 import { getColorPresentations, getColors } from 'vs/editor/contrib/colorPicker/browser/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
@@ -32,10 +32,9 @@ export class ColorHover implements IHoverPart {
 
 	constructor(
 		public readonly owner: IEditorHoverParticipant<ColorHover>,
-		public readonly provider: HoverProvider | undefined,
 		public readonly range: Range,
 		public readonly model: ColorPickerModel,
-		public readonly documentColorProvider: DocumentColorProvider
+		public readonly provider: DocumentColorProvider
 	) { }
 
 	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
@@ -97,7 +96,7 @@ export class StandaloneColorPickerHover {
 		public readonly owner: StandaloneColorPickerParticipant,
 		public readonly range: Range,
 		public readonly model: ColorPickerModel,
-		public readonly documentColorProvider: DocumentColorProvider
+		public readonly provider: DocumentColorProvider
 	) { }
 }
 
@@ -173,7 +172,7 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 	model.guessColorPresentation(color, originalText);
 
 	if (participant instanceof ColorHoverParticipant) {
-		return new ColorHover(participant, undefined, Range.lift(colorInfo.range), model, provider);
+		return new ColorHover(participant, Range.lift(colorInfo.range), model, provider);
 	} else {
 		return new StandaloneColorPickerHover(participant, Range.lift(colorInfo.range), model, provider);
 	}
@@ -249,6 +248,6 @@ async function _updateColorPresentations(editorModel: ITextModel, colorPickerMod
 			blue: color.rgba.b / 255,
 			alpha: color.rgba.a
 		}
-	}, colorHover.documentColorProvider, CancellationToken.None);
+	}, colorHover.provider, CancellationToken.None);
 	colorPickerModel.colorPresentations = colorPresentations || [];
 }

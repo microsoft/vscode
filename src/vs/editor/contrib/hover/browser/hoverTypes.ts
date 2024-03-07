@@ -10,7 +10,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { HoverProvider } from 'vs/editor/common/languages';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 
@@ -19,10 +18,6 @@ export interface IHoverPart {
 	 * The creator of this hover part.
 	 */
 	readonly owner: IEditorHoverParticipant;
-	/**
-	 * hover provider
-	 */
-	readonly provider: HoverProvider | undefined;
 	/**
 	 * The range where this hover part applies.
 	 */

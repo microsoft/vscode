@@ -946,7 +946,7 @@ export namespace Hover {
 		return <languages.Hover>{
 			range: Range.from(hover.range),
 			contents: MarkdownString.fromMany(hover.contents),
-			zoomPossibility: hover.zoomPossibility
+			extensionMetadata: hover.extensionMetadata
 		};
 	}
 

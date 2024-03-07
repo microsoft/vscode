@@ -1185,9 +1185,9 @@ export class Hover {
 
 	public contents: (vscode.MarkdownString | vscode.MarkedString)[];
 	public range: Range | undefined;
-	public zoomPossibility: {
-		canZoomIn?: boolean;
-		canZoomOut?: boolean;
+	public extensionMetadata: {
+		canContract?: boolean;
+		canExtend?: boolean;
 	} | undefined;
 
 	constructor(

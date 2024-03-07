@@ -6764,20 +6764,20 @@ declare namespace monaco.languages {
 		 */
 		range?: IRange;
 		/**
-		 * Zoom possibility
+		 * Meta-data concerning whether this hover can be extended or not
 		 */
-		zoomPossibility?: ZoomPossibility;
+		extensionMetadata?: HoverExtensionMetadata;
 	}
 
-	export interface ZoomPossibility {
+	export interface HoverExtensionMetadata {
 		/**
-		 * Can zoom in
+		 * Can extend
 		 */
-		canZoomIn?: boolean;
+		canExtend?: boolean;
 		/**
-		 * Can zoom out
+		 * Can contract
 		 */
-		canZoomOut?: boolean;
+		canContract?: boolean;
 	}
 
 	/**
@@ -6786,16 +6786,22 @@ declare namespace monaco.languages {
 	 */
 	export interface HoverProvider {
 		/**
-		 * Provide a hover for the given position and document. Multiple hovers at the same
+		 * Provide a hover for the given position and document and potentially zoom metadata. Multiple hovers at the same
 		 * position will be merged by the editor. A hover can have a range which defaults
 		 * to the word range at the position when omitted.
 		 */
-		provideHover(model: editor.ITextModel, request: Position | HoverZoomRequest, token: CancellationToken): ProviderResult<Hover>;
+		provideHover(model: editor.ITextModel, request: Position | HoverExtensionRequest, token: CancellationToken): ProviderResult<Hover>;
 	}
 
-	export interface HoverZoomRequest {
+	export interface HoverExtensionRequest {
+		/**
+		 * The position for which the hover is requested.
+		 */
 		position: Position;
-		zoomIn: boolean;
+		/**
+		 * If the request is for an extension or a contraction
+		 */
+		extend: boolean;
 	}
 
 	export enum CompletionItemKind {

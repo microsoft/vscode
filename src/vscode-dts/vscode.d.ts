@@ -3058,9 +3058,9 @@ declare module 'vscode' {
 		range?: Range;
 
 		/**
-		 * Zoom possibility
+		 * Extension metadata
 		 */
-		zoomPossibility?: ZoomPossibility;
+		extensionMetadata?: HoverExtensionMetadata;
 
 		/**
 		 * Creates a new hover object.
@@ -3072,18 +3072,18 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Zoom possibility
+	 * Hover extension metadata
 	 */
-	export interface ZoomPossibility {
+	export interface HoverExtensionMetadata {
 		/**
-		 * Can zoom in
+		 * Can contract
 		 */
-		canZoomIn?: boolean;
+		canContract?: boolean;
 
 		/**
-		 * Can zoom out
+		 * Can extend
 		 */
-		canZoomOut?: boolean;
+		canExtend?: boolean;
 	}
 
 	/**
