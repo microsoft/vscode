@@ -117,13 +117,7 @@ export class InlineChatWidget {
 		'div.inline-chat@root',
 		[
 			h('div.body@body', [
-				h('div.content@content', [
-					// h('div.input@input', [
-					// 	h('div.editor-placeholder@placeholder'),
-					// 	h('div.editor-container@editor'),
-					// ]),
-					// h('div.toolbar@editorToolbar'),
-				]),
+				h('div.content@content'),
 				h('div.widget-toolbar@widgetToolbar')
 			]),
 			h('div.progress@progress'),
@@ -189,8 +183,6 @@ export class InlineChatWidget {
 		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 	) {
-
-
 		// Share hover delegates between toolbars to support instant hover between both
 		const hoverDelegate = this._store.add(createInstantHoverDelegate());
 
@@ -200,17 +192,6 @@ export class InlineChatWidget {
 		this._store.add(this._inputWidget);
 		this._store.add(this._inputWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
-		// this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(CodeEditorWidget, this._elements.editor, inputEditorOptions, codeEditorWidgetOptions);
-		// this._updateAriaLabel();
-		// this._store.add(this._inputEditor);
-		// this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
-		// this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
-		// this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
-
-
-		// const uri = URI.from({ scheme: 'vscode', authority: 'inline-chat', path: `/inline-chat/model${InlineChatWidget._modelPool++}.txt` });
-		// this._inputModel = this._store.add(this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri));
-		// this._inputEditor.setModel(this._inputModel);
 
 		this._editorOptions = this._store.add(_instantiationService.createInstance(ChatEditorOptions, undefined, editorForeground, inputBackground, editorBackground));
 
@@ -230,15 +211,10 @@ export class InlineChatWidget {
 			}
 		}));
 
-		// --- context keys
+		// context keys
 		this._ctxResponseFocused = CTX_INLINE_CHAT_RESPONSE_FOCUSED.bindTo(this._contextKeyService);
 
-
-
 		// toolbars
-
-
-
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
 
@@ -287,7 +263,6 @@ export class InlineChatWidget {
 		this._codeBlockModelCollection = this._store.add(this._instantiationService.createInstance(CodeBlockModelCollection));
 	}
 
-
 	private _updateAriaLabel(): void {
 		if (!this._accessibilityService.isScreenReaderOptimized()) {
 			return;
@@ -298,7 +273,6 @@ export class InlineChatWidget {
 			label = kbLabel ? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel) : localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
 		}
 		inputEditorOptions.ariaLabel = label;
-		// this._inputEditor.updateOptions({ ariaLabel: label });
 		this._inputWidget.ariaLabel = label;
 	}
 
@@ -531,9 +505,6 @@ export class InlineChatWidget {
 	hasFocus() {
 		return this.domNode.contains(getActiveElement());
 	}
-
-	// --- slash commands
-
 
 }
 
