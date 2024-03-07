@@ -68,8 +68,8 @@ export interface ISpeechService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onDidRegisterSpeechProvider: Event<ISpeechProvider>;
-	readonly onDidUnregisterSpeechProvider: Event<ISpeechProvider>;
+	readonly onDidRegisterSpeechProvider: Event<void>;
+	readonly onDidUnregisterSpeechProvider: Event<void>;
 
 	readonly hasSpeechProvider: boolean;
 
@@ -84,7 +84,7 @@ export interface ISpeechService {
 	 * Starts to transcribe speech from the default microphone. The returned
 	 * session object provides an event to subscribe for transcribed text.
 	 */
-	createSpeechToTextSession(token: CancellationToken, context?: string): ISpeechToTextSession;
+	createSpeechToTextSession(token: CancellationToken, context?: string): Promise<ISpeechToTextSession>;
 
 	readonly onDidStartKeywordRecognition: Event<void>;
 	readonly onDidEndKeywordRecognition: Event<void>;
