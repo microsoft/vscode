@@ -3035,21 +3035,18 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 }
 
 
-@es5ClassCompat
-export class StackFrameFocus {
+export class StackFrame implements vscode.StackFrame {
 	constructor(
 		public readonly session: vscode.DebugSession,
-		readonly threadId?: number,
-		readonly frameId?: number) { }
+		readonly threadId: number,
+		readonly frameId: number) { }
 }
 
-@es5ClassCompat
-export class ThreadFocus {
+export class Thread implements vscode.Thread {
 	constructor(
 		public readonly session: vscode.DebugSession,
-		readonly threadId?: number) { }
+		readonly threadId: number) { }
 }
-
 
 
 @es5ClassCompat

@@ -430,7 +430,9 @@ export enum QuickInputListFocus {
 	Next,
 	Previous,
 	NextPage,
-	PreviousPage
+	PreviousPage,
+	NextSeparator,
+	PreviousSeparator
 }
 
 export class QuickInputList {
@@ -499,6 +501,7 @@ export class QuickInputList {
 		} as IListOptions<IListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
+		// Keybindings for the list itself
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
@@ -510,6 +513,7 @@ export class QuickInputList {
 						this.list.setFocus(range(this.list.length));
 					}
 					break;
+				// When we hit the top of the list, we fire the onLeave event.
 				case KeyCode.UpArrow: {
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
@@ -517,6 +521,7 @@ export class QuickInputList {
 					}
 					break;
 				}
+				// When we hit the bottom of the list, we fire the onLeave event.
 				case KeyCode.DownArrow: {
 					const focus2 = this.list.getFocus();
 					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
@@ -810,33 +815,67 @@ export class QuickInputList {
 				this.list.scrollTop = this.list.scrollHeight;
 				this.list.focusLast(undefined, (e) => !!e.item);
 				break;
-			case QuickInputListFocus.Next: {
+			case QuickInputListFocus.Next:
 				this.list.focusNext(undefined, true, undefined, (e) => !!e.item);
-				const index = this.list.getFocus()[0];
-				if (index !== 0 && !this.elements[index - 1].item && this.list.firstVisibleIndex > index - 1) {
-					this.list.reveal(index - 1);
-				}
 				break;
-			}
-			case QuickInputListFocus.Previous: {
+			case QuickInputListFocus.Previous:
 				this.list.focusPrevious(undefined, true, undefined, (e) => !!e.item);
-				const index = this.list.getFocus()[0];
-				if (index !== 0 && !this.elements[index - 1].item && this.list.firstVisibleIndex > index - 1) {
-					this.list.reveal(index - 1);
-				}
 				break;
-			}
 			case QuickInputListFocus.NextPage:
 				this.list.focusNextPage(undefined, (e) => !!e.item);
 				break;
 			case QuickInputListFocus.PreviousPage:
 				this.list.focusPreviousPage(undefined, (e) => !!e.item);
 				break;
+			case QuickInputListFocus.NextSeparator: {
+				let foundSeparatorAsItem = false;
+				this.list.focusNext(undefined, true, undefined, (e) => {
+					if (foundSeparatorAsItem) {
+						// This should be the index right after the separator so it
+						// is the item we want to focus.
+						return true;
+					}
+					if (e.separator) {
+						if (e.item) {
+							return true;
+						} else {
+							foundSeparatorAsItem = true;
+						}
+					}
+					return false;
+				});
+				break;
+			}
+			case QuickInputListFocus.PreviousSeparator: {
+				let foundSeparatorAsItem = false;
+				this.list.focusPrevious(undefined, true, undefined, (e) => {
+					if (foundSeparatorAsItem) {
+						// This should be the index right before the separator so it
+						// is the item we want to focus.
+						return true;
+					}
+					if (e.separator) {
+						if (e.item) {
+							// This would be an inline-separator so we should
+							// focus this item.
+							return true;
+						} else {
+							foundSeparatorAsItem = true;
+						}
+					}
+					return false;
+				});
+				break;
+			}
 		}
 
 		const focused = this.list.getFocus()[0];
 		if (typeof focused === 'number') {
-			this.list.reveal(focused);
+			if (focused !== 0 && !this.elements[focused - 1].item && this.list.firstVisibleIndex > focused - 1) {
+				this.list.reveal(focused - 1);
+			} else {
+				this.list.reveal(focused);
+			}
 		}
 	}
 
