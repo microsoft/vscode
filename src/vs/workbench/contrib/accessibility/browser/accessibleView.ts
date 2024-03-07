@@ -374,8 +374,8 @@ export class AccessibleView extends Disposable {
 		let inBlock = false;
 		let startLine = 0;
 
+		let languageId: string | undefined;
 		lines.forEach((line, i) => {
-			let languageId: string | undefined;
 			if (!inBlock && line.startsWith('```')) {
 				inBlock = true;
 				startLine = i + 1;
