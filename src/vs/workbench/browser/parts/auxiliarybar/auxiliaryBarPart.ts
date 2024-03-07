@@ -26,11 +26,15 @@ import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { AbstractPaneCompositePart, CompositeBarPosition } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { $ } from 'vs/base/browser/dom';
+import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 
 export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
@@ -208,6 +212,42 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			case ActivityBarPosition.TOP:
 			default: return CompositeBarPosition.TOP;
 		}
+	}
+
+	protected override createHeaderArea() {
+		const headerArea = super.createHeaderArea();
+		const globalHeaderContainer = $('.auxiliary-bar-global-header');
+
+		// Add auxillary header action
+		const menu = this.headerFooterCompositeBarDispoables.add(this.instantiationService.createInstance(CompositeMenuActions, MenuId.AuxiliaryBarHeader, undefined, undefined));
+
+		const toolBar = this.headerFooterCompositeBarDispoables.add(this.instantiationService.createInstance(WorkbenchToolBar, globalHeaderContainer, {
+			actionViewItemProvider: (action, options) => this.headerActionViewItemProvider(action, options),
+			orientation: ActionsOrientation.HORIZONTAL,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+		}));
+
+		toolBar.setActions(prepareActions(menu.getPrimaryActions()));
+		this.headerFooterCompositeBarDispoables.add(menu.onDidChange(() => toolBar.setActions(prepareActions(menu.getPrimaryActions()))));
+
+		headerArea.appendChild(globalHeaderContainer);
+		return headerArea;
+	}
+
+	protected override getToolbarWidth(): number {
+		if (this.getCompositeBarPosition() === CompositeBarPosition.TOP) {
+			return 22;
+		}
+		return super.getToolbarWidth();
+	}
+
+	private headerActionViewItemProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id === ToggleAuxiliaryBarAction.ID) {
+			return this.instantiationService.createInstance(ActionViewItem, undefined, action, options);
+		}
+
+		return undefined;
 	}
 
 	override toJSON(): object {
