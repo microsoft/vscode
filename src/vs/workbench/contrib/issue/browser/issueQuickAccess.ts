@@ -11,7 +11,6 @@ import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
@@ -27,21 +26,17 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService
 	) {
 		super(IssueQuickAccess.PREFIX, { canAcceptInBackground: true });
 	}
 
 	protected override _getPicks(filter: string): Picks<IPickerQuickAccessItem> | FastAndSlowPicks<IPickerQuickAccessItem> | Promise<Picks<IPickerQuickAccessItem> | FastAndSlowPicks<IPickerQuickAccessItem>> | null {
-		if (!this.configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess')) {
-			return null;
-		}
-		const issuePicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
-		const extensionIdSet: Set<string> = new Set();
+		const issuePicks = new Array<IPickerQuickAccessItem | IQuickPickSeparator>();
+		const extensionIdSet = new Set<string>();
 
 		// add regular open issue reporter button
-		const productLabel = this.productService.nameLong === 'stable' ? localize("workbench.action.openIssueReporter", "Visual Studio Code") : localize("workbench.action.openIssueReporterInsiders", "Visual Studio Code: Insiders");
+		const productLabel = localize("workbench.action.openIssueReporter.productName", "{0}", this.productService.nameLong);
 		issuePicks.push({
 			label: productLabel,
 			ariaLabel: productLabel,
@@ -77,6 +72,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			}
 		});
 
+		menu.dispose();
 
 		issuePicks.push({ type: 'separator', label: localize('otherExtensions', "Other Extensions") });
 
@@ -124,7 +120,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 					}
 				};
 			}
-		} else if (extension && extension.displayName && extension.identifier.value) {
+		} else if (extension?.displayName) {
 			const highlights = matchesFuzzy(filter, extension.displayName, true);
 			if (highlights) {
 				return {
