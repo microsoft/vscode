@@ -884,6 +884,20 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		pathsToOpen.push(...coalesce(resolvedCliPaths));
 
+		if (cli['use-editor']) {
+			const override = cli['use-editor'];
+			for (let i = 0; i < pathsToOpen.length; i++) {
+				let file = pathsToOpen[i];
+				if (((file.type ?? 0) & FileType.File) === 0) { continue; }
+				if (file.options) {
+					file.options.override = override;
+				} else {
+					file = { ...file, options: { override } };
+				}
+				pathsToOpen[i] = file;
+			}
+		}
+
 		return pathsToOpen;
 	}
 
