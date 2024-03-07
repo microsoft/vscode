@@ -90,6 +90,7 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
+					when: ContextKeyExpr.not('terminalChatFocus')
 				}
 			});
 		}
@@ -357,6 +358,7 @@ export function registerChatCodeBlockActions() {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					isHiddenByDefault: true,
+					when: ContextKeyExpr.not('terminalChatFocus')
 				}
 			});
 		}

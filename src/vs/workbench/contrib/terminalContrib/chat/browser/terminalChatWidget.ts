@@ -106,6 +106,12 @@ export class TerminalChatWidget extends Disposable {
 	focus(): void {
 		this._inlineChatWidget.focus();
 	}
+	focusResponse(): void {
+		const responseElement = this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseEditor) || this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseMessage);
+		if (responseElement instanceof HTMLElement) {
+			responseElement.focus();
+		}
+	}
 	hasFocus(): boolean {
 		return this._inlineChatWidget.hasFocus();
 	}
@@ -117,7 +123,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 	acceptCommand(shouldExecute: boolean): void {
 		// Trim command to remove any whitespace, otherwise this may execute the command
-		const value = this._inlineChatWidget?.responseContent?.trim();
+		const value = parseCodeFromBlock(this._inlineChatWidget?.responseContent?.trim());
 		if (!value) {
 			return;
 		}
@@ -132,3 +138,13 @@ export class TerminalChatWidget extends Disposable {
 	}
 }
 
+function parseCodeFromBlock(block?: string): string | undefined {
+	const match = block?.match(/```.*?\n([\s\S]*?)```/);
+	return match ? match[1].trim() : undefined;
+}
+
+
+const enum ChatElementSelectors {
+	ResponseEditor = 'div.chatMessageContent .interactive-result-editor .inputarea.monaco-mouse-cursor-text',
+	ResponseMessage = '.chatMessageContent',
+}

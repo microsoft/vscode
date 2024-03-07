@@ -72,6 +72,52 @@ registerActiveXtermAction({
 	}
 });
 
+registerActiveXtermAction({
+	id: TerminalChatCommandId.FocusResponse,
+	title: localize2('focusTerminalResponse', 'Focus Terminal Response'),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+		when: TerminalChatContextKeys.focused,
+		weight: KeybindingWeight.WorkbenchContrib,
+	},
+	f1: true,
+	category: AbstractInlineChatAction.category,
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalChatContextKeys.focused
+	),
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.chatWidget?.focusResponse();
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.FocusInput,
+	title: localize2('focusTerminalInput', 'Focus Terminal Input'),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+		when: TerminalChatContextKeys.focused,
+		weight: KeybindingWeight.WorkbenchContrib,
+	},
+	f1: true,
+	category: AbstractInlineChatAction.category,
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalChatContextKeys.focused
+	),
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.chatWidget?.focus();
+	}
+});
+
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Discard,
