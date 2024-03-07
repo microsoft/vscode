@@ -13,7 +13,7 @@ declare module 'vscode' {
 		 * @param description A description of the variable for the chat input suggest widget.
 		 * @param resolver Will be called to provide the chat variable's value when it is used.
 		 */
-		export function registerChatVariableResolver(name: string, description: string, resolver: ChatVariableResolver): Disposable;
+		export function registerChatVariableResolver(name: string, description: string, resolver: ChatVariableValueResolver): Disposable;
 	}
 
 	export interface ChatVariableValue {
@@ -44,7 +44,7 @@ declare module 'vscode' {
 		// readonly variables: readonly ChatResolvedVariable[];
 	}
 
-	export interface ChatVariableResolver {
+	export interface ChatVariableValueResolver {
 		/**
 		 * A callback to resolve the value of a chat variable.
 		 * @param name The name of the variable.

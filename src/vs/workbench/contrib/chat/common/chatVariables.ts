@@ -8,8 +8,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatRequestDynamicVariablePart, ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatContentReference, IChatProgressMessage } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatVariableData {
@@ -32,7 +32,7 @@ export type IChatVariableResolverProgress =
 
 export interface IChatVariableResolver {
 	// TODO should we spec "zoom level"
-	(messageText: string, arg: string | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+	(messageText: string, arg: string | undefined, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
 }
 
 export const IChatVariablesService = createDecorator<IChatVariablesService>('IChatVariablesService');
@@ -47,7 +47,8 @@ export interface IChatVariablesService {
 	/**
 	 * Resolves all variables that occur in `prompt`
 	 */
-	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData>;
+	resolveVariables(prompt: IParsedChatRequest, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData>;
+	resolveOneVariable(part: ChatRequestVariablePart | ChatRequestDynamicVariablePart, promptText: string, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined>;
 }
 
 export interface IDynamicVariable {

@@ -1208,6 +1208,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: string, chunk: IChatProgressDto): Promise<number | void>;
+	$resolveChatVariable(): Promise<any>;
 }
 
 export interface IChatAgentCompletionItem {
@@ -1243,14 +1244,14 @@ export type IChatVariableResolverProgressDto =
 
 export interface MainThreadChatVariablesShape extends IDisposable {
 	$registerVariable(handle: number, data: IChatVariableData): void;
-	$handleProgressChunk(requestId: string, progress: IChatVariableResolverProgressDto): Promise<number | void>;
+	$handleProgressChunk(requestId: number, progress: IChatVariableResolverProgressDto): Promise<number | void>;
 	$unregisterVariable(handle: number): void;
 }
 
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
 
 export interface ExtHostChatVariablesShape {
-	$resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto[] | undefined>;
+	$resolveVariable(handle: number, requestId: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto[] | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {

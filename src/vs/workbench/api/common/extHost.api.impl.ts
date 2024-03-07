@@ -1419,7 +1419,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
 			},
-			registerChatVariableResolver(name: string, description: string, resolver: vscode.ChatVariableResolver) {
+			registerChatVariableResolver(name: string, description: string, resolver: vscode.ChatVariableValueResolver) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
 				return extHostChatVariables.registerVariableResolver(extension, name, description, resolver);
 			},

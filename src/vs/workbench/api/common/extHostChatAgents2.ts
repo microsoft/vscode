@@ -149,6 +149,16 @@ class ChatAgentResponseStream {
 	}
 }
 
+class ChatVariableResolver implements vscode.ChatVariableResolver {
+	constructor(
+		private readonly _proxy: MainThreadChatAgentsShape2
+	) { }
+
+	resolveVariable(variable: vscode.ChatVariableIdentifier, level: vscode.ChatVariableLevel): { value: any } {
+		return this._proxy.$resolveChatVariable();
+	}
+}
+
 export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	private static _idPool = 0;
@@ -189,11 +199,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 
 		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService, this.commands.converter, sessionDisposables);
+		const variableResolver = new ChatVariableResolver(this._proxy);
 		try {
 			const convertedHistory = await this.prepareHistoryTurns(request.agentId, context);
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request),
 				{ history: convertedHistory },
+				variableResolver,
 				stream.apiObject,
 				token
 			);
@@ -620,7 +632,7 @@ class ExtHostChatAgent {
 		} satisfies vscode.ChatParticipant;
 	}
 
-	invoke(request: vscode.ChatRequest, context: vscode.ChatContext, response: vscode.ChatExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatResult> {
-		return this._requestHandler(request, context, response, token);
+	invoke(request: vscode.ChatRequest, context: vscode.ChatContext, variableResolver: vscode.ChatVariableResolver, response: vscode.ChatExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatResult> {
+		return this._requestHandler(request, context, variableResolver, response, token);
 	}
 }

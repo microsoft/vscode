@@ -24,6 +24,7 @@ import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatC
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 type AgentData = {
@@ -49,6 +50,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatContributionService private readonly _chatContributionService: IChatContributionService,
+		@IChatVariablesService private readonly _chatVariablesService: IChatVariablesService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -195,6 +197,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	$unregisterAgentCompletionsProvider(handle: number): void {
 		this._agentCompletionProviders.deleteAndDispose(handle);
+	}
+
+	$resolveChatVariable(requestId: string): Promise<any> {
+		// Save all the request data- need full parsed prompt
+		// Identify a ChatRequestPart based on the VariableIdentifier, somehow
+		return this._chatVariablesService.resolveVariables();
 	}
 }
 
