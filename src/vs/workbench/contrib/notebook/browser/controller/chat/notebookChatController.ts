@@ -40,7 +40,7 @@ import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/in
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
-import { INotebookEditor, INotebookEditorContribution, INotebookViewZone, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, INotebookEditorContribution, INotebookViewZone } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -96,8 +96,22 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		this._layoutWidget(inlineChatWidget, widgetContainer);
 	}
 
+	hasFocus() {
+		return this.inlineChatWidget.hasFocus();
+	}
+
 	focus() {
+		this.updateNotebookEditorFocusNSelections();
 		this.inlineChatWidget.focus();
+	}
+
+	updateNotebookEditorFocusNSelections() {
+		this._notebookEditor.focusContainer(true);
+		this._notebookEditor.setFocus({ start: this.afterModelPosition, end: this.afterModelPosition });
+		this._notebookEditor.setSelections([{
+			start: this.afterModelPosition,
+			end: this.afterModelPosition
+		}]);
 	}
 
 	getEditingCell() {
@@ -106,11 +120,11 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 
 	async getOrCreateEditingCell(): Promise<{ cell: CellViewModel; editor: IActiveCodeEditor } | undefined> {
 		if (this._editingCell) {
-			await this._notebookEditor.focusNotebookCell(this._editingCell, 'editor');
-			if (this._notebookEditor.activeCodeEditor?.hasModel()) {
+			const codeEditor = this._notebookEditor.codeEditors.find(ce => ce[0] === this._editingCell)?.[1];
+			if (codeEditor?.hasModel()) {
 				return {
 					cell: this._editingCell,
-					editor: this._notebookEditor.activeCodeEditor
+					editor: codeEditor
 				};
 			} else {
 				return undefined;
@@ -121,17 +135,25 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 			return undefined;
 		}
 
+		const widgetHasFocus = this.inlineChatWidget.hasFocus();
+
 		this._editingCell = insertCell(this._languageService, this._notebookEditor, this.afterModelPosition, CellKind.Code, 'above');
 
 		if (!this._editingCell) {
 			return undefined;
 		}
 
-		await this._notebookEditor.focusNotebookCell(this._editingCell, 'editor', { revealBehavior: ScrollToRevealBehavior.firstLine });
-		if (this._notebookEditor.activeCodeEditor?.hasModel()) {
+		await this._notebookEditor.revealFirstLineIfOutsideViewport(this._editingCell);
+
+		if (widgetHasFocus) {
+			this.focus();
+		}
+
+		const codeEditor = this._notebookEditor.codeEditors.find(ce => ce[0] === this._editingCell)?.[1];
+		if (codeEditor?.hasModel()) {
 			return {
 				cell: this._editingCell,
-				editor: this._notebookEditor.activeCodeEditor
+				editor: codeEditor
 			};
 		}
 
@@ -390,12 +412,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			return;
 		}
 
-		this._notebookEditor.focusContainer(true);
-		this._notebookEditor.setFocus({ start: this._widget.afterModelPosition, end: this._widget.afterModelPosition });
-		this._notebookEditor.setSelections([{
-			start: this._widget.afterModelPosition,
-			end: this._widget.afterModelPosition
-		}]);
+		this._widget.updateNotebookEditorFocusNSelections();
 	}
 
 	async acceptInput() {
@@ -739,6 +756,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		await this._notebookEditor.focusNotebookCell(cell, 'editor');
 	}
 
+	hasFocus() {
+		return this._widget?.hasFocus() ?? false;
+	}
+
 	focus() {
 		this._focusWidget();
 	}
@@ -767,6 +788,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		this._activeRequestCts?.cancel();
+	}
+
+	getEditingCell() {
+		return this._widget?.getEditingCell();
 	}
 
 	discard() {
