@@ -45,6 +45,7 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditor = 'accessibility.verbosity.diffEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
+	TerminalChat = 'accessibility.verbosity.terminalChat',
 	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook',
@@ -52,11 +53,13 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
-	Comments = 'accessibility.verbosity.comments'
+	Comments = 'accessibility.verbosity.comments',
+	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
 }
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
+	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	Chat = 'panelChat',
@@ -166,6 +169,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
 			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.DiffEditorActive]: {
+			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {

@@ -32,12 +32,6 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 	fi
 fi
 
-# Shell integration was disabled by the shell, exit without warning assuming either the shell has
-# explicitly disabled shell integration as it's incompatible or it implements the protocol.
-if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
-	builtin return
-fi
-
 # Apply EnvironmentVariableCollections if needed
 if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_REPLACE"
@@ -62,6 +56,12 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 		export $VARNAME="${(P)VARNAME}$(echo -e ${ITEM#*=})"
 	done
 	unset VSCODE_ENV_APPEND
+fi
+
+# Shell integration was disabled by the shell, exit without warning assuming either the shell has
+# explicitly disabled shell integration as it's incompatible or it implements the protocol.
+if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
+	builtin return
 fi
 
 # The property (P) and command (E) codes embed values which require escaping.

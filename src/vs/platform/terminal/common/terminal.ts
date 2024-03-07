@@ -122,6 +122,7 @@ export const enum TerminalSettingId {
 	StickyScrollEnabled = 'terminal.integrated.stickyScroll.enabled',
 	StickyScrollMaxLineCount = 'terminal.integrated.stickyScroll.maxLineCount',
 	MouseWheelZoom = 'terminal.integrated.mouseWheelZoom',
+	ExperimentalInlineChat = 'workbench.action.terminal.experimentalInlineChat',
 
 	// Debug settings that are hidden from user
 
@@ -568,7 +569,7 @@ export interface IShellLaunchConfig {
 	 * until `Terminal.show` is called. The typical usage for this is when you need to run
 	 * something that may need interactivity but only want to tell the user about it when
 	 * interaction is needed. Note that the terminals will still be exposed to all extensions
-	 * as normal and they will remain hidden when the workspace is reloaded.
+	 * as normal. The hidden terminals will not be restored when the workspace is next opened.
 	 */
 	hideFromUser?: boolean;
 

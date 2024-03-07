@@ -7,7 +7,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -151,6 +151,16 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				this._proxy.$cellExecutionChanged(e.notebook, e.cellHandle, e.changed?.state);
 			}
 		}));
+
+		this._disposables.add(this._notebookKernelService.onDidChangeSelectedNotebooks(e => {
+			for (const [handle, [kernel,]] of this._kernels) {
+				if (e.oldKernel === kernel.id) {
+					this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
+				} else if (e.newKernel === kernel.id) {
+					this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
+				}
+			}
+		}));
 	}
 
 	dispose(): void {
@@ -262,16 +272,8 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 		}(data, this._languageService);
 
-		const listener = this._notebookKernelService.onDidChangeSelectedNotebooks(e => {
-			if (e.oldKernel === kernel.id) {
-				this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
-			} else if (e.newKernel === kernel.id) {
-				this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
-			}
-		});
-
 		const registration = this._notebookKernelService.registerKernel(kernel);
-		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
+		this._kernels.set(handle, [kernel, registration]);
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {

@@ -366,7 +366,7 @@ class EditorStatus extends Disposable {
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand({ id: `changeEditorIndentation${this.targetWindowId}`, handler: () => this.showIndentationPicker() });
+		this._register(CommandsRegistry.registerCommand({ id: `changeEditorIndentation${this.targetWindowId}`, handler: () => this.showIndentationPicker() }));
 	}
 
 	private async showIndentationPicker(): Promise<unknown> {
