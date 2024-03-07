@@ -362,7 +362,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	calculateCodeBlocks(markdown: string): void {
-		if (!this._currentProvider || this._currentProvider.options.id !== AccessibleViewProviderId.Chat) {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
 			return;
 		}
 		if (this._currentProvider.options.language && this._currentProvider.options.language !== 'markdown') {
@@ -519,9 +519,7 @@ export class AccessibleView extends Disposable {
 		const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
 		const newContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
-		if (newContent && newContent !== this._currentContent && provider.options.type !== AccessibleViewType.Help && !provider.options.language || provider.options.language === 'markdown') {
-			this.calculateCodeBlocks(newContent);
-		}
+		this.calculateCodeBlocks(newContent);
 		this._currentContent = newContent;
 		this._updateContextKeys(provider, true);
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
@@ -577,6 +575,7 @@ export class AccessibleView extends Disposable {
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
 			this._lastProvider = undefined;
+			this._currentContent = undefined;
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
