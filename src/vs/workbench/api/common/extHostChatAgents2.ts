@@ -8,19 +8,20 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { Iterable } from 'vs/base/common/iterator';
 import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatFollowup, IChatProgress, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -31,7 +32,7 @@ class ChatAgentResponseStream {
 	private _stopWatch = StopWatch.create(false);
 	private _isClosed: boolean = false;
 	private _firstProgress: number | undefined;
-	private _apiObject: vscode.ChatAgentExtendedResponseStream | undefined;
+	private _apiObject: vscode.ChatExtendedResponseStream | undefined;
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
@@ -77,11 +78,6 @@ class ChatAgentResponseStream {
 			};
 
 			this._apiObject = {
-				text(value) {
-					throwIfDone(this.text);
-					this.markdown(new MarkdownString().appendText(value));
-					return this;
-				},
 				markdown(value) {
 					throwIfDone(this.markdown);
 					const part = new extHostTypes.ChatResponseMarkdownPart(value);
@@ -157,42 +153,33 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	private static _idPool = 0;
 
-	private readonly _agents = new Map<number, ExtHostChatAgent<any>>();
+	private readonly _agents = new Map<number, ExtHostChatAgent>();
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
-	private readonly _previousResultMap: Map<string, vscode.ChatAgentResult2> = new Map();
-	private readonly _resultsBySessionAndRequestId: Map<string, Map<string, vscode.ChatAgentResult2>> = new Map();
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = new DisposableMap();
 
 	constructor(
 		mainContext: IMainContext,
-		private readonly _extHostChatProvider: ExtHostChatProvider,
 		private readonly _logService: ILogService,
 		private readonly commands: ExtHostCommands,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
-	createChatAgent<TResult extends vscode.ChatAgentResult2>(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentExtendedHandler): vscode.ChatAgent2<TResult> {
+	createChatAgent(extension: IExtensionDescription, name: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent<TResult>(extension, name, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, name, {});
+		this._proxy.$registerAgent(handle, extension.identifier, name, {}, isProposedApiEnabled(extension, 'chatParticipantAdditions'));
 		return agent.apiAgent;
 	}
 
 	async $invokeAgent(handle: number, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
-		// Clear the previous result so that $acceptFeedback or $acceptAction during a request will be ignored.
-		// We may want to support sending those during a request.
-		this._previousResultMap.delete(request.sessionId);
-
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 		}
-
-		this._extHostChatProvider.$updateAccesslist([{ extension: agent.extension.identifier, enabled: true }]);
 
 		// Init session disposables
 		let sessionDisposables = this._sessionDisposables.get(request.sessionId);
@@ -203,7 +190,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService, this.commands.converter, sessionDisposables);
 		try {
-			const convertedHistory = await this.prepareHistory(agent, request, context);
+			const convertedHistory = await this.prepareHistoryTurns(request.agentId, context);
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request),
 				{ history: convertedHistory },
@@ -212,117 +199,109 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			);
 
 			return await raceCancellation(Promise.resolve(task).then((result) => {
-				if (result) {
-					this._previousResultMap.set(request.sessionId, result);
-					let sessionResults = this._resultsBySessionAndRequestId.get(request.sessionId);
-					if (!sessionResults) {
-						sessionResults = new Map();
-						this._resultsBySessionAndRequestId.set(request.sessionId, sessionResults);
+				if (result?.metadata) {
+					try {
+						JSON.stringify(result.metadata);
+					} catch (err) {
+						const msg = `result.metadata MUST be JSON.stringify-able. Got error: ${err.message}`;
+						this._logService.error(`[${agent.extension.identifier.value}] [@${agent.id}] ${msg}`, agent.extension);
+						return { errorDetails: { message: msg }, timings: stream.timings };
 					}
-					sessionResults.set(request.requestId, result);
-
-					return { errorDetails: result.errorDetails, timings: stream.timings };
-				} else {
-					this._previousResultMap.delete(request.sessionId);
 				}
-
-				return undefined;
+				return { errorDetails: result?.errorDetails, timings: stream.timings, metadata: result?.metadata };
 			}), token);
 
 		} catch (e) {
 			this._logService.error(e, agent.extension);
-			return { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", toErrorMessage(e)), responseIsIncomplete: true } };
+			return { errorDetails: { message: localize('errorResponse', "Error from participant: {0}", toErrorMessage(e)), responseIsIncomplete: true } };
 
 		} finally {
 			stream.close();
-			this._extHostChatProvider.$updateAccesslist([{ extension: agent.extension.identifier, enabled: false }]);
 		}
 	}
 
-	private async prepareHistory<T extends vscode.ChatAgentResult2>(agent: ExtHostChatAgent<T>, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<vscode.ChatAgentHistoryEntry[]> {
-		return coalesce(await Promise.all(context.history
-			.map(async h => {
-				const result = request.agentId === h.request.agentId && this._resultsBySessionAndRequestId.get(request.sessionId)?.get(h.request.requestId)
-					|| h.result;
-				return {
-					request: typeConvert.ChatAgentRequest.to(h.request),
-					response: coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter))),
-					result
-				} satisfies vscode.ChatAgentHistoryEntry;
-			})));
+	private async prepareHistoryTurns(agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
+
+		const res: (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] = [];
+
+		for (const h of context.history) {
+			const ehResult = typeConvert.ChatAgentResult.to(h.result);
+			const result: vscode.ChatResult = agentId === h.request.agentId ?
+				ehResult :
+				{ ...ehResult, metadata: undefined };
+
+			// REQUEST turn
+			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), { extensionId: '', name: h.request.agentId }));
+
+			// RESPONSE turn
+			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.fromContent(r, this.commands.converter)));
+			res.push(new extHostTypes.ChatResponseTurn(parts, result, { extensionId: '', name: h.request.agentId }, h.request.command));
+		}
+
+		return res;
 	}
 
 	$releaseSession(sessionId: string): void {
-		this._previousResultMap.delete(sessionId);
-		this._resultsBySessionAndRequestId.delete(sessionId);
 		this._sessionDisposables.deleteAndDispose(sessionId);
 	}
 
-	async $provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]> {
-		const agent = this._agents.get(handle);
-		if (!agent) {
-			// this is OK, the agent might have disposed while the request was in flight
-			return [];
-		}
-		return agent.provideSlashCommands(token);
-	}
-
-	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]> {
+	async $provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return Promise.resolve([]);
 		}
 
-		const result = this._previousResultMap.get(sessionId);
-		if (!result) {
-			return Promise.resolve([]);
-		}
+		const convertedHistory = await this.prepareHistoryTurns(agent.id, context);
 
-		return agent.provideFollowups(result, token);
+		const ehResult = typeConvert.ChatAgentResult.to(result);
+		return (await agent.provideFollowups(ehResult, { history: convertedHistory }, token))
+			.filter(f => {
+				// The followup must refer to a participant that exists from the same extension
+				const isValid = !f.participant || Iterable.some(
+					this._agents.values(),
+					a => a.id === f.participant && ExtensionIdentifier.equals(a.extension.identifier, agent.extension.identifier));
+				if (!isValid) {
+					this._logService.warn(`[@${agent.id}] ChatFollowup refers to an unknown participant: ${f.participant}`);
+				}
+				return isValid;
+			})
+			.map(f => typeConvert.ChatFollowup.from(f, request));
 	}
 
-	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void {
+	$acceptFeedback(handle: number, result: IChatAgentResult, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
-		const result = this._resultsBySessionAndRequestId.get(sessionId)?.get(requestId);
-		if (!result) {
-			return;
-		}
 
-		let kind: extHostTypes.ChatAgentResultFeedbackKind;
+		const ehResult = typeConvert.ChatAgentResult.to(result);
+		let kind: extHostTypes.ChatResultFeedbackKind;
 		switch (vote) {
 			case InteractiveSessionVoteDirection.Down:
-				kind = extHostTypes.ChatAgentResultFeedbackKind.Unhelpful;
+				kind = extHostTypes.ChatResultFeedbackKind.Unhelpful;
 				break;
 			case InteractiveSessionVoteDirection.Up:
-				kind = extHostTypes.ChatAgentResultFeedbackKind.Helpful;
+				kind = extHostTypes.ChatResultFeedbackKind.Helpful;
 				break;
 		}
-		agent.acceptFeedback(reportIssue ? Object.freeze({ result, kind, reportIssue }) : Object.freeze({ result, kind }));
+		agent.acceptFeedback(reportIssue ?
+			Object.freeze({ result: ehResult, kind, reportIssue }) :
+			Object.freeze({ result: ehResult, kind }));
 	}
 
-	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void {
+	$acceptAction(handle: number, result: IChatAgentResult, event: IChatUserActionEvent): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
-		const result = this._resultsBySessionAndRequestId.get(sessionId)?.get(requestId);
-		if (!result) {
-			return;
-		}
-		if (action.action.kind === 'vote') {
+		if (event.action.kind === 'vote') {
 			// handled by $acceptFeedback
 			return;
 		}
 
-		if (action.action.kind === 'command') {
-			const commandAction: vscode.ChatAgentCommandAction = { kind: 'command', commandButton: typeConvert.ChatResponseProgress.toProgressContent(action.action.commandButton, this.commands.converter) as vscode.ChatAgentCommandButton };
-			agent.acceptAction(Object.freeze({ action: commandAction, result }));
-			return;
-		} else {
-			agent.acceptAction(Object.freeze({ action: action.action, result }));
+		const ehAction = typeConvert.ChatAgentUserActionEvent.to(result, event, this.commands.converter);
+		if (ehAction) {
+			agent.acceptAction(Object.freeze(ehAction));
 		}
 	}
 
@@ -351,45 +330,48 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			return;
 		}
 
-		return await agent.provideSampleQuestions(token);
+		return (await agent.provideSampleQuestions(token))
+			.map(f => typeConvert.ChatFollowup.from(f, undefined));
 	}
 }
 
-class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
+class ExtHostChatAgent {
 
-	private _subCommandProvider: vscode.ChatAgentSubCommandProvider | undefined;
-	private _followupProvider: vscode.ChatAgentFollowupProvider<TResult> | undefined;
+	private _followupProvider: vscode.ChatFollowupProvider | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
 	private _isDefault: boolean | undefined;
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
+	private _helpTextVariablesPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
 	private _sampleRequest?: string;
 	private _isSecondary: boolean | undefined;
-	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback<TResult>>();
-	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
+	private _onDidReceiveFeedback = new Emitter<vscode.ChatResultFeedback>();
+	private _onDidPerformAction = new Emitter<vscode.ChatUserActionEvent>();
 	private _supportIssueReporting: boolean | undefined;
-	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
-	private _welcomeMessageProvider?: vscode.ChatAgentWelcomeMessageProvider | undefined;
+	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
+	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
+	private _isSticky: boolean | undefined;
+	private _requester: vscode.ChatRequesterInformation | undefined;
 
 	constructor(
 		public readonly extension: IExtensionDescription,
 		public readonly id: string,
 		private readonly _proxy: MainThreadChatAgentsShape2,
 		private readonly _handle: number,
-		private readonly _callback: vscode.ChatAgentExtendedHandler,
+		private _requestHandler: vscode.ChatExtendedRequestHandler,
 	) { }
 
-	acceptFeedback(feedback: vscode.ChatAgentResult2Feedback<TResult>) {
+	acceptFeedback(feedback: vscode.ChatResultFeedback) {
 		this._onDidReceiveFeedback.fire(feedback);
 	}
 
-	acceptAction(event: vscode.ChatAgentUserActionEvent) {
+	acceptAction(event: vscode.ChatUserActionEvent) {
 		this._onDidPerformAction.fire(event);
 	}
 
-	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatAgentCompletionItem[]> {
+	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatCompletionItem[]> {
 		if (!this._agentVariableProvider) {
 			return [];
 		}
@@ -397,36 +379,20 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 		return await this._agentVariableProvider.provider.provideCompletionItems(query, token) ?? [];
 	}
 
-	async provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]> {
-		if (!this._subCommandProvider) {
-			return [];
-		}
-		const result = await this._subCommandProvider.provideSubCommands(token);
-		if (!result) {
-			return [];
-		}
-		return result
-			.map(c => ({
-				name: c.name,
-				description: c.description,
-				followupPlaceholder: c.followupPlaceholder,
-				shouldRepopulate: c.shouldRepopulate,
-				sampleRequest: c.sampleRequest
-			}));
-	}
-
-	async provideFollowups(result: TResult, token: CancellationToken): Promise<IChatFollowup[]> {
+	async provideFollowups(result: vscode.ChatResult, context: vscode.ChatContext, token: CancellationToken): Promise<vscode.ChatFollowup[]> {
 		if (!this._followupProvider) {
 			return [];
 		}
-		const followups = await this._followupProvider.provideFollowups(result, token);
+
+		const followups = await this._followupProvider.provideFollowups(result, context, token);
 		if (!followups) {
 			return [];
 		}
 		return followups
 			// Filter out "command followups" from older providers
 			.filter(f => !(f && 'commandId' in f))
-			.map(f => typeConvert.ChatFollowup.from(f));
+			// Filter out followups from older providers before 'message' changed to 'prompt'
+			.filter(f => !(f && 'message' in f));
 	}
 
 	async provideWelcomeMessage(token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
@@ -446,7 +412,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 		});
 	}
 
-	async provideSampleQuestions(token: CancellationToken): Promise<IChatFollowup[]> {
+	async provideSampleQuestions(token: CancellationToken): Promise<vscode.ChatFollowup[]> {
 		if (!this._welcomeMessageProvider || !this._welcomeMessageProvider.provideSampleQuestions) {
 			return [];
 		}
@@ -455,10 +421,10 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 			return [];
 		}
 
-		return content?.map(f => typeConvert.ChatFollowup.from(f));
+		return content;
 	}
 
-	get apiAgent(): vscode.ChatAgent2<TResult> {
+	get apiAgent(): vscode.ChatParticipant {
 		let disposed = false;
 		let updateScheduled = false;
 		const updateMetadataSoon = () => {
@@ -471,7 +437,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 			updateScheduled = true;
 			queueMicrotask(() => {
 				this._proxy.$updateAgent(this._handle, {
-					description: this._description ?? '',
+					description: this._description,
 					fullName: this._fullName,
 					icon: !this._iconPath ? undefined :
 						this._iconPath instanceof URI ? this._iconPath :
@@ -481,14 +447,15 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 						'dark' in this._iconPath ? this._iconPath.dark :
 							undefined,
 					themeIcon: this._iconPath instanceof extHostTypes.ThemeIcon ? this._iconPath : undefined,
-					hasSlashCommands: this._subCommandProvider !== undefined,
 					hasFollowups: this._followupProvider !== undefined,
-					isDefault: this._isDefault,
 					isSecondary: this._isSecondary,
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
+					helpTextVariablesPrefix: (!this._helpTextVariablesPrefix || typeof this._helpTextVariablesPrefix === 'string') ? this._helpTextVariablesPrefix : typeConvert.MarkdownString.from(this._helpTextVariablesPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					sampleRequest: this._sampleRequest,
-					supportIssueReporting: this._supportIssueReporting
+					supportIssueReporting: this._supportIssueReporting,
+					isSticky: this._isSticky,
+					requester: this._requester
 				});
 				updateScheduled = false;
 			});
@@ -507,9 +474,11 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 				updateMetadataSoon();
 			},
 			get fullName() {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._fullName ?? that.extension.displayName ?? that.extension.name;
 			},
 			set fullName(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._fullName = v;
 				updateMetadataSoon();
 			},
@@ -520,12 +489,12 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 				that._iconPath = v;
 				updateMetadataSoon();
 			},
-			get subCommandProvider() {
-				return that._subCommandProvider;
+			get requestHandler() {
+				return that._requestHandler;
 			},
-			set subCommandProvider(v) {
-				that._subCommandProvider = v;
-				updateMetadataSoon();
+			set requestHandler(v) {
+				assertType(typeof v === 'function', 'Invalid request handler');
+				that._requestHandler = v;
 			},
 			get followupProvider() {
 				return that._followupProvider;
@@ -535,46 +504,47 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 				updateMetadataSoon();
 			},
 			get isDefault() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._isDefault;
 			},
 			set isDefault(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._isDefault = v;
 				updateMetadataSoon();
 			},
 			get helpTextPrefix() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._helpTextPrefix;
 			},
 			set helpTextPrefix(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
-				if (!that._isDefault) {
-					throw new Error('helpTextPrefix is only available on the default chat agent');
-				}
-
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._helpTextPrefix = v;
 				updateMetadataSoon();
 			},
+			get helpTextVariablesPrefix() {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				return that._helpTextVariablesPrefix;
+			},
+			set helpTextVariablesPrefix(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				that._helpTextVariablesPrefix = v;
+				updateMetadataSoon();
+			},
 			get helpTextPostfix() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._helpTextPostfix;
 			},
 			set helpTextPostfix(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
-				if (!that._isDefault) {
-					throw new Error('helpTextPostfix is only available on the default chat agent');
-				}
-
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._helpTextPostfix = v;
 				updateMetadataSoon();
 			},
 			get isSecondary() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._isSecondary;
 			},
 			set isSecondary(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._isSecondary = v;
 				updateMetadataSoon();
 			},
@@ -586,18 +556,19 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 				updateMetadataSoon();
 			},
 			get supportIssueReporting() {
-				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
 				return that._supportIssueReporting;
 			},
 			set supportIssueReporting(v) {
-				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
 				that._supportIssueReporting = v;
 				updateMetadataSoon();
 			},
 			get onDidReceiveFeedback() {
 				return that._onDidReceiveFeedback.event;
 			},
-			set agentVariableProvider(v) {
+			set participantVariableProvider(v) {
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
 				that._agentVariableProvider = v;
 				if (v) {
 					if (!v.triggerCharacters.length) {
@@ -609,31 +580,47 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 					that._proxy.$unregisterAgentCompletionsProvider(that._handle);
 				}
 			},
-			get agentVariableProvider() {
+			get participantVariableProvider() {
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
 				return that._agentVariableProvider;
 			},
 			set welcomeMessageProvider(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._welcomeMessageProvider = v;
 				updateMetadataSoon();
 			},
 			get welcomeMessageProvider() {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._welcomeMessageProvider;
 			},
-			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatAgents2Additions')
+			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatParticipantAdditions')
 				? undefined!
 				: this._onDidPerformAction.event
 			,
+			get isSticky() {
+				return that._isSticky;
+			},
+			set isSticky(v) {
+				that._isSticky = v;
+				updateMetadataSoon();
+			},
+			set requester(v) {
+				that._requester = v;
+				updateMetadataSoon();
+			},
+			get requester() {
+				return that._requester;
+			},
 			dispose() {
 				disposed = true;
-				that._subCommandProvider = undefined;
 				that._followupProvider = undefined;
 				that._onDidReceiveFeedback.dispose();
 				that._proxy.$unregisterAgent(that._handle);
 			},
-		} satisfies vscode.ChatAgent2<TResult>;
+		} satisfies vscode.ChatParticipant;
 	}
 
-	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, response: vscode.ChatAgentExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult2> {
-		return this._callback(request, context, response, token);
+	invoke(request: vscode.ChatRequest, context: vscode.ChatContext, response: vscode.ChatExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatResult> {
+		return this._requestHandler(request, context, response, token);
 	}
 }

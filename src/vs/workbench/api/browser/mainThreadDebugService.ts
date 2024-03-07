@@ -5,7 +5,7 @@
 
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI as uri, UriComponents } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind, IDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind, IDebugVisualization, DataBreakpointSetType } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto
@@ -18,6 +18,7 @@ import { convertToVSCPaths, convertToDAPaths, isSessionAttach } from 'vs/workben
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Event } from 'vs/base/common/event';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
@@ -30,6 +31,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
 	private readonly _extHostKnownSessions: Set<DebugSessionUUID>;
 	private readonly _visualizerHandles = new Map<string, IDisposable>();
+	private readonly _visualizerTreeHandles = new Map<string, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -87,29 +89,43 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._debugAdapterDescriptorFactories = new Map();
 		this._extHostKnownSessions = new Set();
 
-		this._toDispose.add(this.debugService.getViewModel().onDidFocusThread(({ thread, explicit, session }) => {
-			if (session) {
-				const dto: IThreadFocusDto = {
+		const viewModel = this.debugService.getViewModel();
+		this._toDispose.add(Event.any(viewModel.onDidFocusStackFrame, viewModel.onDidFocusThread)(() => {
+			const stackFrame = viewModel.focusedStackFrame;
+			const thread = viewModel.focusedThread;
+			if (stackFrame) {
+				this._proxy.$acceptStackFrameFocus({
+					kind: 'stackFrame',
+					threadId: stackFrame.thread.threadId,
+					frameId: stackFrame.frameId,
+					sessionId: stackFrame.thread.session.getId(),
+				} satisfies IStackFrameFocusDto);
+			} else if (thread) {
+				this._proxy.$acceptStackFrameFocus({
 					kind: 'thread',
-					threadId: thread?.threadId,
-					sessionId: session.getId(),
-				};
-				this._proxy.$acceptStackFrameFocus(dto);
+					threadId: thread.threadId,
+					sessionId: thread.session.getId(),
+				} satisfies IThreadFocusDto);
+			} else {
+				this._proxy.$acceptStackFrameFocus(undefined);
 			}
 		}));
 
-		this._toDispose.add(this.debugService.getViewModel().onDidFocusStackFrame(({ stackFrame, explicit, session }) => {
-			if (session) {
-				const dto: IStackFrameFocusDto = {
-					kind: 'stackFrame',
-					threadId: stackFrame?.thread.threadId,
-					frameId: stackFrame?.frameId,
-					sessionId: session.getId(),
-				};
-				this._proxy.$acceptStackFrameFocus(dto);
-			}
-		}));
 		this.sendBreakpointsAndListen();
+	}
+
+	$registerDebugVisualizerTree(treeId: string, canEdit: boolean): void {
+		this.visualizerService.registerTree(treeId, {
+			disposeItem: id => this._proxy.$disposeVisualizedTree(id),
+			getChildren: e => this._proxy.$getVisualizerTreeItemChildren(treeId, e),
+			getTreeItem: e => this._proxy.$getVisualizerTreeItem(treeId, e),
+			editItem: canEdit ? ((e, v) => this._proxy.$editVisualizerTreeItem(e, v)) : undefined
+		});
+	}
+
+	$unregisterDebugVisualizerTree(treeId: string): void {
+		this._visualizerTreeHandles.get(treeId)?.dispose();
+		this._visualizerTreeHandles.delete(treeId);
 	}
 
 	$registerDebugVisualizer(extensionId: string, id: string): void {
@@ -202,14 +218,22 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 						column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
 						condition: l.condition,
 						hitCondition: l.hitCondition,
-						logMessage: l.logMessage
+						logMessage: l.logMessage,
+						mode: l.mode,
 					}
 				);
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
 			} else if (dto.type === 'function') {
-				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
+				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id, dto.mode);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType);
+				this.debugService.addDataBreakpoint({
+					description: dto.label,
+					src: { type: DataBreakpointSetType.Variable, dataId: dto.dataId },
+					canPersist: dto.canPersist,
+					accessTypes: dto.accessTypes,
+					accessType: dto.accessType,
+					mode: dto.mode
+				});
 			}
 		}
 		return Promise.resolve();
@@ -420,19 +444,20 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					logMessage: fbp.logMessage,
 					functionName: fbp.name
 				};
-			} else if ('dataId' in bp) {
+			} else if ('src' in bp) {
 				const dbp = <IDataBreakpoint>bp;
-				return <IDataBreakpointDto>{
+				return {
 					type: 'data',
 					id: dbp.getId(),
-					dataId: dbp.dataId,
+					dataId: dbp.src.type === DataBreakpointSetType.Variable ? dbp.src.dataId : dbp.src.address,
 					enabled: dbp.enabled,
 					condition: dbp.condition,
 					hitCondition: dbp.hitCondition,
 					logMessage: dbp.logMessage,
+					accessType: dbp.accessType,
 					label: dbp.description,
 					canPersist: dbp.canPersist
-				};
+				} satisfies IDataBreakpointDto;
 			} else {
 				const sbp = <IBreakpoint>bp;
 				return <ISourceBreakpointDto>{

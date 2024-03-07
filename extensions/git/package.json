@@ -790,6 +790,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.closeAllUnmodifiedEditors",
+        "title": "%command.closeAllUnmodifiedEditors%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.api.getRepositories",
         "title": "%command.api.getRepositories%",
         "category": "Git API"
@@ -1456,7 +1462,7 @@
         {
           "command": "git.reopenClosedRepositories",
           "group": "navigation@1",
-          "when": "scmProvider == git && git.closedRepositoryCount > 0"
+          "when": "git.closedRepositoryCount > 0"
         }
       ],
       "scm/sourceControl": [
@@ -1876,6 +1882,11 @@
           "command": "git.viewAllChanges",
           "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
+        },
+        {
+          "command": "git.viewAllChanges",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
+          "group": "1_view@1"
         }
       ],
       "scm/incomingChanges/historyItem/context": [
@@ -1883,6 +1894,11 @@
           "command": "git.viewCommit",
           "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
+        },
+        {
+          "command": "git.viewCommit",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
+          "group": "1_view@1"
         }
       ],
       "scm/outgoingChanges": [
@@ -1900,13 +1916,13 @@
       "scm/outgoingChanges/context": [
         {
           "command": "git.pushRef",
-          "group": "1_modification@1",
-          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream"
+          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream",
+          "group": "1_modification@1"
         },
         {
           "command": "git.publish",
-          "group": "1_modification@1",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream"
+          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream",
+          "group": "1_modification@1"
         }
       ],
       "scm/outgoingChanges/allChanges/context": [
@@ -1914,6 +1930,11 @@
           "command": "git.viewAllChanges",
           "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
+        },
+        {
+          "command": "git.viewAllChanges",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
+          "group": "1_view@1"
         }
       ],
       "scm/outgoingChanges/historyItem/context": [
@@ -1921,6 +1942,11 @@
           "command": "git.viewCommit",
           "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
+        },
+        {
+          "command": "git.viewCommit",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
+          "group": "1_view@1"
         }
       ],
       "editor/title": [
@@ -2645,6 +2671,12 @@
           "default": false,
           "description": "%config.followTagsWhenSync%"
         },
+        "git.replaceTagsWhenPull": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.replaceTagsWhenPull%"
+        },
         "git.promptToSaveFilesBeforeStash": {
           "type": "string",
           "enum": [
@@ -2727,13 +2759,8 @@
           "default": false
         },
         "git.inputValidation": {
-          "type": "string",
-          "enum": [
-            "always",
-            "warn",
-            "off"
-          ],
-          "default": "off",
+          "type": "boolean",
+          "default": false,
           "description": "%config.inputValidation%"
         },
         "git.inputValidationLength": {
@@ -2748,11 +2775,6 @@
           ],
           "default": 50,
           "markdownDescription": "%config.inputValidationSubjectLength%"
-        },
-        "git.experimental.inputValidation": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.inputValidation%"
         },
         "git.detectSubmodules": {
           "type": "boolean",

@@ -14,6 +14,7 @@ import { isAuxiliaryWindow } from 'vs/base/browser/window';
 import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IWorkbenchLayoutService>(ILayoutService);
 
@@ -291,7 +292,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Register a part to participate in the layout.
 	 */
-	registerPart(part: Part): void;
+	registerPart(part: Part): IDisposable;
 
 	/**
 	 * Returns whether the target window is maximized.

@@ -96,9 +96,9 @@ export class ListTopCellToolbar extends Disposable {
 			DOM.clearNode(this.topCellToolbar);
 
 			const toolbar = this.instantiationService.createInstance(MenuWorkbenchToolBar, this.topCellToolbar, this.notebookEditor.creationOptions.menuIds.cellTopInsertToolbar, {
-				actionViewItemProvider: action => {
+				actionViewItemProvider: (action, options) => {
 					if (action instanceof MenuItemAction) {
-						const item = this.instantiationService.createInstance(CodiconActionViewItem, action, undefined);
+						const item = this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 						return item;
 					}
 

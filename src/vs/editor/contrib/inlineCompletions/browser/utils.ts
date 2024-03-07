@@ -96,6 +96,10 @@ export function addPositions(pos1: Position, pos2: Position): Position {
 	return new Position(pos1.lineNumber + pos2.lineNumber - 1, pos2.lineNumber === 1 ? pos1.column + pos2.column - 1 : pos2.column);
 }
 
+export function subtractPositions(pos1: Position, pos2: Position): Position {
+	return new Position(pos1.lineNumber - pos2.lineNumber + 1, pos1.lineNumber - pos2.lineNumber === 0 ? pos1.column - pos2.column + 1 : pos1.column);
+}
+
 export function lengthOfText(text: string): Position {
 	let line = 1;
 	let column = 1;

@@ -54,6 +54,7 @@ export function registerChatTitleActions() {
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Up,
@@ -93,6 +94,7 @@ export function registerChatTitleActions() {
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Down,
@@ -131,6 +133,7 @@ export function registerChatTitleActions() {
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'bug'
 				}
