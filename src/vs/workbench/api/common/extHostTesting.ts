@@ -74,9 +74,11 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 						return controller?.collection.tree.get(targetTest)?.actual ?? toItemFromContext(arg);
 					}
 					case MarshalledId.TestMessageMenuArgs: {
-						const { extId, message } = arg as ITestMessageMenuArgs;
+						const { test, message } = arg as ITestMessageMenuArgs;
+						const extId = test.item.extId;
 						return {
-							test: this.controllers.get(TestId.root(extId))?.collection.tree.get(extId)?.actual,
+							test: this.controllers.get(TestId.root(extId))?.collection.tree.get(extId)?.actual
+								?? toItemFromContext({ $mid: MarshalledId.TestItemContext, tests: [test] }),
 							message: Convert.TestMessage.to(message as ITestErrorMessage.Serialized),
 						};
 					}
