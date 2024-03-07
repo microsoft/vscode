@@ -17,7 +17,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ReleaseNotesManager } from 'vs/workbench/contrib/update/browser/releaseNotesEditor';
-import { isWeb, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -319,6 +319,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	// windows fast updates
 	private onUpdateDownloaded(update: IUpdate): void {
+		if (isMacintosh) {
+			return;
+		}
 		if (this.configurationService.getValue('update.enableWindowsBackgroundUpdates') && this.productService.target === 'user') {
 			return;
 		}

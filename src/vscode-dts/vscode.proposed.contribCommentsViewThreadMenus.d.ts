@@ -3,16 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part > .content > .composite {
-	height: 100%;
-}
-
-.monaco-workbench .part > .composite.header-or-footer,
-.monaco-workbench .part > .composite.title {
-	display: flex;
-}
-
-.monaco-workbench .part > .composite.title > .title-actions {
-	flex: 1;
-	padding-left: 5px;
-}
+// empty placeholder declaration for the `commentsView/commentThread/context` menu contribution point

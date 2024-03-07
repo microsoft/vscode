@@ -13,7 +13,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentNode, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { IWorkspaceCommentThreadsEvent, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentsList, COMMENTS_VIEW_TITLE, Filter } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { IViewPaneOptions, FilterViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -192,10 +191,6 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this._register(this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
 		this._register(this.commentService.onDidDeleteDataProvider(this.onDataProviderDeleted, this));
 
-		const styleElement = dom.createStyleSheet(container);
-		this.applyStyles(styleElement);
-		this._register(this.themeService.onDidColorThemeChange(_ => this.applyStyles(styleElement)));
-
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				this.refresh();
@@ -218,33 +213,6 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		} else if (this.tree) {
 			this.tree.domFocus();
 		}
-	}
-
-	private applyStyles(styleElement: HTMLStyleElement) {
-		const content: string[] = [];
-
-		const theme = this.themeService.getColorTheme();
-		const linkColor = theme.getColor(textLinkForeground);
-		if (linkColor) {
-			content.push(`.comments-panel .comments-panel-container a { color: ${linkColor}; }`);
-		}
-
-		const linkActiveColor = theme.getColor(textLinkActiveForeground);
-		if (linkActiveColor) {
-			content.push(`.comments-panel .comments-panel-container a:hover, a:active { color: ${linkActiveColor}; }`);
-		}
-
-		const focusColor = theme.getColor(focusBorder);
-		if (focusColor) {
-			content.push(`.comments-panel .comments-panel-container a:focus { outline-color: ${focusColor}; }`);
-		}
-
-		const codeTextForegroundColor = theme.getColor(textPreformatForeground);
-		if (codeTextForegroundColor) {
-			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
-		}
-
-		styleElement.textContent = content.join('\n');
 	}
 
 	private async renderComments(): Promise<void> {

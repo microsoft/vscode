@@ -476,15 +476,17 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				// Watcher path came back! Restart watching...
 				for (const { resource, type } of changes) {
 					if (resource.fsPath === watcher.request.path && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
-						this.warn('Watcher restarts because watched path got created again', watcher);
+						if (this.isPathValid(watcher.request.path)) {
+							this.warn('Watcher restarts because watched path got created again', watcher);
 
-						// Stop watching that parent folder
-						nodeWatcher.dispose();
+							// Stop watching that parent folder
+							nodeWatcher.dispose();
 
-						// Restart the file watching
-						this.restartWatching(watcher);
+							// Restart the file watching
+							this.restartWatching(watcher);
 
-						break;
+							break;
+						}
 					}
 				}
 			}, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
@@ -628,19 +630,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				}
 
 				// Check for invalid paths
-				if (validatePaths) {
-					try {
-						const stat = statSync(request.path);
-						if (!stat.isDirectory()) {
-							this.trace(`ignoring a path for watching that is a file and not a folder: ${request.path}`);
-
-							continue;
-						}
-					} catch (error) {
-						this.trace(`ignoring a path for watching who's stat info failed to resolve: ${request.path} (error: ${error})`);
-
-						continue;
-					}
+				if (validatePaths && !this.isPathValid(request.path)) {
+					continue;
 				}
 
 				requestTrie.set(request.path, request);
@@ -650,6 +641,23 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 
 		return normalizedRequests;
+	}
+
+	private isPathValid(path: string): boolean {
+		try {
+			const stat = statSync(path);
+			if (!stat.isDirectory()) {
+				this.trace(`ignoring a path for watching that is a file and not a folder: ${path}`);
+
+				return false;
+			}
+		} catch (error) {
+			this.trace(`ignoring a path for watching who's stat info failed to resolve: ${path} (error: ${error})`);
+
+			return false;
+		}
+
+		return true;
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {
