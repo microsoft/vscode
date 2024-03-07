@@ -104,7 +104,7 @@ suite('EditorAutoSave', () => {
 
 		assert.strictEqual(model.isDirty(), false);
 
-		await editorPane?.group?.closeAllEditors();
+		await editorPane?.group.closeAllEditors();
 	});
 
 	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {

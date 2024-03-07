@@ -517,7 +517,7 @@ export class BreadcrumbsControl {
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
 		} else {
-			element.outline.reveal(element, { pinned }, group === SIDE_GROUP);
+			element.outline.reveal(element, { pinned }, group === SIDE_GROUP, false);
 		}
 	}
 
@@ -612,13 +612,14 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
 				title: localize('cmd.toggle2', "Breadcrumbs"),
-				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "&&Breadcrumbs")
+				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs")
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
 				{ id: MenuId.MenubarAppearanceMenu, group: '4_editor', order: 2 },
 				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 },
-				{ id: MenuId.StickyScrollContext }
+				{ id: MenuId.StickyScrollContext },
+				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 }
 			]
 		});
 	}
@@ -859,7 +860,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return (<IOutline<any>>input).reveal(element, {
 				pinned: true,
 				preserveFocus: false
-			}, true);
+			}, true, false);
 		}
 	}
 });

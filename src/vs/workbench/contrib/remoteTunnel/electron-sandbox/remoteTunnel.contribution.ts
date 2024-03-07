@@ -395,7 +395,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	private createExistingSessionItem(session: AuthenticationSession, providerId: string): ExistingSessionItem {
 		return {
 			label: session.account.label,
-			description: this.authenticationService.getLabel(providerId),
+			description: this.authenticationService.getProvider(providerId).label,
 			session,
 			providerId
 		};
@@ -412,9 +412,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		for (const authenticationProvider of (await this.getAuthenticationProviders())) {
 			const signedInForProvider = sessions.some(account => account.providerId === authenticationProvider.id);
-			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
-				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
-				options.push({ label: localize({ key: 'sign in using account', comment: ['{0} will be a auth provider (e.g. Github)'] }, "Sign in with {0}", providerName), provider: authenticationProvider });
+			const provider = this.authenticationService.getProvider(authenticationProvider.id);
+			if (!signedInForProvider || provider.supportsMultipleAccounts) {
+				options.push({ label: localize({ key: 'sign in using account', comment: ['{0} will be a auth provider (e.g. Github)'] }, "Sign in with {0}", provider.label), provider: authenticationProvider });
 			}
 		}
 

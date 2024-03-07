@@ -76,6 +76,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -94,7 +95,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@INotebookEditorWorkerService private readonly _notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService
 	) {
-		super(NotebookEditor.ID, telemetryService, themeService, storageService);
+		super(NotebookEditor.ID, group, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		this._register(this._fileService.onDidChangeFileSystemProviderCapabilities(e => this._onDidChangeFileSystemProvider(e.scheme)));
@@ -150,24 +151,22 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		return this._widget.value;
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup | undefined): void {
-		super.setVisible(visible, group);
+	override setVisible(visible: boolean): void {
+		super.setVisible(visible);
 		if (!visible) {
 			this._widget.value?.onWillHide();
 		}
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-		if (group) {
-			this._groupListener.clear();
-			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
-			this._groupListener.add(group.onDidModelChange(() => {
-				if (this._editorGroupService.activeGroup !== group) {
-					this._widget?.value?.updateEditorFocus();
-				}
-			}));
-		}
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		this._groupListener.clear();
+		this._groupListener.add(this.group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
+		this._groupListener.add(this.group.onDidModelChange(() => {
+			if (this._editorGroupService.activeGroup !== this.group) {
+				this._widget?.value?.updateEditorFocus();
+			}
+		}));
 
 		if (!visible) {
 			this._saveEditorViewState(this.input);
@@ -203,7 +202,6 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 			const perf = new NotebookPerfMarks();
 			perf.mark('startTime');
-			const group = this.group!;
 
 			this._inputListener.value = input.onDidChangeCapabilities(() => this._onDidChangeInputCapabilities(input));
 
@@ -213,7 +211,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			// we need to hide it before getting a new widget
 			this._widget.value?.onWillHide();
 
-			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension, DOM.getWindowById(group.windowId, true).window);
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, input, undefined, this._pagePosition?.dimension, this.window);
 
 			if (this._rootElement && this._widget.value!.getDomNode()) {
 				this._rootElement.setAttribute('aria-flowto', this._widget.value!.getDomNode().id || '');
@@ -319,7 +317,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			this._widgetDisposableStore.add(this._widget.value.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
 
 			this._widgetDisposableStore.add(this._editorGroupService.createEditorDropTarget(this._widget.value.getDomNode(), {
-				containsGroup: (group) => this.group?.id === group.id
+				containsGroup: (group) => this.group.id === group.id
 			}));
 
 			perf.mark('editorLoaded');
@@ -338,7 +336,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			}
 
 			// Handle case where a file is too large to open without confirmation
-			if ((<FileOperationError>e).fileOperationResult === FileOperationResult.FILE_TOO_LARGE && this.group) {
+			if ((<FileOperationError>e).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 				let message: string;
 				if (e instanceof TooLargeFileOperationError) {
 					message = localize('notebookTooLargeForHeapErrorWithSize', "The notebook is not displayed in the notebook editor because it is very large ({0}).", ByteSize.formatSize(e.size));
@@ -512,7 +510,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
-		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {
+		if (this._widget.value && input instanceof NotebookEditorInput) {
 			if (this._widget.value.isDisposed) {
 				return;
 			}
@@ -523,10 +521,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 	}
 
 	private _loadNotebookEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
-		let result: INotebookEditorViewState | undefined;
-		if (this.group) {
-			result = this._editorMemento.loadEditorState(this.group, input.resource);
-		}
+		const result = this._editorMemento.loadEditorState(this.group, input.resource);
 		if (result) {
 			return result;
 		}
@@ -545,11 +540,11 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
 		this._pagePosition = { dimension, position };
 
-		if (!this._widget.value || !(this._input instanceof NotebookEditorInput)) {
+		if (!this._widget.value || !(this.input instanceof NotebookEditorInput)) {
 			return;
 		}
 
-		if (this._input.resource.toString() !== this.textModel?.uri.toString() && this._widget.value?.hasModel()) {
+		if (this.input.resource.toString() !== this.textModel?.uri.toString() && this._widget.value?.hasModel()) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document

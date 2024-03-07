@@ -441,6 +441,6 @@ export interface ILineColumnInfo {
 export interface IDetectedLinks {
 	wordLinks?: ILink[];
 	webLinks?: ILink[];
-	fileLinks?: ILink[];
+	fileLinks?: (ILink | TerminalLink)[];
 	folderLinks?: ILink[];
 }

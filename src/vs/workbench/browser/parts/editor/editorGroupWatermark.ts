@@ -62,6 +62,7 @@ export class EditorGroupWatermark extends Disposable {
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private enabled: boolean = false;
 	private workbenchState: WorkbenchState;
+	private keybindingLabel?: KeybindingLabel;
 
 	constructor(
 		container: HTMLElement,
@@ -145,8 +146,9 @@ export class EditorGroupWatermark extends Disposable {
 				const dt = append(dl, $('dt'));
 				dt.textContent = entry.text;
 				const dd = append(dl, $('dd'));
-				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles });
-				keybinding.set(keys);
+				this.keybindingLabel?.dispose();
+				this.keybindingLabel = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles });
+				this.keybindingLabel.set(keys);
 			}
 		};
 
@@ -162,5 +164,6 @@ export class EditorGroupWatermark extends Disposable {
 	override dispose(): void {
 		super.dispose();
 		this.clear();
+		this.keybindingLabel?.dispose();
 	}
 }
