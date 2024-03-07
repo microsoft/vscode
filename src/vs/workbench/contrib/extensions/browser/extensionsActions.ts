@@ -1554,20 +1554,20 @@ export class DisableDropDownAction extends ActionWithDropDownAction {
 
 }
 
-export class ReloadAction extends ExtensionAction {
+export class ExtensionRuntimeStateAction extends ExtensionAction {
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} reload`;
-	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${ExtensionRuntimeStateAction.EnabledClass} disabled`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
 
 	constructor(
-		@IHostService private readonly hostService: IHostService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
 	) {
-		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
+		super('extensions.runtimeState', '', ExtensionRuntimeStateAction.DisabledClass, false);
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this.update();
 	}
@@ -1575,7 +1575,7 @@ export class ReloadAction extends ExtensionAction {
 	update(): void {
 		this.enabled = false;
 		this.tooltip = '';
-		this.class = ReloadAction.DisabledClass;
+		this.class = ExtensionRuntimeStateAction.DisabledClass;
 
 		if (!this.extension) {
 			return;
@@ -1596,18 +1596,18 @@ export class ReloadAction extends ExtensionAction {
 		}
 
 		this.enabled = true;
-		this.class = ReloadAction.EnabledClass;
+		this.class = ExtensionRuntimeStateAction.EnabledClass;
 		this.tooltip = runtimeState.reason;
-		this.label = runtimeState.action === ExtensionRuntimeActionType.Reload ? localize('reload window', 'Reload Window')
-			: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart {0}', this.productService.nameShort)
+		this.label = runtimeState.action === ExtensionRuntimeActionType.RestartExtensions ? localize('restart extensions', 'Restart Extensions')
+			: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart to Update')
 				: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', 'Update {0}', this.productService.nameShort) : '';
 	}
 
 	override async run(): Promise<any> {
 		const runtimeState = this.extension?.runtimeState;
 
-		if (runtimeState?.action === ExtensionRuntimeActionType.Reload) {
-			return this.hostService.reload();
+		if (runtimeState?.action === ExtensionRuntimeActionType.RestartExtensions) {
+			return this.extensionsWorkbenchService.updateRunningExtensions();
 		}
 
 		else if (runtimeState?.action === ExtensionRuntimeActionType.DownloadUpdate) {
