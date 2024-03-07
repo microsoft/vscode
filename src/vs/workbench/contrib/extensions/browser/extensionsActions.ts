@@ -1598,15 +1598,15 @@ export class ExtensionRuntimeStateAction extends ExtensionAction {
 		this.enabled = true;
 		this.class = ExtensionRuntimeStateAction.EnabledClass;
 		this.tooltip = runtimeState.reason;
-		this.label = runtimeState.action === ExtensionRuntimeActionType.RestartExtHost ? localize('restart ext host', 'Restart Extension Host')
-			: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart {0}', this.productService.nameShort)
+		this.label = runtimeState.action === ExtensionRuntimeActionType.RestartExtensions ? localize('restart extensions', 'Restart Extensions')
+			: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart to Update')
 				: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', 'Update {0}', this.productService.nameShort) : '';
 	}
 
 	override async run(): Promise<any> {
 		const runtimeState = this.extension?.runtimeState;
 
-		if (runtimeState?.action === ExtensionRuntimeActionType.RestartExtHost) {
+		if (runtimeState?.action === ExtensionRuntimeActionType.RestartExtensions) {
 			return this.extensionsWorkbenchService.updateRunningExtensions();
 		}
 

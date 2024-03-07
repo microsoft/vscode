@@ -1010,7 +1010,7 @@ suite('ExtensionRuntimeStateAction', () => {
 		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) }]);
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, `Please restart Extension Host to enable this extension.`);
+		assert.strictEqual(testObject.tooltip, `Please restart extensions to enable this extension.`);
 	});
 
 	test('Test Runtime State when extension is newly installed and ext host restart is not required', async () => {
@@ -1078,7 +1078,7 @@ suite('ExtensionRuntimeStateAction', () => {
 		uninstallEvent.fire({ identifier: local.identifier });
 		didUninstallEvent.fire({ identifier: local.identifier });
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, `Please restart Extension Host to complete the uninstallation of this extension.`);
+		assert.strictEqual(testObject.tooltip, `Please restart extensions to complete the uninstallation of this extension.`);
 	});
 
 	test('Test Runtime State when extension is uninstalled and can be removed', async () => {
@@ -1146,7 +1146,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		return new Promise<void>(c => {
 			disposables.add(testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === `Please restart Extension Host to enable the updated extension.`) {
+				if (testObject.enabled && testObject.tooltip === `Please restart extensions to enable the updated extension.`) {
 					c();
 				}
 			}));
@@ -1200,7 +1200,7 @@ suite('ExtensionRuntimeStateAction', () => {
 		await testObject.update();
 
 		assert.ok(testObject.enabled);
-		assert.strictEqual(`Please restart Extension Host to disable this extension.`, testObject.tooltip);
+		assert.strictEqual(`Please restart extensions to disable this extension.`, testObject.tooltip);
 	});
 
 	test('Test Runtime State when extension enablement is toggled when running', async () => {
@@ -1243,7 +1243,7 @@ suite('ExtensionRuntimeStateAction', () => {
 		await workbenchService.setEnablement(extensions[0], EnablementState.EnabledGlobally);
 		await testObject.update();
 		assert.ok(testObject.enabled);
-		assert.strictEqual(`Please restart Extension Host to enable this extension.`, testObject.tooltip);
+		assert.strictEqual(`Please restart extensions to enable this extension.`, testObject.tooltip);
 	});
 
 	test('Test Runtime State when extension enablement is toggled when not running', async () => {
@@ -1290,7 +1290,7 @@ suite('ExtensionRuntimeStateAction', () => {
 		await workbenchService.setEnablement(extensions[0], EnablementState.EnabledGlobally);
 		await testObject.update();
 		assert.ok(testObject.enabled);
-		assert.strictEqual(`Please restart Extension Host to enable this extension.`, testObject.tooltip);
+		assert.strictEqual(`Please restart extensions to enable this extension.`, testObject.tooltip);
 	});
 
 	test('Test Runtime State when a localization extension is newly installed', async () => {
@@ -1441,7 +1441,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, `Please restart Extension Host to enable this extension.`);
+		assert.strictEqual(testObject.tooltip, `Please restart extensions to enable this extension.`);
 	});
 
 	test('Test Runtime State when ui extension is disabled on remote server and installed in local server', async () => {
@@ -1480,7 +1480,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, `Please restart Extension Host to enable this extension.`);
+		assert.strictEqual(testObject.tooltip, `Please restart extensions to enable this extension.`);
 	});
 
 	test('Test Runtime State for remote ui extension is disabled when it is installed and enabled in local server', async () => {
