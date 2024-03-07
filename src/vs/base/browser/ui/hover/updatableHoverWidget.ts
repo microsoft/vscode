@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
@@ -68,6 +68,9 @@ export interface ICustomHover extends IDisposable {
 	update(tooltip: IHoverContent, options?: IUpdatableHoverOptions): void;
 }
 
+export interface IHoverWidget extends IDisposable {
+	readonly isDisposed: boolean;
+}
 
 class UpdatableHoverWidget implements IDisposable {
 
@@ -267,7 +270,14 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
 		hoverPreparation = toDispose;
 	};
-	const focusDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.FOCUS, onFocus, true);
+
+	// Do not show hover when focusing an input or textarea
+	let focusDomEmitter: undefined | IDisposable;
+	const tagName = htmlElement.tagName.toLowerCase();
+	if (tagName !== 'input' && tagName !== 'textarea') {
+		focusDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.FOCUS, onFocus, true);
+	}
+
 	const hover: ICustomHover = {
 		show: focus => {
 			hideHover(false, true); // terminate a ongoing mouse over preparation
@@ -285,7 +295,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			mouseLeaveEmitter.dispose();
 			mouseDownEmitter.dispose();
 			mouseUpEmitter.dispose();
-			focusDomEmitter.dispose();
+			focusDomEmitter?.dispose();
 			hideHover(true, true);
 		}
 	};

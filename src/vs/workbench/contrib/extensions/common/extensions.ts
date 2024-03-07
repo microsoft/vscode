@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -17,8 +17,8 @@ import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -38,6 +38,15 @@ export const enum ExtensionState {
 	Uninstalling,
 	Uninstalled
 }
+
+export const enum ExtensionRuntimeActionType {
+	RestartExtensions = 'restartExtensions',
+	DownloadUpdate = 'downloadUpdate',
+	ApplyUpdate = 'applyUpdate',
+	QuitAndInstall = 'quitAndInstall',
+}
+
+export type ExtensionRuntimeState = { action: ExtensionRuntimeActionType; reason: string };
 
 export interface IExtension {
 	readonly type: ExtensionType;
@@ -69,7 +78,7 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly outdatedTargetPlatform: boolean;
-	readonly reloadRequiredStatus?: string;
+	readonly runtimeState: ExtensionRuntimeState | undefined;
 	readonly enablementState: EnablementState;
 	readonly tags: readonly string[];
 	readonly categories: readonly string[];
@@ -91,6 +100,12 @@ export interface IExtension {
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
 
+export interface InstallExtensionOptions extends InstallOptions {
+	version?: string;
+	justification?: string | { reason: string; action: string };
+	enable?: boolean;
+}
+
 export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IExtension | undefined>;
@@ -106,11 +121,11 @@ export interface IExtensionsWorkbenchService {
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
 	canInstall(extension: IExtension): Promise<boolean>;
-	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
-	install(extension: IExtension, installOptions?: InstallOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
+	install(id: string, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
+	install(vsix: URI, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
+	install(extension: IExtension, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
 	installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
-	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
@@ -124,6 +139,7 @@ export interface IExtensionsWorkbenchService {
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
+	updateRunningExtensions(): Promise<void>;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;

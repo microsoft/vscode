@@ -22,7 +22,7 @@ import * as nls from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
@@ -1150,15 +1150,18 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 
 export interface IDataBreakpointOptions extends IBaseBreakpointOptions {
 	description: string;
-	dataId: string;
+	src: DataBreakpointSource;
 	canPersist: boolean;
+	initialSessionData?: { session: IDebugSession; dataId: string };
 	accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined;
 	accessType: DebugProtocol.DataBreakpointAccessType;
 }
 
 export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
+	private readonly sessionDataIdForAddr = new WeakMap<IDebugSession, string | null>();
+
 	public readonly description: string;
-	public readonly dataId: string;
+	public readonly src: DataBreakpointSource;
 	public readonly canPersist: boolean;
 	public readonly accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined;
 	public readonly accessType: DebugProtocol.DataBreakpointAccessType;
@@ -1169,15 +1172,36 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 	) {
 		super(id, opts);
 		this.description = opts.description;
-		this.dataId = opts.dataId;
+		if ('dataId' in opts) { //  back compat with old saved variables in 1.87
+			opts.src = { type: DataBreakpointSetType.Variable, dataId: opts.dataId as string };
+		}
+		this.src = opts.src;
 		this.canPersist = opts.canPersist;
 		this.accessTypes = opts.accessTypes;
 		this.accessType = opts.accessType;
+		if (opts.initialSessionData) {
+			this.sessionDataIdForAddr.set(opts.initialSessionData.session, opts.initialSessionData.dataId);
+		}
 	}
 
-	toDAP(): DebugProtocol.DataBreakpoint {
+	async toDAP(session: IDebugSession): Promise<DebugProtocol.DataBreakpoint | undefined> {
+		let dataId: string;
+		if (this.src.type === DataBreakpointSetType.Variable) {
+			dataId = this.src.dataId;
+		} else {
+			let sessionDataId = this.sessionDataIdForAddr.get(session);
+			if (!sessionDataId) {
+				sessionDataId = (await session.dataBytesBreakpointInfo(this.src.address, this.src.bytes))?.dataId;
+				if (!sessionDataId) {
+					return undefined;
+				}
+				this.sessionDataIdForAddr.set(session, sessionDataId);
+			}
+			dataId = sessionDataId;
+		}
+
 		return {
-			dataId: this.dataId,
+			dataId,
 			accessType: this.accessType,
 			condition: this.condition,
 			hitCondition: this.hitCondition,
@@ -1188,7 +1212,7 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		return {
 			...super.toJSON(),
 			description: this.description,
-			dataId: this.dataId,
+			src: this.src,
 			accessTypes: this.accessTypes,
 			accessType: this.accessType,
 			canPersist: this.canPersist,

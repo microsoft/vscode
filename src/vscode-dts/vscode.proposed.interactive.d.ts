@@ -110,22 +110,8 @@ declare module 'vscode' {
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
-	export interface InteractiveSessionParticipantInformation {
-		name: string;
-
-		/**
-		 * A full URI for the icon of the participant.
-		 */
-		icon?: Uri;
-	}
-
 	export interface InteractiveSession {
-		requester: InteractiveSessionParticipantInformation;
-		responder: InteractiveSessionParticipantInformation;
-		inputPlaceholder?: string;
 	}
-
-	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		prepareSession(token: CancellationToken): ProviderResult<S>;
@@ -143,8 +129,6 @@ declare module 'vscode' {
 		export const _version: 1 | number;
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
-
-		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider, metadata?: InteractiveEditorSessionProviderMetadata): Disposable;
 

@@ -15,9 +15,9 @@ import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessSeparator, PickerQuickAccessProvider, Picks, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { IKeyMods, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -30,7 +30,6 @@ import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from 'vs/workbench
 import { Event } from 'vs/base/common/event';
 import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Sequencer } from 'vs/base/common/async';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
@@ -84,8 +83,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHistoryService private readonly _historyService: IHistoryService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true, shouldSkipTrimPickFilter: true });
 
@@ -124,16 +122,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				this.editorViewState.set();
 				const itemMatch = item.match;
 				this.editorSequencer.queue(async () => {
-					// disable and re-enable history service so that we can ignore this history entry
-					const disposable = this._historyService.suspendTracking();
-					try {
-						await this._editorService.openEditor({
-							resource: itemMatch.parent().resource,
-							options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
-						});
-					} finally {
-						disposable.dispose();
-					}
+					await this._editorService.openEditor({
+						resource: itemMatch.parent().resource,
+						options: { transient: true, preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+					});
 				});
 			}
 		}));
@@ -225,11 +217,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		}
 	}
 
-	private _getPicksFromMatches(matches: FileMatch[], limit: number): (IQuickPickSeparator | ITextSearchQuickAccessItem)[] {
+	private _getPicksFromMatches(matches: FileMatch[], limit: number): (IPickerQuickAccessSeparator | ITextSearchQuickAccessItem)[] {
 		matches = matches.sort(searchComparer);
 
 		const files = matches.length > limit ? matches.slice(0, limit) : matches;
-		const picks: Array<ITextSearchQuickAccessItem | IQuickPickSeparator> = [];
+		const picks: Array<ITextSearchQuickAccessItem | IPickerQuickAccessSeparator> = [];
 
 		for (let fileIndex = 0; fileIndex < matches.length; fileIndex++) {
 			if (fileIndex === limit) {
@@ -262,6 +254,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					iconClass: ThemeIcon.asClassName(searchOpenInFileIcon),
 					tooltip: localize('QuickSearchOpenInFile', "Open File")
 				}],
+				trigger: async (): Promise<TriggerAction> => {
+					await this.handleAccept(fileMatch, {});
+					return TriggerAction.CLOSE_PICKER;
+				},
 			});
 
 			const results: Match[] = fileMatch.matches() ?? [];

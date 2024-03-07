@@ -7,10 +7,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { addStandardDisposableListener } from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -235,12 +236,12 @@ export interface IHoverTarget extends IDisposable {
 
 export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate {
 
-	private lastHoverHideTime = Number.MAX_VALUE;
+	private lastHoverHideTime = 0;
 	private timeLimit = 200;
 
 	private _delay: number;
 	get delay(): number {
-		if (this.instantHover && Date.now() - this.lastHoverHideTime < this.timeLimit) {
+		if (this.isInstantlyHovering()) {
 			return 0; // show instantly when a hover was recently shown
 		}
 		return this._delay;
@@ -279,14 +280,27 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			}));
 		}
 
+		const id = options.content instanceof HTMLElement ? undefined : options.content.toString();
+
 		return this.hoverService.showHover({
 			...options,
+			...overrideOptions,
 			persistence: {
-				hideOnHover: true,
 				hideOnKeyDown: true,
+				...overrideOptions.persistence
 			},
-			...overrideOptions
+			id,
+			appearance: {
+				...options.appearance,
+				compact: true,
+				skipFadeInAnimation: this.isInstantlyHovering(),
+				...overrideOptions.appearance
+			}
 		}, focus);
+	}
+
+	private isInstantlyHovering(): boolean {
+		return this.instantHover && Date.now() - this.lastHoverHideTime < this.timeLimit;
 	}
 
 	setInstantHoverTimeLimit(timeLimit: number): void {

@@ -100,6 +100,12 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
+		// telemetry
+		type BulkEditPaneOpened = {
+			owner: 'aiday-mar';
+			comment: 'Report when the bulk edit pane has been opened';
+		};
+		this.telemetryService.publicLog2<{}, BulkEditPaneOpened>('views.bulkEditPane');
 	}
 
 	override dispose(): void {

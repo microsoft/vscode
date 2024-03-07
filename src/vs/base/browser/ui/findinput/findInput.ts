@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./findInput';
 import * as nls from 'vs/nls';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 
 export interface IFindInputOptions {
@@ -114,7 +114,7 @@ export class FindInput extends Widget {
 			inputBoxStyles: options.inputBoxStyles,
 		}));
 
-		const hoverDelegate = this._register(getDefaultHoverDelegate('element', true));
+		const hoverDelegate = this._register(createInstantHoverDelegate());
 
 		if (this.showCommonFindToggles) {
 			this.regex = this._register(new RegexToggle({
