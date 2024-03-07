@@ -23,7 +23,8 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
-		weight: KeybindingWeight.WorkbenchContrib,
+		// HACK: Force weight to be higher than the extension contributed keybinding to override it until it gets replaced
+		weight: KeybindingWeight.ExternalExtension + 1, // KeybindingWeight.WorkbenchContrib,
 	},
 	f1: true,
 	category: AbstractInlineChatAction.category,
