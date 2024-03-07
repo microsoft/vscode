@@ -8,7 +8,6 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,10 +21,9 @@ import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTermi
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
-
-
 import { ChatModel, ChatRequestModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TerminalChatContextKeys, TerminalChatResponseTypes } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const enum Message {
 	NONE = 0,
@@ -236,8 +234,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._requestActiveContextKey.set(true);
 		const cancellationToken = new CancellationTokenSource().token;
 		let responseContent = '';
-		let firstCodeBlock: string | undefined;
-		let shellType: string | undefined;
 		const progressCallback = (progress: IChatProgress) => {
 			if (cancellationToken.isCancellationRequested) {
 				return;
@@ -248,22 +244,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			}
 			if (this._currentRequest) {
 				this._model?.acceptResponseProgress(this._currentRequest, progress);
-			}
-			if (!firstCodeBlock) {
-				const firstCodeBlockContent = marked.lexer(responseContent).filter(token => token.type === 'code')?.[0]?.raw;
-				if (firstCodeBlockContent) {
-					const regex = /```(?<language>[\w\n]+)\n(?<content>[\s\S]*?)```/g;
-					const match = regex.exec(firstCodeBlockContent);
-					firstCodeBlock = match?.groups?.content.trim();
-					shellType = match?.groups?.language;
-					if (firstCodeBlock) {
-						this._chatWidget?.value.renderTerminalCommand(firstCodeBlock, shellType);
-						this._chatAccessibilityService.acceptResponse(firstCodeBlock, accessibilityRequestId);
-						this._responseTypeContextKey.set(TerminalChatResponseTypes.TerminalCommand);
-						this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
-						this._messages.fire(Message.ACCEPT_INPUT);
-					}
-				}
 			}
 		};
 
@@ -301,10 +281,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				this._model?.completeResponse(this._currentRequest);
 			}
 			this._lastResponseContent = responseContent;
-			if (!firstCodeBlock && this._currentRequest) {
+			if (this._currentRequest) {
 				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
-				this._chatWidget?.value.renderMessage(responseContent, this._currentRequest.id);
-				this._responseTypeContextKey.set(TerminalChatResponseTypes.Message);
+				this._chatWidget?.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: this._currentRequest.id, providerId: 'terminal' });
+				const containsCode = responseContent.includes('```');
+				this._responseTypeContextKey.set(containsCode ? TerminalChatResponseTypes.TerminalCommand : TerminalChatResponseTypes.Message);
 				this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 				this._messages.fire(Message.ACCEPT_INPUT);
 			}
