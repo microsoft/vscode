@@ -21,12 +21,14 @@ import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
-import { addPositions, getNewRanges, lengthOfText, subtractPositions } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { addPositions, subtractPositions } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { singleTextEditAugments, computeGhostText, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { RangeLength } from 'vs/editor/common/core/rangeLength';
 
 export enum VersionIdChangeReason {
 	Undo,
@@ -213,7 +215,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		if (suggestItem) {
-			const suggestCompletionEdit = suggestItem.toSingleTextEdit().removeCommonPrefix(model);
+			const suggestCompletionEdit = singleTextRemoveCommonPrefix(suggestItem.toSingleTextEdit(), model);
 			const augmentation = this._computeAugmentation(suggestCompletionEdit, reader);
 
 			const isSuggestionPreviewEnabled = this._suggestPreviewEnabled.read(reader);
@@ -226,7 +228,7 @@ export class InlineCompletionsModel extends Disposable {
 			const positions = this._positions.read(reader);
 			const edits = [fullEdit, ...getSecondaryEdits(this.textModel, positions, fullEdit)];
 			const ghostTexts = edits
-				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], fullEditPreviewLength))
+				.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], fullEditPreviewLength))
 				.filter(isDefined);
 			const primaryGhostText = ghostTexts[0] ?? new GhostText(fullEdit.range.endLineNumber, []);
 			return { edits, primaryGhostText, ghostTexts, inlineCompletion: augmentation?.completion, suggestItem };
@@ -240,7 +242,7 @@ export class InlineCompletionsModel extends Disposable {
 			const positions = this._positions.read(reader);
 			const edits = [replacement, ...getSecondaryEdits(this.textModel, positions, replacement)];
 			const ghostTexts = edits
-				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], 0))
+				.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], 0))
 				.filter(isDefined);
 			if (!ghostTexts[0]) { return undefined; }
 			return { edits, primaryGhostText: ghostTexts[0], ghostTexts, inlineCompletion, suggestItem: undefined };
@@ -256,8 +258,8 @@ export class InlineCompletionsModel extends Disposable {
 
 		const augmentedCompletion = mapFindFirst(candidateInlineCompletions, completion => {
 			let r = completion.toSingleTextEdit(reader);
-			r = r.removeCommonPrefix(model, Range.fromPositions(r.range.getStartPosition(), suggestCompletion.range.getEndPosition()));
-			return r.augments(suggestCompletion) ? { completion, edit: r } : undefined;
+			r = singleTextRemoveCommonPrefix(r, model, Range.fromPositions(r.range.getStartPosition(), suggestCompletion.range.getEndPosition()));
+			return singleTextEditAugments(r, suggestCompletion) ? { completion, edit: r } : undefined;
 		});
 
 		return augmentedCompletion;
@@ -442,7 +444,7 @@ export class InlineCompletionsModel extends Disposable {
 			}
 
 			if (completion.source.provider.handlePartialAccept) {
-				const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), addPositions(ghostTextPos, lengthOfText(partialGhostTextVal)));
+				const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), RangeLength.ofText(partialGhostTextVal).addToPosition(ghostTextPos));
 				// This assumes that the inline completion and the model use the same EOL style.
 				const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
 				completion.source.provider.handlePartialAccept(
@@ -460,7 +462,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
-		const itemEdit = item.toSingleTextEdit().removeCommonPrefix(this.textModel);
+		const itemEdit = singleTextRemoveCommonPrefix(item.toSingleTextEdit(), this.textModel);
 		const augmentedCompletion = this._computeAugmentation(itemEdit, undefined);
 		if (!augmentedCompletion) { return; }
 
@@ -519,7 +521,8 @@ function substringPos(text: string, pos: Position): string {
 
 function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
 	const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
-	const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
+	const edit = new TextEdit(sortPerm.apply(edits));
+	const sortedNewRanges = edit.getNewRanges();
 	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
 	return newRanges.map(range => range.getEndPosition());
 }
