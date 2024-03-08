@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { isLinux } from 'vs/base/common/platform';
-import { IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 
 export interface INodeJSWatcherInstance {
@@ -25,12 +24,6 @@ export interface INodeJSWatcherInstance {
 }
 
 export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
-
-	private readonly _onDidChangeFile = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
-
-	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage = this._onDidLogMessage.event;
 
 	readonly onDidError = Event.None;
 
@@ -90,7 +83,9 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		this.watchers.set(request.path, watcher);
 	}
 
-	async stop(): Promise<void> {
+	override async stop(): Promise<void> {
+		await super.stop();
+
 		for (const [path] of this.watchers) {
 			this.stopWatching(path);
 		}

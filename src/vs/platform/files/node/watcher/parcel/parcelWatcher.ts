@@ -21,7 +21,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 export interface IParcelWatcherInstance {
 
@@ -69,12 +69,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 	);
 
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
-
-	private readonly _onDidChangeFile = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
-
-	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage = this._onDidLogMessage.event;
 
 	private readonly _onDidError = this._register(new Emitter<string>());
 	readonly onDidError = this._onDidError.event;
@@ -370,8 +364,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// Logging
 		if (this.verboseLogging) {
 			for (const event of events) {
-				const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
-				this.trace(typeof watcher.request.correlationId === 'number' ? `${traceMsg} (correlationId: ${watcher.request.correlationId})` : traceMsg);
+				this.traceEvent(event, watcher.request);
 			}
 		}
 
@@ -466,37 +459,39 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 	private onWatchedPathDeleted(watcher: IParcelWatcherInstance): void {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
-		if (this.shouldRestartWatching(watcher.request)) {
-			const parentPath = dirname(watcher.request.path);
-			if (existsSync(parentPath)) {
-				this.trace('Trying to watch on the parent path to restart the watcher...', watcher);
+		if (!this.shouldRestartWatching(watcher.request)) {
+			return; // return if this deletion is handled outside
+		}
 
-				const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false, correlationId: watcher.request.correlationId }, changes => {
-					if (watcher.token.isCancellationRequested) {
-						return; // return early when disposed
-					}
+		const parentPath = dirname(watcher.request.path);
+		if (existsSync(parentPath)) {
+			this.trace('Trying to watch on the parent path to restart the watcher...', watcher);
 
-					// Watcher path came back! Restart watching...
-					for (const { resource, type } of changes) {
-						if (resource.fsPath === watcher.request.path && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
-							if (this.isPathValid(watcher.request.path)) {
-								this.warn('Watcher restarts because watched path got created again', watcher);
+			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false, correlationId: watcher.request.correlationId }, changes => {
+				if (watcher.token.isCancellationRequested) {
+					return; // return early when disposed
+				}
 
-								// Stop watching that parent folder
-								nodeWatcher.dispose();
+				// Watcher path came back! Restart watching...
+				for (const { resource, type } of changes) {
+					if (resource.fsPath === watcher.request.path && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
+						if (this.isPathValid(watcher.request.path)) {
+							this.warn('Watcher restarts because watched path got created again', watcher);
 
-								// Restart the file watching
-								this.restartWatching(watcher);
+							// Stop watching that parent folder
+							nodeWatcher.dispose();
 
-								break;
-							}
+							// Restart the file watching
+							this.restartWatching(watcher);
+
+							break;
 						}
 					}
-				}, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+				}
+			}, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
-				// Make sure to stop watching when the watcher is disposed
-				watcher.token.onCancellationRequested(() => nodeWatcher.dispose());
-			}
+			// Make sure to stop watching when the watcher is disposed
+			watcher.token.onCancellationRequested(() => nodeWatcher.dispose());
 		}
 	}
 
@@ -526,7 +521,9 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		}
 	}
 
-	async stop(): Promise<void> {
+	override async stop(): Promise<void> {
+		await super.stop();
+
 		for (const [path] of this.watchers) {
 			await this.stopWatching(path);
 		}
