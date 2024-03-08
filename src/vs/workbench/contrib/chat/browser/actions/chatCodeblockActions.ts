@@ -89,8 +89,7 @@ export function registerChatCodeBlockActions() {
 				icon: Codicon.copy,
 				menu: {
 					id: MenuId.ChatCodeBlock,
-					group: 'navigation',
-					when: ContextKeyExpr.not('terminalChatFocus')
+					group: 'navigation'
 				}
 			});
 		}
@@ -357,8 +356,7 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					isHiddenByDefault: true,
-					when: ContextKeyExpr.not('terminalChatFocus')
+					isHiddenByDefault: true
 				}
 			});
 		}
