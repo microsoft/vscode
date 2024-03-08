@@ -271,7 +271,7 @@
 	content: "";
 	position: absolute;
 	z-index: 1;
-	bottom: 0;
+	bottom: 2px;
 	width: 100%;
 	height: 0;
 	border-top-width: 1px;
