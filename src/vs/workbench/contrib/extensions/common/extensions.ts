@@ -40,6 +40,7 @@ export const enum ExtensionState {
 }
 
 export const enum ExtensionRuntimeActionType {
+	ReloadWindow = 'reloadWindow',
 	RestartExtensions = 'restartExtensions',
 	DownloadUpdate = 'downloadUpdate',
 	ApplyUpdate = 'applyUpdate',
