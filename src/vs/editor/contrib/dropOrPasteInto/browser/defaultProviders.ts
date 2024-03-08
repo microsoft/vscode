@@ -168,7 +168,7 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 	private readonly _yieldTo = [{ mimeType: Mimes.text }];
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
-		if (context.triggerKind !== DocumentPasteTriggerKind.PasteAs && context.only?.contains(this.kind)) {
+		if (context.triggerKind !== DocumentPasteTriggerKind.PasteAs && !context.only?.contains(this.kind)) {
 			return;
 		}
 
