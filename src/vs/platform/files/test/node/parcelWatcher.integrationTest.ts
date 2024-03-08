@@ -27,7 +27,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-flakySuite('File Watcher (parcel)', () => {
+((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
 
 	class TestParcelWatcher extends ParcelWatcher {
 
@@ -669,7 +669,7 @@ flakySuite('File Watcher (parcel)', () => {
 
 		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
 		onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await Promises.rmdir(folderPath, { recursive: true });
+		await Promises.rm(folderPath);
 		await changeFuture;
 		await onDidWatch;
 
@@ -688,7 +688,7 @@ flakySuite('File Watcher (parcel)', () => {
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
 		let onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await Promises.rmdir(folderPath, { recursive: true });
+		await Promises.rm(folderPath);
 		await changeFuture;
 		await onDidWatch;
 

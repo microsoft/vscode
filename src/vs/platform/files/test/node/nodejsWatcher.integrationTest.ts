@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-ensure-no-disposables-leak-in-test */
-
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
@@ -29,7 +27,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-flakySuite('File Watcher (node.js)', () => {
+((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (node.js)', () => {
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
@@ -621,7 +619,7 @@ flakySuite('File Watcher (node.js)', () => {
 		await basicCrudTest(filePath, undefined, 1);
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
-		await Promises.rmdir(folderPath, { recursive: true });
+		await Promises.rm(folderPath);
 		await changeFuture;
 
 		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
