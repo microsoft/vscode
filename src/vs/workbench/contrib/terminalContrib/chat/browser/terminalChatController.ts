@@ -23,7 +23,7 @@ import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/te
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { TerminalChatContextKeys, TerminalChatResponseTypes } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const enum Message {
@@ -63,7 +63,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private readonly _requestActiveContextKey: IContextKey<boolean>;
 	private readonly _terminalAgentRegisteredContextKey: IContextKey<boolean>;
-	private readonly _responseTypeContextKey: IContextKey<TerminalChatResponseTypes | undefined>;
+	private readonly _responseContainsCodeBlockContextKey: IContextKey<boolean>;
 	private readonly _responseSupportsIssueReportingContextKey: IContextKey<boolean>;
 	private readonly _sessionResponseVoteContextKey: IContextKey<string | undefined>;
 
@@ -101,7 +101,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
 		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.agentRegistered.bindTo(this._contextKeyService);
-		this._responseTypeContextKey = TerminalChatContextKeys.responseType.bindTo(this._contextKeyService);
+		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
 
@@ -212,7 +212,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._model.clear();
 		this._chatWidget?.value.hide();
 		this._chatWidget?.value.setValue(undefined);
-		this._responseTypeContextKey.reset();
+		this._responseContainsCodeBlockContextKey.reset();
 		this._sessionResponseVoteContextKey.reset();
 		this._requestActiveContextKey.reset();
 	}
@@ -291,7 +291,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				// the message grows in height, be sure to update top position so it doesn't go below the terminal
 				this._chatWidget?.value.layoutVertically();
 				const containsCode = responseContent.includes('```');
-				this._responseTypeContextKey.set(containsCode ? TerminalChatResponseTypes.TerminalCommand : TerminalChatResponseTypes.Message);
+				this._responseContainsCodeBlockContextKey.set(containsCode);
 				this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 				this._messages.fire(Message.ACCEPT_INPUT);
 			}
