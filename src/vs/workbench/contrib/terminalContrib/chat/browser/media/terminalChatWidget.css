@@ -22,3 +22,7 @@
 .terminal-inline-chat .chatMessageContent {
 	width: 400px !important;
 }
+
+.interactive-result-code-block-toolbar {
+	margin-top: 7px;
+}
