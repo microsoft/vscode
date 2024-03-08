@@ -63,11 +63,6 @@ export class PickerEditorState extends Disposable {
 
 	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();
-		this._register(this.editorService.onDidCloseEditor((e) => {
-			if (this._editorViewState) {
-				this.openedEditors.delete(e.editor);
-			}
-		}));
 	}
 
 	set(): void {
@@ -111,7 +106,7 @@ export class PickerEditorState extends Disposable {
 			const editorsToClose: IEditorIdentifier[] = [];
 			this.openedEditors.forEach(openedEditor => {
 				groups.forEach(group => {
-					if (group.contains(openedEditor) && group.isTransient(openedEditor)) {
+					if (group.contains(openedEditor) && group.isTransient(openedEditor) && !openedEditor.isDirty()) {
 						editorsToClose.push({ editor: openedEditor, groupId: group.id });
 					}
 				});
