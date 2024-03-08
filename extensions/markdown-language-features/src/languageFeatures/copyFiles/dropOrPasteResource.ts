@@ -22,7 +22,7 @@ import { createInsertUriListEdit, createUriListSnippet, getSnippetLabel } from '
  */
 class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, vscode.DocumentDropEditProvider {
 
-	public static readonly id = 'insertResource';
+	public static readonly kind = vscode.DocumentPasteEditKind.Empty.append('markdown', 'link');
 
 	public static readonly mimeTypes = [
 		Mime.textUriList,
@@ -32,7 +32,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 
 	private readonly _yieldTo = [
 		{ mimeType: 'text/plain' },
-		{ extensionId: 'vscode.ipynb', providerId: 'insertAttachment' },
+		{ kind: vscode.DocumentPasteEditKind.Empty.append('markdown', 'image', 'attachment') },
 	];
 
 	public async provideDocumentDropEdits(
@@ -62,8 +62,9 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
+		_context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
-	): Promise<vscode.DocumentPasteEdit | undefined> {
+	): Promise<vscode.DocumentPasteEdit[] | undefined> {
 		const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.filePaste.enabled', true);
 		if (!enabled) {
 			return;
@@ -71,14 +72,15 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 
 		const createEdit = await this._getMediaFilesPasteEdit(document, dataTransfer, token);
 		if (createEdit) {
-			return createEdit;
+			return [createEdit];
 		}
 
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		return this._createEditFromUriListData(document, ranges, dataTransfer, token);
+		const edit = await this._createEditFromUriListData(document, ranges, dataTransfer, token);
+		return edit ? [edit] : undefined;
 	}
 
 	private async _createEditFromUriListData(
@@ -97,7 +99,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 			return;
 		}
 
-		const uriEdit = new vscode.DocumentPasteEdit('', pasteEdit.label);
+		const uriEdit = new vscode.DocumentPasteEdit('', pasteEdit.label, ResourcePasteOrDropProvider.kind);
 		const edit = new vscode.WorkspaceEdit();
 		edit.set(document.uri, pasteEdit.edits);
 		uriEdit.additionalEdit = edit;
@@ -124,7 +126,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, edit.label);
+		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, edit.label, ResourcePasteOrDropProvider.kind);
 		pasteEdit.additionalEdit = edit.additionalEdits;
 		pasteEdit.yieldTo = this._yieldTo;
 		return pasteEdit;
@@ -150,7 +152,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 		}
 
 		const dropEdit = new vscode.DocumentDropEdit(edit.snippet);
-		dropEdit.label = edit.label;
+		dropEdit.title = edit.label;
 		dropEdit.additionalEdit = edit.additionalEdits;
 		dropEdit.yieldTo = this._yieldTo;
 		return dropEdit;
@@ -226,11 +228,11 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 export function registerResourceDropOrPasteSupport(selector: vscode.DocumentSelector): vscode.Disposable {
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentPasteEditProvider(selector, new ResourcePasteOrDropProvider(), {
-			id: ResourcePasteOrDropProvider.id,
+			providedPasteEditKinds: [ResourcePasteOrDropProvider.kind],
 			pasteMimeTypes: ResourcePasteOrDropProvider.mimeTypes,
 		}),
 		vscode.languages.registerDocumentDropEditProvider(selector, new ResourcePasteOrDropProvider(), {
-			id: ResourcePasteOrDropProvider.id,
+			providedDropEditKinds: [ResourcePasteOrDropProvider.kind],
 			dropMimeTypes: ResourcePasteOrDropProvider.mimeTypes,
 		}),
 	);
