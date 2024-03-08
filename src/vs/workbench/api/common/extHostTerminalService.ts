@@ -82,7 +82,10 @@ export class ExtHostTerminal {
 	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
-	private _state: vscode.TerminalState = { isInteractedWith: false };
+	private _state: Readonly<vscode.TerminalState> = {
+		isInteractedWith: false,
+		isShellIntegrationActivated: false,
+	};
 	private _selection: string | undefined;
 
 	public isOpen: boolean = false;
@@ -240,7 +243,21 @@ export class ExtHostTerminal {
 
 	public setInteractedWith(): boolean {
 		if (!this._state.isInteractedWith) {
-			this._state = { isInteractedWith: true };
+			this._state = {
+				...this._state,
+				isInteractedWith: true,
+			};
+			return true;
+		}
+		return false;
+	}
+
+	public setShellIntegrationActivated(): boolean {
+		if (!this._state.isShellIntegrationActivated) {
+			this._state = {
+				...this._state,
+				isShellIntegrationActivated: true,
+			};
 			return true;
 		}
 		return false;
@@ -667,6 +684,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public $acceptTerminalInteraction(id: number): void {
 		const terminal = this._getTerminalById(id);
 		if (terminal?.setInteractedWith()) {
+			this._onDidChangeTerminalState.fire(terminal.value);
+		}
+	}
+
+	public $acceptTerminalShellIntegrationActivation(id: number): void {
+		const terminal = this._getTerminalById(id);
+		if (terminal?.setShellIntegrationActivated()) {
 			this._onDidChangeTerminalState.fire(terminal.value);
 		}
 	}
