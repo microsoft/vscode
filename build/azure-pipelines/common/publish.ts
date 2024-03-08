@@ -505,7 +505,6 @@ async function unzip(packagePath: string, outputPath: string): Promise<string[]>
 
 						const ostream = fs.createWriteStream(filePath);
 						ostream.on('finish', () => {
-							zipfile!.close();
 							result.push(filePath);
 							zipfile!.readEntry();
 						});

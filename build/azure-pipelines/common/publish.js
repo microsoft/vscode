@@ -358,7 +358,6 @@ async function unzip(packagePath, outputPath) {
                         fs.mkdirSync(path.dirname(filePath), { recursive: true });
                         const ostream = fs.createWriteStream(filePath);
                         ostream.on('finish', () => {
-                            zipfile.close();
                             result.push(filePath);
                             zipfile.readEntry();
                         });
