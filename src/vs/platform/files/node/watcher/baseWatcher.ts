@@ -32,6 +32,9 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			// Request with correlation: watch request path to support
 			// watching paths that do not exist yet or are potentially
 			// being deleted and recreated.
+			//
+			// We are not doing this for all watch requests yet to see
+			// how it goes, thus its limitd to correlated requests.
 
 			if (typeof request.correlationId === 'number') {
 				correlationIds.add(request.correlationId);
