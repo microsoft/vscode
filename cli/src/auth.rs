@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 use crate::{
-	constants::{get_default_user_agent, PRODUCT_NAME_LONG},
+	constants::{get_default_user_agent, APPLICATION_NAME, IS_INTERACTIVE_CLI, PRODUCT_NAME_LONG},
 	debug, error, info, log,
 	state::{LauncherPaths, PersistedState},
 	trace,
@@ -37,7 +37,7 @@ struct DeviceCodeResponse {
 	expires_in: i64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct AuthenticationResponse {
 	access_token: String,
 	refresh_token: Option<String>,
@@ -76,7 +76,7 @@ impl AuthProvider {
 	pub fn code_uri(&self) -> &'static str {
 		match self {
 			AuthProvider::Microsoft => {
-				"https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
+				"https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode"
 			}
 			AuthProvider::Github => "https://github.com/login/device/code",
 		}
@@ -84,7 +84,9 @@ impl AuthProvider {
 
 	pub fn grant_uri(&self) -> &'static str {
 		match self {
-			AuthProvider::Microsoft => "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+			AuthProvider::Microsoft => {
+				"https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+			}
 			AuthProvider::Github => "https://github.com/login/oauth/access_token",
 		}
 	}
@@ -402,7 +404,10 @@ impl Auth {
 		let mut keyring_storage = KeyringStorage::default();
 		#[cfg(target_os = "linux")]
 		let mut keyring_storage = ThreadKeyringStorage::default();
-		let mut file_storage = FileStorage(PersistedState::new(self.file_storage_path.clone()));
+		let mut file_storage = FileStorage(PersistedState::new_with_mode(
+			self.file_storage_path.clone(),
+			0o600,
+		));
 
 		let native_storage_result = if std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN").is_ok()
 			|| self.file_storage_path.exists()
@@ -670,7 +675,12 @@ impl Auth {
 	}
 
 	async fn prompt_for_provider(&self) -> Result<AuthProvider, AnyError> {
-		if std::env::var("VSCODE_CLI_ALLOW_MS_AUTH").is_err() {
+		if !*IS_INTERACTIVE_CLI {
+			info!(
+				self.log,
+				"Using Github for authentication, run `{} tunnel user login --provider <provider>` option to change this.",
+				APPLICATION_NAME
+			);
 			return Ok(AuthProvider::Github);
 		}
 

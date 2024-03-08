@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType } from 'vs/workbench/common/notifications';
+import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType, INotificationsFilter } from 'vs/workbench/common/notifications';
 import { Action } from 'vs/base/common/actions';
 import { INotification, Severity, NotificationsFilter, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
@@ -17,6 +17,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 suite('Notifications', () => {
 
 	const disposables = new DisposableStore();
+	const noFilter: INotificationsFilter = { global: NotificationsFilter.OFF, sources: new Map() };
 
 	teardown(() => {
 		disposables.clear();
@@ -25,16 +26,16 @@ suite('Notifications', () => {
 	test('Items', () => {
 
 		// Invalid
-		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: '' }));
-		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: null! }));
+		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: '' }, noFilter));
+		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: null! }, noFilter));
 
 		// Duplicates
-		const item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
-		const item2 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
-		const item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Info Message' })!;
-		const item4 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', source: 'Source' })!;
-		const item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [disposables.add(new Action('id', 'label'))] } })!;
-		const item6 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [disposables.add(new Action('id', 'label'))] }, progress: { infinite: true } })!;
+		const item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, noFilter)!;
+		const item2 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, noFilter)!;
+		const item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Info Message' }, noFilter)!;
+		const item4 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', source: 'Source' }, noFilter)!;
+		const item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [disposables.add(new Action('id', 'label'))] } }, noFilter)!;
+		const item6 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [disposables.add(new Action('id', 'label'))] }, progress: { infinite: true } }, noFilter)!;
 
 		assert.strictEqual(item1.equals(item1), true);
 		assert.strictEqual(item2.equals(item2), true);
@@ -47,8 +48,8 @@ suite('Notifications', () => {
 		assert.strictEqual(item1.equals(item4), false);
 		assert.strictEqual(item1.equals(item5), false);
 
-		const itemId1 = NotificationViewItem.create({ id: 'same', message: 'Info Message', severity: Severity.Info })!;
-		const itemId2 = NotificationViewItem.create({ id: 'same', message: 'Error Message', severity: Severity.Error })!;
+		const itemId1 = NotificationViewItem.create({ id: 'same', message: 'Info Message', severity: Severity.Info }, noFilter)!;
+		const itemId2 = NotificationViewItem.create({ id: 'same', message: 'Error Message', severity: Severity.Error }, noFilter)!;
 
 		assert.strictEqual(itemId1.equals(itemId2), true);
 		assert.strictEqual(itemId1.equals(item3), false);
@@ -135,29 +136,35 @@ suite('Notifications', () => {
 		assert.strictEqual(called, 1);
 
 		// Error with Action
-		const item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', [disposables.add(new Action('id', 'label'))]) })!;
+		const item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', [disposables.add(new Action('id', 'label'))]) }, noFilter)!;
 		assert.strictEqual(item7.actions!.primary!.length, 1);
 
 		// Filter
-		const item8 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.SILENT)!;
-		assert.strictEqual(item8.priority, NotificationPriority.SILENT);
+		const item8 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, { global: NotificationsFilter.OFF, sources: new Map() })!;
+		assert.strictEqual(item8.priority, NotificationPriority.DEFAULT);
 
-		const item9 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.OFF)!;
+		const item9 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, { global: NotificationsFilter.ERROR, sources: new Map() })!;
 		assert.strictEqual(item9.priority, NotificationPriority.DEFAULT);
 
-		const item10 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.ERROR)!;
-		assert.strictEqual(item10.priority, NotificationPriority.DEFAULT);
+		const item10 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message' }, { global: NotificationsFilter.ERROR, sources: new Map() })!;
+		assert.strictEqual(item10.priority, NotificationPriority.SILENT);
 
-		const item11 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message' }, NotificationsFilter.ERROR)!;
-		assert.strictEqual(item11.priority, NotificationPriority.SILENT);
+		const sources = new Map<string, NotificationsFilter>();
+		sources.set('test.source', NotificationsFilter.ERROR);
+		const item11 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message', source: 'test.source' }, { global: NotificationsFilter.OFF, sources })!;
+		assert.strictEqual(item11.priority, NotificationPriority.DEFAULT);
+		const item12 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message', source: { id: 'test.source', label: 'foo' } }, { global: NotificationsFilter.OFF, sources })!;
+		assert.strictEqual(item12.priority, NotificationPriority.SILENT);
+		const item13 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message', source: { id: 'test.source2', label: 'foo' } }, { global: NotificationsFilter.OFF, sources })!;
+		assert.strictEqual(item13.priority, NotificationPriority.DEFAULT);
 
-		for (const item of [item1, item2, item3, item4, item5, item6, itemId1, itemId2, item7, item8, item9, item10, item11]) {
+		for (const item of [item1, item2, item3, item4, item5, item6, itemId1, itemId2, item7, item8, item9, item10, item11, item12, item13]) {
 			item.close();
 		}
 	});
 
 	test('Items - does not fire changed when message did not change (content, severity)', async () => {
-		const item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
+		const item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, noFilter)!;
 
 		let fired = false;
 		disposables.add(item1.onDidChangeContent(() => {

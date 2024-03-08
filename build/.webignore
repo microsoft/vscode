@@ -18,23 +18,23 @@ jschardet/dist/jschardet.js
 
 vscode-textmate/webpack.config.js
 
-xterm/src/**
+@xterm/xterm/src/**
 
-xterm-addon-canvas/src/**
-xterm-addon-canvas/out/**
+@xterm/addon-canvas/src/**
+@xterm/addon-canvas/out/**
 
-xterm-addon-image/src/**
-xterm-addon-image/out/**
+@xterm/addon-image/src/**
+@xterm/addon-image/out/**
 
-xterm-addon-search/src/**
-xterm-addon-search/out/**
-xterm-addon-search/fixtures/**
+@xterm/addon-search/src/**
+@xterm/addon-search/out/**
+@xterm/addon-search/fixtures/**
 
-xterm-addon-unicode11/src/**
-xterm-addon-unicode11/out/**
+@xterm/addon-unicode11/src/**
+@xterm/addon-unicode11/out/**
 
-xterm-addon-webgl/src/**
-xterm-addon-webgl/out/**
+@xterm/addon-webgl/src/**
+@xterm/addon-webgl/out/**
 
 # This makes sure the model is included in the package
 !@vscode/vscode-languagedetection/model/**

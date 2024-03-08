@@ -15,7 +15,6 @@ import { AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurre
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const accessibleViewMenu = {
 	id: MenuId.AccessibleView,
@@ -121,7 +120,8 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 		linux: {
 			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
 			secondary: [KeyMod.Alt | KeyCode.F1]
-		}
+		},
+		kbExpr: accessibilityHelpIsShown.toNegated()
 	},
 	menuOpts: [{
 		menuId: MenuId.CommandPalette,
@@ -212,7 +212,6 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 			return;
 		}
 		await model.accept(editor);
-		alert('Accepted');
 		model.stop();
 		editor.focus();
 	}

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBufferLine, IBufferRange, Terminal } from 'xterm';
+import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
 import { URI } from 'vs/base/common/uri';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverAction } from 'vs/platform/hover/browser/hover';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IParsedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
@@ -82,6 +82,11 @@ export interface ITerminalSimpleLink {
 	 * The URI of the link if it has been resolved.
 	 */
 	uri?: URI;
+
+	/**
+	 * An optional full line to be used for context when resolving.
+	 */
+	contextLine?: string;
 
 	/**
 	 * The location or selection range of the link.

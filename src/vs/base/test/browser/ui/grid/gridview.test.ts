@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { $ } from 'vs/base/browser/dom';
 import { GridView, IView, Orientation, Sizing } from 'vs/base/browser/ui/grid/gridview';
-import { nodesToArrays, TestView } from './util';
+import { nodesToArrays, TestView } from 'vs/base/test/browser/ui/grid/util';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Gridview', function () {

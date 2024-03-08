@@ -26,6 +26,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { revive } from 'vs/base/common/marshalling';
 
 export class RemoteSearchService extends SearchService {
 	constructor(
@@ -99,9 +100,11 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					return;
 				}
 
+				// force resource to revive using URI.revive.
+				// TODO @andrea see why we can't just use `revive()` below. For some reason, (<MarshalledObject>obj).$mid was undefined for result.resource
 				const reviveMatch = (result: IFileMatch<UriComponents>): IFileMatch => ({
 					resource: URI.revive(result.resource),
-					results: result.results
+					results: revive(result.results)
 				});
 
 				queryDisposables.add(this.onDidReceiveTextSearchMatch(e => {
@@ -113,7 +116,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				const ignorePathCasing = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
 				const folderResults = await proxy.searchDirectory(handle, query, fq, ignorePathCasing, queryId);
 				for (const folderResult of folderResults.results) {
-					results.push(reviveMatch(folderResult));
+					results.push(revive(folderResult));
 				}
 
 				if (folderResults.limitHit) {

@@ -95,7 +95,7 @@ export const SYNC_CONFLICTS_VIEW_ID = 'workbench.views.sync.conflicts';
 
 export const DOWNLOAD_ACTIVITY_ACTION_DESCRIPTOR: Readonly<IAction2Options> = {
 	id: 'workbench.userDataSync.actions.downloadSyncActivity',
-	title: { original: 'Download Settings Sync Activity', value: localize('download sync activity title', "Download Settings Sync Activity") },
+	title: localize2('download sync activity title', "Download Settings Sync Activity"),
 	category: Categories.Developer,
 	f1: true,
 	precondition: ContextKeyExpr.and(CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized))

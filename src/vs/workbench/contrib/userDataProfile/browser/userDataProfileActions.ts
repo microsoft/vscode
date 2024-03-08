@@ -3,26 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { IAction, Separator } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
+import { localize, localize2 } from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { QuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IUserDataProfileManagementService, PROFILES_CATEGORY, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT, MANAGE_PROFILES_ACTION_ID, ProfilesMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Codicon } from 'vs/base/common/codicons';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { HAS_PROFILES_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, MANAGE_PROFILES_ACTION_ID, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, ProfilesMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 class CreateTransientProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createTemporaryProfile';
-	static readonly TITLE = {
-		value: localize('create temporary profile', "Create a Temporary Profile"),
-		original: 'Create a Temporary Profile'
-	};
+	static readonly TITLE = localize2('create temporary profile', "Create a Temporary Profile");
 	constructor() {
 		super({
 			id: CreateTransientProfileAction.ID,
@@ -45,10 +42,7 @@ export class RenameProfileAction extends Action2 {
 	constructor() {
 		super({
 			id: RenameProfileAction.ID,
-			title: {
-				value: localize('rename profile', "Rename..."),
-				original: 'Rename...'
-			},
+			title: localize2('rename profile', "Rename..."),
 			category: PROFILES_CATEGORY,
 			f1: true,
 			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
@@ -74,7 +68,7 @@ export class RenameProfileAction extends Action2 {
 			value: profile.name,
 			title: localize('select profile to rename', 'Rename {0}', profile.name),
 			validateInput: async (value: string) => {
-				if (profile!.name !== value && userDataProfilesService.profiles.some(p => p.name === value)) {
+				if (profile.name !== value && userDataProfilesService.profiles.some(p => p.name === value)) {
 					return localize('profileExists', "Profile with name {0} already exists.", value);
 				}
 				return undefined;
@@ -114,10 +108,7 @@ registerAction2(class ManageProfilesAction extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_PROFILES_ACTION_ID,
-			title: {
-				value: localize('mange', "Manage..."),
-				original: 'Manage...'
-			},
+			title: localize2('mange', "Manage..."),
 			category: PROFILES_CATEGORY,
 			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
 		});
@@ -158,10 +149,7 @@ registerAction2(class CleanupProfilesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.profiles.actions.cleanupProfiles',
-			title: {
-				value: localize('cleanup profile', "Cleanup Profiles"),
-				original: 'Cleanup Profiles'
-			},
+			title: localize2('cleanup profile', "Cleanup Profiles"),
 			category: Categories.Developer,
 			f1: true,
 			precondition: PROFILES_ENABLEMENT_CONTEXT,
@@ -177,10 +165,7 @@ registerAction2(class ResetWorkspacesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.profiles.actions.resetWorkspaces',
-			title: {
-				value: localize('reset workspaces', "Reset Workspace Profiles Associations"),
-				original: 'Reset Workspace Profiles Associations'
-			},
+			title: localize2('reset workspaces', "Reset Workspace Profiles Associations"),
 			category: Categories.Developer,
 			f1: true,
 			precondition: PROFILES_ENABLEMENT_CONTEXT,

@@ -540,8 +540,8 @@ export namespace Event {
 	export interface IChainableSythensis<T> {
 		map<O>(fn: (i: T) => O): IChainableSythensis<O>;
 		forEach(fn: (i: T) => void): IChainableSythensis<T>;
+		filter<R extends T>(fn: (e: T) => e is R): IChainableSythensis<R>;
 		filter(fn: (e: T) => boolean): IChainableSythensis<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableSythensis<R>;
 		reduce<R>(merge: (last: R, event: T) => R, initial: R): IChainableSythensis<R>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R): IChainableSythensis<R>;
 		latch(equals?: (a: T, b: T) => boolean): IChainableSythensis<T>;
@@ -615,30 +615,11 @@ export namespace Event {
 	 * runAndSubscribe(dataChangeEvent, () => this._updateUI());
 	 * ```
 	 */
-	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable {
-		handler(undefined);
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T) => any, initial: T): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any, initial?: T): IDisposable {
+		handler(initial);
 		return event(e => handler(e));
-	}
-
-	/**
-	 * Adds a listener to an event and calls the listener immediately with undefined as the event object. A new
-	 * {@link DisposableStore} is passed to the listener which is disposed when the returned disposable is disposed.
-	 */
-	export function runAndSubscribeWithStore<T>(event: Event<T>, handler: (e: T | undefined, disposableStore: DisposableStore) => any): IDisposable {
-		let store: DisposableStore | null = null;
-
-		function run(e: T | undefined) {
-			store?.dispose();
-			store = new DisposableStore();
-			handler(e, store);
-		}
-
-		run(undefined);
-		const disposable = event(e => run(e));
-		return toDisposable(() => {
-			disposable.dispose();
-			store?.dispose();
-		});
 	}
 
 	class EmitterObserver<T> implements IObserver {
@@ -706,7 +687,7 @@ export namespace Event {
 	 * Each listener is attached to the observable directly.
 	 */
 	export function fromObservableLight(observable: IObservable<any>): Event<void> {
-		return (listener) => {
+		return (listener, thisArgs, disposables) => {
 			let count = 0;
 			let didChange = false;
 			const observer: IObserver = {
@@ -719,7 +700,7 @@ export namespace Event {
 						observable.reportChanges();
 						if (didChange) {
 							didChange = false;
-							listener();
+							listener.call(thisArgs);
 						}
 					}
 				},
@@ -732,11 +713,19 @@ export namespace Event {
 			};
 			observable.addObserver(observer);
 			observable.reportChanges();
-			return {
+			const disposable = {
 				dispose() {
 					observable.removeObserver(observer);
 				}
 			};
+
+			if (disposables instanceof DisposableStore) {
+				disposables.add(disposable);
+			} else if (Array.isArray(disposables)) {
+				disposables.push(disposable);
+			}
+
+			return disposable;
 		};
 	}
 }
@@ -1467,14 +1456,17 @@ export class EventMultiplexer<T> implements IDisposable {
 	}
 
 	private unhook(e: { event: Event<T>; listener: IDisposable | null }): void {
-		if (e.listener) {
-			e.listener.dispose();
-		}
+		e.listener?.dispose();
 		e.listener = null;
 	}
 
 	dispose(): void {
 		this.emitter.dispose();
+
+		for (const e of this.events) {
+			e.listener?.dispose();
+		}
+		this.events = [];
 	}
 }
 

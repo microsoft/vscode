@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const Schemes = Object.freeze({
+	http: 'http',
+	https: 'https',
 	file: 'file',
 	untitled: 'untitled',
 	mailto: 'mailto',

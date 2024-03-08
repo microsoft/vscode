@@ -100,7 +100,7 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 		}
 
 		const isInCommandCenter = debugConfig.toolBarLocation === 'commandCenter';
-		this.layoutService.container.style.setProperty(asCssVariableName(COMMAND_CENTER_BACKGROUND), isInCommandCenter && isInDebugMode
+		this.layoutService.mainContainer.style.setProperty(asCssVariableName(COMMAND_CENTER_BACKGROUND), isInCommandCenter && isInDebugMode
 			? asCssVariable(COMMAND_CENTER_DEBUGGING_BACKGROUND)
 			: ''
 		);

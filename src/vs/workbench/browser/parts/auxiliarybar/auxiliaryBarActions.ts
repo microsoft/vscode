@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -26,12 +26,12 @@ const auxiliaryBarLeftOffIcon = registerIcon('auxiliarybar-left-off-layout-icon'
 export class ToggleAuxiliaryBarAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleAuxiliaryBar';
-	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Secondary Side Bar Visibility");
+	static readonly LABEL = localize2('toggleAuxiliaryBar', "Toggle Secondary Side Bar Visibility");
 
 	constructor() {
 		super({
 			id: ToggleAuxiliaryBarAction.ID,
-			title: { value: ToggleAuxiliaryBarAction.LABEL, original: 'Toggle Secondary Side Bar Visibility' },
+			title: ToggleAuxiliaryBarAction.LABEL,
 			toggled: {
 				condition: AuxiliaryBarVisibleContext,
 				title: localize('secondary sidebar', "Secondary Side Bar"),
@@ -70,13 +70,12 @@ registerAction2(ToggleAuxiliaryBarAction);
 registerAction2(class FocusAuxiliaryBarAction extends Action2 {
 
 	static readonly ID = 'workbench.action.focusAuxiliaryBar';
-	static readonly LABEL = localize('focusAuxiliaryBar', "Focus into Secondary Side Bar");
-
+	static readonly LABEL = localize2('focusAuxiliaryBar', "Focus into Secondary Side Bar");
 
 	constructor() {
 		super({
 			id: FocusAuxiliaryBarAction.ID,
-			title: { value: FocusAuxiliaryBarAction.LABEL, original: 'Focus into Secondary Side Bar' },
+			title: FocusAuxiliaryBarAction.LABEL,
 			category: Categories.View,
 			f1: true,
 		});
@@ -130,7 +129,7 @@ MenuRegistry.appendMenuItems([
 			group: '3_workbench_layout_move',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: { value: localize('hideAuxiliaryBar', "Hide Secondary Side Bar"), original: 'Hide Secondary Side Bar' },
+				title: localize2('hideAuxiliaryBar', 'Hide Secondary Side Bar'),
 			},
 			when: ContextKeyExpr.and(AuxiliaryBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 			order: 2

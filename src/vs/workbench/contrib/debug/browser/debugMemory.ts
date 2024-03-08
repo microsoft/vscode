@@ -31,7 +31,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 		| FileSystemProviderCapabilities.FileOpenReadWriteClose;
 
 	constructor(private readonly debugService: IDebugService) {
-		debugService.onDidEndSession(session => {
+		debugService.onDidEndSession(({ session }) => {
 			for (const [fd, memory] of this.fdMemory) {
 				if (memory.session === session) {
 					this.close(fd);

@@ -8,12 +8,11 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { IAction } from 'vs/base/common/actions';
 import { range } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -30,12 +29,13 @@ import { ltrim } from 'vs/base/common/strings';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { IQuickInputOptions } from 'vs/platform/quickinput/browser/quickInput';
-import { getIconClass } from 'vs/platform/quickinput/browser/quickInputUtils';
+import { quickInputButtonToAction } from 'vs/platform/quickinput/browser/quickInputUtils';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { isDark } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IHoverWidget, ITooltipMarkdownString } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 const $ = dom.$;
 
@@ -235,7 +235,10 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 	static readonly ID = 'listelement';
 
-	constructor(private readonly themeService: IThemeService) { }
+	constructor(
+		private readonly themeService: IThemeService,
+		private readonly hoverDelegate: IHoverDelegate | undefined,
+	) { }
 
 	get templateId() {
 		return ListElementRenderer.ID;
@@ -267,24 +270,25 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		const row2 = dom.append(rows, $('.quick-input-list-row'));
 
 		// Label
-		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
+		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
 		data.toDisposeTemplate.push(data.label);
 		data.icon = <HTMLInputElement>dom.prepend(data.label.element, $('.quick-input-list-icon'));
 
 		// Keybinding
 		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
 		data.keybinding = new KeybindingLabel(keybindingContainer, platform.OS);
+		data.toDisposeTemplate.push(data.keybinding);
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
-		data.detail = new IconLabel(detailContainer, { supportHighlights: true, supportIcons: true });
+		data.detail = new IconLabel(detailContainer, { supportHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
 		data.toDisposeTemplate.push(data.detail);
 
 		// Separator
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
 
 		// Actions
-		data.actionBar = new ActionBar(data.entry);
+		data.actionBar = new ActionBar(data.entry, this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined);
 		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
 		data.toDisposeTemplate.push(data.actionBar);
 
@@ -312,9 +316,23 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		}
 
 		// Label
+		let descriptionTitle: ITooltipMarkdownString | undefined;
+		// if we have a tooltip, that will be the hover,
+		// with the saneDescription as fallback if it
+		// is defined
+		if (!element.saneTooltip && element.saneDescription) {
+			descriptionTitle = {
+				markdown: {
+					value: element.saneDescription,
+					supportThemeIcons: true
+				},
+				markdownNotSupportedFallback: element.saneDescription
+			};
+		}
 		const options: IIconLabelValueOptions = {
 			matches: labelHighlights || [],
-			descriptionTitle: element.saneDescription,
+			// If we have a tooltip, we want that to be shown and not any other hover
+			descriptionTitle,
 			descriptionMatches: descriptionHighlights || [],
 			labelEscapeNewLines: true
 		};
@@ -333,10 +351,21 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 		// Detail
 		if (element.saneDetail) {
+			let title: ITooltipMarkdownString | undefined;
+			// If we have a tooltip, we want that to be shown and not any other hover
+			if (!element.saneTooltip) {
+				title = {
+					markdown: {
+						value: element.saneDetail,
+						supportThemeIcons: true
+					},
+					markdownNotSupportedFallback: element.saneDetail
+				};
+			}
 			data.detail.element.style.display = '';
 			data.detail.setLabel(element.saneDetail, undefined, {
 				matches: detailHighlights,
-				title: element.saneDetail,
+				title,
 				labelEscapeNewLines: true
 			});
 		} else {
@@ -355,30 +384,13 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		// Actions
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index): IAction => {
-				let cssClasses = button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined);
-				if (button.alwaysVisible) {
-					cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
-				}
-				return {
-					id: `id-${index}`,
-					class: cssClasses,
-					enabled: true,
-					label: '',
-					tooltip: button.tooltip || '',
-					run: () => {
-						mainItem.type !== 'separator'
-							? element.fireButtonTriggered({
-								button,
-								item: mainItem
-							})
-							: element.fireSeparatorButtonTriggered({
-								button,
-								separator: mainItem
-							});
-					}
-				};
-			}), { icon: true, label: false });
+			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
+				button,
+				`id-${index}`,
+				() => mainItem.type !== 'separator'
+					? element.fireButtonTriggered({ button, item: mainItem })
+					: element.fireSeparatorButtonTriggered({ button, separator: mainItem })
+			)), { icon: true, label: false });
 			data.entry.classList.add('has-actions');
 		} else {
 			data.entry.classList.remove('has-actions');
@@ -418,7 +430,9 @@ export enum QuickInputListFocus {
 	Next,
 	Previous,
 	NextPage,
-	PreviousPage
+	PreviousPage,
+	NextSeparator,
+	PreviousSeparator
 }
 
 export class QuickInputList {
@@ -468,7 +482,7 @@ export class QuickInputList {
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(themeService)], {
+		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(themeService, options.hoverDelegate)], {
 			identityProvider: {
 				getId: element => {
 					// always prefer item over separator because if item is defined, it must be the main item type
@@ -487,6 +501,7 @@ export class QuickInputList {
 		} as IListOptions<IListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
+		// Keybindings for the list itself
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
@@ -498,6 +513,7 @@ export class QuickInputList {
 						this.list.setFocus(range(this.list.length));
 					}
 					break;
+				// When we hit the top of the list, we fire the onLeave event.
 				case KeyCode.UpArrow: {
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
@@ -505,6 +521,7 @@ export class QuickInputList {
 					}
 					break;
 				}
+				// When we hit the bottom of the list, we fire the onLeave event.
 				case KeyCode.DownArrow: {
 					const focus2 = this.list.getFocus();
 					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
@@ -543,49 +560,47 @@ export class QuickInputList {
 			}
 		}));
 
-		if (options.hoverDelegate) {
-			const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
-			// onMouseOver triggers every time a new element has been moused over
-			// even if it's on the same list item.
-			this.disposables.push(this.list.onMouseOver(async e => {
-				// If we hover over an anchor element, we don't want to show the hover because
-				// the anchor may have a tooltip that we want to show instead.
-				if (e.browserEvent.target instanceof HTMLAnchorElement) {
-					delayer.cancel();
-					return;
-				}
-				if (
-					// anchors are an exception as called out above so we skip them here
-					!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
-					// check if the mouse is still over the same element
-					dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
-				) {
-					return;
-				}
-				try {
-					await delayer.trigger(async () => {
-						if (e.element) {
-							this.showHover(e.element);
-						}
-					});
-				} catch (e) {
-					// Ignore cancellation errors due to mouse out
-					if (!isCancellationError(e)) {
-						throw e;
-					}
-				}
-			}));
-			this.disposables.push(this.list.onMouseOut(e => {
-				// onMouseOut triggers every time a new element has been moused over
-				// even if it's on the same list item. We only want one event, so we
-				// check if the mouse is still over the same element.
-				if (dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)) {
-					return;
-				}
+		const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
+		// onMouseOver triggers every time a new element has been moused over
+		// even if it's on the same list item.
+		this.disposables.push(this.list.onMouseOver(async e => {
+			// If we hover over an anchor element, we don't want to show the hover because
+			// the anchor may have a tooltip that we want to show instead.
+			if (e.browserEvent.target instanceof HTMLAnchorElement) {
 				delayer.cancel();
-			}));
-			this.disposables.push(delayer);
-		}
+				return;
+			}
+			if (
+				// anchors are an exception as called out above so we skip them here
+				!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
+				// check if the mouse is still over the same element
+				dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
+			) {
+				return;
+			}
+			try {
+				await delayer.trigger(async () => {
+					if (e.element) {
+						this.showHover(e.element);
+					}
+				});
+			} catch (e) {
+				// Ignore cancellation errors due to mouse out
+				if (!isCancellationError(e)) {
+					throw e;
+				}
+			}
+		}));
+		this.disposables.push(this.list.onMouseOut(e => {
+			// onMouseOut triggers every time a new element has been moused over
+			// even if it's on the same list item. We only want one event, so we
+			// check if the mouse is still over the same element.
+			if (dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)) {
+				return;
+			}
+			delayer.cancel();
+		}));
+		this.disposables.push(delayer);
 		this.disposables.push(this._listElementChecked.event(_ => this.fireCheckedEvents()));
 		this.disposables.push(
 			this._onChangedAllVisibleChecked,
@@ -800,33 +815,67 @@ export class QuickInputList {
 				this.list.scrollTop = this.list.scrollHeight;
 				this.list.focusLast(undefined, (e) => !!e.item);
 				break;
-			case QuickInputListFocus.Next: {
+			case QuickInputListFocus.Next:
 				this.list.focusNext(undefined, true, undefined, (e) => !!e.item);
-				const index = this.list.getFocus()[0];
-				if (index !== 0 && !this.elements[index - 1].item && this.list.firstVisibleIndex > index - 1) {
-					this.list.reveal(index - 1);
-				}
 				break;
-			}
-			case QuickInputListFocus.Previous: {
+			case QuickInputListFocus.Previous:
 				this.list.focusPrevious(undefined, true, undefined, (e) => !!e.item);
-				const index = this.list.getFocus()[0];
-				if (index !== 0 && !this.elements[index - 1].item && this.list.firstVisibleIndex > index - 1) {
-					this.list.reveal(index - 1);
-				}
 				break;
-			}
 			case QuickInputListFocus.NextPage:
 				this.list.focusNextPage(undefined, (e) => !!e.item);
 				break;
 			case QuickInputListFocus.PreviousPage:
 				this.list.focusPreviousPage(undefined, (e) => !!e.item);
 				break;
+			case QuickInputListFocus.NextSeparator: {
+				let foundSeparatorAsItem = false;
+				this.list.focusNext(undefined, true, undefined, (e) => {
+					if (foundSeparatorAsItem) {
+						// This should be the index right after the separator so it
+						// is the item we want to focus.
+						return true;
+					}
+					if (e.separator) {
+						if (e.item) {
+							return true;
+						} else {
+							foundSeparatorAsItem = true;
+						}
+					}
+					return false;
+				});
+				break;
+			}
+			case QuickInputListFocus.PreviousSeparator: {
+				let foundSeparatorAsItem = false;
+				this.list.focusPrevious(undefined, true, undefined, (e) => {
+					if (foundSeparatorAsItem) {
+						// This should be the index right before the separator so it
+						// is the item we want to focus.
+						return true;
+					}
+					if (e.separator) {
+						if (e.item) {
+							// This would be an inline-separator so we should
+							// focus this item.
+							return true;
+						} else {
+							foundSeparatorAsItem = true;
+						}
+					}
+					return false;
+				});
+				break;
+			}
 		}
 
 		const focused = this.list.getFocus()[0];
 		if (typeof focused === 'number') {
-			this.list.reveal(focused);
+			if (focused !== 0 && !this.elements[focused - 1].item && this.list.firstVisibleIndex > focused - 1) {
+				this.list.reveal(focused - 1);
+			} else {
+				this.list.reveal(focused);
+			}
 		}
 	}
 
@@ -843,9 +892,6 @@ export class QuickInputList {
 	 * @param element The element to show the hover for
 	 */
 	private showHover(element: IListElement): void {
-		if (this.options.hoverDelegate === undefined) {
-			return;
-		}
 		if (this._lastHover && !this._lastHover.isDisposed) {
 			this.options.hoverDelegate.onDidHideHover?.();
 			this._lastHover?.dispose();
@@ -855,14 +901,18 @@ export class QuickInputList {
 			return;
 		}
 		this._lastHover = this.options.hoverDelegate.showHover({
-			content: element.saneTooltip!,
-			target: element.element!,
+			content: element.saneTooltip,
+			target: element.element,
 			linkHandler: (url) => {
 				this.options.linkOpenerDelegate(url);
 			},
-			showPointer: true,
+			appearance: {
+				showPointer: true,
+			},
 			container: this.container,
-			hoverPosition: HoverPosition.RIGHT
+			position: {
+				hoverPosition: HoverPosition.RIGHT
+			}
 		}, false);
 	}
 

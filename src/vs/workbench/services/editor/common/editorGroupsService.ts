@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions } from 'vs/workbench/common/editor';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/core/dimension';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { IRectangle } from 'vs/platform/window/common/window';
+import { IMenuChangeEvent } from 'vs/platform/actions/common/actions';
+import { DeepPartial } from 'vs/base/common/types';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -42,23 +45,22 @@ export interface IFindGroupScope {
 }
 
 export const enum GroupsArrangement {
+	/**
+	 * Make the current active group consume the entire
+	 * editor area.
+	 */
+	MAXIMIZE,
 
 	/**
 	 * Make the current active group consume the maximum
 	 * amount of space possible.
 	 */
-	MAXIMIZE,
+	EXPAND,
 
 	/**
 	 * Size all groups evenly.
 	 */
-	EVEN,
-
-	/**
-	 * Will behave like MINIMIZE_OTHERS if the active
-	 * group is not already maximized and EVEN otherwise
-	 */
-	TOGGLE
+	EVEN
 }
 
 export interface GroupLayoutArgument {
@@ -172,10 +174,11 @@ export interface IEditorDropTargetDelegate {
 }
 
 /**
- * An editor part is a viewer of editor groups. There can be multiple editor
- * parts opened in multiple windows.
+ * The basic primitive to work with editor groups. This interface is both implemented
+ * by editor part component as well as the editor groups service that operates across
+ * all opened editor parts.
  */
-export interface IEditorPart {
+export interface IEditorGroupsContainer {
 
 	/**
 	 * An event for when the active editor group changes. The active editor
@@ -204,16 +207,6 @@ export interface IEditorPart {
 	readonly onDidActivateGroup: Event<IEditorGroup>;
 
 	/**
-	 * An event for when the group container is layed out.
-	 */
-	readonly onDidLayout: Event<IDimension>;
-
-	/**
-	 * An event for when the group container is scrolled.
-	 */
-	readonly onDidScroll: Event<void>;
-
-	/**
 	 * An event for when the index of a group changes.
 	 */
 	readonly onDidChangeGroupIndex: Event<IEditorGroup>;
@@ -224,9 +217,45 @@ export interface IEditorPart {
 	readonly onDidChangeGroupLocked: Event<IEditorGroup>;
 
 	/**
-	 * The size of the editor groups area.
+	 * An event for when the maximized state of a group changes.
 	 */
-	readonly contentDimension: IDimension;
+	readonly onDidChangeGroupMaximized: Event<boolean>;
+
+	/**
+	 * A property that indicates when groups have been created
+	 * and are ready to be used in the editor part.
+	 */
+	readonly isReady: boolean;
+
+	/**
+	 * A promise that resolves when groups have been created
+	 * and are ready to be used in the editor part.
+	 *
+	 * Await this promise to safely work on the editor groups model
+	 * (for example, install editor group listeners).
+	 *
+	 * Use the `whenRestored` property to await visible editors
+	 * having fully resolved.
+	 */
+	readonly whenReady: Promise<void>;
+
+	/**
+	 * A promise that resolves when groups have been restored in
+	 * the editor part.
+	 *
+	 * For groups with active editor, the promise will resolve
+	 * when the visible editor has finished to resolve.
+	 *
+	 * Use the `whenReady` property to not await editors to
+	 * resolve.
+	 */
+	readonly whenRestored: Promise<void>;
+
+	/**
+	 * Find out if the editor part has UI state to restore
+	 * from a previous session.
+	 */
+	readonly hasRestorableState: boolean;
 
 	/**
 	 * An active group is the default location for new editors to open.
@@ -240,13 +269,14 @@ export interface IEditorPart {
 	readonly sideGroup: IEditorSideGroup;
 
 	/**
-	 * All groups that are currently visible in the editor area in the
-	 * order of their creation (oldest first).
+	 * All groups that are currently visible in the container in the order
+	 * of their creation (oldest first).
 	 */
 	readonly groups: readonly IEditorGroup[];
 
 	/**
-	 * The number of editor groups that are currently opened.
+	 * The number of editor groups that are currently opened in the
+	 * container.
 	 */
 	readonly count: number;
 
@@ -256,42 +286,7 @@ export interface IEditorPart {
 	readonly orientation: GroupOrientation;
 
 	/**
-	 * A property that indicates when groups have been created
-	 * and are ready to be used.
-	 */
-	readonly isReady: boolean;
-
-	/**
-	 * A promise that resolves when groups have been created
-	 * and are ready to be used.
-	 *
-	 * Await this promise to safely work on the editor groups model
-	 * (for example, install editor group listeners).
-	 *
-	 * Use the `whenRestored` property to await visible editors
-	 * having fully resolved.
-	 */
-	readonly whenReady: Promise<void>;
-
-	/**
-	 * A promise that resolves when groups have been restored.
-	 *
-	 * For groups with active editor, the promise will resolve
-	 * when the visible editor has finished to resolve.
-	 *
-	 * Use the `whenReady` property to not await editors to
-	 * resolve.
-	 */
-	readonly whenRestored: Promise<void>;
-
-	/**
-	 * Find out if the editor group service has UI state to restore
-	 * from a previous session.
-	 */
-	readonly hasRestorableState: boolean;
-
-	/**
-	 * Get all groups that are currently visible in the editor area.
+	 * Get all groups that are currently visible in the container.
 	 *
 	 * @param order the order of the editors to use
 	 */
@@ -318,9 +313,19 @@ export interface IEditorPart {
 	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number; height: number }): void;
 
 	/**
-	 * Arrange all groups according to the provided arrangement.
+	 * Arrange all groups in the container according to the provided arrangement.
 	 */
-	arrangeGroups(arrangement: GroupsArrangement): void;
+	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroup | GroupIdentifier): void;
+
+	/**
+	 * Toggles the target goup size to maximize/unmaximize.
+	 */
+	toggleMaximizeGroup(group?: IEditorGroup | GroupIdentifier): void;
+
+	/**
+	 * Toggles the target goup size to expand/distribute even.
+	 */
+	toggleExpandGroup(group?: IEditorGroup | GroupIdentifier): void;
 
 	/**
 	 * Applies the provided layout by either moving existing groups or creating new groups.
@@ -328,19 +333,9 @@ export interface IEditorPart {
 	applyLayout(layout: EditorGroupLayout): void;
 
 	/**
-	 * Returns an editor layout describing the current grid
+	 * Returns an editor layout of the container.
 	 */
 	getLayout(): EditorGroupLayout;
-
-	/**
-	 * Enable or disable centered editor layout.
-	 */
-	centerLayout(active: boolean): void;
-
-	/**
-	 * Find out if the editor layout is currently centered.
-	 */
-	isLayoutCentered(): boolean;
 
 	/**
 	 * Sets the orientation of the root group to be either vertical or horizontal.
@@ -365,7 +360,7 @@ export interface IEditorPart {
 	findGroup(scope: IFindGroupScope, source?: IEditorGroup | GroupIdentifier, wrap?: boolean): IEditorGroup | undefined;
 
 	/**
-	 * Add a new group to the editor area. A new group is added by splitting a provided one in
+	 * Add a new group to the container. A new group is added by splitting a provided one in
 	 * one of the four directions.
 	 *
 	 * @param location the group from which to split to add a new group
@@ -374,12 +369,12 @@ export interface IEditorPart {
 	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 
 	/**
-	 * Remove a group from the editor area.
+	 * Remove a group from the container.
 	 */
 	removeGroup(group: IEditorGroup | GroupIdentifier): void;
 
 	/**
-	 * Move a group to a new group in the editor area.
+	 * Move a group to a new group in the container.
 	 *
 	 * @param group the group to move
 	 * @param location the group from which to split to add the moved group
@@ -402,18 +397,124 @@ export interface IEditorPart {
 	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
 
 	/**
-	 * Merge all editor groups into the active one.
+	 * Merge all editor groups into the target one.
 	 */
-	mergeAllGroups(): IEditorGroup;
+	mergeAllGroups(target: IEditorGroup | GroupIdentifier): IEditorGroup;
 
 	/**
-	 * Copy a group to a new group in the editor area.
+	 * Copy a group to a new group in the container.
 	 *
 	 * @param group the group to copy
 	 * @param location the group from which to split to add the copied group
 	 * @param direction the direction of where to split to
 	 */
 	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
+
+	/**
+	 * Allows to register a drag and drop target for editors
+	 * on the provided `container`.
+	 */
+	createEditorDropTarget(container: unknown /* HTMLElement */, delegate: IEditorDropTargetDelegate): IDisposable;
+}
+
+/**
+ * An editor part is a viewer of editor groups. There can be multiple editor
+ * parts opened in multiple windows.
+ */
+export interface IEditorPart extends IEditorGroupsContainer {
+
+	/**
+	 * An event for when the editor part is layed out.
+	 */
+	readonly onDidLayout: Event<IDimension>;
+
+	/**
+	 * An event for when the editor part is scrolled.
+	 */
+	readonly onDidScroll: Event<void>;
+
+	/**
+	 * The identifier of the window the editor part is contained in.
+	 */
+	readonly windowId: number;
+
+	/**
+	 * The size of the editor part.
+	 */
+	readonly contentDimension: IDimension;
+
+	/**
+	 * Find out if an editor group is currently maximized.
+	 */
+	hasMaximizedGroup(): boolean;
+
+	/**
+	 * Enable or disable centered editor layout.
+	 */
+	centerLayout(active: boolean): void;
+
+	/**
+	 * Find out if the editor layout is currently centered.
+	 */
+	isLayoutCentered(): boolean;
+
+	/**
+	 * Enforce editor part options temporarily.
+	 */
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
+}
+
+export interface IAuxiliaryEditorPart extends IEditorPart {
+
+	/**
+	 * Close this auxiliary editor part after moving all
+	 * editors of all groups back to the main editor part.
+	 */
+	close(): void;
+}
+
+export interface IAuxiliaryEditorPartCreateEvent {
+	readonly part: IAuxiliaryEditorPart;
+	readonly instantiationService: IInstantiationService;
+	readonly disposables: DisposableStore;
+}
+
+/**
+ * The main service to interact with editor groups across all opened editor parts.
+ */
+export interface IEditorGroupsService extends IEditorGroupsContainer {
+
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * An event for when a new auxiliary editor part is created.
+	 */
+	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
+
+	/**
+	 * Provides access to the currently active editor part.
+	 */
+	readonly activePart: IEditorPart;
+
+	/**
+	 * Provides access to the main window editor part.
+	 */
+	readonly mainPart: IEditorPart;
+
+	/**
+	 * Provides access to all editor parts.
+	 */
+	readonly parts: ReadonlyArray<IEditorPart>;
+
+	/**
+	 * Get the editor part that contains the group with the provided identifier.
+	 */
+	getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
+
+	/**
+	 * Get the editor part that is rooted in the provided container.
+	 */
+	getPart(container: unknown /* HTMLElement */): IEditorPart;
 
 	/**
 	 * Access the options of the editor part.
@@ -426,48 +527,21 @@ export interface IEditorPart {
 	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
-	 * Enforce editor part options temporarily.
-	 */
-	enforcePartOptions(options: IEditorPartOptions): IDisposable;
-
-	/**
-	 * Allows to register a drag and drop target for editors
-	 * on the provided `container`.
-	 */
-	createEditorDropTarget(container: unknown /* HTMLElement */, delegate: IEditorDropTargetDelegate): IDisposable;
-}
-
-export interface IAuxiliaryEditorPart extends IEditorPart {
-
-	/**
-	 * Close this auxiliary editor part and free up associated resources.
-	 */
-	close(): Promise<void>;
-}
-
-/**
- * The main service to interact with editor groups across all opened editor parts.
- */
-export interface IEditorGroupsService extends IEditorPart {
-
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Provides access to the currently active editor part.
-	 */
-	readonly activePart: IEditorPart;
-
-	/**
 	 * Opens a new window with a full editor part instantiated
-	 * in there.
+	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(): IAuxiliaryEditorPart;
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
 }
 
 export const enum OpenEditorContext {
 	NEW_EDITOR = 1,
 	MOVE_EDITOR = 2,
 	COPY_EDITOR = 3
+}
+
+export interface IActiveEditorActions {
+	readonly actions: IToolbarActions;
+	readonly onDidChange: Event<IMenuChangeEvent | void>;
 }
 
 export interface IEditorGroup {
@@ -504,16 +578,15 @@ export interface IEditorGroup {
 	readonly onWillMoveEditor: Event<IEditorWillMoveEvent>;
 
 	/**
-	 * An event that is fired when an editor is about to be opened
-	 * in the group.
-	 */
-	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
-
-	/**
 	 * A unique identifier of this group that remains identical even if the
 	 * group is moved to different locations.
 	 */
 	readonly id: GroupIdentifier;
+
+	/**
+	 * The identifier of the window this editor group is part of.
+	 */
+	readonly windowId: number;
 
 	/**
 	 * A number that indicates the position of this group in the visual
@@ -655,6 +728,11 @@ export interface IEditorGroup {
 	isSticky(editorOrIndex: EditorInput | number): boolean;
 
 	/**
+	 * Find out if the provided editor or index of editor is transient in the group.
+	 */
+	isTransient(editorOrIndex: EditorInput | number): boolean;
+
+	/**
 	 * Find out if the provided editor is active in the group.
 	 */
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
@@ -760,6 +838,19 @@ export interface IEditorGroup {
 	unstickEditor(editor?: EditorInput): void;
 
 	/**
+	 * A transient editor will attempt to appear as preview and certain components
+	 * (such as history tracking) may decide to ignore the editor when it becomes
+	 * active.
+	 * This option is meant to be used only when the editor is used for a short
+	 * period of time, for example when opening a preview of the editor from a
+	 * picker control in the background while navigating through results of the picker.
+	 *
+	 * @param editor the editor to update transient state, or the currently active editor
+	 * if unspecified.
+	 */
+	setTransient(editor: EditorInput | undefined, transient: boolean): void;
+
+	/**
 	 * Whether this editor group should be locked or not.
 	 *
 	 * See {@linkcode IEditorGroup.isLocked `isLocked`}
@@ -770,6 +861,11 @@ export interface IEditorGroup {
 	 * Move keyboard focus into the group.
 	 */
 	focus(): void;
+
+	/**
+	 * Create the editor actions for the current active editor.
+	 */
+	createEditorActions(disposables: DisposableStore): IActiveEditorActions;
 }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {

@@ -25,6 +25,7 @@ import { isGroupEditorMoveEvent } from 'vs/workbench/common/editor/editorGroupMo
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -188,6 +189,13 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabInputKind.InteractiveEditorInput,
 				uri: editor.resource,
 				inputBoxUri: editor.inputResource
+			};
+		}
+
+		if (editor instanceof ChatEditorInput) {
+			return {
+				kind: TabInputKind.ChatEditorInput,
+				providerId: editor.providerId ?? 'unknown',
 			};
 		}
 
@@ -545,6 +553,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 					this._onDidTabPreviewChange(groupId, event.editorIndex, event.editor);
 					break;
 				}
+			case GroupModelChangeKind.EDITOR_TRANSIENT:
+				// Currently not exposed in the API
+				break;
 			case GroupModelChangeKind.EDITOR_MOVE:
 				if (isGroupEditorMoveEvent(event) && event.editor && event.editorIndex !== undefined && event.oldEditorIndex !== undefined) {
 					this._onDidTabMove(groupId, event.editorIndex, event.oldEditorIndex, event.editor);

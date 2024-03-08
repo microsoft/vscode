@@ -7,7 +7,7 @@ import { app, BrowserWindow, WebContents, shell } from 'electron';
 import { Promises } from 'vs/base/node/pfs';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 import { hostname, release, arch } from 'os';
-import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
+import { coalesce, distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CharCode } from 'vs/base/common/charCode';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -39,7 +39,7 @@ import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from 'vs/platform/window/common/window';
 import { CodeWindow } from 'vs/platform/windows/electron-main/windowImpl';
-import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from 'vs/platform/windows/electron-main/windows';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { IRecent } from 'vs/platform/workspaces/common/workspaces';
@@ -54,6 +54,8 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 
 //#region Helper Interfaces
 
@@ -178,8 +180,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly WINDOWS: ICodeWindow[] = [];
-
 	private readonly _onDidOpenWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onDidOpenWindow = this._onDidOpenWindow.event;
 
@@ -192,13 +192,25 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onDidChangeWindowsCount = this._register(new Emitter<IWindowsCountChangedEvent>());
 	readonly onDidChangeWindowsCount = this._onDidChangeWindowsCount.event;
 
+	private readonly _onDidMaximizeWindow = this._register(new Emitter<ICodeWindow>());
+	readonly onDidMaximizeWindow = this._onDidMaximizeWindow.event;
+
+	private readonly _onDidUnmaximizeWindow = this._register(new Emitter<ICodeWindow>());
+	readonly onDidUnmaximizeWindow = this._onDidUnmaximizeWindow.event;
+
+	private readonly _onDidChangeFullScreen = this._register(new Emitter<{ window: ICodeWindow; fullscreen: boolean }>());
+	readonly onDidChangeFullScreen = this._onDidChangeFullScreen.event;
+
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: ICodeWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
+
+	private readonly windows = new Map<number, ICodeWindow>();
 
 	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
 	constructor(
 		private readonly machineId: string,
+		private readonly sqmId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
@@ -215,7 +227,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService
+		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
 		super();
 
@@ -635,7 +648,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, filesToOpen?: IFilesToOpen): ICodeWindow {
 		this.logService.trace('windowsManager#doOpenFilesInExistingWindow', { filesToOpen });
 
-		window.focus(); // make sure window has focus
+		this.focusMainOrChildWindow(window); // make sure window or any of the children has focus
 
 		const params: INativeOpenFileRequest = {
 			filesToOpenOrCreate: filesToOpen?.filesToOpenOrCreate,
@@ -647,6 +660,20 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.sendWhenReady('vscode:openFiles', CancellationToken.None, params);
 
 		return window;
+	}
+
+	private focusMainOrChildWindow(mainWindow: ICodeWindow): void {
+		let windowToFocus: ICodeWindow | IAuxiliaryWindow = mainWindow;
+
+		const focusedWindow = BrowserWindow.getFocusedWindow();
+		if (focusedWindow && focusedWindow.id !== mainWindow.id) {
+			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowById(focusedWindow.id);
+			if (auxiliaryWindowCandidate && auxiliaryWindowCandidate.parentId === mainWindow.id) {
+				windowToFocus = auxiliaryWindowCandidate;
+			}
+		}
+
+		windowToFocus.focus();
 	}
 
 	private doAddFoldersToExistingWindow(window: ICodeWindow, foldersToAdd: URI[]): ICodeWindow {
@@ -1129,7 +1156,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			addUNCHostToAllowlist(uri.authority);
 
 			if (checkboxChecked) {
-				this.sendToOpeningWindow('vscode:configureAllowedUNCHost', uri.authority);
+				// Due to https://github.com/microsoft/vscode/issues/195436, we can only
+				// update settings from within a window. But we do not know if a window
+				// is about to open or can already handle the request, so we have to send
+				// to any current window and any newly opening window.
+				const request = { channel: 'vscode:configureAllowedUNCHost', args: uri.authority };
+				this.sendToFocused(request.channel, request.args);
+				this.sendToOpeningWindow(request.channel, request.args);
 			}
 
 			return this.doResolveFilePath(path, options, true /* do not handle UNC error again */);
@@ -1375,6 +1408,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			...options.cli,
 
 			machineId: this.machineId,
+			sqmId: this.sqmId,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
 
@@ -1422,7 +1456,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			isInitialStartup: options.initialStartup,
 			perfMarks: getMarks(),
 			os: { release: release(), hostname: hostname(), arch: arch() },
-			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
 			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? false,
@@ -1452,7 +1485,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 
 			// Add to our list of windows
-			WindowsMainService.WINDOWS.push(createdWindow);
+			this.windows.set(createdWindow.id, createdWindow);
 
 			// Indicate new window via event
 			this._onDidOpenWindow.fire(createdWindow);
@@ -1464,7 +1497,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const disposables = new DisposableStore();
 			disposables.add(createdWindow.onDidSignalReady(() => this._onDidSignalReadyWindow.fire(createdWindow)));
 			disposables.add(Event.once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow, disposables)));
-			disposables.add(Event.once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow)));
+			disposables.add(Event.once(createdWindow.onDidDestroy)(() => this.onWindowDestroyed(createdWindow)));
+			disposables.add(createdWindow.onDidMaximize(() => this._onDidMaximizeWindow.fire(createdWindow)));
+			disposables.add(createdWindow.onDidUnmaximize(() => this._onDidUnmaximizeWindow.fire(createdWindow)));
+			disposables.add(createdWindow.onDidEnterFullScreen(() => this._onDidChangeFullScreen.fire({ window: createdWindow, fullscreen: true })));
+			disposables.add(createdWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: createdWindow, fullscreen: false })));
 			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
 
 			const webContents = assertIsDefined(createdWindow.win?.webContents);
@@ -1509,7 +1546,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (window.isReady) {
 			this.lifecycleMainService.unload(window, UnloadReason.LOAD).then(async veto => {
 				if (!veto) {
-					await this.doOpenInBrowserWindow(window!, configuration, options, defaultProfile);
+					await this.doOpenInBrowserWindow(window, configuration, options, defaultProfile);
 				}
 			});
 		} else {
@@ -1585,14 +1622,22 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private onWindowClosed(window: ICodeWindow, disposables: IDisposable): void {
 
 		// Remove from our list so that Electron can clean it up
-		const index = WindowsMainService.WINDOWS.indexOf(window);
-		WindowsMainService.WINDOWS.splice(index, 1);
+		this.windows.delete(window.id);
 
 		// Emit
 		this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() + 1, newCount: this.getWindowCount() });
 
 		// Clean up
 		disposables.dispose();
+	}
+
+	private onWindowDestroyed(window: ICodeWindow): void {
+
+		// Remove from our list so that Electron can clean it up
+		this.windows.delete(window.id);
+
+		// Emit
+		this._onDidDestroyWindow.fire(window);
 	}
 
 	getFocusedWindow(): ICodeWindow | undefined {
@@ -1613,9 +1658,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doGetLastActiveWindow(windows: ICodeWindow[]): ICodeWindow | undefined {
-		const lastFocusedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
-
-		return windows.find(window => window.lastFocusTime === lastFocusedDate);
+		return getLastFocused(windows);
 	}
 
 	sendToFocused(channel: string, ...args: any[]): void {
@@ -1641,17 +1684,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	getWindows(): ICodeWindow[] {
-		return WindowsMainService.WINDOWS;
+		return Array.from(this.windows.values());
 	}
 
 	getWindowCount(): number {
-		return WindowsMainService.WINDOWS.length;
+		return this.windows.size;
 	}
 
 	getWindowById(windowId: number): ICodeWindow | undefined {
-		const windows = this.getWindows().filter(window => window.id === windowId);
-
-		return firstOrDefault(windows);
+		return this.windows.get(windowId);
 	}
 
 	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined {

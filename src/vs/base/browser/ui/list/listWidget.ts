@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, isMouseEvent } from 'vs/base/browser/dom';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
@@ -26,7 +26,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
-import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
+import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 interface ITraitChangeEvent {
@@ -41,8 +41,7 @@ interface IRenderedContainer {
 	index: number;
 }
 
-class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
-{
+class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 	private renderedElements: IRenderedContainer[] = [];
 
 	constructor(private trait: Trait<T>) { }
@@ -109,9 +108,8 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 
 class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
-	private length = 0;
-	private indexes: number[] = [];
-	private sortedIndexes: number[] = [];
+	protected indexes: number[] = [];
+	protected sortedIndexes: number[] = [];
 
 	private readonly _onChange = new Emitter<ITraitChangeEvent>();
 	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
@@ -126,8 +124,6 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	constructor(private _trait: string) { }
 
 	splice(start: number, deleteCount: number, elements: boolean[]): void {
-		deleteCount = Math.max(0, Math.min(deleteCount, this.length - start));
-
 		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
 		const sortedIndexes: number[] = [];
@@ -147,16 +143,8 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 			sortedIndexes.push(this.sortedIndexes[i++] + diff);
 		}
 
-		const length = this.length + diff;
-
-		if (this.sortedIndexes.length > 0 && sortedIndexes.length === 0 && length > 0) {
-			const first = this.sortedIndexes.find(index => index >= start) ?? length - 1;
-			sortedIndexes.push(Math.min(first, length - 1));
-		}
-
 		this.renderer.splice(start, deleteCount, elements.length);
 		this._set(sortedIndexes, sortedIndexes);
-		this.length = length;
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
@@ -256,8 +244,8 @@ export function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
 
-export function isMonacoEditor(e: HTMLElement): boolean {
-	if (e.classList.contains('monaco-editor')) {
+function isListElementDescendantOfClass(e: HTMLElement, className: string): boolean {
+	if (e.classList.contains(className)) {
 		return true;
 	}
 
@@ -269,7 +257,31 @@ export function isMonacoEditor(e: HTMLElement): boolean {
 		return false;
 	}
 
-	return isMonacoEditor(e.parentElement);
+	return isListElementDescendantOfClass(e.parentElement, className);
+}
+
+export function isMonacoEditor(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-editor');
+}
+
+export function isMonacoCustomToggle(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-custom-toggle');
+}
+
+export function isActionItem(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'action-item');
+}
+
+export function isMonacoTwistie(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-tl-twistie');
+}
+
+export function isStickyScrollElement(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-tree-sticky-row');
+}
+
+export function isStickyScrollContainer(e: HTMLElement): boolean {
+	return e.classList.contains('monaco-tree-sticky-container');
 }
 
 export function isButton(e: HTMLElement): boolean {
@@ -618,7 +630,7 @@ class DOMFocusController<T> implements IDisposable {
 			return;
 		}
 
-		const style = window.getComputedStyle(tabIndexElement);
+		const style = getWindow(tabIndexElement).getComputedStyle(tabIndexElement);
 		if (style.visibility === 'hidden' || style.display === 'none') {
 			return;
 		}
@@ -707,7 +719,7 @@ export class MouseController<T> implements IDisposable {
 		return this.isSelectionSingleChangeEvent(event) || this.isSelectionRangeChangeEvent(event);
 	}
 
-	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
+	protected onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
 		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -717,7 +729,7 @@ export class MouseController<T> implements IDisposable {
 		}
 	}
 
-	private onContextMenu(e: IListContextMenuEvent<T>): void {
+	protected onContextMenu(e: IListContextMenuEvent<T>): void {
 		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -956,12 +968,27 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
-		if (styles.listDropBackground) {
+		if (styles.listDropOverBackground) {
 			content.push(`
 				.monaco-list${suffix}.drop-target,
 				.monaco-list${suffix} .monaco-list-rows.drop-target,
-				.monaco-list${suffix} .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+				.monaco-list${suffix} .monaco-list-row.drop-target { background-color: ${styles.listDropOverBackground} !important; color: inherit !important; }
 			`);
+		}
+
+		if (styles.listDropBetweenBackground) {
+			content.push(`
+			.monaco-list${suffix} .monaco-list-rows.drop-target-before .monaco-list-row:first-child::before,
+			.monaco-list${suffix} .monaco-list-row.drop-target-before::before {
+				content: ""; position: absolute; top: 0px; left: 0px; width: 100%; height: 1px;
+				background-color: ${styles.listDropBetweenBackground};
+			}`);
+			content.push(`
+			.monaco-list${suffix} .monaco-list-rows.drop-target-after .monaco-list-row:last-child::after,
+			.monaco-list${suffix} .monaco-list-row.drop-target-after::after {
+				content: ""; position: absolute; bottom: 0px; left: 0px; width: 100%; height: 1px;
+				background-color: ${styles.listDropBetweenBackground};
+			}`);
 		}
 
 		if (styles.tableColumnsBorder) {
@@ -1050,7 +1077,8 @@ export interface IListStyles {
 	listInactiveFocusBackground: string | undefined;
 	listHoverBackground: string | undefined;
 	listHoverForeground: string | undefined;
-	listDropBackground: string | undefined;
+	listDropOverBackground: string | undefined;
+	listDropBetweenBackground: string | undefined;
 	listFocusOutline: string | undefined;
 	listInactiveFocusOutline: string | undefined;
 	listSelectionOutline: string | undefined;
@@ -1072,7 +1100,8 @@ export const unthemedListStyles: IListStyles = {
 	listInactiveSelectionBackground: '#3F3F46',
 	listInactiveSelectionIconForeground: '#FFFFFF',
 	listHoverBackground: '#2A2D2E',
-	listDropBackground: '#383B3D',
+	listDropOverBackground: '#383B3D',
+	listDropBetweenBackground: '#EEEEEE',
 	treeIndentGuidesStroke: '#a9a9a9',
 	treeInactiveIndentGuidesStroke: Color.fromHex('#a9a9a9').transparent(0.4).toString(),
 	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2).toString(),
@@ -1284,8 +1313,8 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		this.dnd.onDragStart?.(data, originalEvent);
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
-		return this.dnd.onDragOver(data, targetElement, targetIndex, originalEvent);
+	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
+		return this.dnd.onDragOver(data, targetElement, targetIndex, targetSector, originalEvent);
 	}
 
 	onDragLeave(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
@@ -1296,8 +1325,8 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		this.dnd.onDragEnd?.(originalEvent);
 	}
 
-	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
-		this.dnd.drop(data, targetElement, targetIndex, originalEvent);
+	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
+		this.dnd.drop(data, targetElement, targetIndex, targetSector, originalEvent);
 	}
 
 	dispose(): void {
@@ -1390,7 +1419,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		const fromMouse = Event.chain(this.view.onContextMenu, $ =>
 			$.filter(_ => !didJustPressContextMenuKey)
-				.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(browserEvent), browserEvent }))
+				.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(getWindow(this.view.domNode), browserEvent), browserEvent }))
 		);
 
 		return Event.any<IListContextMenuEvent<T>>(fromKeyDown, fromKeyUp, fromMouse);
@@ -1550,6 +1579,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.indexOf(element);
 	}
 
+	indexAt(position: number): number {
+		return this.view.indexAt(position);
+	}
+
 	get length(): number {
 		return this.view.length;
 	}
@@ -1596,6 +1629,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	get firstVisibleIndex(): number {
 		return this.view.firstVisibleIndex;
+	}
+
+	get firstMostlyVisibleIndex(): number {
+		return this.view.firstMostlyVisibleIndex;
 	}
 
 	get lastVisibleIndex(): number {
@@ -1728,9 +1765,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	async focusPreviousPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): Promise<void> {
+	async focusPreviousPage(browserEvent?: UIEvent, filter?: (element: T) => boolean, getPaddingTop: () => number = () => 0): Promise<void> {
 		let firstPageIndex: number;
-		const scrollTop = this.view.getScrollTop();
+		const paddingTop = getPaddingTop();
+		const scrollTop = this.view.getScrollTop() + paddingTop;
 
 		if (scrollTop === 0) {
 			firstPageIndex = this.view.indexAt(scrollTop);
@@ -1750,14 +1788,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			}
 		} else {
 			const previousScrollTop = scrollTop;
-			this.view.setScrollTop(scrollTop - this.view.renderHeight);
+			this.view.setScrollTop(scrollTop - this.view.renderHeight - paddingTop);
 
-			if (this.view.getScrollTop() !== previousScrollTop) {
+			if (this.view.getScrollTop() + getPaddingTop() !== previousScrollTop) {
 				this.setFocus([]);
 
 				// Let the scroll event listener run
 				await timeout(0);
-				await this.focusPreviousPage(browserEvent, filter);
+				await this.focusPreviousPage(browserEvent, filter, getPaddingTop);
 			}
 		}
 	}
@@ -1830,7 +1868,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.getFocus().map(i => this.view.element(i));
 	}
 
-	reveal(index: number, relativeTop?: number): void {
+	reveal(index: number, relativeTop?: number, paddingTop: number = 0): void {
 		if (index < 0 || index >= this.length) {
 			throw new ListError(this.user, `Invalid index ${index}`);
 		}
@@ -1841,16 +1879,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (isNumber(relativeTop)) {
 			// y = mx + b
-			const m = elementHeight - this.view.renderHeight;
-			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop);
+			const m = elementHeight - this.view.renderHeight + paddingTop;
+			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop - paddingTop);
 		} else {
 			const viewItemBottom = elementTop + elementHeight;
 			const scrollBottom = scrollTop + this.view.renderHeight;
 
-			if (elementTop < scrollTop && viewItemBottom >= scrollBottom) {
+			if (elementTop < scrollTop + paddingTop && viewItemBottom >= scrollBottom) {
 				// The element is already overflowing the viewport, no-op
-			} else if (elementTop < scrollTop || (viewItemBottom >= scrollBottom && elementHeight >= this.view.renderHeight)) {
-				this.view.setScrollTop(elementTop);
+			} else if (elementTop < scrollTop + paddingTop || (viewItemBottom >= scrollBottom && elementHeight >= this.view.renderHeight)) {
+				this.view.setScrollTop(elementTop - paddingTop);
 			} else if (viewItemBottom >= scrollBottom) {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
@@ -1861,7 +1899,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	 * Returns the relative position of an element rendered in the list.
 	 * Returns `null` if the element isn't *entirely* in the visible viewport.
 	 */
-	getRelativeTop(index: number): number | null {
+	getRelativeTop(index: number, paddingTop: number = 0): number | null {
 		if (index < 0 || index >= this.length) {
 			throw new ListError(this.user, `Invalid index ${index}`);
 		}
@@ -1870,25 +1908,33 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const elementTop = this.view.elementTop(index);
 		const elementHeight = this.view.elementHeight(index);
 
-		if (elementTop < scrollTop || elementTop + elementHeight > scrollTop + this.view.renderHeight) {
+		if (elementTop < scrollTop + paddingTop || elementTop + elementHeight > scrollTop + this.view.renderHeight) {
 			return null;
 		}
 
 		// y = mx + b
-		const m = elementHeight - this.view.renderHeight;
-		return Math.abs((scrollTop - elementTop) / m);
+		const m = elementHeight - this.view.renderHeight + paddingTop;
+		return Math.abs((scrollTop + paddingTop - elementTop) / m);
 	}
 
 	isDOMFocused(): boolean {
-		return this.view.domNode === document.activeElement;
+		return isActiveElement(this.view.domNode);
 	}
 
 	getHTMLElement(): HTMLElement {
 		return this.view.domNode;
 	}
 
+	getScrollableElement(): HTMLElement {
+		return this.view.scrollableElementDomNode;
+	}
+
 	getElementID(index: number): string {
 		return this.view.getElementDomId(index);
+	}
+
+	getElementTop(index: number): number {
+		return this.view.elementTop(index);
 	}
 
 	style(styles: IListStyles): void {

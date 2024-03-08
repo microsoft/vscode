@@ -23,7 +23,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -44,16 +44,15 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Event } from 'vs/base/common/event';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 export class TerminalViewPane extends ViewPane {
-	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
-	private _isWelcomeShowing: boolean = false;
 	private _isInitialized: boolean = false;
 	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
@@ -87,13 +86,18 @@ export class TerminalViewPane extends ViewPane {
 		}));
 
 		this._register(this._terminalService.onDidChangeInstances(() => {
-			if (!this._isWelcomeShowing) {
-				return;
+			// If the first terminal is opened, hide the welcome view
+			// and if the last one is closed, show it again
+			if (this._hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
+				this._onDidChangeViewWelcomeState.fire();
 			}
-			this._isWelcomeShowing = true;
-			this._onDidChangeViewWelcomeState.fire();
-			if (!this._terminalTabbedView && this._parentDomElement) {
+			if (!this._parentDomElement) { return; }
+			// If we do not have the tab view yet, create it now.
+			if (!this._terminalTabbedView) {
 				this._createTabsView();
+			}
+			// If we just opened our first terminal, layout
+			if (this._terminalService.instances.length === 1) {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		}));
@@ -178,14 +182,12 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
-		this._fontStyleElement = document.createElement('style');
+		dom.createStyleSheet(this._parentDomElement);
 		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
 		}
-
-		this._parentDomElement.appendChild(this._fontStyleElement);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
@@ -202,7 +204,7 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
 			if (visible) {
-				if (!this._terminalService.isProcessSupportRegistered) {
+				if (this._hasWelcomeScreen()) {
 					this._onDidChangeViewWelcomeState.fire();
 				}
 				this._initializeTerminal(false);
@@ -234,7 +236,7 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalTabbedView?.layout(width, height);
 	}
 
-	override getActionViewItem(action: Action): IActionViewItem | undefined {
+	override getActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
@@ -255,7 +257,7 @@ export class TerminalViewPane extends ViewPane {
 						return;
 					}
 				};
-				return new ActionViewItem(action, panelOnlySplitAction, { icon: true, label: false, keybinding: this._getKeybindingLabel(action) });
+				return new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) });
 			}
 			case TerminalCommandId.SwitchTerminal: {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
@@ -263,7 +265,7 @@ export class TerminalViewPane extends ViewPane {
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
 					const actions: IAction[] = [];
-					createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
+					createAndFillInContextMenuActions(this._singleTabMenu, { shouldForwardArgs: true }, actions);
 					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
 			}
@@ -271,13 +273,13 @@ export class TerminalViewPane extends ViewPane {
 				if (action instanceof MenuItemAction) {
 					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
 					this._newDropdown?.dispose();
-					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
+					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate }, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
 					this._updateTabActionBar(this._terminalProfileService.availableProfiles);
 					return this._newDropdown;
 				}
 			}
 		}
-		return super.getActionViewItem(action);
+		return super.getActionViewItem(action, options);
 	}
 
 	private _getDefaultProfileName(): string {
@@ -300,26 +302,33 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override focus() {
-		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
-			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
-			// be focused. So wait for connection to finish, then focus.
-			const activeElement = document.activeElement;
+		super.focus();
+		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			this._terminalGroupService.showPanel(true);
+			return;
+		}
+
+		// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
+		// be focused. So wait for connection to finish, then focus.
+		const previousActiveElement = this.element.ownerDocument.activeElement;
+		if (previousActiveElement) {
+			// TODO: Improve lifecycle management this event should be disposed after first fire
 			this._register(this._terminalService.onDidChangeConnectionState(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO hack
-				if (document.activeElement === activeElement) {
+				// TODO: Hack
+				if (previousActiveElement && dom.isActiveElement(previousActiveElement)) {
 					this._terminalGroupService.showPanel(true);
 				}
 			}));
-
-			return;
 		}
-		this._terminalGroupService.showPanel(true);
+	}
+
+	private _hasWelcomeScreen(): boolean {
+		return !this._terminalService.isProcessSupportRegistered;
 	}
 
 	override shouldShowWelcome(): boolean {
-		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.instances.length === 0;
-		return this._isWelcomeShowing;
+		return this._hasWelcomeScreen() && this._terminalService.instances.length === 0;
 	}
 }
 
@@ -514,9 +523,14 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 	private _openContextMenu() {
 		this._contextMenuService.showContextMenu({
+			actionRunner: new TerminalContextActionRunner(),
 			getAnchor: () => this.element!,
 			getActions: () => this._actions,
-			getActionsContext: () => this.label
+			// The context is always the active instance in the terminal view
+			getActionsContext: () => {
+				const instance = this._terminalGroupService.activeInstance;
+				return instance ? [new InstanceContext(instance)] : [];
+			}
 		});
 	}
 }
@@ -554,8 +568,7 @@ class TerminalThemeIconStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = document.createElement('style');
-		container.appendChild(this._styleElement);
+		this._styleElement = dom.createStyleSheet(container);
 		this._register(toDisposable(() => container.removeChild(this._styleElement)));
 		this.updateStyles();
 	}

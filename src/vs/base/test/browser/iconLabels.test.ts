@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('renderLabelWithIcons', () => {
 
@@ -49,4 +50,6 @@ suite('renderLabelWithIcons', () => {
 			.map(elem => elem instanceof HTMLElement ? elem.outerHTML : elem)
 			.reduce((a, b) => a + b, '');
 	};
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -13,7 +13,7 @@
 	flex-wrap: nowrap;
 }
 
-.remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon {
+.remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item > .remote-help-tree-node-item-icon {
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;

@@ -6,40 +6,61 @@
   welcomeMessage: undefined,
   requests: [
     {
-      providerRequestId: undefined,
       message: {
-        text: "test request",
+        text: "@ChatProviderWithUsedContext test request",
         parts: [
           {
+            kind: "agent",
             range: {
               start: 0,
-              endExclusive: 12
+              endExclusive: 28
             },
             editorRange: {
               startLineNumber: 1,
               startColumn: 1,
               endLineNumber: 1,
-              endColumn: 13
+              endColumn: 29
             },
-            text: "test request",
+            agent: {
+              id: "ChatProviderWithUsedContext",
+              metadata: { description: undefined }
+            }
+          },
+          {
+            range: {
+              start: 28,
+              endExclusive: 41
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 29,
+              endLineNumber: 1,
+              endColumn: 42
+            },
+            text: " test request",
             kind: "text"
           }
         ]
       },
-      response: [
-        {
-          value: "",
-          isTrusted: false,
-          supportThemeIcons: false,
-          supportHtml: false
-        }
-      ],
-      responseErrorDetails: undefined,
+      variableData: { variables: [  ] },
+      response: [  ],
+      result: { metadata: { metadataKey: "value" } },
       followups: undefined,
       isCanceled: false,
       vote: undefined,
-      agent: undefined,
-      usedContext: { documents: [
+      agent: {
+        id: "ChatProviderWithUsedContext",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        metadata: { description: undefined },
+        slashCommands: [  ],
+        isDefault: undefined
+      },
+      slashCommand: undefined,
+      usedContext: {
+        documents: [
           {
             uri: {
               scheme: "file",
@@ -60,10 +81,11 @@
               }
             ]
           }
-        ] },
+        ],
+        kind: "usedContext"
+      },
       contentReferences: [  ]
     }
   ],
-  providerId: "ChatProviderWithUsedContext",
-  providerState: undefined
+  providerId: "testProvider"
 }

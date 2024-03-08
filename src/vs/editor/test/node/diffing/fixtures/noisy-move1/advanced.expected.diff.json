@@ -149,12 +149,8 @@
 					"modifiedRange": "[454,30 -> 454,37]"
 				},
 				{
-					"originalRange": "[346,54 -> 350,1]",
+					"originalRange": "[346,54 -> 351,1]",
 					"modifiedRange": "[454,43 -> 455,1]"
-				},
-				{
-					"originalRange": "[350,1 -> 351,1]",
-					"modifiedRange": "[455,1 -> 455,1]"
 				}
 			]
 		},

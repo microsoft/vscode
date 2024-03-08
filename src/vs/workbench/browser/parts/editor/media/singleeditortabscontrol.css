@@ -28,7 +28,7 @@
 
 /* Breadcrumbs (inline next to single editor tab) */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .no-tabs.title-label {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .single-tab.title-label {
 	flex: none;
 }
 
@@ -96,6 +96,11 @@
 	padding-right: 8px;
 	height: var(--editor-group-tab-height);
 }
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions.hidden {
+	display: none;
+}
+
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions .action-item {
 	margin-right: 4px;

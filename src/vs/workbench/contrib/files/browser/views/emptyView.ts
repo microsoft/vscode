@@ -13,14 +13,14 @@ import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { ResourcesDropHandler } from 'vs/workbench/browser/dnd';
-import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
+import { listDropOverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isWeb } from 'vs/base/common/platform';
-import { DragAndDropObserver } from 'vs/base/browser/dom';
+import { DragAndDropObserver, getWindow } from 'vs/base/browser/dom';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export class EmptyView extends ViewPane {
@@ -60,10 +60,10 @@ export class EmptyView extends ViewPane {
 			onDrop: e => {
 				container.style.backgroundColor = '';
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: !isWeb || isTemporaryWorkspace(this.contextService.getWorkspace()) });
-				dropHandler.handleDrop(e);
+				dropHandler.handleDrop(e, getWindow(container));
 			},
 			onDragEnter: () => {
-				const color = this.themeService.getColorTheme().getColor(listDropBackground);
+				const color = this.themeService.getColorTheme().getColor(listDropOverBackground);
 				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragEnd: () => {

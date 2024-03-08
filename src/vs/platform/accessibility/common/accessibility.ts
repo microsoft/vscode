@@ -21,7 +21,7 @@ export interface IAccessibilityService {
 	getAccessibilitySupport(): AccessibilitySupport;
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
 	alert(message: string): void;
-	alertCleared(): void;
+	status(message: string): void;
 }
 
 export const enum AccessibilitySupport {
@@ -47,3 +47,4 @@ export function isAccessibilityInformation(obj: any): obj is IAccessibilityInfor
 		&& typeof obj.label === 'string'
 		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
 }
+

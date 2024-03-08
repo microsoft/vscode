@@ -9,7 +9,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -25,15 +25,18 @@ import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import * as nls from 'vs/nls';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { AbstractExpressionDataSource, renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { VariablesRenderer, VisualizedVariableRenderer, openContextMenuForVariableTreeElement } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Expression, Variable, VisualizedExpression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 const $ = dom.$;
@@ -96,10 +99,17 @@ export class DebugHoverWidget implements IContentWidget {
 	private expressionToRender: IExpression | undefined;
 	private isUpdatingTree = false;
 
+	public get isShowingComplexValue() {
+		return this.complexValueContainer?.hidden === false;
+	}
+
 	constructor(
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		this.toDispose = [];
 
@@ -117,9 +127,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.treeContainer.setAttribute('role', 'tree');
 		const tip = dom.append(this.complexValueContainer, $('.tip'));
 		tip.textContent = nls.localize({ key: 'quickTip', comment: ['"switch to editor language hover" means to show the programming language hover widget instead of the debug hover'] }, 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
-		const dataSource = new DebugHoverDataSource();
+		const dataSource = this.instantiationService.createInstance(DebugHoverDataSource);
 		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer, linkeDetector)],
+		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [
+			this.instantiationService.createInstance(VariablesRenderer, linkeDetector),
+			this.instantiationService.createInstance(VisualizedVariableRenderer, linkeDetector),
+		],
 			dataSource, {
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
@@ -130,6 +143,8 @@ export class DebugHoverWidget implements IContentWidget {
 				listBackground: editorHoverBackground
 			}
 		});
+
+		this.toDispose.push(VisualizedVariableRenderer.rendererOnVisualizationRange(this.debugService.getViewModel(), this.tree));
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
@@ -142,6 +157,8 @@ export class DebugHoverWidget implements IContentWidget {
 		this.domNode.style.backgroundColor = asCssVariable(editorHoverBackground);
 		this.domNode.style.border = `1px solid ${asCssVariable(editorHoverBorder)}`;
 		this.domNode.style.color = asCssVariable(editorHoverForeground);
+
+		this.toDispose.push(this.tree.onContextMenu(async e => await this.onContextMenu(e)));
 
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => {
 			if (!this.isUpdatingTree) {
@@ -158,6 +175,15 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
+	}
+
+	private async onContextMenu(e: ITreeContextMenuEvent<IExpression>): Promise<void> {
+		const variable = e.element;
+		if (!(variable instanceof Variable) || !variable.value) {
+			return;
+		}
+
+		return openContextMenuForVariableTreeElement(this.contextKeyService, this.menuService, this.contextMenuService, MenuId.DebugHoverContext, e);
 	}
 
 	private registerListeners(): void {
@@ -298,7 +324,16 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private layoutTree(): void {
 		const scrollBarHeight = 10;
-		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight);
+		let maxHeightToAvoidCursorOverlay = Infinity;
+		if (this.showAtPosition) {
+			const editorTop = this.editor.getDomNode()?.offsetTop || 0;
+			const containerTop = this.treeContainer.offsetTop + editorTop;
+			const hoveredCharTop = this.editor.getTopForLineNumber(this.showAtPosition.lineNumber, true) - this.editor.getScrollTop();
+			if (containerTop < hoveredCharTop) {
+				maxHeightToAvoidCursorOverlay = hoveredCharTop + editorTop - 22; // 22 is monaco top padding https://github.com/microsoft/vscode/blob/a1df2d7319382d42f66ad7f411af01e4cc49c80a/src/vs/editor/browser/viewParts/contentWidgets/contentWidgets.ts#L364
+			}
+		}
+		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight, maxHeightToAvoidCursorOverlay);
 
 		const realTreeWidth = this.tree.contentWidth;
 		const treeWidth = clamp(realTreeWidth, 400, 550);
@@ -341,7 +376,7 @@ export class DebugHoverWidget implements IContentWidget {
 			return;
 		}
 
-		if (dom.isAncestor(document.activeElement, this.domNode)) {
+		if (dom.isAncestorOfActiveElement(this.domNode)) {
 			this.editor.focus();
 		}
 		this._isVisible = false;
@@ -373,13 +408,13 @@ class DebugHoverAccessibilityProvider implements IListAccessibilityProvider<IExp
 	}
 }
 
-class DebugHoverDataSource implements IAsyncDataSource<IExpression, IExpression> {
+class DebugHoverDataSource extends AbstractExpressionDataSource<IExpression, IExpression> {
 
-	hasChildren(element: IExpression): boolean {
+	public override hasChildren(element: IExpression): boolean {
 		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression): Promise<IExpression[]> {
+	protected override doGetChildren(element: IExpression): Promise<IExpression[]> {
 		return element.getChildren();
 	}
 }
@@ -390,6 +425,9 @@ class DebugHoverDelegate implements IListVirtualDelegate<IExpression> {
 	}
 
 	getTemplateId(element: IExpression): string {
+		if (element instanceof VisualizedExpression) {
+			return VisualizedVariableRenderer.ID;
+		}
 		return VariablesRenderer.ID;
 	}
 }

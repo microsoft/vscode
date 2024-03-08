@@ -17,6 +17,9 @@ import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputC
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { mainWindow } from 'vs/base/browser/window';
+import { QuickPick } from 'vs/platform/quickinput/browser/quickInput';
+import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -39,8 +42,8 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 	setup(() => {
 		const fixture = document.createElement('div');
-		document.body.appendChild(fixture);
-		store.add(toDisposable(() => document.body.removeChild(fixture)));
+		mainWindow.document.body.appendChild(fixture);
+		store.add(toDisposable(() => mainWindow.document.body.removeChild(fixture)));
 
 		controller = store.add(new QuickInputController({
 			container: fixture,
@@ -84,7 +87,8 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				}
 			}
 		},
-			new TestThemeService()));
+			new TestThemeService(),
+			{ activeContainer: fixture } as any));
 
 		// initial layout
 		controller.layout({ height: 20, width: 40 }, 0);
@@ -144,7 +148,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	});
 
 	test('keepScrollPosition - works with activeItems', async () => {
-		const quickpick = store.add(controller.createQuickPick());
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
 
 		const items = [];
 		for (let i = 0; i < 1000; i++) {
@@ -169,7 +173,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	});
 
 	test('keepScrollPosition - works with items', async () => {
-		const quickpick = store.add(controller.createQuickPick());
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
 
 		const items = [];
 		for (let i = 0; i < 1000; i++) {

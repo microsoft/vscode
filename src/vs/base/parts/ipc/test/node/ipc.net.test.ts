@@ -571,6 +571,8 @@ flakySuite('IPC, create handle', () => {
 
 suite('WebSocketNodeSocket', () => {
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	function toUint8Array(data: number[]): Uint8Array {
 		const result = new Uint8Array(data.length);
 		for (let i = 0; i < data.length; i++) {
@@ -724,15 +726,15 @@ suite('WebSocketNodeSocket', () => {
 			server.close();
 
 			const webSocketNodeSocket = new WebSocketNodeSocket(new NodeSocket(socket), true, null, false);
-			webSocketNodeSocket.onData((data) => {
+			ds.add(webSocketNodeSocket.onData((data) => {
 				receivingSideOnDataCallCount++;
 				receivingSideTotalBytes += data.byteLength;
-			});
+			}));
 
-			webSocketNodeSocket.onClose(() => {
+			ds.add(webSocketNodeSocket.onClose(() => {
 				webSocketNodeSocket.dispose();
 				receivingSideSocketClosedBarrier.open();
-			});
+			}));
 		});
 
 		const socket = connect({

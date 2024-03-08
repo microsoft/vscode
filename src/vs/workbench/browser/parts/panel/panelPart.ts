@@ -25,7 +25,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { AbstractPaneCompositePart, CompositeBarPosition } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
@@ -42,7 +42,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 	get preferredHeight(): number | undefined {
 		// Don't worry about titlebar or statusbar visibility
 		// The difference is minimal and keeps this function clean
-		return this.layoutService.dimension.height * 0.4;
+		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
 
 	get preferredWidth(): number | undefined {
@@ -76,7 +76,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
-		@IMenuService private menuService: IMenuService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super(
 			Parts.PANEL_PART,
@@ -97,6 +97,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			viewDescriptorService,
 			contextKeyService,
 			extensionService,
+			menuService,
 		);
 	}
 
@@ -120,6 +121,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			partContainerClass: 'panel',
 			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
 			placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
+			viewContainersWorkspaceStateKey: 'workbench.panel.viewContainersWorkspaceState',
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
@@ -173,8 +175,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 		super.layout(dimensions.width, dimensions.height, top, left);
 	}
 
-	protected shouldShowCompositeBar(): boolean {
+	protected override shouldShowCompositeBar(): boolean {
 		return true;
+	}
+
+	protected getCompositeBarPosition(): CompositeBarPosition {
+		return CompositeBarPosition.TITLE;
 	}
 
 	toJSON(): object {

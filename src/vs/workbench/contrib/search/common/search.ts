@@ -222,3 +222,8 @@ export enum SearchUIState {
 }
 
 export const SearchStateKey = new RawContextKey<SearchUIState>('searchState', SearchUIState.Idle);
+
+export interface NotebookPriorityInfo {
+	isFromSettings: boolean;
+	filenamePatterns: string[];
+}

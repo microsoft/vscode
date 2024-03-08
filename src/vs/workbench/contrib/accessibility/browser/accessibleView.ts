@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventType, addDisposableListener } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getActiveWindow, isActiveElement } from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -13,12 +13,12 @@ import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -29,17 +29,20 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const enum DIMENSIONS {
@@ -57,7 +60,7 @@ export interface IAccessibleContentProvider {
 	actions?: IAction[];
 	provideContent(): string;
 	onClose(): void;
-	onKeyUp?(e: IKeyboardEvent): void;
+	onKeyDown?(e: IKeyboardEvent): void;
 	previous?(): void;
 	next?(): void;
 	/**
@@ -89,6 +92,7 @@ export interface IAccessibleViewService {
 	 * @param verbositySettingKey The setting key for the verbosity of the feature
 	 */
 	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null;
+	getCodeBlockContext(): ICodeBlockActionContext | undefined;
 }
 
 export const enum AccessibleViewType {
@@ -125,6 +129,13 @@ export interface IAccessibleViewOptions {
 	id?: AccessibleViewProviderId;
 }
 
+interface ICodeBlock {
+	startLine: number;
+	endLine: number;
+	code: string;
+	languageId?: string;
+}
+
 export class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 
@@ -135,6 +146,9 @@ export class AccessibleView extends Disposable {
 	private _accessibleViewVerbosityEnabled: IContextKey<boolean>;
 	private _accessibleViewGoToSymbolSupported: IContextKey<boolean>;
 	private _accessibleViewCurrentProviderId: IContextKey<string>;
+	private _accessibleViewInCodeBlock: IContextKey<boolean>;
+	private _accessibleViewContainsCodeBlocks: IContextKey<boolean>;
+	private _codeBlocks?: ICodeBlock[];
 
 	get editorWidget() { return this._editorWidget; }
 	private _container: HTMLElement;
@@ -156,7 +170,8 @@ export class AccessibleView extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IMenuService private readonly _menuService: IMenuService
+		@IMenuService private readonly _menuService: IMenuService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 
@@ -166,10 +181,15 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewVerbosityEnabled = accessibleViewVerbosityEnabled.bindTo(this._contextKeyService);
 		this._accessibleViewGoToSymbolSupported = accessibleViewGoToSymbolSupported.bindTo(this._contextKeyService);
 		this._accessibleViewCurrentProviderId = accessibleViewCurrentProviderId.bindTo(this._contextKeyService);
+		this._accessibleViewInCodeBlock = accessibleViewInCodeBlock.bindTo(this._contextKeyService);
+		this._accessibleViewContainsCodeBlocks = accessibleViewContainsCodeBlocks.bindTo(this._contextKeyService);
 		this._onLastLine = accessibleViewOnLastLine.bindTo(this._contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('accessible-view');
+		if (this._configurationService.getValue(AccessibilityWorkbenchSettingId.HideAccessibleView)) {
+			this._container.classList.add('hide');
+		}
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID)
 		};
@@ -215,10 +235,20 @@ export class AccessibleView extends Disposable {
 				this._accessibleViewVerbosityEnabled.set(this._configurationService.getValue(this._currentProvider.verbositySettingKey));
 				this._updateToolbar(this._currentProvider.actions, this._currentProvider.options.type);
 			}
+			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.HideAccessibleView)) {
+				this._container.classList.toggle('hide', this._configurationService.getValue(AccessibilityWorkbenchSettingId.HideAccessibleView));
+			}
 		}));
 		this._register(this._editorWidget.onDidDispose(() => this._resetContextKeys()));
 		this._register(this._editorWidget.onDidChangeCursorPosition(() => {
 			this._onLastLine.set(this._editorWidget.getPosition()?.lineNumber === this._editorWidget.getModel()?.getLineCount());
+		}));
+		this._register(this._editorWidget.onDidChangeCursorPosition(() => {
+			const cursorPosition = this._editorWidget.getPosition()?.lineNumber;
+			if (this._codeBlocks && cursorPosition !== undefined) {
+				const inCodeBlock = this._codeBlocks.find(c => c.startLine <= cursorPosition && c.endLine >= cursorPosition) !== undefined;
+				this._accessibleViewInCodeBlock.set(inCodeBlock);
+			}
 		}));
 	}
 
@@ -245,6 +275,19 @@ export class AccessibleView extends Disposable {
 		}
 	}
 
+	getCodeBlockContext(): ICodeBlockActionContext | undefined {
+		const position = this._editorWidget.getPosition();
+		if (!this._codeBlocks?.length || !position) {
+			return;
+		}
+		const codeBlockIndex = this._codeBlocks?.findIndex(c => c.startLine <= position?.lineNumber && c.endLine >= position?.lineNumber);
+		const codeBlock = codeBlockIndex !== undefined && codeBlockIndex > -1 ? this._codeBlocks[codeBlockIndex] : undefined;
+		if (!codeBlock || codeBlockIndex === undefined) {
+			return;
+		}
+		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined };
+	}
+
 	showLastProvider(id: AccessibleViewProviderId): void {
 		if (!this._lastProvider || this._lastProvider.options.id !== id) {
 			return;
@@ -258,10 +301,10 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
+			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				container.classList.add('accessible-view-container');
-				return this._render(provider!, container, showAccessibleViewHelp);
+				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
 				if (!showAccessibleViewHelp) {
@@ -316,6 +359,35 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this).show(this._currentProvider);
+	}
+
+	calculateCodeBlocks(markdown: string): void {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
+			return;
+		}
+		if (this._currentProvider.options.language && this._currentProvider.options.language !== 'markdown') {
+			// Symbols haven't been provided and we cannot parse this language
+			return;
+		}
+		const lines = markdown.split('\n');
+		this._codeBlocks = [];
+		let inBlock = false;
+		let startLine = 0;
+
+		let languageId: string | undefined;
+		lines.forEach((line, i) => {
+			if (!inBlock && line.startsWith('```')) {
+				inBlock = true;
+				startLine = i + 1;
+				languageId = line.substring(3).trim();
+			} else if (inBlock && line.startsWith('```')) {
+				inBlock = false;
+				const endLine = i;
+				const code = lines.slice(startLine, endLine).join('\n');
+				this._codeBlocks?.push({ startLine, endLine, code, languageId });
+			}
+		});
+		this._accessibleViewContainsCodeBlocks.set(this._codeBlocks.length > 0);
 	}
 
 	getSymbols(): IAccessibleViewSymbol[] | undefined {
@@ -420,11 +492,8 @@ export class AccessibleView extends Disposable {
 	}
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean): IDisposable {
-		if (!showAccessibleViewHelp) {
-			// don't overwrite the current provider
-			this._currentProvider = provider;
-			this._accessibleViewCurrentProviderId.set(provider.id);
-		}
+		this._currentProvider = provider;
+		this._accessibleViewCurrentProviderId.set(provider.id);
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
 		let disableHelpHint = '';
@@ -449,9 +518,11 @@ export class AccessibleView extends Disposable {
 		}
 		const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
-		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
+		const newContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
+		this.calculateCodeBlocks(newContent);
+		this._currentContent = newContent;
 		this._updateContextKeys(provider, true);
-
+		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {
 			if (!model) {
 				return;
@@ -476,6 +547,11 @@ export class AccessibleView extends Disposable {
 			} else if (actionsHint) {
 				ariaLabel = localize('accessibility-help-hint', "Accessibility Help, {0}", actionsHint);
 			}
+			if (isWindows && widgetIsFocused) {
+				// prevent the screen reader on windows from reading
+				// the aria label again when it's refocused
+				ariaLabel = '';
+			}
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
 			if (this._currentProvider?.options.position) {
@@ -493,39 +569,42 @@ export class AccessibleView extends Disposable {
 		});
 		this._updateToolbar(provider.actions, provider.options.type);
 
-		const handleEscape = (e: KeyboardEvent | IKeyboardEvent): void => {
+		const hide = (e: KeyboardEvent | IKeyboardEvent): void => {
+			provider.onClose();
 			e.stopPropagation();
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
-			// HACK: Delay to allow the context view to hide #186514
-			setTimeout(() => provider.onClose(), 100);
+			this._lastProvider = undefined;
+			this._currentContent = undefined;
 		};
 		const disposableStore = new DisposableStore();
-		disposableStore.add(this._editorWidget.onKeyUp((e) => provider.onKeyUp?.(e)));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Escape) {
-				handleEscape(e);
+			if (e.keyCode === KeyCode.Enter) {
+				this._commandService.executeCommand('editor.action.openLink');
+			} else if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService, this._configurationService)) {
+				hide(e);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
-				const url: string = provider.options.readMoreUrl!;
+				const url: string = provider.options.readMoreUrl;
 				alert(AccessibilityHelpNLS.openingDocs);
 				this._openerService.open(URI.parse(url));
 				e.preventDefault();
 				e.stopPropagation();
 			}
+			provider.onKeyDown?.(e);
 		}));
 		disposableStore.add(addDisposableListener(this._toolbar.getElement(), EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
 			if (keyboardEvent.equals(KeyCode.Escape)) {
-				handleEscape(e);
+				hide(e);
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
-			if (document.activeElement !== this._toolbar.getElement()) {
+			if (!isActiveElement(this._toolbar.getElement())) {
 				this._contextViewService.hideContextView();
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
-		disposableStore.add(this._layoutService.onDidLayout(() => this._layout()));
+		disposableStore.add(this._layoutService.onDidLayoutActiveContainer(() => this._layout()));
 		return disposableStore;
 	}
 
@@ -546,7 +625,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	private _layout(): void {
-		const dimension = this._layoutService.dimension;
+		const dimension = this._layoutService.activeContainerDimension;
 		const maxHeight = dimension.height && dimension.height * .4;
 		const height = Math.min(maxHeight, this._editorWidget.getContentHeight());
 		const width = Math.min(dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH);
@@ -601,6 +680,7 @@ export class AccessibleView extends Disposable {
 		const navigationHint = this._getNavigationHint();
 		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
 		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab)).");
+		const chatHints = this._getChatHints();
 
 		let hint = localize('intro', "In the accessible view, you can:\n");
 		if (navigationHint) {
@@ -612,6 +692,37 @@ export class AccessibleView extends Disposable {
 		if (toolbarHint) {
 			hint += ' - ' + toolbarHint + '\n';
 		}
+		if (chatHints) {
+			hint += chatHints;
+		}
+		return hint;
+	}
+
+	private _getChatHints(): string | undefined {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
+			return;
+		}
+		let hint = '';
+		const insertAtCursorKb = this._keybindingService.lookupKeybinding('workbench.action.chat.insertCodeBlock')?.getAriaLabel();
+		const insertIntoNewFileKb = this._keybindingService.lookupKeybinding('workbench.action.chat.insertIntoNewFile')?.getAriaLabel();
+		const runInTerminalKb = this._keybindingService.lookupKeybinding('workbench.action.chat.runInTerminal')?.getAriaLabel();
+
+		if (insertAtCursorKb) {
+			hint += localize('insertAtCursor', " - Insert the code block at the cursor ({0}).\n", insertAtCursorKb);
+		} else {
+			hint += localize('insertAtCursorNoKb', " - Insert the code block at the cursor by configuring a keybinding for the Chat: Insert Code Block command.\n");
+		}
+		if (insertIntoNewFileKb) {
+			hint += localize('insertIntoNewFile', " - Insert the code block into a new file ({0}).\n", insertIntoNewFileKb);
+		} else {
+			hint += localize('insertIntoNewFileNoKb', " - Insert the code block into a new file by configuring a keybinding for the Chat: Insert at Cursor command.\n");
+		}
+		if (runInTerminalKb) {
+			hint += localize('runInTerminal', " - Run the code block in the terminal ({0}).\n", runInTerminalKb);
+		} else {
+			hint += localize('runInTerminalNoKb', " - Run the coe block in the terminal by configuring a keybinding for the Chat: Insert into Terminal command.\n");
+		}
+
 		return hint;
 	}
 
@@ -717,6 +828,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			editorWidget?.revealLine(position.lineNumber);
 		}
 	}
+	getCodeBlockContext(): ICodeBlockActionContext | undefined {
+		return this._accessibleView?.getCodeBlockContext();
+	}
 }
 
 class AccessibleViewSymbolQuickPick {
@@ -758,4 +872,23 @@ export interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
 	markdownToParse?: string;
 	firstListItem?: string;
 	lineNumber?: number;
+	endLineNumber?: number;
+}
+
+function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService, configurationService: IConfigurationService): boolean {
+	if (!configurationService.getValue(AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress)) {
+		return false;
+	}
+	const standardKeyboardEvent = new StandardKeyboardEvent(event);
+	const resolveResult = keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
+
+	const isValidChord = resolveResult.kind === ResultKind.MoreChordsNeeded;
+	if (keybindingService.inChordMode || isValidChord) {
+		return false;
+	}
+	return shouldHandleKey(event) && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+}
+
+function shouldHandleKey(event: KeyboardEvent): boolean {
+	return !!event.code.match(/^(Key[A-Z]|Digit[0-9]|Equal|Comma|Period|Slash|Quote|Backquote|Backslash|Minus|Semicolon|Space|Enter)$/);
 }

@@ -12,6 +12,7 @@ import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IVisibleEditorPane } from 'vs/workbench/common/editor';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -51,7 +52,7 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 	return format(noKbMsg, commandId);
 }
 
-export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor | IVisibleEditorPane): Promise<void> {
 	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const helpText = getAccessibilityHelpText(accessor);
 	accessibleViewService.show({

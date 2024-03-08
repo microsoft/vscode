@@ -5,9 +5,12 @@
 
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('WellDefinedPrefixTree', () => {
 	let tree: WellDefinedPrefixTree<number>;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		tree = new WellDefinedPrefixTree<number>();
@@ -133,5 +136,27 @@ suite('WellDefinedPrefixTree', () => {
 		tree.insert(key2, 43);
 
 		assert.deepStrictEqual([...tree.values()], [43, 42]);
+	});
+
+
+	test('delete recursive', () => {
+		const key1 = ['foo', 'bar'];
+		const key2 = ['foo', 'bar', 'baz'];
+		const key3 = ['foo', 'bar', 'baz2', 'baz3'];
+		const key4 = ['foo', 'bar2'];
+		tree.insert(key1, 42);
+		tree.insert(key2, 43);
+		tree.insert(key3, 44);
+		tree.insert(key4, 45);
+		assert.strictEqual(tree.size, 4);
+
+		assert.deepStrictEqual([...tree.deleteRecursive(key1)], [42, 44, 43]);
+		assert.strictEqual(tree.size, 1);
+
+		assert.deepStrictEqual([...tree.deleteRecursive(key1)], []);
+		assert.strictEqual(tree.size, 1);
+
+		assert.deepStrictEqual([...tree.deleteRecursive(key4)], [45]);
+		assert.strictEqual(tree.size, 0);
 	});
 });

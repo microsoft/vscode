@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as languages from 'vs/editor/common/languages';
-import { IMarkdownRendererOptions } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRendererOptions } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
@@ -213,7 +213,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
-		this._body.updateCommentThread(commentThread);
+		this._body.updateCommentThread(commentThread, this._commentReply?.isCommentEditorFocused() ?? false);
 		this._threadIsEmpty.set(!this._body.length);
 		this._header.updateCommentThread(commentThread);
 		this._commentReply?.updateCommentThread(commentThread);
@@ -261,6 +261,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	override dispose() {
 		super.dispose();
+		dispose(this._commentThreadDisposables);
 		this.updateCurrentThread(false, false);
 	}
 
@@ -342,7 +343,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	layout(widthInPixel?: number) {
-		this._body.layout();
+		this._body.layout(widthInPixel);
 
 		if (widthInPixel !== undefined) {
 			this._commentReply?.layout(widthInPixel);
@@ -350,7 +351,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	focusCommentEditor() {
-		this._commentReply?.focusCommentEditor();
+		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
 	}
 
 	focus() {

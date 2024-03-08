@@ -313,36 +313,6 @@ suite('IndexTreeModel', () => {
 		assert.deepStrictEqual(list[2].depth, 1);
 	}));
 
-	test('updates collapsible', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
-
-		model.splice([0], 0, [
-			{
-				element: 0, children: [
-					{ element: 1 },
-				]
-			},
-		], options);
-
-		assert.strictEqual(list[0].collapsible, true);
-		assert.strictEqual(list[1].collapsible, false);
-
-		model.splice([0, 0], 1, [], options);
-		{
-			const [first, second] = list;
-			assert.strictEqual(first.collapsible, false);
-			assert.strictEqual(second, undefined);
-		}
-
-		model.splice([0, 0], 0, [{ element: 1 }], options);
-		{
-			const [first, second] = list;
-			assert.strictEqual(first.collapsible, true);
-			assert.strictEqual(second.collapsible, false);
-		}
-	}));
-
 	test('expand', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
 		const model = new IndexTreeModel<number>('test', toList(list), -1);

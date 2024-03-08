@@ -103,7 +103,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
 			// Mount them to a high level node to avoid this.
-			this._layoutService.container.appendChild(node);
+			this._layoutService.mainContainer.appendChild(node);
 		}
 
 		return this._container.domNode;

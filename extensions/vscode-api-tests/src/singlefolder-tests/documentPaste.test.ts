@@ -37,7 +37,7 @@ suite.skip('vscode API - Copy Paste', function () {
 					dataTransfer.set(textPlain, new vscode.DataTransferItem(reversed));
 				}
 			}
-		}, { id: 'test', copyMimeTypes: [textPlain] }));
+		}, { providedPasteEditKinds: [vscode.DocumentPasteEditKind.Empty.append('test')], copyMimeTypes: [textPlain] }));
 
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		const newDocContent = getNextDocumentText(testDisposables, doc);
@@ -62,7 +62,7 @@ suite.skip('vscode API - Copy Paste', function () {
 					dataTransfer.set(textPlain, new vscode.DataTransferItem(reversed + '\n'));
 				}
 			}
-		}, { id: 'test', copyMimeTypes: [textPlain] }));
+		}, { providedPasteEditKinds: [vscode.DocumentPasteEditKind.Empty.append('test')], copyMimeTypes: [textPlain] }));
 
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		const newDocContent = getNextDocumentText(testDisposables, doc);
@@ -88,7 +88,7 @@ suite.skip('vscode API - Copy Paste', function () {
 					dataTransfer.set(textPlain, new vscode.DataTransferItem(`(${ranges.length})${selections.join(' ')}`));
 				}
 			}
-		}, { id: 'test', copyMimeTypes: [textPlain] }));
+		}, { providedPasteEditKinds: [vscode.DocumentPasteEditKind.Empty.append('test')], copyMimeTypes: [textPlain] }));
 
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		editor.selections = [new vscode.Selection(0, 0, 0, 0)];
@@ -118,7 +118,7 @@ suite.skip('vscode API - Copy Paste', function () {
 				dataTransfer.set(textPlain, new vscode.DataTransferItem('a'));
 				providerAResolve();
 			}
-		}, { id: 'test', copyMimeTypes: [textPlain] }));
+		}, { providedPasteEditKinds: [vscode.DocumentPasteEditKind.Empty.append('test')], copyMimeTypes: [textPlain] }));
 
 		// Later registered providers will be called first
 		testDisposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
@@ -132,7 +132,7 @@ suite.skip('vscode API - Copy Paste', function () {
 
 				dataTransfer.set(textPlain, new vscode.DataTransferItem('b'));
 			}
-		}, { id: 'test', copyMimeTypes: [textPlain] }));
+		}, { providedPasteEditKinds: [vscode.DocumentPasteEditKind.Empty.append('test')], copyMimeTypes: [textPlain] }));
 
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		const newDocContent = getNextDocumentText(testDisposables, doc);
@@ -159,7 +159,7 @@ suite.skip('vscode API - Copy Paste', function () {
 				dataTransfer.set(textPlain, new vscode.DataTransferItem('xyz'));
 				providerAResolve();
 			}
-		}, { id: 'test', copyMimeTypes: [textPlain] }));
+		}, { providedPasteEditKinds: [vscode.DocumentPasteEditKind.Empty.append('test')], copyMimeTypes: [textPlain] }));
 
 		testDisposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
 			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
@@ -172,7 +172,7 @@ suite.skip('vscode API - Copy Paste', function () {
 				const str = await entry!.asString();
 				dataTransfer.set(textPlain, new vscode.DataTransferItem(reverseString(str)));
 			}
-		}, { id: 'test', copyMimeTypes: [textPlain] }));
+		}, { providedPasteEditKinds: [vscode.DocumentPasteEditKind.Empty.append('test')], copyMimeTypes: [textPlain] }));
 
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		const newDocContent = getNextDocumentText(testDisposables, doc);
@@ -192,13 +192,13 @@ suite.skip('vscode API - Copy Paste', function () {
 			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
 				dataTransfer.set(textPlain, new vscode.DataTransferItem('xyz'));
 			}
-		}, { id: 'test', copyMimeTypes: [textPlain] }));
+		}, { providedPasteEditKinds: [vscode.DocumentPasteEditKind.Empty.append('test')], copyMimeTypes: [textPlain] }));
 
 		testDisposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
 			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], _dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
 				throw new Error('Expected testing error from bad provider');
 			}
-		}, { id: 'test', copyMimeTypes: [textPlain] }));
+		}, { providedPasteEditKinds: [vscode.DocumentPasteEditKind.Empty.append('test')], copyMimeTypes: [textPlain] }));
 
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		const newDocContent = getNextDocumentText(testDisposables, doc);

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, createEditorPart, ITestInstantiationService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -316,6 +316,57 @@ suite('EditorGroupsService', () => {
 		groupIndexChangedListener.dispose();
 	});
 
+	test('groups label', async function () {
+		const [part] = await createPart();
+
+		const rootGroup = part.groups[0];
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		let partLabelChangedCounter = 0;
+		const groupIndexChangedListener = part.onDidChangeGroupLabel(() => {
+			partLabelChangedCounter++;
+		});
+
+		let rootGroupLabelChangeCounter = 0;
+		const rootGroupLabelChangeListener = rootGroup.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.GROUP_LABEL) {
+				rootGroupLabelChangeCounter++;
+			}
+		});
+
+		let rightGroupLabelChangeCounter = 0;
+		const rightGroupLabelChangeListener = rightGroup.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.GROUP_LABEL) {
+				rightGroupLabelChangeCounter++;
+			}
+		});
+
+		assert.strictEqual(rootGroup.label, 'Group 1');
+		assert.strictEqual(rightGroup.label, 'Group 2');
+
+		part.notifyGroupsLabelChange('Window 2');
+
+		assert.strictEqual(rootGroup.label, 'Window 2: Group 1');
+		assert.strictEqual(rightGroup.label, 'Window 2: Group 2');
+
+		assert.strictEqual(rootGroupLabelChangeCounter, 1);
+		assert.strictEqual(rightGroupLabelChangeCounter, 1);
+		assert.strictEqual(partLabelChangedCounter, 2);
+
+		part.notifyGroupsLabelChange('Window 3');
+
+		assert.strictEqual(rootGroup.label, 'Window 3: Group 1');
+		assert.strictEqual(rightGroup.label, 'Window 3: Group 2');
+
+		assert.strictEqual(rootGroupLabelChangeCounter, 2);
+		assert.strictEqual(rightGroupLabelChangeCounter, 2);
+		assert.strictEqual(partLabelChangedCounter, 4);
+
+		rootGroupLabelChangeListener.dispose();
+		rightGroupLabelChangeListener.dispose();
+		groupIndexChangedListener.dispose();
+	});
+
 	test('copy/merge groups', async () => {
 		const [part] = await createPart();
 
@@ -380,7 +431,7 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(rootGroup.count, 1);
 
-		const result = part.mergeAllGroups();
+		const result = part.mergeAllGroups(part.activeGroup);
 		assert.strictEqual(result.id, rootGroup.id);
 		assert.strictEqual(rootGroup.count, 3);
 
@@ -408,9 +459,9 @@ suite('EditorGroupsService', () => {
 		const currentOptions = part.partOptions;
 		assert.ok(currentOptions);
 
-		disposables.add(part.enforcePartOptions({ showTabs: false }));
-		assert.strictEqual(part.partOptions.showTabs, false);
-		assert.strictEqual(newOptions.showTabs, false);
+		disposables.add(part.enforcePartOptions({ showTabs: 'single' }));
+		assert.strictEqual(part.partOptions.showTabs, 'single');
+		assert.strictEqual(newOptions.showTabs, 'single');
 		assert.strictEqual(oldOptions, currentOptions);
 	});
 
@@ -426,6 +477,7 @@ suite('EditorGroupsService', () => {
 		const editorCloseEvents: IGroupModelChangeEvent[] = [];
 		let editorPinCounter = 0;
 		let editorStickyCounter = 0;
+		let editorTransientCounter = 0;
 		let editorCapabilitiesCounter = 0;
 		const editorGroupModelChangeListener = group.onDidModelChange(e => {
 			if (e.kind === GroupModelChangeKind.EDITOR_OPEN) {
@@ -438,6 +490,9 @@ suite('EditorGroupsService', () => {
 			} else if (e.kind === GroupModelChangeKind.EDITOR_STICKY) {
 				assert.ok(e.editor);
 				editorStickyCounter++;
+			} else if (e.kind === GroupModelChangeKind.EDITOR_TRANSIENT) {
+				assert.ok(e.editor);
+				editorTransientCounter++;
 			} else if (e.kind === GroupModelChangeKind.EDITOR_CAPABILITIES) {
 				assert.ok(e.editor);
 				editorCapabilitiesCounter++;
@@ -541,6 +596,15 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(editorStickyCounter, 1);
 		group.unstickEditor(input);
 		assert.strictEqual(editorStickyCounter, 2);
+
+		assert.strictEqual(group.isTransient(input), false);
+		assert.strictEqual(editorTransientCounter, 0);
+		group.setTransient(input, true);
+		assert.strictEqual(group.isTransient(input), true);
+		assert.strictEqual(editorTransientCounter, 1);
+		group.setTransient(input, false);
+		assert.strictEqual(group.isTransient(input), false);
+		assert.strictEqual(editorTransientCounter, 2);
 
 		editorCloseListener.dispose();
 		editorWillCloseListener.dispose();
@@ -1650,12 +1714,12 @@ suite('EditorGroupsService', () => {
 		rightGroupListener.dispose();
 	});
 
-	test('locked groups - single group is never locked', async () => {
+	test('locked groups - single group is can be locked', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;
 
 		group.lock(true);
-		assert.strictEqual(group.isLocked, false);
+		assert.strictEqual(group.isLocked, true);
 
 		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
 		rightGroup.lock(true);
@@ -1663,7 +1727,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rightGroup.isLocked, true);
 
 		part.removeGroup(group);
-		assert.strictEqual(rightGroup.isLocked, false);
+		assert.strictEqual(rightGroup.isLocked, true);
 
 		const rightGroup2 = part.addGroup(rightGroup, GroupDirection.RIGHT);
 		rightGroup.lock(true);
@@ -1674,7 +1738,7 @@ suite('EditorGroupsService', () => {
 
 		part.removeGroup(rightGroup2);
 
-		assert.strictEqual(rightGroup.isLocked, false);
+		assert.strictEqual(rightGroup.isLocked, true);
 	});
 
 	test('locked groups - auto locking via setting', async () => {
@@ -1716,6 +1780,110 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rootGroup.isLocked, false);
 		part.removeGroup(leftGroup);
 		assert.strictEqual(rootGroup.isLocked, false);
+	});
+
+	test('maximize editor group', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const [part] = await createPart(instantiationService);
+
+		const rootGroup = part.activeGroup;
+		const editorPartSize = part.getSize(rootGroup);
+
+		// If there is only one group, it should not be considered maximized
+		assert.strictEqual(part.hasMaximizedGroup(), false);
+
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const rightBottomGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
+
+		const sizeRootGroup = part.getSize(rootGroup);
+		const sizeRightGroup = part.getSize(rightGroup);
+		const sizeRightBottomGroup = part.getSize(rightBottomGroup);
+
+		let maximizedValue;
+		const maxiizeGroupEventDisposable = part.onDidChangeGroupMaximized((maximized) => {
+			maximizedValue = maximized;
+		});
+
+		assert.strictEqual(part.hasMaximizedGroup(), false);
+
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rootGroup);
+
+		assert.strictEqual(part.hasMaximizedGroup(), true);
+
+		// getSize()
+		assert.deepStrictEqual(part.getSize(rootGroup), editorPartSize);
+		assert.deepStrictEqual(part.getSize(rightGroup), { width: 0, height: 0 });
+		assert.deepStrictEqual(part.getSize(rightBottomGroup), { width: 0, height: 0 });
+
+		assert.deepStrictEqual(maximizedValue, true);
+
+		part.toggleMaximizeGroup();
+
+		assert.strictEqual(part.hasMaximizedGroup(), false);
+
+		// Size is restored
+		assert.deepStrictEqual(part.getSize(rootGroup), sizeRootGroup);
+		assert.deepStrictEqual(part.getSize(rightGroup), sizeRightGroup);
+		assert.deepStrictEqual(part.getSize(rightBottomGroup), sizeRightBottomGroup);
+
+		assert.deepStrictEqual(maximizedValue, false);
+		maxiizeGroupEventDisposable.dispose();
+	});
+
+	test('transient editors - basics', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = createTestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input, { pinned: true });
+		await group.openEditor(inputInactive, { inactive: true });
+
+		assert.strictEqual(group.isTransient(input), false);
+		assert.strictEqual(group.isTransient(inputInactive), false);
+
+		group.setTransient(input, true);
+
+		assert.strictEqual(group.isTransient(input), true);
+		assert.strictEqual(group.isTransient(inputInactive), false);
+
+		group.setTransient(input, false);
+
+		assert.strictEqual(group.isTransient(input), false);
+		assert.strictEqual(group.isTransient(inputInactive), false);
+
+		const inputTransient = createTestFileEditorInput(URI.file('foo/bar/transient'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(inputTransient, { transient: true });
+		assert.strictEqual(group.isTransient(inputTransient), true);
+
+		await group.openEditor(inputTransient, {});
+		assert.strictEqual(group.isTransient(inputTransient), false);
+	});
+
+	test('transient editors - overrides enablePreview setting', async function () {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('workbench', { 'editor': { 'enablePreview': false } });
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		const [part] = await createPart(instantiationService);
+
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input, { pinned: false });
+		assert.strictEqual(group.isPinned(input), true);
+
+		await group.openEditor(input2, { transient: true });
+		assert.strictEqual(group.isPinned(input2), false);
+
+		group.setTransient(input2, false);
+		assert.strictEqual(group.isPinned(input2), true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

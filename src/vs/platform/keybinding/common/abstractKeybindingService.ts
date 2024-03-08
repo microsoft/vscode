@@ -53,6 +53,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _ignoreSingleModifiers: KeybindingModifierSet;
 	private _currentSingleModifier: SingleModifierChord | null;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
+	protected _currentlyDispatchingCommandId: string | null;
 
 	protected _logging: boolean;
 
@@ -75,6 +76,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._ignoreSingleModifiers = KeybindingModifierSet.EMPTY;
 		this._currentSingleModifier = null;
 		this._currentSingleModifierClearTimeout = new TimeoutTimer();
+		this._currentlyDispatchingCommandId = null;
 		this._logging = false;
 	}
 
@@ -362,10 +364,15 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 					}
 
 					this._log(`+ Invoking command ${resolveResult.commandId}.`);
-					if (typeof resolveResult.commandArgs === 'undefined') {
-						this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
-					} else {
-						this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+					this._currentlyDispatchingCommandId = resolveResult.commandId;
+					try {
+						if (typeof resolveResult.commandArgs === 'undefined') {
+							this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
+						} else {
+							this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+						}
+					} finally {
+						this._currentlyDispatchingCommandId = null;
 					}
 
 					if (!HIGH_FREQ_COMMANDS.test(resolveResult.commandId)) {
@@ -377,6 +384,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			}
 		}
 	}
+
+	abstract enableKeybindingHoldMode(commandId: string): Promise<void> | undefined;
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 		if (event.ctrlKey || event.metaKey) {
