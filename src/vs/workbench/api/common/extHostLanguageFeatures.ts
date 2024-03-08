@@ -445,7 +445,7 @@ class CodeActionAdapter {
 			triggerKind: typeConvert.CodeActionTriggerKind.to(context.trigger),
 		};
 		const commandsOrActions = await this._provider.provideCodeActions(doc, ran, codeActionContext, token);
-		if (!isNonEmptyArray(commandsOrActions) || (token.isCancellationRequested && !context.needsDelay)) {
+		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
 			return undefined;
 		}
 

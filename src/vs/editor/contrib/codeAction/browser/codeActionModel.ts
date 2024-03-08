@@ -231,7 +231,7 @@ export class CodeActionModel extends Disposable {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 						const allCodeActions = [...codeActionSet.allActions];
-						if (token.isCancellationRequested && !trigger.trigger.context?.needsDelay) {
+						if (token.isCancellationRequested) {
 							return emptyCodeActionSet;
 						}
 
