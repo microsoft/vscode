@@ -37,7 +37,7 @@ export interface IViewModelLines extends IDisposable {
 	getViewLineCount(): number;
 	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
-	getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][];
+	getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePositions: IPosition[], options: BracketGuideOptions): IndentGuide[][];
 	getViewLineContent(viewLineNumber: number): string;
 	getViewLineLength(viewLineNumber: number): number;
 	getViewLineMinColumn(viewLineNumber: number): number;
@@ -563,8 +563,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	// #endregion
 
-	public getViewLinesBracketGuides(viewStartLineNumber: number, viewEndLineNumber: number, activeViewPosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][] {
-		const modelActivePosition = activeViewPosition ? this.convertViewPositionToModelPosition(activeViewPosition.lineNumber, activeViewPosition.column) : null;
+	public getViewLinesBracketGuides(viewStartLineNumber: number, viewEndLineNumber: number, activeViewPositions: IPosition[], options: BracketGuideOptions): IndentGuide[][] {
+		const modelActivePositions = activeViewPositions.map((activeViewPosition) => this.convertViewPositionToModelPosition(activeViewPosition.lineNumber, activeViewPosition.column));
 		const resultPerViewLine: IndentGuide[][] = [];
 
 		for (const group of this.getViewLineInfosGroupedByModelRanges(viewStartLineNumber, viewEndLineNumber)) {
@@ -573,7 +573,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			const bracketGuidesPerModelLine = this.model.guides.getLinesBracketGuides(
 				modelRangeStartLineNumber,
 				group.modelRange.endLineNumber,
-				modelActivePosition,
+				modelActivePositions,
 				options
 			);
 
@@ -1181,7 +1181,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		};
 	}
 
-	public getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null): IndentGuide[][] {
+	public getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePositions: IPosition[]): IndentGuide[][] {
 		return new Array(endLineNumber - startLineNumber + 1).fill([]);
 	}
 

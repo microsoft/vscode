@@ -21,7 +21,7 @@ export interface IGuidesTextModelPart {
 	 * `result[i]` will contain the indent guides of the `startLineNumber + i`th line.
 	 * @internal
 	 */
-	getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][];
+	getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePositions: IPosition[], options: BracketGuideOptions): IndentGuide[][];
 }
 
 export interface IActiveIndentGuideInfo {
