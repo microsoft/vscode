@@ -672,7 +672,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	);
 
 	const asset: Asset = { platform, type, url, hash, sha256hash, size, supportsFastUpdate: true };
-	log('Creating asset...', JSON.stringify(asset));
+	log('Creating asset...', JSON.stringify(asset, undefined, 2));
 
 	await retry(async (attempt) => {
 		log(`Creating asset in Cosmos DB (attempt ${attempt})...`);

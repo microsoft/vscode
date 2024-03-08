@@ -493,7 +493,7 @@ async function processArtifact(artifact, artifactFilePath) {
     const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
     const url = await releaseAndProvision(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT_SUBJECT_NAME'), e('RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'), e('PROVISION_TENANT_ID'), e('PROVISION_AAD_USERNAME'), e('PROVISION_AAD_PASSWORD'), commit, quality, artifactFilePath);
     const asset = { platform, type, url, hash, sha256hash, size, supportsFastUpdate: true };
-    log('Creating asset...', JSON.stringify(asset));
+    log('Creating asset...', JSON.stringify(asset, undefined, 2));
     await (0, retry_1.retry)(async (attempt) => {
         log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
         const aadCredentials = new identity_1.ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
