@@ -13,7 +13,6 @@ import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } 
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { autorun } from 'vs/base/common/observable';
-import { MersenneTwister } from 'vs/editor/test/common/model/bracketPairColorizer/combineTextEditInfos.test';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];

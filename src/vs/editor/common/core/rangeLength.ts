@@ -98,6 +98,10 @@ export class RangeLength {
 		}
 	}
 
+	public toRange(): Range {
+		return new Range(1, 1, this.lineCount + 1, this.columnCount + 1);
+	}
+
 	public addToPosition(position: Position): Position {
 		if (this.lineCount === 0) {
 			return new Position(position.lineNumber, position.column + this.columnCount);

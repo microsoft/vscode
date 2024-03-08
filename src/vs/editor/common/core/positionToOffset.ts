@@ -7,11 +7,12 @@ import { findLastIdxMonotonous } from 'vs/base/common/arraysFind';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { RangeLength } from 'vs/editor/common/core/rangeLength';
 
 export class PositionOffsetTransformer {
 	private readonly lineStartOffsetByLineIdx: number[];
 
-	constructor(text: string) {
+	constructor(public readonly text: string) {
 		this.lineStartOffsetByLineIdx = [];
 		this.lineStartOffsetByLineIdx.push(0);
 		for (let i = 0; i < text.length; i++) {
@@ -44,5 +45,14 @@ export class PositionOffsetTransformer {
 			this.getPosition(offsetRange.start),
 			this.getPosition(offsetRange.endExclusive)
 		);
+	}
+
+	getTextLength(offsetRange: OffsetRange): RangeLength {
+		return RangeLength.ofRange(this.getRange(offsetRange));
+	}
+
+	get textLength(): RangeLength {
+		const lineIdx = this.lineStartOffsetByLineIdx.length - 1;
+		return new RangeLength(lineIdx, this.text.length - this.lineStartOffsetByLineIdx[lineIdx]);
 	}
 }
