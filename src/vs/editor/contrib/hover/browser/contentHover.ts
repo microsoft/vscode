@@ -229,6 +229,7 @@ export class ContentHoverController extends Disposable {
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
+			disposables,
 			setColorPicker: (widget) => colorPicker = widget,
 			onContentsChanged: () => this._widget.onContentsChanged(),
 			setMinimumDimensions: (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions),

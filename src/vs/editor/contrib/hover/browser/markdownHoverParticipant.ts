@@ -61,9 +61,10 @@ export class ExpandableMarkdownHover extends MarkdownHover {
 	}
 }
 
-interface HoverFocusMetadata {
+interface MarkdownFocusMetadata {
 	index: number | undefined;
 	element: HTMLElement | undefined;
+	focusRemains: boolean;
 }
 
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
@@ -72,11 +73,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _anchor: HoverAnchor | undefined;
 	private _context: IEditorHoverRenderContext | undefined;
 
-	private _focusMetadata: HoverFocusMetadata = { index: undefined, element: undefined };
 	private _providers: (HoverProvider | undefined)[] = [];
-
-	private _focusRemainsWithinHover: boolean = false;
-	private _disposableStore = new DisposableStore();
+	private _focusMetadata: MarkdownFocusMetadata = {
+		index: undefined,
+		element: undefined,
+		focusRemains: false
+	};
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
@@ -183,7 +185,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
-		if (this._focusMetadata.index === undefined || this._focusMetadata.element === undefined || !this._anchor) {
+		if (
+			this._focusMetadata.index === undefined
+			|| this._focusMetadata.element === undefined
+			|| !this._anchor
+			|| !this._context
+		) {
 			return;
 		}
 		const provider = this._providers[this._focusMetadata.index];
@@ -201,9 +208,9 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			hover.contents,
 			this._focusMetadata.index,
 			hover.extensionMetadata,
-			this._disposableStore
+			this._context.disposables
 		);
-		this._focusRemainsWithinHover = true;
+		this._focusMetadata.focusRemains = true;
 		this._focusMetadata.element.replaceWith(renderedMarkdown);
 		this._focusMetadata.element = renderedMarkdown;
 		renderedMarkdown.focus();
@@ -233,27 +240,30 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		actionsContainer.style.display = 'flex';
 		actionsToolbar.appendChild(actionsContainer);
 
-		if (!extensionMetadata) {
+		if (!extensionMetadata || !this._context) {
 			return contents;
 		}
 		this._renderHoverExpansionAction(actionsContainer, extensionMetadata.canContract === true ? false : undefined);
 		this._renderHoverExpansionAction(actionsContainer, extensionMetadata.canExtend === true ? true : undefined);
 
-		const focusTracker = this._disposableStore.add(dom.trackFocus(contents));
-		this._disposableStore.add(focusTracker.onDidFocus(() => {
+		const focusTracker = this._context.disposables.add(dom.trackFocus(contents));
+		this._context.disposables.add(focusTracker.onDidFocus(() => {
+			const focusRemains = this._focusMetadata.focusRemains;
 			this._focusMetadata = {
 				index: hoverIndex,
-				element: contents
+				element: contents,
+				focusRemains
 			};
 		}));
-		this._disposableStore.add(focusTracker.onDidBlur(() => {
-			if (this._focusRemainsWithinHover) {
-				this._focusRemainsWithinHover = false;
+		this._context.disposables.add(focusTracker.onDidBlur(() => {
+			if (this._focusMetadata.focusRemains) {
+				this._focusMetadata.focusRemains = false;
 				return;
 			}
 			this._focusMetadata = {
 				index: undefined,
-				element: undefined
+				element: undefined,
+				focusRemains: false
 			};
 		}));
 		return contents;

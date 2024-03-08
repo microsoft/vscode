@@ -6,7 +6,7 @@
 import { Dimension } from 'vs/base/browser/dom';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -103,6 +103,10 @@ export interface IEditorHoverRenderContext {
 	 * The status bar for actions for this hover.
 	 */
 	readonly statusBar: IEditorHoverStatusBar;
+	/**
+	 * The disposable store for the hover
+	 */
+	readonly disposables: DisposableStore;
 	/**
 	 * Set if the hover will render a color picker widget.
 	 */
