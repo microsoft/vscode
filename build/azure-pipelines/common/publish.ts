@@ -756,6 +756,7 @@ async function main() {
 
 			if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
 				console.log(`[${artifact.name}] Artifact size mismatch.Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize} `);
+				console.log(JSON.stringify(artifact.resource.properties, undefined, '  '));
 				throw new Error(`Artifact size mismatch.`);
 			}
 
