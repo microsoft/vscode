@@ -219,7 +219,7 @@
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content {
 	position: absolute;
-	top: 11px;
+	top: 17px;
 	right: 0px;
 	font-size: 9px;
 	font-weight: 600;
