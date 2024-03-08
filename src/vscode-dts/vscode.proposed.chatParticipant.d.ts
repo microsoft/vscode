@@ -266,6 +266,9 @@ declare module 'vscode' {
 		readonly range: [start: number, end: number];
 
 		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
+		/**
+		 * The values of the variable. Can be an empty array if the variable doesn't currently have a value.
+		 */
 		readonly values: ChatVariableValue[];
 	}
 
