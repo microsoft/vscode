@@ -176,9 +176,7 @@ steps:
         APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         APP_PATH="$APP_ROOT/$APP_NAME"
-        ls "$(Build.ArtifactStagingDirectory)/cli"
-        ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli/*/*.zip")
-        unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
+        unzip $(Build.ArtifactStagingDirectory)/cli/*.zip -d $(Build.ArtifactStagingDirectory)/cli
         CLI_APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").tunnelApplicationName")
         APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").applicationName")
         mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
