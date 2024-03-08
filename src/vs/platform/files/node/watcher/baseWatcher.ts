@@ -23,6 +23,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	private allWatchRequests = new Set<IUniversalWatchRequest>();
 	private suspendedWatchRequests = new Set<IUniversalWatchRequest>();
 
+	protected readonly pollingInterval: number | undefined;
+
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
 		this.allWatchRequests = new Set([...requests]);
 
@@ -122,7 +124,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 		this.trace(`starting fs.watchFile() on ${request.path} (correlationId: ${request.correlationId})`);
 		try {
-			watchFile(request.path, { persistent: false }, watchRequestCallback);
+			watchFile(request.path, { persistent: false, interval: this.pollingInterval }, watchRequestCallback);
 		} catch (error) {
 			this.warn(`fs.watchFile() failed with error ${error} on path ${request.path} (correlationId: ${request.correlationId})`);
 

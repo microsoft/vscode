@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-ensure-no-disposables-leak-in-test */
+
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
@@ -20,6 +22,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { Emitter, Event } from 'vs/base/common/event';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -30,9 +33,16 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
-		override async watch(requests: INonRecursiveWatchRequest[]): Promise<void> {
-			await super.watch(requests);
+		protected override readonly pollingInterval = 100;
+
+		private readonly _onDidWatch = this._register(new Emitter<void>());
+		readonly onDidWatch = this._onDidWatch.event;
+
+		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
+			await super.doWatch(requests);
 			await this.whenReady();
+
+			this._onDidWatch.fire();
 		}
 
 		async whenReady(): Promise<void> {
@@ -432,7 +442,7 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 		return basicCrudTest(join(link, 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number): Promise<void> {
+	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number, awaitWatchAfterAdd?: boolean): Promise<void> {
 		let changeFuture: Promise<unknown>;
 
 		// New file
@@ -440,6 +450,9 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId, expectedCount);
 			await Promises.writeFile(filePath, 'Hello World');
 			await changeFuture;
+			if (awaitWatchAfterAdd) {
+				await Event.toPromise(watcher.onDidWatch);
+			}
 		}
 
 		// Change file
@@ -558,5 +571,26 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 		await basicCrudTest(join(testDir, 'newFile.txt'), undefined, null, 3);
 		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, null, 3);
+	});
+
+	test('correlated watch requests support suspend/resume (file)', async function () {
+		const filePath = join(testDir, 'not-found.txt');
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+	});
+
+	test('correlated watch requests support suspend/resume (folder)', async function () {
+		const folderPath = join(testDir, 'not-found');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await Event.toPromise(watcher.onDidWatch);
+
+		const filePath = join(testDir, 'not-found', 'newFile.txt');
+		await basicCrudTest(filePath, undefined, 1);
 	});
 });
