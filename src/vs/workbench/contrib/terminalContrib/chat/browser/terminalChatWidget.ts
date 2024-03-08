@@ -143,8 +143,7 @@ function parseCodeFromBlock(block?: string): string | undefined {
 	return match ? match[1].trim() : undefined;
 }
 
-
 const enum ChatElementSelectors {
-	ResponseEditor = 'div.chatMessageContent .interactive-result-editor .inputarea.monaco-mouse-cursor-text',
+	ResponseEditor = '.chatMessageContent textarea',
 	ResponseMessage = '.chatMessageContent',
 }
