@@ -340,10 +340,11 @@ async function downloadArtifact(artifact, downloadPath) {
 }
 async function unzip(packagePath, outputPath) {
     return new Promise((resolve, reject) => {
-        yauzl.open(packagePath, { lazyEntries: true }, (err, zipfile) => {
+        yauzl.open(packagePath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
             if (err) {
                 return reject(err);
             }
+            const result = [];
             zipfile.on('entry', entry => {
                 if (/\/$/.test(entry.fileName)) {
                     zipfile.readEntry();
@@ -358,13 +359,15 @@ async function unzip(packagePath, outputPath) {
                         const ostream = fs.createWriteStream(filePath);
                         ostream.on('finish', () => {
                             zipfile.close();
-                            resolve(filePath);
+                            result.push(filePath);
+                            zipfile.readEntry();
                         });
                         istream?.on('error', err => reject(err));
                         istream.pipe(ostream);
                     });
                 }
             });
+            zipfile.on('close', () => resolve(result));
             zipfile.readEntry();
         });
     });
@@ -568,7 +571,8 @@ async function main() {
                 const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
                 console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
             });
-            const artifactFilePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+            const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+            const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
             const artifactSize = fs.statSync(artifactFilePath).size;
             if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
                 console.log(`[${artifact.name}] Artifact size mismatch.Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize} `);
@@ -595,7 +599,7 @@ async function main() {
             operations.push({ name: artifact.name, operation });
             resultPromise = Promise.allSettled(operations.map(o => o.operation));
         }
-        await new Promise(c => setTimeout(c, 10_000));
+        await new Promise(c => setTimeout(c, 10000));
     }
     console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
     const artifactsInProgress = operations.filter(o => processing.has(o.name));

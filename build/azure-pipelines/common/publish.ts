@@ -483,13 +483,14 @@ async function downloadArtifact(artifact: Artifact, downloadPath: string): Promi
 	}
 }
 
-async function unzip(packagePath: string, outputPath: string): Promise<string> {
+async function unzip(packagePath: string, outputPath: string): Promise<string[]> {
 	return new Promise((resolve, reject) => {
-		yauzl.open(packagePath, { lazyEntries: true }, (err, zipfile) => {
+		yauzl.open(packagePath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
 			if (err) {
 				return reject(err);
 			}
 
+			const result: string[] = [];
 			zipfile!.on('entry', entry => {
 				if (/\/$/.test(entry.fileName)) {
 					zipfile!.readEntry();
@@ -505,7 +506,8 @@ async function unzip(packagePath: string, outputPath: string): Promise<string> {
 						const ostream = fs.createWriteStream(filePath);
 						ostream.on('finish', () => {
 							zipfile!.close();
-							resolve(filePath);
+							result.push(filePath);
+							zipfile!.readEntry();
 						});
 						istream?.on('error', err => reject(err));
 						istream!.pipe(ostream);
@@ -513,6 +515,7 @@ async function unzip(packagePath: string, outputPath: string): Promise<string> {
 				}
 			});
 
+			zipfile!.on('close', () => resolve(result));
 			zipfile!.readEntry();
 		});
 	});
@@ -748,7 +751,8 @@ async function main() {
 				console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
 			});
 
-			const artifactFilePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+			const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+			const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
 			const artifactSize = fs.statSync(artifactFilePath).size;
 
 			if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
