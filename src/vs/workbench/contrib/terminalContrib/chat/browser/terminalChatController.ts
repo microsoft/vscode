@@ -25,6 +25,7 @@ import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/br
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { CodeBlockContextProviderRegistry } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
 
 const enum Message {
 	NONE = 0,
@@ -118,6 +119,23 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		} else {
 			this._terminalAgentRegisteredContextKey.set(true);
 		}
+		CodeBlockContextProviderRegistry.registerProvider({
+			getCodeBlockContext: (editor) => {
+				const chatWidget = this.chatWidget;
+				if (!chatWidget) {
+					return;
+				}
+				if (!editor) {
+					return;
+				}
+				return {
+					element: editor,
+					code: editor.getValue(),
+					codeBlockIndex: 0,
+					languageId: editor.getModel()!.getLanguageId()
+				};
+			}
+		}, 'terminal');
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {

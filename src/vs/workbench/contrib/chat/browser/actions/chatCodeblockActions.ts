@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -20,7 +21,9 @@ import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
@@ -562,10 +565,32 @@ export function registerChatCodeBlockActions() {
 	});
 }
 
+export interface ICodeBlockActionContextProvider {
+	getCodeBlockContext(editor: ICodeEditor): ICodeBlockActionContext | undefined;
+}
+export const ICodeBlockContextProviderRegistry = createDecorator<ICodeBlockContextProviderRegistry>('codeBlockContextProviderRegistry');
+export interface ICodeBlockContextProviderRegistry {
+}
+export class CodeBlockContextProviderRegistry {
+	serviceBrand: undefined;
+	static providers = new Map<string, ICodeBlockActionContextProvider>();
+	static getProviders(): ICodeBlockActionContextProvider[] {
+		return [...CodeBlockContextProviderRegistry.providers.values()];
+	}
+	static registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable {
+		CodeBlockContextProviderRegistry.providers.set(id, provider);
+		return toDisposable(() => CodeBlockContextProviderRegistry.providers.delete(id));
+	}
+
+	getProvider(id: string): ICodeBlockActionContextProvider | undefined {
+		return CodeBlockContextProviderRegistry.providers.get(id);
+	}
+}
+registerSingleton(ICodeBlockContextProviderRegistry, CodeBlockContextProviderRegistry, InstantiationType.Delayed);
+
 function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): ICodeBlockActionContext | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const accessibleViewService = accessor.get(IAccessibleViewService);
-	const contextKeyService = accessor.get(IContextKeyService);
 	const accessibleViewCodeBlock = accessibleViewService.getCodeBlockContext();
 	if (accessibleViewCodeBlock) {
 		return accessibleViewCodeBlock;
@@ -575,17 +600,14 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 		return;
 	}
 
-	if (contextKeyService.getContext(editor.getDomNode()).getValue('terminalChatFocus')) {
-		return {
-			element: editor,
-			code: editor.getValue(),
-			codeBlockIndex: 0,
-			languageId: editor.getModel()!.getLanguageId()
-		};
-	}
-
 	const widget = chatWidgetService.lastFocusedWidget;
 	if (!widget) {
+		for (const provider of CodeBlockContextProviderRegistry.getProviders()) {
+			const context = provider.getCodeBlockContext(editor);
+			if (context) {
+				return context;
+			}
+		}
 		return;
 	}
 
