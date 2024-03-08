@@ -573,7 +573,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, null, 3);
 	});
 
-	test('correlated watch requests support suspend/resume (file)', async function () {
+	test('correlated watch requests support suspend/resume (file, does not exist in beginning)', async function () {
 		const filePath = join(testDir, 'not-found.txt');
 		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
 
@@ -581,16 +581,54 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await basicCrudTest(filePath, undefined, 1, undefined, true);
 	});
 
-	test('correlated watch requests support suspend/resume (folder)', async function () {
+	test('correlated watch requests support suspend/resume (file, exists in beginning)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		await basicCrudTest(filePath, true, 1);
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
 		const folderPath = join(testDir, 'not-found');
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
 
-		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
 		await Promises.mkdir(folderPath);
 		await changeFuture;
 		await Event.toPromise(watcher.onDidWatch);
 
-		const filePath = join(testDir, 'not-found', 'newFile.txt');
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, undefined, 1);
+
+		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
+		await Promises.rmdir(folderPath);
+		await changeFuture;
+
+		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await Event.toPromise(watcher.onDidWatch);
+
+		await basicCrudTest(filePath, undefined, 1);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, exists in beginning)', async function () {
+		const folderPath = join(testDir, 'deep');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, undefined, 1);
+
+		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
+		await Promises.rmdir(folderPath, { recursive: true });
+		await changeFuture;
+
+		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await Event.toPromise(watcher.onDidWatch);
+
 		await basicCrudTest(filePath, undefined, 1);
 	});
 });
