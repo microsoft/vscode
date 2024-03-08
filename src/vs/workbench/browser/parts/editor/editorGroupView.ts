@@ -799,7 +799,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// that the transient state is not staying around when
 			// the user interacts with the editor.
 
-			this.setTransient(this.activeEditor, false);
+			this.model.setTransient(this.activeEditor, false);
 		}
 	}
 
@@ -1031,13 +1031,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			} else {
 				this.titleControl.unstickEditor(editor);
 			}
-		}
-	}
-
-	setTransient(candidate: EditorInput | undefined, transient: boolean): void {
-		const editor = candidate ?? this.activeEditor;
-		if (editor) {
-			this.model.setTransient(editor, transient);
 		}
 	}
 

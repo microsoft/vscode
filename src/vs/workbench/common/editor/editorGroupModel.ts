@@ -421,8 +421,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				this.doPin(existingEditor, existingEditorIndex);
 			}
 
-			// Update transient
-			this.doSetTransient(existingEditor, existingEditorIndex, makeTransient);
+			// Update transient (existing editors do not turn transient if they were not before)
+			this.doSetTransient(existingEditor, existingEditorIndex, makeTransient === false ? false : this.isTransient(existingEditor));
 
 			// Activate it
 			if (makeActive) {
