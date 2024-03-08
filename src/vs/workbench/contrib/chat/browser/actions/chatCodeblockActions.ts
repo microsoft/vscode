@@ -20,7 +20,7 @@ import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
@@ -565,6 +565,7 @@ export function registerChatCodeBlockActions() {
 function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): ICodeBlockActionContext | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const accessibleViewService = accessor.get(IAccessibleViewService);
+	const contextKeyService = accessor.get(IContextKeyService);
 	const accessibleViewCodeBlock = accessibleViewService.getCodeBlockContext();
 	if (accessibleViewCodeBlock) {
 		return accessibleViewCodeBlock;
@@ -572,6 +573,15 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 	const model = editor.getModel();
 	if (!model) {
 		return;
+	}
+
+	if (contextKeyService.getContext(editor.getDomNode()).getValue('terminalChatFocus')) {
+		return {
+			element: editor,
+			code: editor.getValue(),
+			codeBlockIndex: 0,
+			languageId: editor.getModel()!.getLanguageId()
+		};
 	}
 
 	const widget = chatWidgetService.lastFocusedWidget;
