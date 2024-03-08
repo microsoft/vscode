@@ -6,7 +6,7 @@
 import { splitLines } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { RangeLength } from 'vs/editor/common/core/rangeLength';
+import { TextLength } from 'vs/editor/common/core/textLength';
 
 /**
  * The end must be greater than or equal to the start.
@@ -49,11 +49,11 @@ export function toLength(lineCount: number, columnCount: number): Length {
 	return (lineCount * factor + columnCount) as any as Length;
 }
 
-export function lengthToObj(length: Length): RangeLength {
+export function lengthToObj(length: Length): TextLength {
 	const l = length as any as number;
 	const lineCount = Math.floor(l / factor);
 	const columnCount = l - lineCount * factor;
-	return new RangeLength(lineCount, columnCount);
+	return new TextLength(lineCount, columnCount);
 }
 
 export function lengthGetLineCount(length: Length): number {
@@ -148,11 +148,11 @@ export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
 	return new Range(lineCount + 1, colCount + 1, lineCount2 + 1, colCount2 + 1);
 }
 
-export function lengthOfRange(range: Range): RangeLength {
+export function lengthOfRange(range: Range): TextLength {
 	if (range.startLineNumber === range.endLineNumber) {
-		return new RangeLength(0, range.endColumn - range.startColumn);
+		return new TextLength(0, range.endColumn - range.startColumn);
 	} else {
-		return new RangeLength(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
+		return new TextLength(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
 	}
 }
 
@@ -167,9 +167,9 @@ export function lengthOfString(str: string): Length {
 	return toLength(lines.length - 1, lines[lines.length - 1].length);
 }
 
-export function lengthOfStringObj(str: string): RangeLength {
+export function lengthOfStringObj(str: string): TextLength {
 	const lines = splitLines(str);
-	return new RangeLength(lines.length - 1, lines[lines.length - 1].length);
+	return new TextLength(lines.length - 1, lines[lines.length - 1].length);
 }
 
 /**

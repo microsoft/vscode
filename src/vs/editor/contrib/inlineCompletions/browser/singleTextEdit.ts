@@ -7,7 +7,7 @@ import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import { commonPrefixLength, getLeadingWhitespace } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { RangeLength } from 'vs/editor/common/core/rangeLength';
+import { TextLength } from 'vs/editor/common/core/textLength';
 import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
@@ -19,7 +19,7 @@ export function singleTextRemoveCommonPrefix(edit: SingleTextEdit, model: ITextM
 	}
 	const valueToReplace = model.getValueInRange(modelRange, EndOfLinePreference.LF);
 	const commonPrefixLen = commonPrefixLength(valueToReplace, edit.text);
-	const start = RangeLength.ofText(valueToReplace.substring(0, commonPrefixLen)).addToPosition(edit.range.getStartPosition());
+	const start = TextLength.ofText(valueToReplace.substring(0, commonPrefixLen)).addToPosition(edit.range.getStartPosition());
 	const text = edit.text.substring(commonPrefixLen);
 	const range = Range.fromPositions(start, edit.range.getEndPosition());
 	return new SingleTextEdit(range, text);

@@ -8,33 +8,33 @@ import { Range } from 'vs/editor/common/core/range';
 /**
  * Represents a non-negative length of text in terms of line and column count.
 */
-export class RangeLength {
-	public static zero = new RangeLength(0, 0);
+export class TextLength {
+	public static zero = new TextLength(0, 0);
 
-	public static lengthDiffNonNegative(start: RangeLength, end: RangeLength): RangeLength {
+	public static lengthDiffNonNegative(start: TextLength, end: TextLength): TextLength {
 		if (end.isLessThan(start)) {
-			return RangeLength.zero;
+			return TextLength.zero;
 		}
 		if (start.lineCount === end.lineCount) {
-			return new RangeLength(0, end.columnCount - start.columnCount);
+			return new TextLength(0, end.columnCount - start.columnCount);
 		} else {
-			return new RangeLength(end.lineCount - start.lineCount, end.columnCount);
+			return new TextLength(end.lineCount - start.lineCount, end.columnCount);
 		}
 	}
 
-	public static betweenPositions(position1: Position, position2: Position): RangeLength {
+	public static betweenPositions(position1: Position, position2: Position): TextLength {
 		if (position1.lineNumber === position2.lineNumber) {
-			return new RangeLength(0, position2.column - position1.column);
+			return new TextLength(0, position2.column - position1.column);
 		} else {
-			return new RangeLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
+			return new TextLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
 		}
 	}
 
 	public static ofRange(range: Range) {
-		return RangeLength.betweenPositions(range.getStartPosition(), range.getEndPosition());
+		return TextLength.betweenPositions(range.getStartPosition(), range.getEndPosition());
 	}
 
-	public static ofText(text: string): RangeLength {
+	public static ofText(text: string): TextLength {
 		let line = 0;
 		let column = 0;
 		for (const c of text) {
@@ -45,7 +45,7 @@ export class RangeLength {
 				column++;
 			}
 		}
-		return new RangeLength(line, column);
+		return new TextLength(line, column);
 	}
 
 	constructor(
@@ -57,36 +57,36 @@ export class RangeLength {
 		return this.lineCount === 0 && this.columnCount === 0;
 	}
 
-	public isLessThan(other: RangeLength): boolean {
+	public isLessThan(other: TextLength): boolean {
 		if (this.lineCount !== other.lineCount) {
 			return this.lineCount < other.lineCount;
 		}
 		return this.columnCount < other.columnCount;
 	}
 
-	public isGreaterThan(other: RangeLength): boolean {
+	public isGreaterThan(other: TextLength): boolean {
 		if (this.lineCount !== other.lineCount) {
 			return this.lineCount > other.lineCount;
 		}
 		return this.columnCount > other.columnCount;
 	}
 
-	public equals(other: RangeLength): boolean {
+	public equals(other: TextLength): boolean {
 		return this.lineCount === other.lineCount && this.columnCount === other.columnCount;
 	}
 
-	public compare(other: RangeLength): number {
+	public compare(other: TextLength): number {
 		if (this.lineCount !== other.lineCount) {
 			return this.lineCount - other.lineCount;
 		}
 		return this.columnCount - other.columnCount;
 	}
 
-	public add(other: RangeLength): RangeLength {
+	public add(other: TextLength): TextLength {
 		if (other.lineCount === 0) {
-			return new RangeLength(this.lineCount, this.columnCount + other.columnCount);
+			return new TextLength(this.lineCount, this.columnCount + other.columnCount);
 		} else {
-			return new RangeLength(this.lineCount + other.lineCount, other.columnCount);
+			return new TextLength(this.lineCount + other.lineCount, other.columnCount);
 		}
 	}
 
