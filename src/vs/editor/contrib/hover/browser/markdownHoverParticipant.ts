@@ -61,18 +61,22 @@ export class ExpandableMarkdownHover extends MarkdownHover {
 	}
 }
 
+interface HoverFocusMetadata {
+	index: number | undefined;
+	element: HTMLElement | undefined;
+}
+
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	public readonly hoverOrdinal: number = 3;
 	private _anchor: HoverAnchor | undefined;
 	private _context: IEditorHoverRenderContext | undefined;
 
-	private _currentFocusedMarkdownElement: HTMLElement | undefined;
-	private _currentFocusedIndex: number | undefined;
+	private _focusMetadata: HoverFocusMetadata = { index: undefined, element: undefined };
 	private _providers: (HoverProvider | undefined)[] = [];
 
-	private _disposableStore = new DisposableStore();
 	private _focusRemainsWithinHover: boolean = false;
+	private _disposableStore = new DisposableStore();
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
@@ -179,10 +183,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
-		if (this._currentFocusedIndex === undefined || this._currentFocusedMarkdownElement === undefined || !this._anchor) {
+		if (this._focusMetadata.index === undefined || this._focusMetadata.element === undefined || !this._anchor) {
 			return;
 		}
-		const provider = this._providers[this._currentFocusedIndex];
+		const provider = this._providers[this._focusMetadata.index];
 		const model = this._editor.getModel();
 		if (!provider || !model) {
 			return;
@@ -195,13 +199,13 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 		const renderedMarkdown = this._renderMarkdownHoversAndActions(
 			hover.contents,
-			this._currentFocusedIndex,
+			this._focusMetadata.index,
 			hover.extensionMetadata,
 			this._disposableStore
 		);
 		this._focusRemainsWithinHover = true;
-		this._currentFocusedMarkdownElement.replaceWith(renderedMarkdown);
-		this._currentFocusedMarkdownElement = renderedMarkdown;
+		this._focusMetadata.element.replaceWith(renderedMarkdown);
+		this._focusMetadata.element = renderedMarkdown;
 		renderedMarkdown.focus();
 	}
 
@@ -223,30 +227,34 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			this._openerService,
 			store
 		);
-		const actionToolbar = $('div.hover-row.status-bar');
-		contents.appendChild(actionToolbar);
-		const actionsNode = $('div.actions');
-		actionsNode.style.display = 'flex';
-		actionToolbar.appendChild(actionsNode);
+		const actionsToolbar = $('div.hover-row.status-bar');
+		contents.appendChild(actionsToolbar);
+		const actionsContainer = $('div.actions');
+		actionsContainer.style.display = 'flex';
+		actionsToolbar.appendChild(actionsContainer);
 
 		if (!extensionMetadata) {
 			return contents;
 		}
-		this._renderHoverExpansionAction(actionsNode, extensionMetadata.canContract === true ? false : undefined);
-		this._renderHoverExpansionAction(actionsNode, extensionMetadata.canExtend === true ? true : undefined);
+		this._renderHoverExpansionAction(actionsContainer, extensionMetadata.canContract === true ? false : undefined);
+		this._renderHoverExpansionAction(actionsContainer, extensionMetadata.canExtend === true ? true : undefined);
 
 		const focusTracker = this._disposableStore.add(dom.trackFocus(contents));
 		this._disposableStore.add(focusTracker.onDidFocus(() => {
-			this._currentFocusedIndex = hoverIndex;
-			this._currentFocusedMarkdownElement = contents;
+			this._focusMetadata = {
+				index: hoverIndex,
+				element: contents
+			};
 		}));
 		this._disposableStore.add(focusTracker.onDidBlur(() => {
 			if (this._focusRemainsWithinHover) {
 				this._focusRemainsWithinHover = false;
 				return;
 			}
-			this._currentFocusedIndex = undefined;
-			this._currentFocusedMarkdownElement = undefined;
+			this._focusMetadata = {
+				index: undefined,
+				element: undefined
+			};
 		}));
 		return contents;
 	}

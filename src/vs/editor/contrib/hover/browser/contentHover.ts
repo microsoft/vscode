@@ -27,6 +27,7 @@ import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizabl
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
 
 const $ = dom.$;
 
@@ -64,7 +65,7 @@ export class ContentHoverController extends Disposable {
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
 			const participantInstance = this._instantiationService.createInstance(participant, this._editor);
-			if (participantInstance instanceof MarkdownHoverParticipant) {
+			if (participantInstance instanceof MarkdownHoverParticipant && !(participantInstance instanceof InlayHintsHover)) {
 				this._markdownHoverParticipant = participantInstance;
 			}
 			this._participants.push(participantInstance);
