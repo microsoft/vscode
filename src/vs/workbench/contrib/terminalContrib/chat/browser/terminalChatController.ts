@@ -13,7 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CodeBlockContextProviderRegistry, IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatAgentService, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService, IChatProgress, InteractiveSessionVoteDirection, ChatUserAction } from 'vs/workbench/contrib/chat/common/chatService';
@@ -25,7 +25,6 @@ import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/br
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { CodeBlockContextProviderRegistry } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
 
 const enum Message {
 	NONE = 0,
@@ -119,7 +118,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		} else {
 			this._terminalAgentRegisteredContextKey.set(true);
 		}
-		CodeBlockContextProviderRegistry.registerProvider({
+		this._register(CodeBlockContextProviderRegistry.registerProvider({
 			getCodeBlockContext: (editor) => {
 				const chatWidget = this.chatWidget;
 				if (!chatWidget) {
@@ -135,7 +134,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					languageId: editor.getModel()!.getLanguageId()
 				};
 			}
-		}, 'terminal');
+		}, 'terminal'));
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {

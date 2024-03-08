@@ -6,7 +6,6 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -22,15 +21,12 @@ import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CodeBlockContextProviderRegistry, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
@@ -565,54 +561,22 @@ export function registerChatCodeBlockActions() {
 	});
 }
 
-export interface ICodeBlockActionContextProvider {
-	getCodeBlockContext(editor: ICodeEditor): ICodeBlockActionContext | undefined;
-}
-export const ICodeBlockContextProviderRegistry = createDecorator<ICodeBlockContextProviderRegistry>('codeBlockContextProviderRegistry');
-export interface ICodeBlockContextProviderRegistry {
-}
-export class CodeBlockContextProviderRegistry {
-	serviceBrand: undefined;
-	static providers = new Map<string, ICodeBlockActionContextProvider>();
-	static getProviders(): ICodeBlockActionContextProvider[] {
-		return [...CodeBlockContextProviderRegistry.providers.values()];
-	}
-	static registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable {
-		CodeBlockContextProviderRegistry.providers.set(id, provider);
-		return toDisposable(() => CodeBlockContextProviderRegistry.providers.delete(id));
-	}
-
-	getProvider(id: string): ICodeBlockActionContextProvider | undefined {
-		return CodeBlockContextProviderRegistry.providers.get(id);
-	}
-}
-registerSingleton(ICodeBlockContextProviderRegistry, CodeBlockContextProviderRegistry, InstantiationType.Delayed);
-
 function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): ICodeBlockActionContext | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
-	const accessibleViewService = accessor.get(IAccessibleViewService);
-	const accessibleViewCodeBlock = accessibleViewService.getCodeBlockContext();
-	if (accessibleViewCodeBlock) {
-		return accessibleViewCodeBlock;
-	}
 	const model = editor.getModel();
 	if (!model) {
 		return;
 	}
 
 	const widget = chatWidgetService.lastFocusedWidget;
-	if (!widget) {
-		for (const provider of CodeBlockContextProviderRegistry.getProviders()) {
+	const codeBlockInfo = widget?.getCodeBlockInfoForEditor(model.uri);
+	if (!codeBlockInfo) {
+		for (const provider of CodeBlockContextProviderRegistry.providers) {
 			const context = provider.getCodeBlockContext(editor);
 			if (context) {
 				return context;
 			}
 		}
-		return;
-	}
-
-	const codeBlockInfo = widget.getCodeBlockInfoForEditor(model.uri);
-	if (!codeBlockInfo) {
 		return;
 	}
 
