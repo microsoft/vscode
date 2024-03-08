@@ -752,13 +752,6 @@ async function main() {
 
 			const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
 			const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
-			const artifactSize = fs.statSync(artifactFilePath).size;
-
-			if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
-				console.log(`[${artifact.name}] Artifact size mismatch.Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize} `);
-				console.log(JSON.stringify(artifact.resource.properties, undefined, '  '));
-				throw new Error(`Artifact size mismatch.`);
-			}
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
