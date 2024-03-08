@@ -367,7 +367,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			const provider = this._providers.get(model.providerId);
 			if (!provider) {
-				throw new Error(`Unknown provider: ${model.providerId}`);
+				throw new ErrorNoTelemetry(`Unknown provider: ${model.providerId}`);
 			}
 
 			let session: IChat | undefined;
