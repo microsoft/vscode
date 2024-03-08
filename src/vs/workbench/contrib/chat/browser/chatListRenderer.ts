@@ -101,6 +101,7 @@ export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'default' | 'compact';
 	readonly noHeader?: boolean;
 	readonly noPadding?: boolean;
+	readonly editableCodeBlock?: boolean;
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
@@ -937,7 +938,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderCodeBlock(data: ICodeBlockData): IDisposableReference<ICodeBlockPart> {
 		const ref = this._editorPool.get();
 		const editorInfo = ref.object;
-		editorInfo.render(data, this._currentLayoutWidth);
+		editorInfo.render(data, this._currentLayoutWidth, this.rendererOptions.editableCodeBlock);
 
 		return ref;
 	}
