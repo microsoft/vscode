@@ -63,8 +63,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		return this.updateWatchers();
 	}
 
-	private updateWatchers(): void {
-		this.doWatch(Array.from(this.allWatchRequests).filter(request => !this.suspendedWatchRequests.has(request)));
+	private updateWatchers(): Promise<void> {
+		return this.doWatch(Array.from(this.allWatchRequests).filter(request => !this.suspendedWatchRequests.has(request)));
 	}
 
 	private watchCorrelatedRequest(request: IUniversalWatchRequest): IDisposable {
