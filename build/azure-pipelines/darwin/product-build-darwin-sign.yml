@@ -32,7 +32,6 @@ steps:
 
   - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
     displayName: Extract signed app
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
       set -e
