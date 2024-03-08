@@ -142,10 +142,6 @@ variables:
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
 resources:
-  containers:
-    - container: snapcraft
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
-      endpoint: VSCodeHub
   pipelines:
     - pipeline: vscode-7pm-kick-off
       source: 'VS Code 7PM Kick-Off'
@@ -172,6 +168,12 @@ extends:
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
       sourceAnalysisPool: 1es-windows-2022-x64
+    containers:
+      snapcraft:
+        image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
+      authenticatedContainerRegistries:
+        - registry: vscodehub.azurecr.io
+          identity: ManagedIdentity
     stages:
       - stage: Compile
         jobs:
