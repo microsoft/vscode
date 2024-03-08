@@ -544,62 +544,6 @@ class ShowOrFocusHoverAction extends EditorAction {
 	}
 }
 
-class ShowMoreHoverInformationAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.showMoreHoverInformation',
-			label: nls.localize({
-				key: 'showMoreHoverInformation',
-				comment: ['Label for action that will trigger showing more hover information.']
-			}, "Show More Hover Information"),
-			alias: 'Show More Hover Information',
-			precondition: EditorContextKeys.hoverFocused,
-			kbOpts: {
-				kbExpr: EditorContextKeys.hoverFocused,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		extendOrContractFocusedMessage(editor, true);
-	}
-}
-
-class ShowLessHoverInformationAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.showLessHoverInformation',
-			label: nls.localize({
-				key: 'showLessHoverInformation',
-				comment: ['Label for action that will trigger showing less hover information.']
-			}, "Show Less Hover Information"),
-			alias: 'Show Less Hover Information',
-			precondition: EditorContextKeys.hoverFocused,
-			kbOpts: {
-				kbExpr: EditorContextKeys.hoverFocused,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		extendOrContractFocusedMessage(editor, false);
-	}
-}
-
-export function extendOrContractFocusedMessage(editor: ICodeEditor, extend: boolean) {
-	const controller = HoverController.get(editor);
-	if (!controller) {
-		return;
-	}
-	controller.extendOrContractFocusedMessage(extend);
-}
-
 class ShowDefinitionPreviewHoverAction extends EditorAction {
 
 	constructor() {
@@ -887,10 +831,64 @@ class GoToBottomHoverAction extends EditorAction {
 	}
 }
 
+class ShowMoreHoverInformationAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.showMoreHoverInformation',
+			label: nls.localize({
+				key: 'showMoreHoverInformation',
+				comment: ['Label for action that will trigger showing more hover information.']
+			}, "Show More Hover Information"),
+			alias: 'Show More Hover Information',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		extendOrContractFocusedMessage(editor, true);
+	}
+}
+
+class ShowLessHoverInformationAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.showLessHoverInformation',
+			label: nls.localize({
+				key: 'showLessHoverInformation',
+				comment: ['Label for action that will trigger showing less hover information.']
+			}, "Show Less Hover Information"),
+			alias: 'Show Less Hover Information',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		extendOrContractFocusedMessage(editor, false);
+	}
+}
+
+export function extendOrContractFocusedMessage(editor: ICodeEditor, extend: boolean) {
+	const controller = HoverController.get(editor);
+	if (!controller) {
+		return;
+	}
+	controller.extendOrContractFocusedMessage(extend);
+}
+
 registerEditorContribution(HoverController.ID, HoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
-registerEditorAction(ShowMoreHoverInformationAction);
-registerEditorAction(ShowLessHoverInformationAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 registerEditorAction(ScrollUpHoverAction);
 registerEditorAction(ScrollDownHoverAction);
@@ -900,6 +898,8 @@ registerEditorAction(PageUpHoverAction);
 registerEditorAction(PageDownHoverAction);
 registerEditorAction(GoToTopHoverAction);
 registerEditorAction(GoToBottomHoverAction);
+registerEditorAction(ShowMoreHoverInformationAction);
+registerEditorAction(ShowLessHoverInformationAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 

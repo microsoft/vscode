@@ -176,12 +176,12 @@ export interface Hover {
 
 export interface HoverExtensionMetadata {
 	/**
-	 * Can extend
+	 * Can extend the hover
 	 */
 	canExtend?: boolean;
 
 	/**
-	 * Can contract
+	 * Can contract the hover
 	 */
 	canContract?: boolean;
 }
@@ -206,7 +206,7 @@ export interface HoverExtensionRequest {
 	position: Position;
 
 	/**
-	 * If the request is for an extension or a contraction of the given hover
+	 * Wether the request is for an extension or a contraction of the given hover
 	 */
 	extend: boolean;
 }

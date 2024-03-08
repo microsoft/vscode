@@ -50,35 +50,35 @@ export class HoverAction extends Disposable {
 		return new HoverAction(parent, actionOptions, keybindingLabel);
 	}
 
-	private readonly _actionContainer: HTMLElement;
-	private readonly _action: HTMLElement;
+	private readonly actionContainer: HTMLElement;
+	private readonly action: HTMLElement;
 
 	private constructor(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }, keybindingLabel: string | null) {
 		super();
 
-		this._actionContainer = dom.append(parent, $('div.action-container'));
-		this._actionContainer.setAttribute('tabindex', '0');
+		this.actionContainer = dom.append(parent, $('div.action-container'));
+		this.actionContainer.setAttribute('tabindex', '0');
 
-		this._action = dom.append(this._actionContainer, $('a.action'));
-		this._action.setAttribute('role', 'button');
+		this.action = dom.append(this.actionContainer, $('a.action'));
+		this.action.setAttribute('role', 'button');
 		if (actionOptions.iconClass) {
-			dom.append(this._action, $(`span.icon.${actionOptions.iconClass}`));
+			dom.append(this.action, $(`span.icon.${actionOptions.iconClass}`));
 		}
-		const label = dom.append(this._action, $('span'));
+		const label = dom.append(this.action, $('span'));
 		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 
-		this._register(dom.addDisposableListener(this._actionContainer, dom.EventType.CLICK, e => {
+		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();
-			actionOptions.run(this._actionContainer);
+			actionOptions.run(this.actionContainer);
 		}));
 
-		this._register(dom.addDisposableListener(this._actionContainer, dom.EventType.KEY_DOWN, e => {
+		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				e.stopPropagation();
 				e.preventDefault();
-				actionOptions.run(this._actionContainer);
+				actionOptions.run(this.actionContainer);
 			}
 		}));
 
@@ -87,16 +87,12 @@ export class HoverAction extends Disposable {
 
 	public setEnabled(enabled: boolean): void {
 		if (enabled) {
-			this._actionContainer.classList.remove('disabled');
-			this._actionContainer.removeAttribute('aria-disabled');
+			this.actionContainer.classList.remove('disabled');
+			this.actionContainer.removeAttribute('aria-disabled');
 		} else {
-			this._actionContainer.classList.add('disabled');
-			this._actionContainer.setAttribute('aria-disabled', 'true');
+			this.actionContainer.classList.add('disabled');
+			this.actionContainer.setAttribute('aria-disabled', 'true');
 		}
-	}
-
-	public get actionContainer(): HTMLElement {
-		return this._actionContainer;
 	}
 }
 

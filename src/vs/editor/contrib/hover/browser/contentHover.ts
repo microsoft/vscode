@@ -48,12 +48,13 @@ export class ContentHoverController extends Disposable {
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
+	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -62,7 +63,11 @@ export class ContentHoverController extends Disposable {
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
-			this._participants.push(this._instantiationService.createInstance(participant, this._editor));
+			const participantInstance = this._instantiationService.createInstance(participant, this._editor);
+			if (participantInstance instanceof MarkdownHoverParticipant) {
+				this._markdownHoverParticipant = participantInstance;
+			}
+			this._participants.push(participantInstance);
 		}
 		this._participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
 
@@ -366,11 +371,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
-		const markdownHoverParticipant = this._participants.find(p => p instanceof MarkdownHoverParticipant) as MarkdownHoverParticipant;
-		if (!markdownHoverParticipant) {
-			return;
-		}
-		markdownHoverParticipant.extendOrContractFocusedMessage(extend);
+		this._markdownHoverParticipant?.extendOrContractFocusedMessage(extend);
 	}
 
 	public getWidgetContent(): string | undefined {

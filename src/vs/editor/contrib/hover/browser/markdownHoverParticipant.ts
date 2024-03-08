@@ -64,13 +64,15 @@ export class ExpandableMarkdownHover extends MarkdownHover {
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	public readonly hoverOrdinal: number = 3;
+	private _anchor: HoverAnchor | undefined;
 	private _context: IEditorHoverRenderContext | undefined;
-	private _providers: (HoverProvider | undefined)[] = [];
+
 	private _currentFocusedMarkdownElement: HTMLElement | undefined;
 	private _currentFocusedIndex: number | undefined;
-	private _anchor: HoverAnchor | undefined;
+	private _providers: (HoverProvider | undefined)[] = [];
+
 	private _disposableStore = new DisposableStore();
-	private _updatedFocused: boolean = false;
+	private _focusRemainsWithinHover: boolean = false;
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
@@ -164,10 +166,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		this._providers = hoverParts.map(hoverPart => hoverPart.provider);
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 		const disposables = new DisposableStore();
-		for (const [index, hoverPart] of hoverParts.entries()) {
-			const renderedMarkdown = this._renderMarkdownHoversAndExpandAndContractActions(
+		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
+			const renderedMarkdown = this._renderMarkdownHoversAndActions(
 				hoverPart.contents,
-				index,
+				hoverIndex,
 				hoverPart.extensionMetadata,
 				disposables
 			);
@@ -176,73 +178,71 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return disposables;
 	}
 
-	async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
-		if (this._currentFocusedIndex === undefined || this._currentFocusedMarkdownElement === undefined) {
+	public async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
+		if (this._currentFocusedIndex === undefined || this._currentFocusedMarkdownElement === undefined || !this._anchor) {
 			return;
 		}
+		const provider = this._providers[this._currentFocusedIndex];
 		const model = this._editor.getModel();
-		if (!model || !this._anchor) {
+		if (!provider || !model) {
 			return;
 		}
 		const position = new Position(this._anchor.range.startLineNumber, this._anchor.range.startColumn);
 		const request: HoverExtensionRequest = { position, extend };
-		const provider = this._providers[this._currentFocusedIndex];
-		if (!provider) {
-			return;
-		}
 		const hover = await Promise.resolve(provider.provideHover(model, request, CancellationToken.None));
 		if (!hover) {
 			return;
 		}
-		this._updatedFocused = true;
-		const currentFocusedIndex = this._currentFocusedIndex;
-		const renderedMarkdown = this._renderMarkdownHoversAndExpandAndContractActions(
+		const renderedMarkdown = this._renderMarkdownHoversAndActions(
 			hover.contents,
 			this._currentFocusedIndex,
 			hover.extensionMetadata,
 			this._disposableStore
 		);
-
-		this._currentFocusedMarkdownElement.blur();
+		this._focusRemainsWithinHover = true;
 		this._currentFocusedMarkdownElement.replaceWith(renderedMarkdown);
 		this._currentFocusedMarkdownElement = renderedMarkdown;
-		this._currentFocusedIndex = currentFocusedIndex;
 		renderedMarkdown.focus();
 	}
 
-	private _renderMarkdownHoversAndExpandAndContractActions(
-		markdown: IMarkdownString[],
-		index: number,
+	private _renderMarkdownHoversAndActions(
+		hoverContents: IMarkdownString[],
+		hoverIndex: number,
 		extensionMetadata: HoverExtensionMetadata | undefined,
-		disposables: DisposableStore,
+		store: DisposableStore,
 	): HTMLElement {
-		const contents = $('div.hover-row.full-markdown-hover');
-		contents.tabIndex = 0;
 
+		const contents = document.createElement('div');
+		contents.tabIndex = 0;
 		renderMarkdownInContainer(
 			this._editor,
 			this._context,
 			contents,
-			markdown,
+			hoverContents,
 			this._languageService,
 			this._openerService,
-			disposables
+			store
 		);
-		const expandAndContractToolbar = $('div.actions');
-		expandAndContractToolbar.style.display = 'flex';
-		contents.appendChild(expandAndContractToolbar);
+		const actionToolbar = $('div.hover-row.status-bar');
+		contents.appendChild(actionToolbar);
+		const actionsNode = $('div.actions');
+		actionsNode.style.display = 'flex';
+		actionToolbar.appendChild(actionsNode);
 
-		this._renderExtendOrContractHoverAction(expandAndContractToolbar, extensionMetadata?.canContract === true ? false : undefined);
-		this._renderExtendOrContractHoverAction(expandAndContractToolbar, extensionMetadata?.canExtend === true ? true : undefined);
+		if (!extensionMetadata) {
+			return contents;
+		}
+		this._renderHoverExpansionAction(actionsNode, extensionMetadata.canContract === true ? false : undefined);
+		this._renderHoverExpansionAction(actionsNode, extensionMetadata.canExtend === true ? true : undefined);
 
 		const focusTracker = this._disposableStore.add(dom.trackFocus(contents));
 		this._disposableStore.add(focusTracker.onDidFocus(() => {
-			this._currentFocusedIndex = index;
+			this._currentFocusedIndex = hoverIndex;
 			this._currentFocusedMarkdownElement = contents;
 		}));
 		this._disposableStore.add(focusTracker.onDidBlur(() => {
-			if (this._updatedFocused) {
-				this._updatedFocused = false;
+			if (this._focusRemainsWithinHover) {
+				this._focusRemainsWithinHover = false;
 				return;
 			}
 			this._currentFocusedIndex = undefined;
@@ -251,17 +251,15 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return contents;
 	}
 
-	private _renderExtendOrContractHoverAction(container: HTMLElement, extend: boolean | undefined): void {
+	private _renderHoverExpansionAction(container: HTMLElement, extend: boolean | undefined): void {
 		if (extend === undefined) {
 			return;
 		}
-		const hoverAction = HoverAction.render(container, {
+		HoverAction.render(container, {
 			label: extend ? nls.localize('show more', "Show More...") : nls.localize('show less', "Show Less..."),
 			commandId: extend ? 'editor.hover.showMore' : 'editor.hover.showLess',
 			run: () => { this.extendOrContractFocusedMessage(extend); }
 		}, null);
-		hoverAction.actionContainer.style.paddingLeft = '5px';
-		hoverAction.actionContainer.style.paddingRight = '5px';
 	}
 }
 
