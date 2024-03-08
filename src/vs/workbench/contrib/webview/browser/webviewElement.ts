@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
-import { addDisposableListener, EventType, focusWindow, getActiveWindow } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveWindow } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { promiseWithResolvers, ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -803,12 +803,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			return;
 		}
 
-		// Ensure the window the element belongs to is focused
-		// in scenarios where auxiliary windows are present
-		focusWindow(this.element);
-
 		try {
-			this.element.contentWindow?.focus();
+			this.element.parentElement?.focus(); // this helps to move floating windows to the front if any...
+			this.element.contentWindow?.focus(); // ...because `contentWindow` is not able to do so
 		} catch {
 			// noop
 		}

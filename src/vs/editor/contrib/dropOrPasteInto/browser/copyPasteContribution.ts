@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import { IJSONSchema, SchemaToType } from 'vs/base/common/jsonSchema';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -34,7 +36,19 @@ registerEditorCommand(new class extends EditorCommand {
 	}
 });
 
-registerEditorAction(class extends EditorAction {
+
+
+registerEditorAction(class PasteAsAction extends EditorAction {
+	private static readonly argsSchema = {
+		type: 'object',
+		properties: {
+			kind: {
+				type: 'string',
+				description: nls.localize('pasteAs.kind', "The kind of the paste edit to try applying. If not provided or there are multiple edits for this kind, the editor will show a picker."),
+			}
+		},
+	} as const satisfies IJSONSchema;
+
 	constructor() {
 		super({
 			id: 'editor.action.pasteAs',
@@ -45,23 +59,20 @@ registerEditorAction(class extends EditorAction {
 				description: 'Paste as',
 				args: [{
 					name: 'args',
-					schema: {
-						type: 'object',
-						properties: {
-							'id': {
-								type: 'string',
-								description: nls.localize('pasteAs.id', "The id of the paste edit to try applying. If not provided, the editor will show a picker."),
-							}
-						},
-					}
+					schema: PasteAsAction.argsSchema
 				}]
 			}
 		});
 	}
 
-	public override run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any) {
-		const id = typeof args?.id === 'string' ? args.id : undefined;
-		return CopyPasteController.get(editor)?.pasteAs(id);
+	public override run(_accessor: ServicesAccessor, editor: ICodeEditor, args?: SchemaToType<typeof PasteAsAction.argsSchema>) {
+		let kind = typeof args?.kind === 'string' ? args.kind : undefined;
+		if (!kind && args) {
+			// Support old id property
+			// TODO: remove this in the future
+			kind = typeof (args as any).id === 'string' ? (args as any).id : undefined;
+		}
+		return CopyPasteController.get(editor)?.pasteAs(kind ? { kind: new HierarchicalKind(kind) } : undefined);
 	}
 });
 
@@ -75,7 +86,7 @@ registerEditorAction(class extends EditorAction {
 		});
 	}
 
-	public override run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any) {
-		return CopyPasteController.get(editor)?.pasteAs('text');
+	public override run(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		return CopyPasteController.get(editor)?.pasteAs({ providerId: 'text' });
 	}
 });

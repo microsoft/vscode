@@ -344,7 +344,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const agents = this.chatAgentService.getRegisteredAgents()
+				const agents = this.chatAgentService.getAgents()
 					.filter(a => !a.isDefault);
 				return <CompletionList>{
 					suggestions: agents.map((c, i) => {
@@ -427,7 +427,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const agents = this.chatAgentService.getRegisteredAgents();
+				const agents = this.chatAgentService.getAgents();
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
@@ -452,7 +452,7 @@ class AgentCompletions extends Disposable {
 								filterText: `${chatSubcommandLeader}${agent.id}${c.name}`,
 								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
-								detail: `(${agentLabel}) ${c.description}`,
+								detail: `(${agentLabel}) ${c.description ?? ''}`,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
 								sortText: `${chatSubcommandLeader}${agent.id}${c.name}`,

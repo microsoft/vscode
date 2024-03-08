@@ -14,10 +14,11 @@ import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { ITextModel } from 'vs/editor/common/model';
 import { compareBy, numberComparator } from 'vs/base/common/arrays';
 import { findFirstMaxBy } from 'vs/base/common/arraysFind';
+import { singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 export class SuggestWidgetAdaptor extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;
@@ -66,7 +67,8 @@ export class SuggestWidgetAdaptor extends Disposable {
 						return -1;
 					}
 
-					const itemToPreselect = this.suggestControllerPreselector()?.removeCommonPrefix(textModel);
+					const i = this.suggestControllerPreselector();
+					const itemToPreselect = i ? singleTextRemoveCommonPrefix(i, textModel) : undefined;
 					if (!itemToPreselect) {
 						return -1;
 					}
@@ -75,8 +77,8 @@ export class SuggestWidgetAdaptor extends Disposable {
 					const candidates = suggestItems
 						.map((suggestItem, index) => {
 							const suggestItemInfo = SuggestItemInfo.fromSuggestion(suggestController, textModel, position, suggestItem, this.isShiftKeyPressed);
-							const suggestItemTextEdit = suggestItemInfo.toSingleTextEdit().removeCommonPrefix(textModel);
-							const valid = itemToPreselect.augments(suggestItemTextEdit);
+							const suggestItemTextEdit = singleTextRemoveCommonPrefix(suggestItemInfo.toSingleTextEdit(), textModel);
+							const valid = singleTextEditAugments(itemToPreselect, suggestItemTextEdit);
 							return { index, valid, prefixLength: suggestItemTextEdit.text.length, suggestItem };
 						})
 						.filter(item => item && item.valid && item.prefixLength > 0);

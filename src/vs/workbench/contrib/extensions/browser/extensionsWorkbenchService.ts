@@ -862,7 +862,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (!this.isAutoUpdateEnabled()) {
 				return;
 			}
-			if ((e.type === StateType.CheckingForUpdates && e.explicit) || e.type === StateType.AvailableForDownload || e.type === StateType.Downloading) {
+			if ((e.type === StateType.CheckingForUpdates && e.explicit) || e.type === StateType.AvailableForDownload || e.type === StateType.Downloaded) {
 				this.eventuallyCheckForUpdates(true);
 			}
 		}));
@@ -1111,15 +1111,50 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
+	async updateRunningExtensions(): Promise<void> {
+		const toAdd: ILocalExtension[] = [];
+		const toRemove: string[] = [];
+		for (const extension of this.local) {
+			const runtimeState = extension.runtimeState;
+			if (!runtimeState || runtimeState.action !== ExtensionRuntimeActionType.RestartExtensions) {
+				continue;
+			}
+			if (extension.state === ExtensionState.Uninstalled) {
+				toRemove.push(extension.identifier.id);
+				continue;
+			}
+			if (!extension.local) {
+				continue;
+			}
+			const isEnabled = this.extensionEnablementService.isEnabled(extension.local);
+			if (isEnabled) {
+				const runningExtension = this.extensionService.extensions.find(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier));
+				if (runningExtension) {
+					toRemove.push(runningExtension.identifier.value);
+				}
+				toAdd.push(extension.local);
+			} else {
+				toRemove.push(extension.identifier.id);
+			}
+		}
+		if (toAdd.length || toRemove.length) {
+			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"))) {
+				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
+			}
+		}
+	}
+
 	private getRuntimeState(extension: IExtension): ExtensionRuntimeState | undefined {
 		const isUninstalled = extension.state === ExtensionState.Uninstalled;
 		const runningExtension = this.extensionService.extensions.find(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier));
+		const reloadAction = this.extensionManagementServerService.remoteExtensionManagementServer ? ExtensionRuntimeActionType.ReloadWindow : ExtensionRuntimeActionType.RestartExtensions;
+		const reloadActionLabel = reloadAction === ExtensionRuntimeActionType.ReloadWindow ? nls.localize('reload', "reload window") : nls.localize('restart extensions', "restart extensions");
 
 		if (isUninstalled) {
 			const canRemoveRunningExtension = runningExtension && this.extensionService.canRemoveExtension(runningExtension);
 			const isSameExtensionRunning = runningExtension && (!extension.server || extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
 			if (!canRemoveRunningExtension && isSameExtensionRunning && !runningExtension.isUnderDevelopment) {
-				return { action: ExtensionRuntimeActionType.Reload, reason: nls.localize('postUninstallTooltip', "Please reload {0} to complete the uninstallation of this extension.", this.productService.nameLong) };
+				return { action: reloadAction, reason: nls.localize('postUninstallTooltip', "Please {0} to complete the uninstallation of this extension.", reloadActionLabel) };
 			}
 			return undefined;
 		}
@@ -1157,7 +1192,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 								}
 								return undefined;
 							}
-							return { action: ExtensionRuntimeActionType.Reload, reason: nls.localize('postUpdateTooltip', "Please reload {0} to enable the updated extension.", this.productService.nameLong) };
+							return { action: reloadAction, reason: nls.localize('postUpdateTooltip', "Please {0} to enable the updated extension.", reloadActionLabel) };
 						}
 
 						if (this.extensionsServers.length > 1) {
@@ -1165,12 +1200,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 							if (extensionInOtherServer) {
 								// This extension prefers to run on UI/Local side but is running in remote
 								if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local.manifest) && extensionInOtherServer.server === this.extensionManagementServerService.localExtensionManagementServer) {
-									return { action: ExtensionRuntimeActionType.Reload, reason: nls.localize('enable locally', "Please reload {0} to enable this extension locally.", this.productService.nameLong) };
+									return { action: reloadAction, reason: nls.localize('enable locally', "Please {0} to enable this extension locally.", reloadActionLabel) };
 								}
 
 								// This extension prefers to run on Workspace/Remote side but is running in local
 								if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local.manifest) && extensionInOtherServer.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
-									return { action: ExtensionRuntimeActionType.Reload, reason: nls.localize('enable remote', "Please reload {0} to enable this extension in {1}.", this.productService.nameLong, this.extensionManagementServerService.remoteExtensionManagementServer?.label) };
+									return { action: reloadAction, reason: nls.localize('enable remote', "Please {0} to enable this extension in {1}.", reloadActionLabel, this.extensionManagementServerService.remoteExtensionManagementServer?.label) };
 								}
 							}
 						}
@@ -1180,20 +1215,20 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						if (extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
 							// This extension prefers to run on UI/Local side but is running in remote
 							if (this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local.manifest)) {
-								return { action: ExtensionRuntimeActionType.Reload, reason: nls.localize('postEnableTooltip', "Please reload {0} to enable this extension.", this.productService.nameLong) };
+								return { action: reloadAction, reason: nls.localize('postEnableTooltip', "Please {0} to enable this extension.", reloadActionLabel) };
 							}
 						}
 						if (extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
 							// This extension prefers to run on Workspace/Remote side but is running in local
 							if (this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local.manifest)) {
-								return { action: ExtensionRuntimeActionType.Reload, reason: nls.localize('postEnableTooltip', "Please reload {0} to enable this extension.", this.productService.nameLong) };
+								return { action: reloadAction, reason: nls.localize('postEnableTooltip', "Please {0} to enable this extension.", reloadActionLabel) };
 							}
 						}
 					}
 					return undefined;
 				} else {
 					if (isSameExtensionRunning) {
-						return { action: ExtensionRuntimeActionType.Reload, reason: nls.localize('postDisableTooltip', "Please reload {0} to disable this extension.", this.productService.nameLong) };
+						return { action: reloadAction, reason: nls.localize('postDisableTooltip', "Please {0} to disable this extension.", reloadActionLabel) };
 					}
 				}
 				return undefined;
@@ -1202,7 +1237,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			// Extension is not running
 			else {
 				if (isEnabled && !this.extensionService.canAddExtension(toExtensionDescription(extension.local))) {
-					return { action: ExtensionRuntimeActionType.Reload, reason: nls.localize('postEnableTooltip', "Please reload {0} to enable this extension.", this.productService.nameLong) };
+					return { action: reloadAction, reason: nls.localize('postEnableTooltip', "Please {0} to enable this extension.", reloadActionLabel) };
 				}
 
 				const otherServer = extension.server ? extension.server === this.extensionManagementServerService.localExtensionManagementServer ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer : null;
@@ -1210,7 +1245,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					const extensionInOtherServer = this.local.filter(e => areSameExtensions(e.identifier, extension.identifier) && e.server === otherServer)[0];
 					// Same extension in other server exists and
 					if (extensionInOtherServer && extensionInOtherServer.local && this.extensionEnablementService.isEnabled(extensionInOtherServer.local)) {
-						return { action: ExtensionRuntimeActionType.Reload, reason: nls.localize('postEnableTooltip', "Please reload {0} to enable this extension.", this.productService.nameLong) };
+						return { action: reloadAction, reason: nls.localize('postEnableTooltip', "Please {0} to enable this extension.", reloadActionLabel) };
 					}
 				}
 			}
@@ -1520,7 +1555,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private getProductUpdateVersion(): IProductVersion | undefined {
 		switch (this.updateService.state.type) {
 			case StateType.AvailableForDownload:
-			case StateType.Downloading:
 			case StateType.Downloaded:
 			case StateType.Updating:
 			case StateType.Ready:

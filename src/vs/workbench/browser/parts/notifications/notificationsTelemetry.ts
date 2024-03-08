@@ -17,7 +17,7 @@ export interface NotificationMetrics {
 
 export type NotificationMetricsClassification = {
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the source of the notification.' };
-	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification is silent or not.' };
+	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the notification is silent or not.' };
 	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the notification.' };
 	owner: 'bpasero';
 	comment: 'Helps us gain insights to what notifications are being shown, how many, and if they are silent or not.';

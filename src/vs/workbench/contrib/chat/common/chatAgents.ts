@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -129,9 +130,10 @@ export interface IChatAgentService {
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
 	invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
+	getAgents(): IChatAgentData[];
 	getRegisteredAgents(): Array<IChatAgentData>;
 	getActivatedAgents(): Array<IChatAgent>;
-	getRegisteredAgent(id: string): IChatAgentData | undefined;
+	getAgent(id: string): IChatAgentData | undefined;
 	getDefaultAgent(): IChatAgent | undefined;
 	getSecondaryAgent(): IChatAgentData | undefined;
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
@@ -166,7 +168,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			throw new Error(`Already registered an agent with id ${name}`);
 		}
 
-		const data = this.getRegisteredAgent(name);
+		const data = this.getAgent(name);
 		if (!data) {
 			throw new Error(`Unknown agent: ${name}`);
 		}
@@ -227,14 +229,28 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			} satisfies IChatAgentData));
 	}
 
+	/**
+	 * Returns all agent datas that exist- static registered and dynamic ones.
+	 */
+	getAgents(): IChatAgentData[] {
+		const registeredAgents = this.getRegisteredAgents();
+		const dynamicAgents = Array.from(this._agents.values()).map(a => a.data);
+		const all = [
+			...registeredAgents,
+			...dynamicAgents
+		];
+
+		return distinct(all, a => a.id);
+	}
+
 	getActivatedAgents(): IChatAgent[] {
 		return Array.from(this._agents.values())
 			.filter(a => !!a.impl)
 			.map(a => new MergedChatAgent(a.data, a.impl!));
 	}
 
-	getRegisteredAgent(id: string): IChatAgentData | undefined {
-		return this.getRegisteredAgents().find(a => a.id === id);
+	getAgent(id: string): IChatAgentData | undefined {
+		return this.getAgents().find(a => a.id === id);
 	}
 
 	async invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
