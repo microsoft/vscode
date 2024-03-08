@@ -15,7 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { RangeLength } from 'vs/editor/common/core/rangeLength';
+import { TextLength } from 'vs/editor/common/core/textLength';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyValue, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
@@ -425,11 +425,11 @@ export function translatePosition(posInOriginal: Position, mappings: DetailedLin
 	}
 }
 
-function lengthBetweenPositions(position1: Position, position2: Position): RangeLength {
+function lengthBetweenPositions(position1: Position, position2: Position): TextLength {
 	if (position1.lineNumber === position2.lineNumber) {
-		return new RangeLength(0, position2.column - position1.column);
+		return new TextLength(0, position2.column - position1.column);
 	} else {
-		return new RangeLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
+		return new TextLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
 	}
 }
 

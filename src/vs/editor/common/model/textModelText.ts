@@ -5,7 +5,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { AbstractText } from 'vs/editor/common/core/textEdit';
-import { RangeLength } from 'vs/editor/common/core/rangeLength';
+import { TextLength } from 'vs/editor/common/core/textLength';
 import { ITextModel } from 'vs/editor/common/model';
 
 export class TextModelText extends AbstractText {
@@ -17,9 +17,9 @@ export class TextModelText extends AbstractText {
 		return this._textModel.getValueInRange(range);
 	}
 
-	get length(): RangeLength {
+	get length(): TextLength {
 		const lastLineNumber = this._textModel.getLineCount();
 		const lastLineLen = this._textModel.getLineLength(lastLineNumber);
-		return new RangeLength(lastLineNumber - 1, lastLineLen);
+		return new TextLength(lastLineNumber - 1, lastLineLen);
 	}
 }

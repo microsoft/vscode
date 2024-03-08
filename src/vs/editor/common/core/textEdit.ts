@@ -8,7 +8,7 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { Position } from 'vs/editor/common/core/position';
 import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
 import { Range } from 'vs/editor/common/core/range';
-import { RangeLength } from 'vs/editor/common/core/rangeLength';
+import { TextLength } from 'vs/editor/common/core/textLength';
 
 export class TextEdit {
 	constructor(public readonly edits: readonly SingleTextEdit[]) {
@@ -44,7 +44,7 @@ export class TextEdit {
 				break;
 			}
 
-			const len = RangeLength.ofText(edit.text);
+			const len = TextLength.ofText(edit.text);
 			if (position.isBefore(end)) {
 				const startPos = new Position(start.lineNumber + lineDelta, start.column + (start.lineNumber + lineDelta === curLine ? columnDeltaInCurLine : 0));
 				const endPos = len.addToPosition(startPos);
@@ -132,7 +132,7 @@ export class TextEdit {
 		let lineOffset = 0;
 		let columnOffset = 0;
 		for (const edit of this.edits) {
-			const textLength = RangeLength.ofText(edit.text);
+			const textLength = TextLength.ofText(edit.text);
 			const newRangeStart = Position.lift({
 				lineNumber: edit.range.startLineNumber + lineOffset,
 				column: edit.range.startColumn + (edit.range.startLineNumber === previousEditEndLineNumber ? columnOffset : 0)
@@ -172,7 +172,7 @@ function rangeFromPositions(start: Position, end: Position): Range {
 
 export abstract class AbstractText {
 	abstract getValueOfRange(range: Range): string;
-	abstract readonly length: RangeLength;
+	abstract readonly length: TextLength;
 
 	get endPositionExclusive(): Position {
 		return this.length.addToPosition(new Position(1, 1));
@@ -205,9 +205,9 @@ export class LineBasedText extends AbstractText {
 		return result;
 	}
 
-	get length(): RangeLength {
+	get length(): TextLength {
 		const lastLine = this._getLineContent(this._lineCount);
-		return new RangeLength(this._lineCount - 1, lastLine.length);
+		return new TextLength(this._lineCount - 1, lastLine.length);
 	}
 }
 
@@ -222,7 +222,7 @@ export class StringText extends AbstractText {
 		return this._t.getOffsetRange(range).substring(this.value);
 	}
 
-	get length(): RangeLength {
+	get length(): TextLength {
 		return this._t.textLength;
 	}
 }

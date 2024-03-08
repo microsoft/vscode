@@ -6,7 +6,7 @@
 import { findLastMonotonous } from 'vs/base/common/arraysFind';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { RangeLength } from 'vs/editor/common/core/rangeLength';
+import { TextLength } from 'vs/editor/common/core/textLength';
 
 /**
  * Represents a list of mappings of ranges from one document to another.
@@ -23,7 +23,7 @@ export class RangeMapping {
 		if (mapping.original.containsPosition(position)) {
 			return PositionOrRange.range(mapping.modified);
 		}
-		const l = RangeLength.betweenPositions(mapping.original.getEndPosition(), position);
+		const l = TextLength.betweenPositions(mapping.original.getEndPosition(), position);
 		return PositionOrRange.position(l.addToPosition(mapping.modified.getEndPosition()));
 	}
 
