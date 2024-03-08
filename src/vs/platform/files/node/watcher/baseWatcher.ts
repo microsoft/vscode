@@ -60,7 +60,11 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			}
 		}
 
-		return this.doWatch(requests);
+		return this.updateWatchers();
+	}
+
+	private updateWatchers(): void {
+		this.doWatch(Array.from(this.allWatchRequests).filter(request => !this.suspendedWatchRequests.has(request)));
 	}
 
 	private watchCorrelatedRequest(request: IUniversalWatchRequest): IDisposable {
@@ -98,7 +102,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 				this.traceEvent(event, request);
 
 				this.suspendedWatchRequests.delete(request);
-				this.rewatch();
+				this.updateWatchers();
 			}
 
 			// Watch path deleted or never existed: suspend watching request
@@ -112,7 +116,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 				}
 
 				this.suspendedWatchRequests.add(request);
-				this.rewatch();
+				this.updateWatchers();
 			}
 		};
 
@@ -130,6 +134,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 			disposed = true;
 
+			this.suspendedWatchRequests.delete(request);
+
 			try {
 				unwatchFile(request.path, watchRequestCallback);
 			} catch (error) {
@@ -140,10 +146,6 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	private isPathNotFound(stats: Stats): boolean {
 		return stats.ctimeMs === 0 && stats.ino === 0;
-	}
-
-	private rewatch(): void {
-		this.doWatch(Array.from(this.allWatchRequests).filter(request => !this.suspendedWatchRequests.has(request)));
 	}
 
 	async stop(): Promise<void> {
