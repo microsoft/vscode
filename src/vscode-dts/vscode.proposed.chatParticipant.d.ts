@@ -28,7 +28,7 @@ declare module 'vscode' {
 		/**
 		 * The name of the {@link ChatCommand command} that was selected for this request.
 		 */
-		readonly command: string | undefined;
+		readonly command?: string;
 
 		/**
 		 * The variables that were referenced in this message.
