@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
+import { assert, assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Position } from 'vs/editor/common/core/position';
 import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
@@ -13,6 +13,22 @@ import { RangeLength } from 'vs/editor/common/core/rangeLength';
 export class TextEdit {
 	constructor(public readonly edits: readonly SingleTextEdit[]) {
 		assertFn(() => checkAdjacentItems(edits, (a, b) => a.range.getEndPosition().isBeforeOrEqual(b.range.getStartPosition())));
+	}
+
+	/**
+	 * Joins touching edits and removes empty edits.
+	 */
+	normalize(): TextEdit {
+		const edits: SingleTextEdit[] = [];
+		for (const edit of this.edits) {
+			if (edits.length > 0 && edits[edits.length - 1].range.getEndPosition().equals(edit.range.getStartPosition())) {
+				const last = edits[edits.length - 1];
+				edits[edits.length - 1] = new SingleTextEdit(last.range.plusRange(edit.range), last.text + edit.text);
+			} else if (!edit.isEmpty) {
+				edits.push(edit);
+			}
+		}
+		return new TextEdit(edits);
 	}
 
 	mapPosition(position: Position): Position | Range {
@@ -68,17 +84,17 @@ export class TextEdit {
 	}
 
 	// TODO: `doc` is not needed for this!
-	inverseMapPosition(positionAfterEdit: Position, doc: IText): Position | Range {
+	inverseMapPosition(positionAfterEdit: Position, doc: AbstractText): Position | Range {
 		const reversed = this.inverse(doc);
 		return reversed.mapPosition(positionAfterEdit);
 	}
 
-	inverseMapRange(range: Range, doc: IText): Range {
+	inverseMapRange(range: Range, doc: AbstractText): Range {
 		const reversed = this.inverse(doc);
 		return reversed.mapRange(range);
 	}
 
-	apply(text: IText): string {
+	apply(text: AbstractText): string {
 		let result = '';
 		let lastEditEnd = new Position(1, 1);
 		for (const edit of this.edits) {
@@ -88,14 +104,14 @@ export class TextEdit {
 
 			const r = rangeFromPositions(lastEditEnd, editStart);
 			if (!r.isEmpty()) {
-				result += text.getValue(r);
+				result += text.getValueOfRange(r);
 			}
 			result += edit.text;
 			lastEditEnd = editEnd;
 		}
 		const r = rangeFromPositions(lastEditEnd, text.endPositionExclusive);
 		if (!r.isEmpty()) {
-			result += text.getValue(r);
+			result += text.getValueOfRange(r);
 		}
 		return result;
 	}
@@ -105,9 +121,9 @@ export class TextEdit {
 		return this.apply(strText);
 	}
 
-	inverse(doc: IText): TextEdit {
+	inverse(doc: AbstractText): TextEdit {
 		const ranges = this.getNewRanges();
-		return new TextEdit(this.edits.map((e, idx) => new SingleTextEdit(ranges[idx], doc.getValue(e.range))));
+		return new TextEdit(this.edits.map((e, idx) => new SingleTextEdit(ranges[idx], doc.getValueOfRange(e.range))));
 	}
 
 	getNewRanges(): Range[] {
@@ -138,6 +154,10 @@ export class SingleTextEdit {
 	) {
 	}
 
+	get isEmpty(): boolean {
+		return this.range.isEmpty() && this.text.length === 0;
+	}
+
 	static equals(first: SingleTextEdit, second: SingleTextEdit) {
 		return first.range.equalsRange(second.range) && first.text === second.text;
 	}
@@ -150,18 +170,30 @@ function rangeFromPositions(start: Position, end: Position): Range {
 	return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 }
 
-export interface IText {
-	getValue(range: Range): string;
-	readonly endPositionExclusive: Position;
+export abstract class AbstractText {
+	abstract getValueOfRange(range: Range): string;
+	abstract readonly length: RangeLength;
+
+	get endPositionExclusive(): Position {
+		return this.length.addToPosition(new Position(1, 1));
+	}
+
+	getValue() {
+		return this.getValueOfRange(this.length.toRange());
+	}
 }
 
-export class LineBasedText implements IText {
+export class LineBasedText extends AbstractText {
 	constructor(
 		private readonly _getLineContent: (lineNumber: number) => string,
 		private readonly _lineCount: number,
-	) { }
+	) {
+		assert(_lineCount >= 1);
 
-	getValue(range: Range): string {
+		super();
+	}
+
+	getValueOfRange(range: Range): string {
 		if (range.startLineNumber === range.endLineNumber) {
 			return this._getLineContent(range.startLineNumber).substring(range.startColumn - 1, range.endColumn - 1);
 		}
@@ -173,22 +205,24 @@ export class LineBasedText implements IText {
 		return result;
 	}
 
-	get endPositionExclusive(): Position {
+	get length(): RangeLength {
 		const lastLine = this._getLineContent(this._lineCount);
-		return new Position(this._lineCount, lastLine.length + 1);
+		return new RangeLength(this._lineCount - 1, lastLine.length);
 	}
 }
 
-export class StringText implements IText {
-	private readonly _t = new PositionOffsetTransformer(this.str);
+export class StringText extends AbstractText {
+	private readonly _t = new PositionOffsetTransformer(this.value);
 
-	constructor(private readonly str: string) { }
-
-	getValue(range: Range): string {
-		return this._t.getOffsetRange(range).substring(this.str);
+	constructor(public readonly value: string) {
+		super();
 	}
 
-	get endPositionExclusive(): Position {
-		return this._t.getPosition(this.str.length);
+	getValueOfRange(range: Range): string {
+		return this._t.getOffsetRange(range).substring(this.value);
+	}
+
+	get length(): RangeLength {
+		return this._t.textLength;
 	}
 }

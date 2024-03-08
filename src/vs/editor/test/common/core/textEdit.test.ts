@@ -5,32 +5,29 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { MersenneTwister, getRandomEditInfos, toEdit, } from 'vs/editor/test/common/model/bracketPairColorizer/combineTextEditInfos.test';
-import { TextEdit } from 'vs/editor/common/core/textEdit';
-import { TextModelText } from 'vs/editor/common/model/textModelText';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { StringText } from 'vs/editor/common/core/textEdit';
+import { Random } from 'vs/editor/test/common/core/random';
 
 suite('TextEdit', () => {
 	suite('inverse', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
 
 		function runTest(seed: number): void {
-			const rng = new MersenneTwister(seed);
-			const randomText = generateRandomMultilineString(rng, 10);
-			const model = createTextModel(randomText);
+			const rand = Random.create(seed);
+			const source = new StringText(rand.nextMultiLineString(10, new OffsetRange(0, 10)));
 
-			const edits = new TextEdit(getRandomEditInfos(model, rng.nextIntRange(1, 4), rng, true).map(e => toEdit(e)));
-			const invEdits = edits.inverse(new TextModelText(model));
+			const edit = rand.nextTextEdit(source, rand.nextIntRange(1, 5));
+			const invEdit = edit.inverse(source);
 
-			model.applyEdits(edits.edits);
-			model.applyEdits(invEdits.edits);
+			const s1 = edit.apply(source);
+			const s2 = invEdit.applyToString(s1);
 
-			assert.deepStrictEqual(model.getValue(), randomText);
-			model.dispose();
+			assert.deepStrictEqual(s2, source.value);
 		}
 
 		test.skip('brute-force', () => {
-			for (let i = 0; i < 10_000; i++) {
+			for (let i = 0; i < 100_000; i++) {
 				runTest(i);
 			}
 		});
@@ -40,23 +37,3 @@ suite('TextEdit', () => {
 		}
 	});
 });
-
-function generateRandomMultilineString(rng: MersenneTwister, numberOfLines: number, maximumLengthOfLines: number = 20): string {
-	let randomText: string = '';
-	for (let i = 0; i < numberOfLines; i++) {
-		const lengthOfLine = rng.nextIntRange(0, maximumLengthOfLines + 1);
-		randomText += generateRandomSimpleString(rng, lengthOfLine) + '\n';
-	}
-	return randomText;
-}
-
-function generateRandomSimpleString(rng: MersenneTwister, stringLength: number): string {
-	const possibleCharacters: string = ' abcdefghijklmnopqrstuvwxyz0123456789';
-	let randomText: string = '';
-	for (let i = 0; i < stringLength; i++) {
-		const characterIndex = rng.nextIntRange(0, possibleCharacters.length);
-		randomText += possibleCharacters.charAt(characterIndex);
-
-	}
-	return randomText;
-}

@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IText } from 'vs/editor/common/core/textEdit';
+import { AbstractText } from 'vs/editor/common/core/textEdit';
+import { RangeLength } from 'vs/editor/common/core/rangeLength';
 import { ITextModel } from 'vs/editor/common/model';
 
-export class TextModelText implements IText {
-	constructor(private readonly _textModel: ITextModel) { }
+export class TextModelText extends AbstractText {
+	constructor(private readonly _textModel: ITextModel) {
+		super();
+	}
 
-	getValue(range: Range): string {
+	getValueOfRange(range: Range): string {
 		return this._textModel.getValueInRange(range);
 	}
 
-	get endPositionExclusive(): Position {
+	get length(): RangeLength {
 		const lastLineNumber = this._textModel.getLineCount();
 		const lastLineLen = this._textModel.getLineLength(lastLineNumber);
-		return new Position(lastLineNumber, lastLineLen + 1);
+		return new RangeLength(lastLineNumber - 1, lastLineLen);
 	}
 }
