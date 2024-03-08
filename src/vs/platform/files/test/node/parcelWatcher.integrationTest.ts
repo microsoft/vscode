@@ -27,7 +27,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
+flakySuite('File Watcher (parcel)', () => {
 
 	class TestParcelWatcher extends ParcelWatcher {
 
