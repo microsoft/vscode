@@ -3076,12 +3076,12 @@ declare module 'vscode' {
 	 */
 	export interface HoverExtensionMetadata {
 		/**
-		 * Can contract
+		 * Can contract hover
 		 */
 		canContract?: boolean;
 
 		/**
-		 * Can extend
+		 * Can extend hover
 		 */
 		canExtend?: boolean;
 	}
@@ -3117,7 +3117,7 @@ declare module 'vscode' {
 		/**
 		 * Whether to zoom in at that position
 		 */
-		zoomIn: boolean;
+		extend: boolean;
 	}
 
 	/**
@@ -14014,7 +14014,7 @@ declare module 'vscode' {
 		 * @param provider A hover provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider, metaData?: HoverProviderMetadata): Disposable;
+		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable;
 
 		/**
 		 * Register a provider that locates evaluatable expressions in text documents.

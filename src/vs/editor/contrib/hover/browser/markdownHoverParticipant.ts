@@ -22,9 +22,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { HoverExtensionRequest, HoverProvider } from 'vs/editor/common/languages';
+import { HoverExtensionMetadata, HoverExtensionRequest, HoverProvider } from 'vs/editor/common/languages';
 import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const $ = dom.$;
 
@@ -32,10 +31,8 @@ export class MarkdownHover implements IHoverPart {
 
 	constructor(
 		public readonly owner: IEditorHoverParticipant<MarkdownHover>,
-		public readonly provider: HoverProvider | undefined,
 		public readonly range: Range,
 		public readonly contents: IMarkdownString[],
-		public readonly extensionMetadata: { canExtend?: boolean; canContract?: boolean } | undefined,
 		public readonly isBeforeContent: boolean,
 		public readonly ordinal: number
 	) { }
@@ -49,9 +46,25 @@ export class MarkdownHover implements IHoverPart {
 	}
 }
 
+export class ExpandableMarkdownHover extends MarkdownHover {
+
+	constructor(
+		owner: IEditorHoverParticipant<MarkdownHover>,
+		range: Range,
+		contents: IMarkdownString[],
+		isBeforeContent: boolean,
+		ordinal: number,
+		public readonly provider: HoverProvider | undefined,
+		public readonly extensionMetadata: HoverExtensionMetadata | undefined,
+	) {
+		super(owner, range, contents, isBeforeContent, ordinal);
+	}
+}
+
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	public readonly hoverOrdinal: number = 3;
+	private _context: IEditorHoverRenderContext | undefined;
 	private _providers: (HoverProvider | undefined)[] = [];
 	private _currentFocusedMarkdownElement: HTMLElement | undefined;
 	private _currentFocusedIndex: number | undefined;
@@ -65,11 +78,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService protected readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ICommandService private readonly _commandService: ICommandService
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
-		return new MarkdownHover(this, undefined, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], undefined, false, 2000);
+		return new ExpandableMarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], false, 2000, undefined, undefined);
 	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
@@ -94,14 +106,14 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		let stopRenderingMessage = false;
 		if (stopRenderingLineAfter >= 0 && lineLength > stopRenderingLineAfter && anchor.range.startColumn >= stopRenderingLineAfter) {
 			stopRenderingMessage = true;
-			result.push(new MarkdownHover(this, undefined, anchor.range, [{
+			result.push(new ExpandableMarkdownHover(this, anchor.range, [{
 				value: nls.localize('stopped rendering', "Rendering paused for long line for performance reasons. This can be configured via `editor.stopRenderingLineAfter`.")
-			}], undefined, false, index++));
+			}], false, index++, undefined, undefined));
 		}
 		if (!stopRenderingMessage && typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
-			result.push(new MarkdownHover(this, undefined, anchor.range, [{
+			result.push(new ExpandableMarkdownHover(this, anchor.range, [{
 				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
-			}], undefined, false, index++));
+			}], false, index++, undefined, undefined));
 		}
 
 		let isBeforeContent = false;
@@ -120,7 +132,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkdownHover(this, undefined, range, asArray(hoverMessage), undefined, isBeforeContent, index++));
+			result.push(new ExpandableMarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++, undefined, undefined));
 		}
 
 		return result;
@@ -143,70 +155,103 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
-				return new MarkdownHover(this, item.provider, rng, item.hover.contents, item.hover.extensionMetadata, false, item.ordinal);
+				return new ExpandableMarkdownHover(this, rng, item.hover.contents, false, item.ordinal, item.provider, item.hover.extensionMetadata);
 			});
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ExpandableMarkdownHover[]): IDisposable {
+		this._context = context;
 		this._providers = hoverParts.map(hoverPart => hoverPart.provider);
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 		const disposables = new DisposableStore();
 		for (const [index, hoverPart] of hoverParts.entries()) {
-
-			console.log('hoverPart : ', hoverPart);
-
-			const fulldiv = $('div.hover-row.full-markdown-hover');
-			fulldiv.tabIndex = 0;
-
-			for (const contents of hoverPart.contents) {
-				if (isEmptyMarkdownString(contents)) {
-					continue;
-				}
-				const markdownHoverElement = $('div.hover-row.markdown-hover');
-				const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-				const renderer = disposables.add(new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService));
-				disposables.add(renderer.onDidRenderAsync(() => {
-					hoverContentsElement.className = 'hover-contents code-hover-contents';
-					context.onContentsChanged();
-				}));
-				const renderedContents = disposables.add(renderer.render(contents));
-				hoverContentsElement.appendChild(renderedContents.element);
-				fulldiv.appendChild(markdownHoverElement);
-
-			}
-
-			const actions = $('div.actions');
-			actions.style.display = 'flex';
-			fulldiv.appendChild(actions);
-
-			this.renderExtendOrContractHoverAction(this._commandService, actions, hoverPart.extensionMetadata?.canContract === true ? false : undefined);
-			this.renderExtendOrContractHoverAction(this._commandService, actions, hoverPart.extensionMetadata?.canExtend === true ? true : undefined);
-
-			const focusTracker = this._disposableStore.add(dom.trackFocus(fulldiv));
-			this._disposableStore.add(focusTracker.onDidFocus(() => {
-				console.log('inside of focus of fulldiv : ', index);
-				this._currentFocusedIndex = index;
-				this._currentFocusedMarkdownElement = fulldiv;
-				console.log('this._currentFocusedIndex : ', this._currentFocusedIndex);
-			}));
-			this._disposableStore.add(focusTracker.onDidBlur(() => {
-				console.log('this._updatedFocused : ', this._updatedFocused);
-				if (this._updatedFocused) {
-					this._updatedFocused = false;
-					return;
-				}
-				console.log('inside of blur of fulldiv : ', index);
-				this._currentFocusedIndex = undefined;
-				this._currentFocusedMarkdownElement = undefined;
-				console.log('this._currentFocusedIndex : ', this._currentFocusedIndex);
-			}));
-			context.fragment.appendChild(fulldiv);
+			const renderedMarkdown = this._renderMarkdownHoversAndExpandAndContractActions(
+				hoverPart.contents,
+				index,
+				hoverPart.extensionMetadata,
+				disposables
+			);
+			context.fragment.appendChild(renderedMarkdown);
 		}
 		return disposables;
 	}
 
-	renderExtendOrContractHoverAction(commandService: ICommandService, container: HTMLElement, extend: boolean | undefined): void {
-		console.log('renderExtendOrContractHoverAction : ', extend);
+	async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
+		if (this._currentFocusedIndex === undefined || this._currentFocusedMarkdownElement === undefined) {
+			return;
+		}
+		const model = this._editor.getModel();
+		if (!model || !this._anchor) {
+			return;
+		}
+		const position = new Position(this._anchor.range.startLineNumber, this._anchor.range.startColumn);
+		const request: HoverExtensionRequest = { position, extend };
+		const provider = this._providers[this._currentFocusedIndex];
+		if (!provider) {
+			return;
+		}
+		const hover = await Promise.resolve(provider.provideHover(model, request, CancellationToken.None));
+		if (!hover) {
+			return;
+		}
+		this._updatedFocused = true;
+		const currentFocusedIndex = this._currentFocusedIndex;
+		const renderedMarkdown = this._renderMarkdownHoversAndExpandAndContractActions(
+			hover.contents,
+			this._currentFocusedIndex,
+			hover.extensionMetadata,
+			this._disposableStore
+		);
+
+		this._currentFocusedMarkdownElement.blur();
+		this._currentFocusedMarkdownElement.replaceWith(renderedMarkdown);
+		this._currentFocusedMarkdownElement = renderedMarkdown;
+		this._currentFocusedIndex = currentFocusedIndex;
+		renderedMarkdown.focus();
+	}
+
+	private _renderMarkdownHoversAndExpandAndContractActions(
+		markdown: IMarkdownString[],
+		index: number,
+		extensionMetadata: HoverExtensionMetadata | undefined,
+		disposables: DisposableStore,
+	): HTMLElement {
+		const contents = $('div.hover-row.full-markdown-hover');
+		contents.tabIndex = 0;
+
+		renderMarkdownInContainer(
+			this._editor,
+			this._context,
+			contents,
+			markdown,
+			this._languageService,
+			this._openerService,
+			disposables
+		);
+		const expandAndContractToolbar = $('div.actions');
+		expandAndContractToolbar.style.display = 'flex';
+		contents.appendChild(expandAndContractToolbar);
+
+		this._renderExtendOrContractHoverAction(expandAndContractToolbar, extensionMetadata?.canContract === true ? false : undefined);
+		this._renderExtendOrContractHoverAction(expandAndContractToolbar, extensionMetadata?.canExtend === true ? true : undefined);
+
+		const focusTracker = this._disposableStore.add(dom.trackFocus(contents));
+		this._disposableStore.add(focusTracker.onDidFocus(() => {
+			this._currentFocusedIndex = index;
+			this._currentFocusedMarkdownElement = contents;
+		}));
+		this._disposableStore.add(focusTracker.onDidBlur(() => {
+			if (this._updatedFocused) {
+				this._updatedFocused = false;
+				return;
+			}
+			this._currentFocusedIndex = undefined;
+			this._currentFocusedMarkdownElement = undefined;
+		}));
+		return contents;
+	}
+
+	private _renderExtendOrContractHoverAction(container: HTMLElement, extend: boolean | undefined): void {
 		if (extend === undefined) {
 			return;
 		}
@@ -217,80 +262,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}, null);
 		hoverAction.actionContainer.style.paddingLeft = '5px';
 		hoverAction.actionContainer.style.paddingRight = '5px';
-	}
-
-	async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
-		console.log('extendOrContractFocusedMessage : ', extend);
-		console.log('this._currentFocusedIndex : ', this._currentFocusedIndex);
-		const currentIndex = this._currentFocusedIndex;
-		if (this._currentFocusedIndex === undefined) {
-			console.log('early return 1');
-			return;
-		}
-		const model = this._editor.getModel();
-		if (!model || !this._anchor) {
-			console.log('early return 2');
-			return;
-		}
-		const position = new Position(this._anchor.range.startLineNumber, this._anchor.range.startColumn);
-		const request: HoverExtensionRequest = { position, extend };
-		const provider = this._providers[this._currentFocusedIndex];
-		if (!provider) {
-			console.log('early return 3');
-			return;
-		}
-		const hover = await Promise.resolve(provider.provideHover(model, request, CancellationToken.None));
-
-		if (!hover || !this._currentFocusedMarkdownElement) {
-			console.log('early return 4');
-			return;
-		}
-
-		// polish
-		const markdownHoverElement = $('div.hover-row.markdown-hover');
-		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-		const renderer = this._disposableStore.add(new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService));
-		this._disposableStore.add(renderer.onDidRenderAsync(() => {
-			hoverContentsElement.className = 'hover-contents code-hover-contents';
-		}));
-		for (const mdstring of hover.contents) {
-			const renderedContents = this._disposableStore.add(renderer.render(mdstring));
-			hoverContentsElement.appendChild(renderedContents.element);
-		}
-		const actions = $('div.actions');
-		actions.style.display = 'flex';
-		markdownHoverElement.appendChild(actions);
-		this.renderExtendOrContractHoverAction(this._commandService, actions, hover.extensionMetadata?.canContract === true ? false : undefined);
-		this.renderExtendOrContractHoverAction(this._commandService, actions, hover.extensionMetadata?.canExtend === true ? true : undefined);
-		markdownHoverElement.tabIndex = 0;
-
-		const focusTracker = this._disposableStore.add(dom.trackFocus(markdownHoverElement));
-
-		this._disposableStore.add(focusTracker.onDidFocus(() => {
-			console.log('inside of focus of markdownHoverElement : ', currentIndex);
-			this._currentFocusedIndex = currentIndex;
-			this._currentFocusedMarkdownElement = markdownHoverElement;
-			this._updatedFocused = true;
-			console.log('this._currentFocusedIndex : ', this._currentFocusedIndex);
-			console.log('this._updatedFocused : ', this._updatedFocused);
-		}));
-		this._disposableStore.add(focusTracker.onDidBlur(() => {
-			console.log('inside of blur of markdownHoverElement : ', currentIndex);
-			if (this._updatedFocused) {
-				this._updatedFocused = false;
-				return;
-			}
-			this._currentFocusedIndex = undefined;
-			this._currentFocusedMarkdownElement = undefined;
-			console.log('this._currentFocusedIndex : ', this._currentFocusedIndex);
-		}));
-
-		this._currentFocusedMarkdownElement.blur();
-		console.log('after blur of current focused markdown element : ', this._currentFocusedMarkdownElement);
-		this._currentFocusedMarkdownElement.replaceWith(markdownHoverElement);
-		this._currentFocusedMarkdownElement = markdownHoverElement;
-		this._currentFocusedIndex = currentIndex;
-		markdownHoverElement.focus();
 	}
 }
 
@@ -307,42 +278,41 @@ export function renderMarkdownHovers(
 
 	const disposables = new DisposableStore();
 	for (const hoverPart of hoverParts) {
-		for (const contents of hoverPart.contents) {
-			if (isEmptyMarkdownString(contents)) {
-				continue;
-			}
-			const markdownHoverElement = $('div.hover-row.markdown-hover');
-			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-			const renderer = disposables.add(new MarkdownRenderer({ editor }, languageService, openerService));
-			disposables.add(renderer.onDidRenderAsync(() => {
-				hoverContentsElement.className = 'hover-contents code-hover-contents';
-				context.onContentsChanged();
-			}));
-			const renderedContents = disposables.add(renderer.render(contents));
-			hoverContentsElement.appendChild(renderedContents.element);
-			// const actions = $('div.actions');
-			// actions.style.display = 'flex';
-			// markdownHoverElement.appendChild(actions);
-			// renderExtendOrContractHoverAction(commandService, actions, hoverPart.extensionMetadata?.canContract);
-			// renderExtendOrContractHoverAction(commandService, actions, hoverPart.extensionMetadata?.canExtend);
-			context.fragment.appendChild(markdownHoverElement);
-		}
+		renderMarkdownInContainer(
+			editor,
+			context,
+			context.fragment,
+			hoverPart.contents,
+			languageService,
+			openerService,
+			disposables
+		);
 	}
 	return disposables;
 }
 
-// export function renderExtendOrContractHoverAction(commandService: ICommandService, container: HTMLElement, extend: boolean | undefined): void {
-// 	if (extend === undefined) {
-// 		return;
-// 	}
-// 	const hoverAction = HoverAction.render(container, {
-// 		label: extend ? nls.localize('show more', "Show More...") : nls.localize('show less', "Show Less..."),
-// 		commandId: extend ? 'editor.hover.showMore' : 'editor.hover.showLess',
-// 		run: () => {
-// 			commandService.executeCommand(extend ?
-// 				'editor.action.showMoreHoverInformation' : 'editor.action.showLessHoverInformation');
-// 		}
-// 	}, null);
-// 	hoverAction.actionContainer.style.paddingLeft = '5px';
-// 	hoverAction.actionContainer.style.paddingRight = '5px';
-// }
+function renderMarkdownInContainer(
+	editor: ICodeEditor,
+	context: IEditorHoverRenderContext | undefined,
+	container: DocumentFragment | HTMLElement,
+	markdownStrings: IMarkdownString[],
+	languageService: ILanguageService,
+	openerService: IOpenerService,
+	disposableStore: DisposableStore
+) {
+	for (const contents of markdownStrings) {
+		if (isEmptyMarkdownString(contents)) {
+			continue;
+		}
+		const markdownHoverElement = $('div.hover-row.markdown-hover');
+		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
+		const renderer = disposableStore.add(new MarkdownRenderer({ editor }, languageService, openerService));
+		disposableStore.add(renderer.onDidRenderAsync(() => {
+			hoverContentsElement.className = 'hover-contents code-hover-contents';
+			context?.onContentsChanged();
+		}));
+		const renderedContents = disposableStore.add(renderer.render(contents));
+		hoverContentsElement.appendChild(renderedContents.element);
+		container.appendChild(markdownHoverElement);
+	}
+}

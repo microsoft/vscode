@@ -551,9 +551,7 @@ class ShowMoreHoverInformationAction extends EditorAction {
 			id: 'editor.action.showMoreHoverInformation',
 			label: nls.localize({
 				key: 'showMoreHoverInformation',
-				comment: [
-					'Label for action that will trigger showing more hover information.',
-				]
+				comment: ['Label for action that will trigger showing more hover information.']
 			}, "Show More Hover Information"),
 			alias: 'Show More Hover Information',
 			precondition: EditorContextKeys.hoverFocused,
@@ -577,9 +575,7 @@ class ShowLessHoverInformationAction extends EditorAction {
 			id: 'editor.action.showLessHoverInformation',
 			label: nls.localize({
 				key: 'showLessHoverInformation',
-				comment: [
-					'Label for action that will trigger showing less hover information.',
-				]
+				comment: ['Label for action that will trigger showing less hover information.']
 			}, "Show Less Hover Information"),
 			alias: 'Show Less Hover Information',
 			precondition: EditorContextKeys.hoverFocused,

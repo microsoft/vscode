@@ -260,12 +260,12 @@ class HoverAdapter {
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	async provideHover(resource: URI, _request: IPosition | { position: IPosition; extend: boolean }, token: CancellationToken): Promise<languages.Hover | undefined> {
-		const position = 'position' in _request ? _request.position : _request;
+	async provideHover(resource: URI, request: IPosition | { position: IPosition; extend: boolean }, token: CancellationToken): Promise<languages.Hover | undefined> {
+		const isRequestAPosition = 'position' in request;
 		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
-		const request = 'position' in _request ? { position: pos, zoomIn: _request.extend } : pos;
-		const value = await this._provider.provideHover(doc, request, token);
+		const pos = typeConvert.Position.to(isRequestAPosition ? request.position : request);
+		const req = isRequestAPosition ? { position: pos, extend: request.extend } : pos;
+		const value = await this._provider.provideHover(doc, req, token);
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}

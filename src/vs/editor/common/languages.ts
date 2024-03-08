@@ -169,7 +169,7 @@ export interface Hover {
 	range?: IRange;
 
 	/**
-	 * Meta-data concerning whether this hover can be extended or not
+	 * Meta-data concerning whether this hover can be extended/contracted or not
 	 */
 	extensionMetadata?: HoverExtensionMetadata;
 }
@@ -192,7 +192,7 @@ export interface HoverExtensionMetadata {
  */
 export interface HoverProvider {
 	/**
-	 * Provide a hover for the given position and document and potentially zoom metadata. Multiple hovers at the same
+	 * Provide a hover for the given position, extension metadata and document. Multiple hovers at the same
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
@@ -206,7 +206,7 @@ export interface HoverExtensionRequest {
 	position: Position;
 
 	/**
-	 * If the request is for an extension or a contraction
+	 * If the request is for an extension or a contraction of the given hover
 	 */
 	extend: boolean;
 }

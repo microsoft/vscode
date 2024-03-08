@@ -36,7 +36,7 @@ export interface IHoverOptions {
 	 */
 	mode: HoverStartMode;
 	/**
-	 * Whether hover should be focused
+	 * Whether the hover should be focused
 	 */
 	focus: boolean;
 }
@@ -373,58 +373,6 @@ export class ContentHoverController extends Disposable {
 		markdownHoverParticipant.extendOrContractFocusedMessage(extend);
 	}
 
-	/*
-	public async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
-		const currentFocusedMessageIndex = this._widget.currentFocusedMessageIndex;
-		if (currentFocusedMessageIndex === undefined || !this._currentResult) {
-			return;
-		}
-		const message = this._currentResult.messages[currentFocusedMessageIndex];
-		if (!(message instanceof MarkdownHover)) {
-			return;
-		}
-		const provider = message.provider;
-		const model = this._editor.getModel();
-		if (!model || !provider) {
-			return;
-		}
-		const position = new Position(this._currentResult.anchor.range.startLineNumber, this._currentResult.anchor.range.startColumn);
-		const request: HoverExtensionMetadata = { position, extend };
-		const hover = await Promise.resolve(provider.provideHover(model, request, CancellationToken.None));
-		const children = this._widget.contentsDomNode.children;
-		const item = children.item(currentFocusedMessageIndex);
-
-		if (hover && item) {
-			const markdownHoverElement = $('div.hover-row.markdown-hover');
-			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-			const renderer = this._register(new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService));
-			this._register(renderer.onDidRenderAsync(() => {
-				hoverContentsElement.className = 'hover-contents code-hover-contents';
-			}));
-			for (const mdstring of hover.contents) {
-				const renderedContents = this._register(renderer.render(mdstring));
-				hoverContentsElement.appendChild(renderedContents.element);
-			}
-			const actions = $('div.actions');
-			actions.style.display = 'flex';
-			markdownHoverElement.appendChild(actions);
-			renderExtendOrContractHoverAction(this._commandService, actions, hover.extensionMetadata?.canContract);
-			renderExtendOrContractHoverAction(this._commandService, actions, hover.extensionMetadata?.canExtend);
-
-			markdownHoverElement.tabIndex = 0;
-			const focusTracker = this._register(dom.trackFocus(markdownHoverElement));
-			const currentIndex = this._widget.currentFocusedMessageIndex;
-			this._register(focusTracker.onDidFocus(() => {
-				this._widget.currentFocusedMessageIndex = currentIndex;
-			}));
-
-			item.replaceWith(markdownHoverElement);
-			markdownHoverElement.focus();
-			this._widget.onContentsChanged();
-		}
-	}
-	*/
-
 	public getWidgetContent(): string | undefined {
 		const node = this._widget.getDomNode();
 		if (!node.textContent) {
@@ -564,12 +512,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	public static ID = 'editor.contrib.resizableContentHoverWidget';
 	private static _lastDimensions: dom.Dimension = new dom.Dimension(0, 0);
 
-	private _disposableStore: DisposableStore = new DisposableStore();
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
 	private _minimumSize: dom.Dimension;
 	private _contentWidth: number | undefined;
-	private _currentFocusedMessageIndex: number | undefined;
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
@@ -589,14 +535,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public get isFocused(): boolean {
 		return this._hoverFocusedKey.get() ?? false;
-	}
-
-	public get currentFocusedMessageIndex(): number | undefined {
-		return this._currentFocusedMessageIndex;
-	}
-
-	public set currentFocusedMessageIndex(currentFocusedMessageIndex: number | undefined) {
-		this._currentFocusedMessageIndex = currentFocusedMessageIndex;
 	}
 
 	constructor(
@@ -634,7 +572,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}));
 		this._register(focusTracker.onDidBlur(() => {
 			this._hoverFocusedKey.set(false);
-			this._currentFocusedMessageIndex = undefined;
 		}));
 		this._setHoverData(undefined);
 		this._editor.addContentWidget(this);
@@ -905,7 +842,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		this.onContentsChanged();
-		// this._registerFocusListeners();
 		if (hoverData.stoleFocus) {
 			this._hover.containerDomNode.focus();
 		}
@@ -926,7 +862,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._visibleData) {
 			return;
 		}
-		this._disposableStore.dispose();
 		const stoleFocus = this._visibleData.stoleFocus || this._hoverFocusedKey.get();
 		this._setHoverData(undefined);
 		this._resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
@@ -999,19 +934,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._layoutContentWidget();
 	}
 
-	// private _registerFocusListeners(): void {
-	// 	for (const [index, child] of Array.from(this._hover.contentsDomNode.children).entries()) {
-	// 		if (child instanceof HTMLElement) {
-	// 			child.tabIndex = 0;
-	// 			const currentIndex = index;
-	// 			const focusTracker = this._disposableStore.add(dom.trackFocus(child));
-	// 			this._disposableStore.add(focusTracker.onDidFocus(() => {
-	// 				this._currentFocusedMessageIndex = currentIndex;
-	// 			}));
-	// 		}
-	// 	}
-	// }
-
 	public focus(): void {
 		this._hover.containerDomNode.focus();
 	}
@@ -1056,10 +978,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public goToBottom(): void {
 		this._hover.scrollbar.setScrollPosition({ scrollTop: this._hover.scrollbar.getScrollDimensions().scrollHeight });
-	}
-
-	public get contentsDomNode(): HTMLElement {
-		return this._hover.contentsDomNode;
 	}
 }
 

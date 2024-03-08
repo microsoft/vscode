@@ -90,7 +90,6 @@ export class MenuId {
 	static readonly MenubarFileMenu = new MenuId('MenubarFileMenu');
 	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
-	static readonly MenubarHover = new MenuId('MenubarHover');
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
 	static readonly PanelAlignmentMenu = new MenuId('PanelAlignmentMenu');
