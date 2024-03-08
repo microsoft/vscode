@@ -397,9 +397,13 @@ class StickyModelFromCandidateIndentationFoldingProvider extends StickyModelFrom
 		return null;
 	}
 
-	protected createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions> {
+	protected async createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions> {
 		const provider = new IndentRangeProvider(textModel, this._languageConfigurationService, this._foldingLimitReporter);
-		return provider.compute(token);
+		try {
+			return await provider.compute(token);
+		} finally {
+			provider.dispose();
+		}
 	}
 }
 
@@ -422,6 +426,10 @@ class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandi
 	protected createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions | null> {
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
 		const provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.createModelFromProvider(textModel, modelVersionId, token), this._foldingLimitReporter, undefined);
-		return provider.compute(token);
+		try {
+			return provider.compute(token);
+		} finally {
+			provider.dispose();
+		}
 	}
 }
