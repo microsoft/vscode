@@ -220,6 +220,7 @@ export class SearchView extends ViewPane {
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
 		this.aiResultsVisibleKey = Constants.SearchContext.AIResultsVisibleKey.bindTo(this.contextKeyService);
+		const hasAISettingEnabledKey = Constants.SearchContext.hasAISettingEnabled.bindTo(this.contextKeyService);
 
 		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
@@ -240,6 +241,11 @@ export class SearchView extends ViewPane {
 					this.removeFileStats();
 				}
 				this.refreshTree();
+			} else if (e.affectsConfiguration('search.aiResults')) {
+				const val = this.configurationService.getValue<boolean>('search.aiResults');
+				if (val) {
+					hasAISettingEnabledKey.set(val);
+				}
 			}
 		});
 
