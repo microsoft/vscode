@@ -459,6 +459,10 @@ class CodeActionAdapter {
 			: <vscode.Range>typeConvert.Range.to(rangeOrSelection);
 		const allDiagnostics: vscode.Diagnostic[] = [];
 
+		if (context.needsDelay) {
+			await new Promise(resolve => setTimeout(resolve, 500)); // delay for 200ms
+		}
+
 		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
 			if (ran.intersection(diagnostic.range)) {
 				const newLen = allDiagnostics.push(diagnostic);
@@ -473,9 +477,8 @@ class CodeActionAdapter {
 			only: context.only ? new CodeActionKind(context.only) : undefined,
 			triggerKind: typeConvert.CodeActionTriggerKind.to(context.trigger),
 		};
-
 		const commandsOrActions = await this._provider.provideCodeActions(doc, ran, codeActionContext, token);
-		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
+		if (!isNonEmptyArray(commandsOrActions) || (token.isCancellationRequested && !context.needsDelay)) {
 			return undefined;
 		}
 

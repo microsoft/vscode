@@ -111,6 +111,7 @@ export async function getCodeActions(
 	const codeActionContext: languages.CodeActionContext = {
 		only: filter.include?.value,
 		trigger: trigger.type,
+		needsDelay: trigger.context?.needsDelay
 	};
 
 	const cts = new TextModelCancellationTokenSource(model, token);
