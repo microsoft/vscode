@@ -90,7 +90,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 				this.trace(`fs.watchFile() detected ${request.path} exists, resuming watcher (correlationId: ${request.correlationId})`);
 
 				// Emit as event
-				const event = { resource, type: FileChangeType.ADDED };
+				const event: IFileChange = { resource, type: FileChangeType.ADDED, cId: request.correlationId };
 				that._onDidChangeFile.fire([event]);
 				this.traceEvent(event, request);
 
@@ -102,8 +102,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			else if (currentPathNotFound) {
 				this.trace(`fs.watchFile() detected ${request.path} not found, suspending watcher (correlationId: ${request.correlationId})`);
 
-				// Emit as event
-				const event = { resource, type: FileChangeType.DELETED };
+				const event: IFileChange = { resource, type: FileChangeType.DELETED, cId: request.correlationId };
 				that._onDidChangeFile.fire([event]);
 				this.traceEvent(event, request);
 
