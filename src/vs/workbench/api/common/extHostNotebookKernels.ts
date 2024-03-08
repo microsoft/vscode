@@ -26,7 +26,6 @@ import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as vscode from 'vscode';
 import { variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { Range } from 'vs/editor/common/core/range';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier;
@@ -707,6 +706,7 @@ class NotebookCellExecutionTask extends Disposable {
 				if (that._state === NotebookCellExecutionTaskState.Resolved) {
 					throw new Error('Cannot call resolve twice');
 				}
+				console.log('end', success, endTime, errorLocation);
 
 				that._state = NotebookCellExecutionTaskState.Resolved;
 				that._onDidChangeState.fire();
@@ -719,7 +719,12 @@ class NotebookCellExecutionTask extends Disposable {
 					runEndTime: endTime,
 					lastRunSuccess: success,
 					errorLocation: errorLocation
-						? new Range(errorLocation.start.line, errorLocation.start.character, errorLocation.end.line, errorLocation.end.line)
+						? {
+							startLineNumber: errorLocation.start.line,
+							startColumn: errorLocation.start.character,
+							endLineNumber: errorLocation.end.line,
+							endColumn: errorLocation.end.character
+						}
 						: undefined
 				}));
 			},

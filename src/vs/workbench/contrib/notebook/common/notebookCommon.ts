@@ -32,7 +32,7 @@ import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/serv
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IFileReadLimits } from 'vs/platform/files/common/files';
 import { parse as parseUri, generate as generateUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -121,7 +121,7 @@ export interface NotebookCellInternalMetadata {
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
 	renderDuration?: { [key: string]: number };
-	errorLocation?: Range;
+	errorLocation?: IRange;
 }
 
 export interface NotebookCellCollapseState {
