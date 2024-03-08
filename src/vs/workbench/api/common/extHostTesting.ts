@@ -296,7 +296,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	public $publishTestResults(results: ISerializedTestResults[]): void {
 		this.results = Object.freeze(
 			results
-				.map(r => deepFreeze(Convert.TestResults.to(r)))
+				.map(Convert.TestResults.to)
 				.concat(this.results)
 				.sort((a, b) => b.completedAt - a.completedAt)
 				.slice(0, 32),
