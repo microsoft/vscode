@@ -158,18 +158,14 @@ registerActiveXtermAction({
 		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsCodeBlock
 	),
-	icon: Codicon.check,
+	icon: Codicon.play,
 	keybinding: {
 		when: TerminalChatContextKeys.requestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	},
 	menu: {
-		// TODO: Allow action to be made primary, the action list is hardcoded within InlineChatWidget
-		// id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
-		// group: '0_main',
-		// order: 0,
-		// when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate()),
+		order: 0,
 		id: MenuId.ChatCodeBlock,
 		group: 'navigation',
 		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate())
@@ -194,19 +190,15 @@ registerActiveXtermAction({
 		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsCodeBlock
 	),
-	icon: Codicon.pencil,
 	keybinding: {
 		when: TerminalChatContextKeys.requestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Alt | KeyCode.Enter,
 	},
 	menu: {
-		// id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
-		// group: '0_main',
-		// order: 1,
-		// when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate()),
 		id: MenuId.ChatCodeBlock,
 		group: 'navigation',
+		isHiddenByDefault: true,
 		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate())
 	},
 	run: (_xterm, _accessor, activeInstance) => {
@@ -367,12 +359,6 @@ registerActiveXtermAction({
 		group: 'inline',
 		order: 3
 	}],
-	//  {
-	// 	id: MENU_TERMINAL_CHAT_WIDGET,
-	// 	when: ContextKeyExpr.and(TerminalChatContextKeys.chatResponseType.notEqualsTo(undefined), TerminalChatContextKeys.chatResponseSupportsIssueReporting),
-	// 	group: 'config',
-	// 	order: 3
-	// }],
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
