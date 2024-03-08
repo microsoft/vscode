@@ -319,11 +319,11 @@ export class SearchView extends ViewPane {
 		}
 		this.aiResultsVisible = visible;
 		if (visible) {
-			this.model.addAIResults();
+			await this.model.addAIResults();
 		} else {
 			this.model.disableAIResults();
 		}
-		this.refreshTree();
+		this.onSearchResultsChanged();
 	}
 
 	private get state(): SearchUIState {
@@ -399,8 +399,8 @@ export class SearchView extends ViewPane {
 		});
 
 		const collapseResults = this.searchConfig.collapseResults;
-		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-			const onlyMatch = this.viewModel.searchResult.matches()[0];
+		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches(this.aiResultsVisible).length === 1) {
+			const onlyMatch = this.viewModel.searchResult.matches(this.aiResultsVisible)[0];
 			if (onlyMatch.count() < 50) {
 				this.tree.expand(onlyMatch);
 			}
@@ -683,7 +683,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
-		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
+		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty(this.aiResultsVisible));
 		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, event?.clearingAll);
 		return this.refreshTree(event);
 	}
@@ -715,8 +715,8 @@ export class SearchView extends ViewPane {
 	}
 
 	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const folderMatches = this.searchResult.folderMatches()
-			.filter(fm => !fm.isEmpty() && (this.aiResultsVisible || fm.hasDownstreamNonAIResults()))
+		const folderMatches = this.searchResult.folderMatches(this.aiResultsVisible)
+			.filter(fm => !fm.isEmpty())
 			.sort(searchMatchComparer);
 
 		if (folderMatches.length === 1) {
@@ -735,11 +735,7 @@ export class SearchView extends ViewPane {
 		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
-		return Iterable.filter(Iterable.map(matches, match => {
-
-			if (!this.aiResultsVisible && !match.hasDownstreamNonAIResults()) {
-				return undefined;
-			}
+		return Iterable.map(matches, match => {
 			let children;
 			if (match instanceof FileMatch) {
 				children = this.createFileIterator(match);
@@ -750,7 +746,7 @@ export class SearchView extends ViewPane {
 			const collapsed = (collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand')) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 
 			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
-		}), (item): item is ICompressedTreeElement<RenderableMatch> => !!item);
+		});
 	}
 
 	private createFileIterator(fileMatch: FileMatch): Iterable<ICompressedTreeElement<RenderableMatch>> {
@@ -1296,7 +1292,7 @@ export class SearchView extends ViewPane {
 	}
 
 	hasSearchResults(): boolean {
-		return !this.viewModel.searchResult.isEmpty();
+		return !this.viewModel.searchResult.isEmpty(this.aiResultsVisible);
 	}
 
 	clearSearchResults(clearInput = true): void {
@@ -1620,7 +1616,7 @@ export class SearchView extends ViewPane {
 		}
 		try {
 			// Search result tree update
-			const fileCount = this.viewModel.searchResult.fileCount();
+			const fileCount = this.viewModel.searchResult.fileCount(this.aiResultsVisible);
 			if (this._visibleMatches !== fileCount) {
 				this._visibleMatches = fileCount;
 				this.refreshAndUpdateCount();
@@ -1642,14 +1638,14 @@ export class SearchView extends ViewPane {
 		this.onSearchResultsChanged();
 
 		const collapseResults = this.searchConfig.collapseResults;
-		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-			const onlyMatch = this.viewModel.searchResult.matches()[0];
+		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches(this.aiResultsVisible).length === 1) {
+			const onlyMatch = this.viewModel.searchResult.matches(this.aiResultsVisible)[0];
 			if (onlyMatch.count() < 50) {
 				this.tree.expand(onlyMatch);
 			}
 		}
 
-		const hasResults = !this.viewModel.searchResult.isEmpty();
+		const hasResults = !this.viewModel.searchResult.isEmpty(this.aiResultsVisible);
 		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
 			return;
 		}
@@ -1717,7 +1713,7 @@ export class SearchView extends ViewPane {
 			this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
 
 			// Indicate final search result count for ARIA
-			aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
+			aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(this.aiResultsVisible), this.viewModel.searchResult.fileCount()));
 		}
 
 
@@ -1816,13 +1812,14 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean, clear: boolean = false): void {
-		const fileCount = this.viewModel.searchResult.fileCount();
+		const fileCount = this.viewModel.searchResult.fileCount(this.aiResultsVisible);
+		const resultCount = this.viewModel.searchResult.count(this.aiResultsVisible);
 		this.hasSearchResultsKey.set(fileCount > 0);
 
 		const msgWasHidden = this.messagesElement.style.display === 'none';
 
 		const messageEl = this.clearMessage();
-		const resultMsg = clear ? '' : this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
+		const resultMsg = clear ? '' : this.buildResultCountMessage(resultCount, fileCount);
 		this.tree.ariaLabel = resultMsg + nls.localize('forTerm', " - Search: {0}", this.searchResult.query?.contentPattern.pattern ?? '');
 		dom.append(messageEl, resultMsg);
 
@@ -2018,7 +2015,13 @@ export class SearchView extends ViewPane {
 		}
 
 		// remove search results from this resource as it got disposed
-		const matches = this.viewModel.searchResult.matches();
+		let matches = this.viewModel.searchResult.matches();
+		for (let i = 0, len = matches.length; i < len; i++) {
+			if (resource.toString() === matches[i].resource.toString()) {
+				this.viewModel.searchResult.remove(matches[i]);
+			}
+		}
+		matches = this.viewModel.searchResult.matches(true);
 		for (let i = 0, len = matches.length; i < len; i++) {
 			if (resource.toString() === matches[i].resource.toString()) {
 				this.viewModel.searchResult.remove(matches[i]);
@@ -2139,7 +2142,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private async retrieveFileStats(): Promise<void> {
-		const files = this.searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
+		const files = this.searchResult.matches(this.aiResultsVisible).filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
 		await Promise.all(files);
 	}
 
@@ -2150,6 +2153,9 @@ export class SearchView extends ViewPane {
 
 	private removeFileStats(): void {
 		for (const fileMatch of this.searchResult.matches()) {
+			fileMatch.fileStat = undefined;
+		}
+		for (const fileMatch of this.searchResult.matches(true)) {
 			fileMatch.fileStat = undefined;
 		}
 	}
