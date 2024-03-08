@@ -527,6 +527,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 					lastRunSuccess: completionData.lastRunSuccess,
 					runStartTime: this._didPause ? null : cellModel.internalMetadata.runStartTime,
 					runEndTime: this._didPause ? null : completionData.runEndTime,
+					errorLocation: completionData.errorLocation
 				}
 			};
 			this._applyExecutionEdits([edit]);
