@@ -106,7 +106,7 @@ export interface IEditorHoverRenderContext {
 	/**
 	 * The disposable store for the hover
 	 */
-	readonly disposables: DisposableStore;
+	readonly disposables: DisposableStore | undefined;
 	/**
 	 * Set if the hover will render a color picker widget.
 	 */

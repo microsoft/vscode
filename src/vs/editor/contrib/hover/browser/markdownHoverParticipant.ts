@@ -190,6 +190,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			|| this._focusMetadata.element === undefined
 			|| !this._anchor
 			|| !this._context
+			|| !this._context.disposables
 		) {
 			return;
 		}
@@ -240,7 +241,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		actionsContainer.style.display = 'flex';
 		actionsToolbar.appendChild(actionsContainer);
 
-		if (!extensionMetadata || !this._context) {
+		if (!extensionMetadata || !this._context || !this._context.disposables) {
 			return contents;
 		}
 		this._renderHoverExpansionAction(actionsContainer, extensionMetadata.canContract === true ? false : undefined);

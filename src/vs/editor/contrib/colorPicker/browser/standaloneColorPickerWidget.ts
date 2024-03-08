@@ -220,6 +220,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
+			disposables: undefined,
 			setColorPicker: (widget: ColorPickerWidget) => colorPickerWidget = widget,
 			onContentsChanged: () => { },
 			hide: () => this.hide()
