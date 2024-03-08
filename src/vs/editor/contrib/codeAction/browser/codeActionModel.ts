@@ -125,7 +125,6 @@ export namespace CodeActionsState {
 			public readonly position: Position,
 			private readonly _cancellablePromise: CancelablePromise<CodeActionSet>,
 		) {
-
 			this.actions = _cancellablePromise.catch(async (e): Promise<CodeActionSet> => {
 				if (isCancellationError(e)) {
 					return emptyCodeActionSet;
@@ -318,7 +317,6 @@ export class CodeActionModel extends Disposable {
 					// temporarilly hiding here as this is enabled/disabled behind a setting.
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
-
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					await this._progressService?.showWhile(actions, 250);
 				}
