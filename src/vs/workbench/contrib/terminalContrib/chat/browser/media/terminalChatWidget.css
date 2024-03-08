@@ -19,29 +19,6 @@
 	visibility: hidden;
 }
 
-.terminal-inline-chat-response.hide {
-	visibility: hidden;
-}
-
 .terminal-inline-chat .chatMessageContent {
 	width: 400px !important;
-}
-
-.terminal-inline-chat .terminal-inline-chat-response {
-	border: 1px solid var(--vscode-input-border, transparent);
-	background-color: var(--vscode-panel-background);
-}
-
-.terminal-inline-chat .terminal-inline-chat-response:has(.monaco-editor.focused) {
-	border-color: var(--vscode-focusBorder, transparent);
-}
-
-.terminal-inline-chat .terminal-inline-chat-response,
-.terminal-inline-chat .terminal-inline-chat-response .monaco-editor,
-.terminal-inline-chat .terminal-inline-chat-response .monaco-editor .overflow-guard {
-	border-radius: 4px;
-}
-
-.terminal-inline-chat .terminal-inline-chat-response {
-	padding-left: 8px;
 }
