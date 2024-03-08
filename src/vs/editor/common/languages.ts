@@ -763,6 +763,7 @@ export const enum CodeActionTriggerType {
 export interface CodeActionContext {
 	only?: string;
 	trigger: CodeActionTriggerType;
+	needsDelay?: boolean;
 }
 
 export interface CodeActionList extends IDisposable {

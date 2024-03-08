@@ -143,15 +143,8 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		MessageController.get(this._editor)?.closeMessage();
 
-		if (this.recentlyChanged) {
-			setTimeout(() => {
-				const triggerPosition = this._editor.getPosition();
-				this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition! } });
-			}, 500);
-		} else {
-			const triggerPosition = this._editor.getPosition();
-			this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
-		}
+		const triggerPosition = this._editor.getPosition();
+		this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition, needsDelay: this.recentlyChanged } });
 		this.recentlyChanged = false;
 	}
 

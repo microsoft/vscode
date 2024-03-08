@@ -125,7 +125,8 @@ export namespace CodeActionsState {
 			public readonly position: Position,
 			private readonly _cancellablePromise: CancelablePromise<CodeActionSet>,
 		) {
-			this.actions = _cancellablePromise.catch((e): CodeActionSet => {
+
+			this.actions = _cancellablePromise.catch(async (e): Promise<CodeActionSet> => {
 				if (isCancellationError(e)) {
 					return emptyCodeActionSet;
 				}
@@ -218,7 +219,7 @@ export class CodeActionModel extends Disposable {
 			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []);
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {
+			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, async trigger => {
 				if (!trigger) {
 					this.setState(CodeActionsState.Empty);
 					return;
@@ -230,7 +231,7 @@ export class CodeActionModel extends Disposable {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 						const allCodeActions = [...codeActionSet.allActions];
-						if (token.isCancellationRequested) {
+						if (token.isCancellationRequested && !trigger.trigger.context?.needsDelay) {
 							return emptyCodeActionSet;
 						}
 
@@ -317,6 +318,12 @@ export class CodeActionModel extends Disposable {
 					// temporarilly hiding here as this is enabled/disabled behind a setting.
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
+
+				if (trigger.trigger.context?.needsDelay) {
+					this._progressService?.showWhile(actions, 500);
+					await actions;
+				}
+
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
