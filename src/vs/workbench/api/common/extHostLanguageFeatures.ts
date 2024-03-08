@@ -427,7 +427,7 @@ class CodeActionAdapter {
 		const allDiagnostics: vscode.Diagnostic[] = [];
 
 		if (context.needsDelay) {
-			await new Promise(resolve => setTimeout(resolve, 500)); // delay for 200ms
+			await new Promise(resolve => setTimeout(resolve, 500)); // delay for 500ms
 		}
 
 		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
