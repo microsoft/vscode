@@ -229,11 +229,9 @@ extends:
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
             - job: CLIAlpineARM64
               pool:
-                name: 1es-mariner-2.0-arm64
+                name: 1es-ubuntu-20.04-x64
                 os: linux
               steps:
-                - bash: sudo tdnf install unzip -y
-                  displayName: Install unzip
                 - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
                   parameters:
                     VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
