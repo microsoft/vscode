@@ -143,6 +143,7 @@ export interface LogOptions {
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
 	readonly shortStats?: boolean;
+	readonly author?: string;
 }
 
 export interface CommitOptions {

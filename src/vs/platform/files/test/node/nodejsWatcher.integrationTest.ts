@@ -20,6 +20,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { Emitter, Event } from 'vs/base/common/event';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -30,9 +31,16 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
-		override async watch(requests: INonRecursiveWatchRequest[]): Promise<void> {
-			await super.watch(requests);
+		protected override readonly missingRequestPathPollingInterval = 100;
+
+		private readonly _onDidWatch = this._register(new Emitter<void>());
+		readonly onDidWatch = this._onDidWatch.event;
+
+		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
+			await super.doWatch(requests);
 			await this.whenReady();
+
+			this._onDidWatch.fire();
 		}
 
 		async whenReady(): Promise<void> {
@@ -432,7 +440,7 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 		return basicCrudTest(join(link, 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number): Promise<void> {
+	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number, awaitWatchAfterAdd?: boolean): Promise<void> {
 		let changeFuture: Promise<unknown>;
 
 		// New file
@@ -440,6 +448,9 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId, expectedCount);
 			await Promises.writeFile(filePath, 'Hello World');
 			await changeFuture;
+			if (awaitWatchAfterAdd) {
+				await Event.toPromise(watcher.onDidWatch);
+			}
 		}
 
 		// Change file
@@ -558,5 +569,64 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 		await basicCrudTest(join(testDir, 'newFile.txt'), undefined, null, 3);
 		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, null, 3);
+	});
+
+	test('correlated watch requests support suspend/resume (file, does not exist in beginning)', async function () {
+		const filePath = join(testDir, 'not-found.txt');
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+	});
+
+	test('correlated watch requests support suspend/resume (file, exists in beginning)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		await basicCrudTest(filePath, true, 1);
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
+		const folderPath = join(testDir, 'not-found');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await Event.toPromise(watcher.onDidWatch);
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, undefined, 1);
+
+		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
+		await Promises.rmdir(folderPath);
+		await changeFuture;
+
+		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await Event.toPromise(watcher.onDidWatch);
+
+		await basicCrudTest(filePath, undefined, 1);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, exists in beginning)', async function () {
+		const folderPath = join(testDir, 'deep');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, undefined, 1);
+
+		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
+		await Promises.rm(folderPath);
+		await changeFuture;
+
+		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await Event.toPromise(watcher.onDidWatch);
+
+		await basicCrudTest(filePath, undefined, 1);
 	});
 });

@@ -511,13 +511,13 @@ export class GettingStartedPage extends EditorPane {
 
 	private currentMediaComponent: string | undefined = undefined;
 	private currentMediaType: string | undefined = undefined;
-	private async buildMediaComponent(stepId: string) {
+	private async buildMediaComponent(stepId: string, forceRebuild: boolean = false) {
 		if (!this.currentWalkthrough) {
 			throw Error('no walkthrough selected');
 		}
 		const stepToExpand = assertIsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
 
-		if (this.currentMediaComponent === stepId) { return; }
+		if (!forceRebuild && this.currentMediaComponent === stepId) { return; }
 		this.currentMediaComponent = stepId;
 
 		this.stepDisposables.clear();
@@ -726,7 +726,7 @@ export class GettingStartedPage extends EditorPane {
 
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
-			this.buildMediaComponent(id);
+			this.buildMediaComponent(id, true);
 			this.gettingStartedService.progressByEvent('stepSelected:' + id);
 		} else {
 			this.editorInput.selectedStep = undefined;

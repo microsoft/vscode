@@ -26,6 +26,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Schemas } from 'vs/base/common/network';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { MarshalledCommentThread } from 'vs/workbench/common/comments';
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;
@@ -197,7 +198,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		this._onDidChangeState.dispose();
 	}
 
-	toJSON(): any {
+	toJSON(): MarshalledCommentThread {
 		return {
 			$mid: MarshalledId.CommentThread,
 			commentControlHandle: this.controllerHandle,

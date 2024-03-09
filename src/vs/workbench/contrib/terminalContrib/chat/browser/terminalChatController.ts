@@ -8,7 +8,6 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -23,9 +22,9 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
-
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { TerminalChatContextKeys, TerminalChatResponseTypes } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const enum Message {
 	NONE = 0,
@@ -64,7 +63,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private readonly _requestActiveContextKey: IContextKey<boolean>;
 	private readonly _terminalAgentRegisteredContextKey: IContextKey<boolean>;
-	private readonly _responseTypeContextKey: IContextKey<TerminalChatResponseTypes | undefined>;
+	private readonly _responseContainsCodeBlockContextKey: IContextKey<boolean>;
 	private readonly _responseSupportsIssueReportingContextKey: IContextKey<boolean>;
 	private readonly _sessionResponseVoteContextKey: IContextKey<string | undefined>;
 
@@ -102,7 +101,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
 		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.agentRegistered.bindTo(this._contextKeyService);
-		this._responseTypeContextKey = TerminalChatContextKeys.responseType.bindTo(this._contextKeyService);
+		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
 
@@ -213,7 +212,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._model.clear();
 		this._chatWidget?.value.hide();
 		this._chatWidget?.value.setValue(undefined);
-		this._responseTypeContextKey.reset();
+		this._responseContainsCodeBlockContextKey.reset();
 		this._sessionResponseVoteContextKey.reset();
 		this._requestActiveContextKey.reset();
 	}
@@ -239,8 +238,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._requestActiveContextKey.set(true);
 		const cancellationToken = new CancellationTokenSource().token;
 		let responseContent = '';
-		let firstCodeBlock: string | undefined;
-		let shellType: string | undefined;
 		const progressCallback = (progress: IChatProgress) => {
 			if (cancellationToken.isCancellationRequested) {
 				return;
@@ -251,22 +248,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			}
 			if (this._currentRequest) {
 				model.acceptResponseProgress(this._currentRequest, progress);
-			}
-			if (!firstCodeBlock) {
-				const firstCodeBlockContent = marked.lexer(responseContent).filter(token => token.type === 'code')?.[0]?.raw;
-				if (firstCodeBlockContent) {
-					const regex = /```(?<language>[\w\n]+)\n(?<content>[\s\S]*?)```/g;
-					const match = regex.exec(firstCodeBlockContent);
-					firstCodeBlock = match?.groups?.content.trim();
-					shellType = match?.groups?.language;
-					if (firstCodeBlock) {
-						this._chatWidget?.value.renderTerminalCommand(firstCodeBlock, shellType);
-						this._chatAccessibilityService.acceptResponse(firstCodeBlock, accessibilityRequestId);
-						this._responseTypeContextKey.set(TerminalChatResponseTypes.TerminalCommand);
-						this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
-						this._messages.fire(Message.ACCEPT_INPUT);
-					}
-				}
 			}
 		};
 
@@ -304,10 +285,13 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				model.completeResponse(this._currentRequest);
 			}
 			this._lastResponseContent = responseContent;
-			if (!firstCodeBlock && this._currentRequest) {
+			if (this._currentRequest) {
 				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
-				this._chatWidget?.value.renderMessage(responseContent, this._currentRequest.id);
-				this._responseTypeContextKey.set(TerminalChatResponseTypes.Message);
+				this._chatWidget?.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: this._currentRequest.id, providerId: 'terminal' });
+				// the message grows in height, be sure to update top position so it doesn't go below the terminal
+				this._chatWidget?.value.layoutVertically();
+				const containsCode = responseContent.includes('```');
+				this._responseContainsCodeBlockContextKey.set(containsCode);
 				this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 				this._messages.fire(Message.ACCEPT_INPUT);
 			}

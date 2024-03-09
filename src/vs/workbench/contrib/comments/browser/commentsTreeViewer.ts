@@ -42,6 +42,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MarshalledCommentThread, MarshalledCommentThreadInternal } from 'vs/workbench/common/comments';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -161,7 +162,8 @@ class CommentsMenus implements IDisposable {
 		const overlay: [string, any][] = [
 			['commentController', element.owner],
 			['resourceScheme', element.resource.scheme],
-			['commentThread', element.contextValue]
+			['commentThread', element.contextValue],
+			['canReply', element.thread.canReply]
 		];
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 
@@ -304,7 +306,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			commentControlHandle: node.element.controllerHandle,
 			commentThreadHandle: node.element.threadHandle,
 			$mid: MarshalledId.CommentThread
-		};
+		} as MarshalledCommentThread;
 
 		if (!node.element.hasReply()) {
 			templateData.repliesMetadata.container.style.display = 'none';
@@ -511,10 +513,11 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 					this.domFocus();
 				}
 			},
-			getActionsContext: () => ({
+			getActionsContext: (): MarshalledCommentThreadInternal => ({
 				commentControlHandle: node.controllerHandle,
 				commentThreadHandle: node.threadHandle,
-				$mid: MarshalledId.CommentThread
+				$mid: MarshalledId.CommentThread,
+				thread: node.thread
 			})
 		});
 	}

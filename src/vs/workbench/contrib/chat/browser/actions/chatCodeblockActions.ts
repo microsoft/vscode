@@ -89,7 +89,7 @@ export function registerChatCodeBlockActions() {
 				icon: Codicon.copy,
 				menu: {
 					id: MenuId.ChatCodeBlock,
-					group: 'navigation',
+					group: 'navigation'
 				}
 			});
 		}
@@ -356,7 +356,7 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					isHiddenByDefault: true,
+					isHiddenByDefault: true
 				}
 			});
 		}

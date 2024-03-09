@@ -16,10 +16,10 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
-import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { CELL_TITLE_CELL_GROUP_ID, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 
 registerAction2(class extends NotebookAction {
@@ -611,5 +611,48 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		NotebookChatController.get(context.notebookEditor)?.populateHistory(false);
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.chat.restore',
+				title: localize2('notebookActions.restoreCellprompt', "Generate"),
+				icon: Codicon.sparkle,
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					group: CELL_TITLE_CELL_GROUP_ID,
+					order: 0,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+						CTX_INLINE_CHAT_HAS_PROVIDER,
+						NOTEBOOK_CELL_GENERATED_BY_CHAT,
+						ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+					)
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const cell = context.cell;
+
+		if (!cell) {
+			return;
+		}
+
+		const notebookEditor = context.notebookEditor;
+		const controller = NotebookChatController.get(notebookEditor);
+
+		if (!controller) {
+			return;
+		}
+
+		const prompt = controller.getPromptFromCache(cell);
+
+		if (prompt) {
+			controller.restore(cell, prompt);
+		}
 	}
 });

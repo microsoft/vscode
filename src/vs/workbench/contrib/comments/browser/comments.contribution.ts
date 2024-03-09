@@ -17,10 +17,14 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { CommentThreadState } from 'vs/editor/common/languages';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CONTEXT_KEY_HAS_COMMENTS, CONTEXT_KEY_SOME_COMMENTS_EXPANDED, CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { Codicon } from 'vs/base/common/codicons';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
+import { MarshalledCommentThreadInternal } from 'vs/workbench/common/comments';
 
 registerAction2(class Collapse extends ViewAction<CommentsPanel> {
 	constructor() {
@@ -61,6 +65,28 @@ registerAction2(class Expand extends ViewAction<CommentsPanel> {
 	}
 	runInView(_accessor: ServicesAccessor, view: CommentsPanel) {
 		view.expandAll();
+	}
+});
+
+registerAction2(class Reply extends Action2 {
+	constructor() {
+		super({
+			id: 'comments.reply',
+			title: nls.localize('reply', "Reply"),
+			icon: Codicon.reply,
+			menu: {
+				id: MenuId.CommentsViewThreadActions,
+				order: 100,
+				when: ContextKeyExpr.equals('canReply', true)
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor, marshalledCommentThread: MarshalledCommentThreadInternal): void {
+		const commentService = accessor.get(ICommentService);
+		const editorService = accessor.get(IEditorService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+		revealCommentThread(commentService, editorService, uriIdentityService, marshalledCommentThread.thread, marshalledCommentThread.thread.comments![marshalledCommentThread.thread.comments!.length - 1], true);
 	}
 });
 

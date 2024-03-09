@@ -50,6 +50,7 @@ import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/c
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MarshalledCommentThread } from 'vs/workbench/common/comments';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -293,7 +294,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		return result;
 	}
 
-	private get commentNodeContext() {
+	private get commentNodeContext(): [any, MarshalledCommentThread] {
 		return [{
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,

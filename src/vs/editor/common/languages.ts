@@ -25,6 +25,7 @@ import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { LanguageFilter } from 'vs/editor/common/languageSelector';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 /**
  * @internal
@@ -821,8 +822,8 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	readonly label: string;
-	readonly detail: string;
+	readonly title: string;
+	readonly kind: HierarchicalKind;
 	readonly handledMimeType?: string;
 	readonly yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
@@ -832,24 +833,41 @@ export interface DocumentPasteEdit {
 /**
  * @internal
  */
+export enum DocumentPasteTriggerKind {
+	Automatic = 0,
+	PasteAs = 1,
+}
+
+/**
+ * @internal
+ */
 export interface DocumentPasteContext {
-	readonly only?: string;
-	readonly trigger: 'explicit' | 'implicit';
+	readonly only?: HierarchicalKind;
+	readonly triggerKind: DocumentPasteTriggerKind;
+}
+
+/**
+ * @internal
+ */
+export interface DocumentPasteEditsSession {
+	edits: readonly DocumentPasteEdit[];
+	dispose(): void;
 }
 
 /**
  * @internal
  */
 export interface DocumentPasteEditProvider {
-
-	readonly id: string;
-
+	readonly id?: string;
 	readonly copyMimeTypes?: readonly string[];
 	readonly pasteMimeTypes?: readonly string[];
+	readonly providedPasteEditKinds?: readonly HierarchicalKind[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer>;
 
-	provideDocumentPasteEdits?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
+	provideDocumentPasteEdits?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined>;
+
+	resolveDocumentPasteEdit?(edit: DocumentPasteEdit, token: CancellationToken): Promise<DocumentPasteEdit>;
 }
 
 /**
@@ -2114,13 +2132,14 @@ export enum ExternalUriOpenerPriority {
 /**
  * @internal
  */
-export type DropYieldTo = { readonly providerId: string } | { readonly mimeType: string };
+export type DropYieldTo = { readonly kind: string } | { readonly mimeType: string };
 
 /**
  * @internal
  */
 export interface DocumentOnDropEdit {
-	readonly label: string;
+	readonly title: string;
+	readonly kind: HierarchicalKind | undefined;
 	readonly handledMimeType?: string;
 	readonly yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
@@ -2134,7 +2153,7 @@ export interface DocumentOnDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
 
-	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
+	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit[]>;
 }
 
 export interface DocumentContextItem {
