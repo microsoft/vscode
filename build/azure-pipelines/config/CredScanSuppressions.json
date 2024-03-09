@@ -20,11 +20,17 @@
 				".build/linux/rpm/aarch64/rpmbuild/BUILD/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
 				".build/linux/rpm/aarch64/rpmbuild/BUILD/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
 				".build/linux/snap/x64/code-insiders-x64/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
-				".build/linux/snap/x64/code-insiders-x64/stage/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
-				".build/linux/snap/x64/code-insiders-x64/prime/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
 				".build/linux/snap/x64/code-insiders-x64/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/snap/x64/code-insiders-x64/stage/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
 				".build/linux/snap/x64/code-insiders-x64/stage/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
-				".build/linux/snap/x64/code-insiders-x64/prime/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js"
+				".build/linux/snap/x64/code-insiders-x64/prime/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/snap/x64/code-insiders-x64/prime/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/snap/x64/code-insiders-x64/parts/code/build/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/snap/x64/code-insiders-x64/parts/code/install/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/snap/x64/code-insiders-x64/parts/code/src/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/snap/x64/code-insiders-x64/parts/code/build/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/snap/x64/code-insiders-x64/parts/code/install/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/snap/x64/code-insiders-x64/parts/code/src/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js"
 			],
 			"_justification": "These are safe to ignore, since they are built artifacts."
 		}
