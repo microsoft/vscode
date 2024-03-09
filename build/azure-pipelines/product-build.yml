@@ -234,6 +234,7 @@ extends:
               pool:
                 name: 1es-mariner-2.0-arm64
                 os: linux
+                hostArchitecture: arm64
               container: ubuntu-2004-arm64
               steps:
                 - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
