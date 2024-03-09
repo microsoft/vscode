@@ -154,7 +154,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(this.window, this.configurationService, notebookExecutionStateService, codeEditorService, false);//TODO@bpasero will crash
+		this._notebookOptions = new NotebookOptions(this.window, this.configurationService, notebookExecutionStateService, codeEditorService, false);
 		this._register(this._notebookOptions);
 		this._revealFirst = true;
 	}

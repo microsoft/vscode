@@ -20,6 +20,8 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
 import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -198,7 +200,10 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			precondition: executeThisCellCondition,
 			title: localize('notebookActions.execute', "Execute Cell"),
 			keybinding: {
-				when: NOTEBOOK_CELL_LIST_FOCUSED,
+				when: ContextKeyExpr.or(
+					NOTEBOOK_CELL_LIST_FOCUSED,
+					ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED)
+				),
 				primary: KeyMod.WinCtrl | KeyCode.Enter,
 				win: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
@@ -227,6 +232,21 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+		}
+
+		const chatController = NotebookChatController.get(context.notebookEditor);
+		const editingCell = chatController?.getEditingCell();
+		if (chatController?.hasFocus() && editingCell) {
+			const group = editorGroupsService.activeGroup;
+
+			if (group) {
+				if (group.activeEditor) {
+					group.pinEditor(group.activeEditor);
+				}
+			}
+
+			await context.notebookEditor.executeNotebookCells([editingCell]);
+			return;
 		}
 
 		await runCell(editorGroupsService, context);
