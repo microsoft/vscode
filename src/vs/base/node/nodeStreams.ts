@@ -14,17 +14,17 @@ import { binaryIndexOf } from 'vs/base/common/buffer';
 export class StreamSplitter extends Transform {
 	private buffer: Buffer | undefined;
 	private readonly splitter: Buffer | number;
-	private readonly spitterLen: number;
+	private readonly splitterLen: number;
 
 	constructor(splitter: string | number | Buffer) {
 		super();
 		if (typeof splitter === 'number') {
 			this.splitter = splitter;
-			this.spitterLen = 1;
+			this.splitterLen = 1;
 		} else {
 			const buf = Buffer.isBuffer(splitter) ? splitter : Buffer.from(splitter);
 			this.splitter = buf.length === 1 ? buf[0] : buf;
-			this.spitterLen = buf.length;
+			this.splitterLen = buf.length;
 		}
 	}
 
@@ -44,8 +44,8 @@ export class StreamSplitter extends Transform {
 				break;
 			}
 
-			this.push(this.buffer.slice(offset, index + this.spitterLen));
-			offset = index + this.spitterLen;
+			this.push(this.buffer.slice(offset, index + this.splitterLen));
+			offset = index + this.splitterLen;
 		}
 
 		this.buffer = offset === this.buffer.length ? undefined : this.buffer.slice(offset);
