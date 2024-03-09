@@ -236,6 +236,7 @@ extends:
               pool:
                 name: 1es-mariner-2.0-arm64
                 os: linux
+              container: ubuntu-2004-arm64
               steps:
                 - bash: sudo tdnf install unzip -y
                   displayName: Install unzip
@@ -517,7 +518,6 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
               - job: LinuxAlpineArm64
                 timeoutInMinutes: 120
-                container: ubuntu-2004-arm64
                 variables:
                   VSCODE_ARCH: arm64
                   NPM_ARCH: arm64
