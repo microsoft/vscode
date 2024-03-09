@@ -11,9 +11,9 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextResourceEditorInput, IUntypedEditorInput, GroupIdentifier, IEditorPane, IEditorIdentifier } from 'vs/workbench/common/editor';
 
@@ -59,9 +59,13 @@ export class PickerEditorState extends Disposable {
 		group: IEditorGroup;
 		state: ICodeEditorViewState | IDiffEditorViewState | undefined;
 	} | undefined = undefined;
-	private readonly openedEditors = new Set<EditorInput>(); // editors that were opened between set and restore
 
-	constructor(@IEditorService private readonly editorService: IEditorService) {
+	private readonly openedTransientEditors = new Set<EditorInput>(); // editors that were opened between set and restore
+
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
+	) {
 		super();
 	}
 
@@ -87,33 +91,32 @@ export class PickerEditorState extends Disposable {
 	 */
 	async openTransientEditor(editor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined> {
 		editor.options = { ...editor.options, transient: true };
-		const openEditor = await this.editorService.openEditor(editor, group);
-		if (openEditor?.input && openEditor.input !== this._editorViewState?.editor) {
-			this.openedEditors.add(openEditor.input);
+
+		const editorPane = await this.editorService.openEditor(editor, group);
+		if (editorPane?.input && editorPane.input !== this._editorViewState?.editor && editorPane.group.isTransient(editorPane.input)) {
+			this.openedTransientEditors.add(editorPane.input);
 		}
-		return openEditor;
+
+		return editorPane;
 	}
 
 	async restore(): Promise<void> {
 		if (this._editorViewState) {
-			const options: IEditorOptions = {
-				viewState: this._editorViewState.state,
-				preserveFocus: true /* import to not close the picker as a result */
-			};
-			// close any transient editors that are still open and were opened by this instance of EditorViewState
-			const groups = this.editorService.visibleEditorPanes.map(group => group.group);
-
 			const editorsToClose: IEditorIdentifier[] = [];
-			this.openedEditors.forEach(openedEditor => {
-				groups.forEach(group => {
-					if (group.contains(openedEditor) && group.isTransient(openedEditor) && !openedEditor.isDirty()) {
-						editorsToClose.push({ editor: openedEditor, groupId: group.id });
+
+			for (const group of this.editorGroupsService.groups) {
+				for (const editor of this.openedTransientEditors) {
+					if (group.contains(editor) && group.isTransient(editor) && !editor.isDirty()) {
+						editorsToClose.push({ editor, groupId: group.id });
 					}
-				});
-			});
+				}
+			}
 			await this.editorService.closeEditors(editorsToClose);
 
-			await this._editorViewState.group.openEditor(this._editorViewState.editor, options);
+			await this._editorViewState.group.openEditor(this._editorViewState.editor, {
+				viewState: this._editorViewState.state,
+				preserveFocus: true // important to not close the picker as a result
+			});
 
 			this.reset();
 		}
@@ -121,11 +124,12 @@ export class PickerEditorState extends Disposable {
 
 	reset() {
 		this._editorViewState = undefined;
-		this.openedEditors.clear();
+		this.openedTransientEditors.clear();
 	}
 
 	override dispose(): void {
-		this.reset();
 		super.dispose();
+
+		this.reset();
 	}
 }
