@@ -171,9 +171,14 @@ extends:
     containers:
       snapcraft:
         image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
+      ubuntu-2004-arm64:
+        image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
       authenticatedContainerRegistries:
         - registry: vscodehub.azurecr.io
           identity: ManagedIdentity
+        - registry: onebranch.azurecr.io
+          tenant: AME
+          identity: 1ESPipelineIdentity
     stages:
       - stage: Compile
         jobs:
@@ -512,6 +517,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
               - job: LinuxAlpineArm64
                 timeoutInMinutes: 120
+                container: ubuntu-2004-arm64
                 variables:
                   VSCODE_ARCH: arm64
                   NPM_ARCH: arm64
