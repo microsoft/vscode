@@ -174,8 +174,6 @@ extends:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     authenticatedContainerRegistries:
-      # - registry: vscodehub.azurecr.io
-      #   identity: ManagedIdentity
       - registry: onebranch.azurecr.io
         tenant: AME
         identity: 1ESPipelineIdentity
@@ -238,8 +236,6 @@ extends:
                 os: linux
               container: ubuntu-2004-arm64
               steps:
-                # - bash: sudo tdnf install unzip -y
-                #   displayName: Install unzip
                 - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
                   parameters:
                     VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
