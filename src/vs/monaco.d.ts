@@ -7838,7 +7838,7 @@ declare namespace monaco.languages {
 		body: string;
 		range: IRange | undefined;
 		uri: Uri;
-		owner: string;
+		uniqueOwner: string;
 		isReply: boolean;
 	}
 

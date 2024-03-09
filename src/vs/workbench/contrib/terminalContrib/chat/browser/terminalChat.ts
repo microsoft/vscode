@@ -10,6 +10,8 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 export const enum TerminalChatCommandId {
 	Start = 'workbench.action.terminal.chat.start',
 	Close = 'workbench.action.terminal.chat.close',
+	FocusResponse = 'workbench.action.terminal.chat.focusResponse',
+	FocusInput = 'workbench.action.terminal.chat.focusInput',
 	Discard = 'workbench.action.terminal.chat.discard',
 	MakeRequest = 'workbench.action.terminal.chat.makeRequest',
 	Cancel = 'workbench.action.terminal.chat.cancel',
@@ -34,15 +36,11 @@ export const enum TerminalChatContextKeyStrings {
 	ChatInputHasText = 'terminalChatInputHasText',
 	ChatAgentRegistered = 'terminalChatAgentRegistered',
 	ChatResponseEditorFocused = 'terminalChatResponseEditorFocused',
-	ChatResponseType = 'terminalChatResponseType',
+	ChatResponseContainsCodeBlock = 'terminalChatResponseContainsCodeBlock',
 	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting',
 	ChatSessionResponseVote = 'terminalChatSessionResponseVote',
 }
 
-export const enum TerminalChatResponseTypes {
-	Message = 'message',
-	TerminalCommand = 'terminalCommand'
-}
 
 export namespace TerminalChatContextKeys {
 
@@ -65,7 +63,7 @@ export namespace TerminalChatContextKeys {
 	export const responseEditorFocused = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseEditorFocused, false, localize('chatResponseEditorFocusedContextKey', "Whether the chat response editor is focused."));
 
 	/** The type of chat response, if any */
-	export const responseType = new RawContextKey<TerminalChatResponseTypes | undefined>(TerminalChatContextKeyStrings.ChatResponseType, undefined, localize('chatResponseTypeContextKey', "The type of chat response, if any"));
+	export const responseContainsCodeBlock = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseContainsCodeBlock, false, localize('chatResponseContainsCodeBlockContextKey', "Whether the chat response contains a code block."));
 
 	/** Whether the response supports issue reporting */
 	export const responseSupportsIssueReporting = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseSupportsIssueReporting, false, localize('chatResponseSupportsIssueReportingContextKey', "Whether the response supports issue reporting"));

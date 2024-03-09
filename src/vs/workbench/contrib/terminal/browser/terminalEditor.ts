@@ -103,7 +103,7 @@ export class TerminalEditor extends EditorPane {
 	override focus() {
 		super.focus();
 
-		this._editorInput?.terminalInstance?.focus();
+		this._editorInput?.terminalInstance?.focus(true);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
