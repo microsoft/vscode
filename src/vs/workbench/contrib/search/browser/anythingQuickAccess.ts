@@ -87,7 +87,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
 
-		editorViewState: PickerEditorState;
+		editorViewState = this._register(this.instantiationService.createInstance(PickerEditorState));
 
 		scorerCache: FuzzyScorerCache = Object.create(null);
 		fileQueryCache: FileQueryCacheState | undefined = undefined;
@@ -102,10 +102,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		constructor(
 			private readonly provider: AnythingQuickAccessProvider,
-			instantiationService: IInstantiationService
+			private readonly instantiationService: IInstantiationService
 		) {
 			super();
-			this.editorViewState = this._register(instantiationService.createInstance(PickerEditorState));
 		}
 
 		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
