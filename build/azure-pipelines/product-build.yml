@@ -173,12 +173,12 @@ extends:
         image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
-      authenticatedContainerRegistries:
-        - registry: vscodehub.azurecr.io
-          identity: ManagedIdentity
-        - registry: onebranch.azurecr.io
-          tenant: AME
-          identity: 1ESPipelineIdentity
+    authenticatedContainerRegistries:
+      - registry: vscodehub.azurecr.io
+        identity: ManagedIdentity
+      - registry: onebranch.azurecr.io
+        tenant: AME
+        identity: 1ESPipelineIdentity
     stages:
       - stage: Compile
         jobs:
