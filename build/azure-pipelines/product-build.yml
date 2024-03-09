@@ -238,10 +238,8 @@ extends:
                 os: linux
               container: ubuntu-2004-arm64
               steps:
-                - bash: sudo tdnf install unzip -y
-                  displayName: Install unzip
-                - bash: docker run hello-world
-                  displayName: Run docker hello world
+                # - bash: sudo tdnf install unzip -y
+                #   displayName: Install unzip
                 - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
                   parameters:
                     VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
