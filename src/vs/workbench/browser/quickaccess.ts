@@ -15,7 +15,7 @@ import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/edit
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledTextResourceEditorInput, IUntypedEditorInput, GroupIdentifier, IEditorPane, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IUntitledTextResourceEditorInput, IUntypedEditorInput, GroupIdentifier, IEditorPane } from 'vs/workbench/common/editor';
 
 export const inQuickPickContextKeyValue = 'inQuickOpen';
 export const InQuickPickContextKey = new RawContextKey<boolean>(inQuickPickContextKeyValue, false, localize('inQuickOpen', "Whether keyboard focus is inside the quick open control"));
@@ -102,16 +102,17 @@ export class PickerEditorState extends Disposable {
 
 	async restore(): Promise<void> {
 		if (this._editorViewState) {
-			const editorsToClose: IEditorIdentifier[] = [];
+			for (const editor of this.openedTransientEditors) {
+				if (editor.isDirty()) {
+					continue;
+				}
 
-			for (const group of this.editorGroupsService.groups) {
-				for (const editor of this.openedTransientEditors) {
-					if (group.contains(editor) && group.isTransient(editor) && !editor.isDirty()) {
-						editorsToClose.push({ editor, groupId: group.id });
+				for (const group of this.editorGroupsService.groups) {
+					if (group.isTransient(editor)) {
+						await group.closeEditor(editor, { preserveFocus: true });
 					}
 				}
 			}
-			await this.editorService.closeEditors(editorsToClose);
 
 			await this._editorViewState.group.openEditor(this._editorViewState.editor, {
 				viewState: this._editorViewState.state,
