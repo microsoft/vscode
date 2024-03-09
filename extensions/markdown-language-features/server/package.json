@@ -14,7 +14,7 @@
     "out/**/*.js"
   ],
   "dependencies": {
-    "@vscode/l10n": "^0.0.11",
+    "@vscode/l10n": "^0.0.18",
     "vscode-languageserver": "^8.1.0",
     "vscode-languageserver-textdocument": "^1.0.8",
     "vscode-languageserver-types": "^3.17.3",
