@@ -16,7 +16,7 @@
 		"@xterm/xterm": "5.4.0-beta.20",
 		"jschardet": "3.0.0",
 		"tas-client-umd": "0.1.8",
-		"vscode-oniguruma": "1.7.0",
+		"vscode-oniguruma": "2.0.1",
 		"vscode-textmate": "9.0.0"
 	}
 }
