@@ -171,8 +171,7 @@ export class ChatRequestParser {
 				return;
 			}
 
-			const subCommands = usedAgent.agent.getLastSlashCommands(model);
-			const subCommand = subCommands?.find(c => c.name === command);
+			const subCommand = usedAgent.agent.slashCommands.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);

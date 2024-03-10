@@ -360,7 +360,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
 		let progressMsg: string = '';
-		if (element.agent && !element.agent.metadata.isDefault) {
+		if (element.agent && !element.agent.isDefault) {
 			let usingMsg = chatAgentLeader + element.agent.id;
 			if (element.slashCommand) {
 				usingMsg += ` ${chatSubcommandLeader}${element.slashCommand.name}`;
@@ -384,17 +384,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
-		if (element.avatarIconUri) {
+		if (URI.isUri(element.avatarIcon)) {
 			const avatarImgIcon = dom.$<HTMLImageElement>('img.icon');
-			avatarImgIcon.src = FileAccess.uriToBrowserUri(element.avatarIconUri).toString(true);
+			avatarImgIcon.src = FileAccess.uriToBrowserUri(element.avatarIcon).toString(true);
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarImgIcon));
 		} else {
 			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.copilot;
-			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
+			const icon = element.avatarIcon ?? defaultIcon;
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(icon));
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
 		}
 
-		if (isResponseVM(element) && element.agent && !element.agent.metadata.isDefault) {
+		if (isResponseVM(element) && element.agent && !element.agent.isDefault) {
 			dom.show(templateData.agentAvatarContainer);
 			const icon = this.getAgentIcon(element.agent.metadata);
 			if (icon instanceof URI) {
@@ -872,7 +873,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return $('div');
 					}
 				} else {
-					const blockModel = this.codeBlockModelCollection.get(element.id, index);
+					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
+					const blockModel = this.codeBlockModelCollection.getOrCreate(sessionId, element.id, index);
 					if (!blockModel) {
 						console.error('Trying to render code block without model', element.id, index);
 						return $('div');

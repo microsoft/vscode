@@ -804,7 +804,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}
 
 		try {
-			this.element.contentWindow?.focus();
+			this.element.parentElement?.focus(); // this helps to move floating windows to the front if any...
+			this.element.contentWindow?.focus(); // ...because `contentWindow` is not able to do so
 		} catch {
 			// noop
 		}

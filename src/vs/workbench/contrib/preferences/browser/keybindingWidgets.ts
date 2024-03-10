@@ -141,6 +141,7 @@ export class DefineKeybindingWidget extends Widget {
 	private _keybindingInputWidget: KeybindingsSearchWidget;
 	private _outputNode: HTMLElement;
 	private _showExistingKeybindingsNode: HTMLElement;
+	private _keybindingDisposables = this._register(new DisposableStore());
 
 	private _chords: ResolvedKeybinding[] | null = null;
 	private _isVisible: boolean = false;
@@ -238,17 +239,18 @@ export class DefineKeybindingWidget extends Widget {
 	}
 
 	private onKeybinding(keybinding: ResolvedKeybinding[] | null): void {
+		this._keybindingDisposables.clear();
 		this._chords = keybinding;
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
 
-		const firstLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
+		const firstLabel = this._keybindingDisposables.add(new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles));
 		firstLabel.set(this._chords?.[0] ?? undefined);
 
 		if (this._chords) {
 			for (let i = 1; i < this._chords.length; i++) {
 				this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
-				const chordLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
+				const chordLabel = this._keybindingDisposables.add(new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles));
 				chordLabel.set(this._chords[i]);
 			}
 		}

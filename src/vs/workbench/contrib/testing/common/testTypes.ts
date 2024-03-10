@@ -21,6 +21,16 @@ export const enum TestResultState {
 	Errored = 6
 }
 
+export const testResultStateToContextValues: { [K in TestResultState]: string } = {
+	[TestResultState.Unset]: 'unset',
+	[TestResultState.Queued]: 'queued',
+	[TestResultState.Running]: 'running',
+	[TestResultState.Passed]: 'passed',
+	[TestResultState.Failed]: 'failed',
+	[TestResultState.Skipped]: 'skipped',
+	[TestResultState.Errored]: 'errored',
+};
+
 /** note: keep in sync with TestRunProfileKind in vscode.d.ts */
 export const enum ExtTestRunProfileKind {
 	Run = 1,
@@ -755,7 +765,7 @@ export interface ITestMessageMenuArgs {
 	/** Marshalling marker */
 	$mid: MarshalledId.TestMessageMenuArgs;
 	/** Tests ext ID */
-	extId: string;
+	test: InternalTestItem.Serialized;
 	/** Serialized test message */
 	message: ITestMessage.Serialized;
 }

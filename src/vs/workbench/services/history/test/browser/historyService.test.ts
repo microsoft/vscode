@@ -109,28 +109,28 @@ suite('HistoryService', function () {
 
 		// [index.txt] | [>index.txt<] [other.html]
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
 
 		await historyService.goBack();
 
 		// [>index.txt<] | [index.txt] [other.html]
 
-		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane1?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
 
 		await historyService.goForward();
 
 		// [index.txt] | [>index.txt<] [other.html]
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
 
 		await historyService.goForward();
 
 		// [index.txt] | [index.txt] [>other.html<]
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), otherResource.toString());
 
 		return workbenchTeardown(instantiationService);
@@ -313,7 +313,7 @@ suite('HistoryService', function () {
 		// [one.txt] [>two.html<] | <empty>
 
 		const editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		pane1?.group?.moveEditor(pane1.input!, sideGroup);
+		pane1?.group.moveEditor(pane1.input!, sideGroup);
 		await editorChangePromise;
 
 		// [one.txt] | [>two.html<]
@@ -322,7 +322,7 @@ suite('HistoryService', function () {
 
 		// [>one.txt<] | [two.html]
 
-		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane1?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource1.toString());
 
 		return workbenchTeardown(instantiationService);
@@ -341,7 +341,7 @@ suite('HistoryService', function () {
 
 		assert.notStrictEqual(pane1, pane2);
 
-		await pane1?.group?.closeAllEditors();
+		await pane1?.group.closeAllEditors();
 
 		// [>two.html<]
 
@@ -349,7 +349,7 @@ suite('HistoryService', function () {
 
 		// [>two.html<]
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource2.toString());
 
 		return workbenchTeardown(instantiationService);
@@ -545,7 +545,7 @@ suite('HistoryService', function () {
 		await historyService.goBack();
 		await historyService.goBack();
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource1.toString());
 
 		// [one.txt] [two.html] [>three.html<] | [>one.txt<] [two.html] [three.html]
@@ -556,7 +556,7 @@ suite('HistoryService', function () {
 		await historyService.goBack();
 		await historyService.goBack();
 
-		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane1?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource1.toString());
 
 		return workbenchTeardown(instantiationService);
@@ -631,7 +631,7 @@ suite('HistoryService', function () {
 		const resource = toResource.call(this, '/path/index.txt');
 		const pane = await editorService.openEditor({ resource });
 
-		await pane?.group?.closeAllEditors();
+		await pane?.group.closeAllEditors();
 
 		const onDidActiveEditorChange = new DeferredPromise<void>();
 		disposables.add(editorService.onDidActiveEditorChange(e => {

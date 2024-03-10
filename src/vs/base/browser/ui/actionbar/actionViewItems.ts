@@ -227,7 +227,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		this.updateAriaLabel();
 
 		if (this.options.hoverDelegate?.showNativeHover) {
-			/* While custom hover is not supported with context view */
+			/* While custom hover is not inside custom hover */
 			this.element.title = title;
 		} else {
 			if (!this.customHover && title !== '') {

@@ -255,6 +255,7 @@ export const EXTENSION_CATEGORIES = [
 	'Testing',
 	'Themes',
 	'Visualization',
+	'AI',
 	'Chat',
 	'Other',
 ];

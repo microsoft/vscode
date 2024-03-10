@@ -236,12 +236,12 @@ export interface IHoverTarget extends IDisposable {
 
 export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate {
 
-	private lastHoverHideTime = Number.MAX_VALUE;
+	private lastHoverHideTime = 0;
 	private timeLimit = 200;
 
 	private _delay: number;
 	get delay(): number {
-		if (this.instantHover && Date.now() - this.lastHoverHideTime < this.timeLimit) {
+		if (this.isInstantlyHovering()) {
 			return 0; // show instantly when a hover was recently shown
 		}
 		return this._delay;
@@ -280,20 +280,27 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			}));
 		}
 
+		const id = options.content instanceof HTMLElement ? undefined : options.content.toString();
+
 		return this.hoverService.showHover({
 			...options,
 			...overrideOptions,
 			persistence: {
-				hideOnHover: true,
 				hideOnKeyDown: true,
 				...overrideOptions.persistence
 			},
+			id,
 			appearance: {
 				...options.appearance,
 				compact: true,
+				skipFadeInAnimation: this.isInstantlyHovering(),
 				...overrideOptions.appearance
 			}
 		}, focus);
+	}
+
+	private isInstantlyHovering(): boolean {
+		return this.instantHover && Date.now() - this.lastHoverHideTime < this.timeLimit;
 	}
 
 	setInstantHoverTimeLimit(timeLimit: number): void {
