@@ -11,7 +11,7 @@ export = new class ApiTypeDiscrimination implements eslint.Rule.RuleModule {
 	readonly meta: eslint.Rule.RuleMetaData = {
 		docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines' },
 		messages: {
-			noTypeDiscrimination: 'Do not use type descrimination properties'
+			noTypeDiscrimination: 'Do not use type discrimination properties'
 		}
 	};
 
