@@ -21,6 +21,8 @@
 }
 
 .monaco-workbench .pane-composite-part > .header-or-footer {
+	padding-left: 4px;
+	padding-right: 4px;
 	background-color: var(--vscode-activityBarTop-background);
 }
 
