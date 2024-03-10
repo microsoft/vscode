@@ -19,11 +19,6 @@ import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chat
 
 export interface IChat {
 	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
-	requesterUsername: string;
-	requesterAvatarIconUri?: URI;
-	responderUsername: string;
-	responderAvatarIconUri?: URI;
-	inputPlaceholder?: string;
 	dispose?(): void;
 }
 

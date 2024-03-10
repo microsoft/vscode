@@ -236,7 +236,7 @@ export interface IHoverTarget extends IDisposable {
 
 export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate {
 
-	private lastHoverHideTime = Number.MAX_VALUE;
+	private lastHoverHideTime = 0;
 	private timeLimit = 200;
 
 	private _delay: number;
@@ -286,7 +286,6 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			...options,
 			...overrideOptions,
 			persistence: {
-				hideOnHover: true,
 				hideOnKeyDown: true,
 				...overrideOptions.persistence
 			},

@@ -86,7 +86,7 @@ export class BannerPart extends Part implements IBannerService {
 		}));
 
 		// Track focus
-		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 		BannerFocused.bindTo(scopedContextKeyService).set(true);
 
 		return this.element;

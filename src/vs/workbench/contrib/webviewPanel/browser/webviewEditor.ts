@@ -91,7 +91,7 @@ export class WebviewEditor extends EditorPane {
 		this._element.id = `webview-editor-element-${generateUuid()}`;
 		parent.appendChild(element);
 
-		this._scopedContextKeyService.value = this._contextKeyService.createScoped(element);
+		this._scopedContextKeyService.value = this._register(this._contextKeyService.createScoped(element));
 	}
 
 	public override dispose(): void {
