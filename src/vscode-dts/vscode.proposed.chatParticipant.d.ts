@@ -5,6 +5,27 @@
 
 declare module 'vscode' {
 
+	export interface ChatToolInvocations {
+		/**
+		 * The name of the tool.
+		 *
+		 * *Note* that the name doesn't include the leading `#`-character,
+		 * e.g `selection` for `#selection`.
+		 */
+		readonly name: string;
+
+		/**
+		 * The start and end index of the tool in the {@link ChatAgentRequest.prompt prompt}.
+		 *
+		 * *Note* that the indices take the leading `#`-character into account which means they can
+		 * used to modify the prompt as-is.
+		 */
+		readonly range: [start: number, end: number];
+
+		// The value, if the tool could be invoked immediately.
+		readonly value: any | undefined;
+	}
+
 	/**
 	 * Represents a user request in chat history.
 	 */
@@ -33,7 +54,7 @@ declare module 'vscode' {
 		/**
 		 * The variables that were referenced in this message.
 		 */
-		readonly variables: ChatResolvedVariable[];
+		readonly userToolInvocations: ChatToolInvocations[];
 
 		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; name: string });
 	}
@@ -184,7 +205,7 @@ declare module 'vscode' {
 	/**
 	 * A chat request handler is a callback that will be invoked when a request is made to a chat participant.
 	 */
-	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
+	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, toolAccessor: ChatToolAccessor, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
 
 	/**
 	 * A chat participant can be invoked by the user in a chat session, using the `@` prefix. When it is invoked, it handles the chat request and is solely
@@ -265,8 +286,8 @@ declare module 'vscode' {
 		 */
 		readonly range: [start: number, end: number];
 
-		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
-		readonly values: ChatVariableValue[];
+		// This type is just used in history, and `values` is set if the participant resolved this variable.
+		readonly values?: ChatVariableValue[];
 	}
 
 	export interface ChatRequest {
@@ -286,16 +307,15 @@ declare module 'vscode' {
 		readonly command: string | undefined;
 
 		/**
-		 * The list of variables and their values that are referenced in the prompt.
+		 * The list of tools that were explicitly invoked by the user in the prompt. (and also checked implicit invocations?)
 		 *
-		 * *Note* that the prompt contains varibale references as authored and that it is up to the participant
-		 * to further modify the prompt, for instance by inlining variable values or creating links to
-		 * headings which contain the resolved values. Variables are sorted in reverse by their range
-		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
+		 * *Note* that the prompt contains tool references as authored and that it is up to the participant
+		 * to further modify the prompt, for instance by inlining tool values or creating links to
+		 * headings which contain the resolved values. tools are sorted in reverse by their range
+		 * in the prompt. That means the last tool in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
-		// TODO@API Q? are there implicit variables that are not part of the prompt?
-		readonly variables: readonly ChatResolvedVariable[];
+		readonly userToolInvocations: readonly ChatToolInvocations[];
 	}
 
 	/**

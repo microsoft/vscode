@@ -9,6 +9,7 @@ declare module 'vscode' {
 
 		/**
 		 * Register a variable which can be used in a chat request to any participant.
+		 * TODO@API this would go away
 		 * @param name The name of the variable, to be used in the chat input as `#name`.
 		 * @param description A description of the variable for the chat input suggest widget.
 		 * @param resolver Will be called to provide the chat variable's value when it is used.
@@ -55,26 +56,36 @@ declare module 'vscode' {
 	}
 
 	export namespace chat {
-		export function registerSkill(skill: ChatSkill): Disposable;
+		export function registerTool(tool: ChatTool, options: { canBeInvokedExplicitlyByUser: boolean }): Disposable;
 
-		export const skills: ReadonlyArray<ChatSkillDescription>;
-		// Can non-chat participant AI actions invoke skills, just at any random time?
+		export const tools: ReadonlyArray<ChatToolDescription>;
+
+		// Can non-chat participant AI actions invoke tools, just at any random time?
 		// For chat participants, this should be part of the request
-		export function invokeSkill(skillName: string, parameters: Object, token: CancellationToken): Thenable<any>;
+		export function invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<any>;
 	}
 
-	export interface ChatSkillDescription {
-		name: string;
+	export interface ChatToolDescription {
+		id: string; // A unique identifier
+		displayName: string; // These might not show up anywhere
 		description: string;
 		parametersSchema: any; // JSON schema
+
+		// TODO@API Is output only a string, or can it be structured data?
+		// Does it stream?
+		returnValueSchema: any; // JSON schema
 	}
 
 	// Are these just commands with a schema for parameters?
-	export interface ChatSkill extends ChatSkillDescription {
+	export interface ChatTool extends ChatToolDescription {
 		// TODO@API Does it stream?
-		// Is output only a string, or can it be structured data?
 		// How does it ask for confirmation? This resolver would get some other resolver/accessor object that lets it ask to render some confirm dialog in chat.
 		//  - In that case, this needs to be called via the chat participant query, not via the global namespace.
-		resolve(parameters: any, token: CancellationToken): ProviderResult<any>;
+		invoke(parameters: any, token: CancellationToken): ProviderResult<any>;
+	}
+
+	// TODO@API name? "invoker"??
+	export interface ChatToolAccessor {
+		invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<any>;
 	}
 }

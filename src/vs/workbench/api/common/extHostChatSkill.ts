@@ -13,7 +13,7 @@ import type * as vscode from 'vscode';
 
 export class ExtHostChatSkills implements ExtHostChatSkillsShape {
 	/** A map of skills that were registered in this EH */
-	private readonly _registeredSkills = new Map<string, { extension: IExtensionDescription; skill: vscode.ChatSkill }>();
+	private readonly _registeredSkills = new Map<string, { extension: IExtensionDescription; skill: vscode.ChatTool }>();
 	private readonly _proxy: MainThreadChatSkillsShape;
 
 	/** A map of all known skills, from other EHs or registered in vscode core */
@@ -44,7 +44,7 @@ export class ExtHostChatSkills implements ExtHostChatSkillsShape {
 		}
 	}
 
-	get skills(): vscode.ChatSkillDescription[] {
+	get skills(): vscode.ChatToolDescription[] {
 		return Array.from(this._allSkills.values());
 	}
 
@@ -54,13 +54,13 @@ export class ExtHostChatSkills implements ExtHostChatSkillsShape {
 			return;
 		}
 		try {
-			return await item.skill.resolve(parameters, token);
+			return await item.skill.invoke(parameters, token);
 		} catch (err) {
 			onUnexpectedExternalError(err);
 		}
 	}
 
-	registerChatSkill(extension: IExtensionDescription, skill: vscode.ChatSkill): IDisposable {
+	registerChatSkill(extension: IExtensionDescription, skill: vscode.ChatTool): IDisposable {
 		this._registeredSkills.set(skill.name, { extension, skill });
 		this._proxy.$registerSkill(skill);
 

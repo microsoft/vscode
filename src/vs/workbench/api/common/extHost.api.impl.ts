@@ -1430,15 +1430,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipant');
 				return extHostChatAgents2.createChatAgent(extension, name, handler);
 			},
-			registerSkill(skill: vscode.ChatSkill) {
+			registerTool(skill: vscode.ChatTool) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
 				return extHostChatSkills.registerChatSkill(extension, skill);
 			},
-			invokeSkill(skillName: string, parameters: Object, token: vscode.CancellationToken) {
+			invokeTool(skillName: string, parameters: Object, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
 				return extHostChatSkills.invokeSkill(skillName, parameters, token);
 			},
-			get skills() {
+			get tools() {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
 				return extHostChatSkills.skills;
 			}
