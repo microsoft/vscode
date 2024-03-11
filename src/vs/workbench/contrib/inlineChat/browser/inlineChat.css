@@ -14,7 +14,6 @@
 .monaco-workbench .inline-chat {
 	color: inherit;
 	padding: 6px;
-	margin-top: 6px;
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
@@ -105,14 +104,10 @@
 /* status */
 
 .monaco-workbench .inline-chat .status {
-	margin-top: 4px;
+	padding-top: 4px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-}
-
-.monaco-workbench .inline-chat .status.actions {
-	margin-top: 4px;
 }
 
 .monaco-workbench .inline-chat .status .actions.hidden {
@@ -198,7 +193,7 @@
 }
 
 .monaco-workbench .inline-chat .chatMessage {
-	padding: 8px 3px;
+	padding: 0 3px;
 }
 
 .monaco-workbench .inline-chat .chatMessage .chatMessageContent {

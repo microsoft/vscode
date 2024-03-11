@@ -40,7 +40,8 @@ export const enum ExtensionState {
 }
 
 export const enum ExtensionRuntimeActionType {
-	Reload = 'reload',
+	ReloadWindow = 'reloadWindow',
+	RestartExtensions = 'restartExtensions',
 	DownloadUpdate = 'downloadUpdate',
 	ApplyUpdate = 'applyUpdate',
 	QuitAndInstall = 'quitAndInstall',
@@ -139,6 +140,7 @@ export interface IExtensionsWorkbenchService {
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
+	updateRunningExtensions(): Promise<void>;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;

@@ -49,8 +49,9 @@ export const enum LayoutSettings {
 }
 
 export const enum ActivityBarPosition {
-	SIDE = 'side',
+	DEFAULT = 'default',
 	TOP = 'top',
+	BOTTOM = 'bottom',
 	HIDDEN = 'hidden'
 }
 
@@ -372,7 +373,8 @@ function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
 	}
 
 	// with the activity bar on top, we should always show
-	if (configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
+	const activityBarPosition = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+	if (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM) {
 		return false;
 	}
 

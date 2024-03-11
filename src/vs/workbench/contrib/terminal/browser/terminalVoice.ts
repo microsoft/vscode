@@ -77,7 +77,7 @@ export class TerminalVoiceSession extends Disposable {
 		this._disposables = this._register(new DisposableStore());
 	}
 
-	start(): void {
+	async start(): Promise<void> {
 		this.stop();
 		let voiceTimeout = this.configurationService.getValue<number>(AccessibilityVoiceSettingId.SpeechTimeout);
 		if (!isNumber(voiceTimeout) || voiceTimeout < 0) {
@@ -89,7 +89,7 @@ export class TerminalVoiceSession extends Disposable {
 		}, voiceTimeout));
 		this._cancellationTokenSource = new CancellationTokenSource();
 		this._register(toDisposable(() => this._cancellationTokenSource?.dispose(true)));
-		const session = this._speechService.createSpeechToTextSession(this._cancellationTokenSource?.token);
+		const session = await this._speechService.createSpeechToTextSession(this._cancellationTokenSource?.token);
 
 		this._disposables.add(session.onDidChange((e) => {
 			if (this._cancellationTokenSource?.token.isCancellationRequested) {

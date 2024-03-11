@@ -6,13 +6,15 @@
 import { Dimension, IFocusTracker, WindowIntervalTimer, getWindow, scheduleAtNextAnimationFrame, trackFocus } from 'vs/base/browser/dom';
 import { CancelablePromise, Queue, createCancelablePromise, disposableTimeout, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
@@ -29,6 +31,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
@@ -40,9 +43,8 @@ import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/in
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
-import { INotebookEditor, INotebookEditorContribution, INotebookViewZone, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
@@ -67,7 +69,7 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		return this.notebookViewZone.heightInPx;
 	}
 
-	private _editingCell: CellViewModel | null = null;
+	private _editingCell: ICellViewModel | null = null;
 
 	get editingCell() {
 		return this._editingCell;
@@ -96,21 +98,39 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		this._layoutWidget(inlineChatWidget, widgetContainer);
 	}
 
+	restoreEditingCell(initEditingCell: ICellViewModel) {
+		this._editingCell = initEditingCell;
+	}
+
+	hasFocus() {
+		return this.inlineChatWidget.hasFocus();
+	}
+
 	focus() {
+		this.updateNotebookEditorFocusNSelections();
 		this.inlineChatWidget.focus();
+	}
+
+	updateNotebookEditorFocusNSelections() {
+		this._notebookEditor.focusContainer(true);
+		this._notebookEditor.setFocus({ start: this.afterModelPosition, end: this.afterModelPosition });
+		this._notebookEditor.setSelections([{
+			start: this.afterModelPosition,
+			end: this.afterModelPosition
+		}]);
 	}
 
 	getEditingCell() {
 		return this._editingCell;
 	}
 
-	async getOrCreateEditingCell(): Promise<{ cell: CellViewModel; editor: IActiveCodeEditor } | undefined> {
+	async getOrCreateEditingCell(): Promise<{ cell: ICellViewModel; editor: IActiveCodeEditor } | undefined> {
 		if (this._editingCell) {
-			await this._notebookEditor.focusNotebookCell(this._editingCell, 'editor');
-			if (this._notebookEditor.activeCodeEditor?.hasModel()) {
+			const codeEditor = this._notebookEditor.codeEditors.find(ce => ce[0] === this._editingCell)?.[1];
+			if (codeEditor?.hasModel()) {
 				return {
 					cell: this._editingCell,
-					editor: this._notebookEditor.activeCodeEditor
+					editor: codeEditor
 				};
 			} else {
 				return undefined;
@@ -121,17 +141,25 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 			return undefined;
 		}
 
+		const widgetHasFocus = this.inlineChatWidget.hasFocus();
+
 		this._editingCell = insertCell(this._languageService, this._notebookEditor, this.afterModelPosition, CellKind.Code, 'above');
 
 		if (!this._editingCell) {
 			return undefined;
 		}
 
-		await this._notebookEditor.focusNotebookCell(this._editingCell, 'editor', { revealBehavior: ScrollToRevealBehavior.firstLine });
-		if (this._notebookEditor.activeCodeEditor?.hasModel()) {
+		await this._notebookEditor.revealFirstLineIfOutsideViewport(this._editingCell);
+
+		if (widgetHasFocus) {
+			this.focus();
+		}
+
+		const codeEditor = this._notebookEditor.codeEditors.find(ce => ce[0] === this._editingCell)?.[1];
+		if (codeEditor?.hasModel()) {
 			return {
 				cell: this._editingCell,
-				editor: this._notebookEditor.activeCodeEditor
+				editor: codeEditor
 			};
 		}
 
@@ -166,6 +194,20 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 	}
 }
 
+export interface INotebookCellTextModelLike { uri: URI; viewType: string }
+class NotebookCellTextModelLikeId {
+	static str(k: INotebookCellTextModelLike): string {
+		return `${k.viewType}/${k.uri.toString()}`;
+	}
+	static obj(s: string): INotebookCellTextModelLike {
+		const idx = s.indexOf('/');
+		return {
+			viewType: s.substring(0, idx),
+			uri: URI.parse(s.substring(idx + 1))
+		};
+	}
+}
+
 export class NotebookChatController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.chatController';
 	static counter: number = 0;
@@ -173,6 +215,17 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	public static get(editor: INotebookEditor): NotebookChatController | null {
 		return editor.getContribution<NotebookChatController>(NotebookChatController.id);
 	}
+
+	// History
+	private static _storageKey = 'inline-chat-history';
+	private static _promptHistory: string[] = [];
+	private _historyOffset: number = -1;
+	private _historyCandidate: string = '';
+	private _historyUpdate: (prompt: string) => void;
+	private _promptCache = new LRUCache<string, string>(1000, 0.7);
+	private readonly _onDidChangePromptCache = this._register(new Emitter<{ cell: URI }>());
+	readonly onDidChangePromptCache = this._onDidChangePromptCache.event;
+
 	private _strategy: EditStrategy | undefined;
 	private _sessionCtor: CancelablePromise<void> | undefined;
 	private _activeSession?: Session;
@@ -198,6 +251,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@INotebookExecutionStateService private _executionStateService: INotebookExecutionStateService,
+		@IStorageService private readonly _storageService: IStorageService,
 
 	) {
 		super();
@@ -208,6 +262,18 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._ctxOuterFocusPosition = CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.bindTo(this._contextKeyService);
 
 		this._registerFocusTracker();
+
+		NotebookChatController._promptHistory = JSON.parse(this._storageService.get(NotebookChatController._storageKey, StorageScope.PROFILE, '[]'));
+		this._historyUpdate = (prompt: string) => {
+			const idx = NotebookChatController._promptHistory.indexOf(prompt);
+			if (idx >= 0) {
+				NotebookChatController._promptHistory.splice(idx, 1);
+			}
+			NotebookChatController._promptHistory.unshift(prompt);
+			this._historyOffset = -1;
+			this._historyCandidate = '';
+			this._storageService.store(NotebookChatController._storageKey, JSON.stringify(NotebookChatController._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
+		};
 	}
 
 	private _registerFocusTracker() {
@@ -232,28 +298,60 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 	run(index: number, input: string | undefined, autoSend: boolean | undefined): void {
 		if (this._widget) {
-			if (this._widget.afterModelPosition === index) {
-				// this._chatZone
-				// chatZone focus
-			} else {
+			if (this._widget.afterModelPosition !== index) {
+				this._disposeWidget();
 				const window = getWindow(this._widget.domNode);
-				this._widget.dispose();
-				this._widget = undefined;
-				this._widgetDisposableStore.clear();
 
 				scheduleAtNextAnimationFrame(window, () => {
-					this._createWidget(index, input, autoSend);
+					this._createWidget(index, input, autoSend, undefined);
 				});
 			}
 
 			return;
 		}
 
-		this._createWidget(index, input, autoSend);
+		this._createWidget(index, input, autoSend, undefined);
 		// TODO: reveal widget to the center if it's out of the viewport
 	}
 
-	private _createWidget(index: number, input: string | undefined, autoSend: boolean | undefined) {
+	restore(editingCell: ICellViewModel, input: string) {
+		if (!this._notebookEditor.hasModel()) {
+			return;
+		}
+
+		const index = this._notebookEditor.textModel.cells.indexOf(editingCell.model);
+
+		if (index < 0) {
+			return;
+		}
+
+		if (this._widget) {
+			if (this._widget.afterModelPosition !== index) {
+				this._disposeWidget();
+				const window = getWindow(this._widget.domNode);
+
+				scheduleAtNextAnimationFrame(window, () => {
+					this._createWidget(index, input, false, editingCell);
+				});
+			}
+
+			return;
+		}
+
+		this._createWidget(index, input, false, editingCell);
+	}
+
+	private _disposeWidget() {
+		this._widget?.dispose();
+		this._widget = undefined;
+		this._widgetDisposableStore.clear();
+
+		this._historyOffset = -1;
+		this._historyCandidate = '';
+	}
+
+
+	private _createWidget(index: number, input: string | undefined, autoSend: boolean | undefined, initEditingCell: ICellViewModel | undefined) {
 		if (!this._notebookEditor.hasModel()) {
 			return;
 		}
@@ -328,6 +426,11 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				this._languageService
 			);
 
+			if (initEditingCell) {
+				this._widget.restoreEditingCell(initEditingCell);
+				this._updateUserEditingState();
+			}
+
 			this._ctxCellWidgetFocused.set(true);
 
 			disposableTimeout(() => {
@@ -390,12 +493,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			return;
 		}
 
-		this._notebookEditor.focusContainer(true);
-		this._notebookEditor.setFocus({ start: this._widget.afterModelPosition, end: this._widget.afterModelPosition });
-		this._notebookEditor.setSelections([{
-			start: this._widget.afterModelPosition,
-			end: this._widget.afterModelPosition
-		}]);
+		this._widget.updateNotebookEditorFocusNSelections();
 	}
 
 	async acceptInput() {
@@ -408,6 +506,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		assertType(this._activeSession.lastInput);
 		const value = this._activeSession.lastInput.value;
+
+		this._historyUpdate(value);
+
 		const editor = this._widget.parentEditor;
 		const model = editor.getModel();
 
@@ -698,6 +799,15 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			return;
 		}
 
+		const editingCell = this._widget?.getEditingCell();
+
+		if (editingCell && this._notebookEditor.hasModel() && this._activeSession.lastInput) {
+			const cellId = NotebookCellTextModelLikeId.str({ uri: editingCell.uri, viewType: this._notebookEditor.textModel.viewType });
+			const prompt = this._activeSession.lastInput.value;
+			this._promptCache.set(cellId, prompt);
+			this._onDidChangePromptCache.fire({ cell: editingCell.uri });
+		}
+
 		try {
 			await this._strategy.apply(editor);
 			this._inlineChatSessionService.releaseSession(this._activeSession);
@@ -739,6 +849,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		await this._notebookEditor.focusNotebookCell(cell, 'editor');
 	}
 
+	hasFocus() {
+		return this._widget?.hasFocus() ?? false;
+	}
+
 	focus() {
 		this._focusWidget();
 	}
@@ -760,6 +874,39 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 	}
 
+	populateHistory(up: boolean) {
+		if (!this._widget) {
+			return;
+		}
+
+		const len = NotebookChatController._promptHistory.length;
+		if (len === 0) {
+			return;
+		}
+
+		if (this._historyOffset === -1) {
+			// remember the current value
+			this._historyCandidate = this._widget.inlineChatWidget.value;
+		}
+
+		const newIdx = this._historyOffset + (up ? 1 : -1);
+		if (newIdx >= len) {
+			// reached the end
+			return;
+		}
+
+		let entry: string;
+		if (newIdx < 0) {
+			entry = this._historyCandidate;
+			this._historyOffset = -1;
+		} else {
+			entry = NotebookChatController._promptHistory[newIdx];
+			this._historyOffset = newIdx;
+		}
+
+		this._widget.inlineChatWidget.value = entry;
+		this._widget.inlineChatWidget.selectAll();
+	}
 
 	async cancelCurrentRequest(discard: boolean) {
 		if (discard) {
@@ -767,6 +914,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		this._activeRequestCts?.cancel();
+	}
+
+	getEditingCell() {
+		return this._widget?.getEditingCell();
 	}
 
 	discard() {
@@ -815,6 +966,27 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._widgetDisposableStore.clear();
 	}
 
+	// check if a cell is generated by prompt by checking prompt cache
+	isCellGeneratedByChat(cell: ICellViewModel) {
+		if (!this._notebookEditor.hasModel()) {
+			// no model attached yet
+			return false;
+		}
+
+		const cellId = NotebookCellTextModelLikeId.str({ uri: cell.uri, viewType: this._notebookEditor.textModel.viewType });
+		return this._promptCache.has(cellId);
+	}
+
+	// get prompt from cache
+	getPromptFromCache(cell: ICellViewModel) {
+		if (!this._notebookEditor.hasModel()) {
+			// no model attached yet
+			return undefined;
+		}
+
+		const cellId = NotebookCellTextModelLikeId.str({ uri: cell.uri, viewType: this._notebookEditor.textModel.viewType });
+		return this._promptCache.get(cellId);
+	}
 	public override dispose(): void {
 		this.dismiss(false);
 		super.dispose();

@@ -314,7 +314,7 @@ class VoiceChatSessions {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): IVoiceChatSession {
+	async start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): Promise<IVoiceChatSession> {
 		this.stop();
 
 		let disableTimeout = false;
@@ -339,7 +339,7 @@ class VoiceChatSessions {
 
 		this.voiceChatGettingReadyKey.set(true);
 
-		const voiceChatSession = this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline', model: context?.widget?.viewModel?.model });
+		const voiceChatSession = await this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline', model: context?.widget?.viewModel?.model });
 
 		let inputValue = controller.getInput();
 
@@ -474,7 +474,7 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 		return;
 	}
 
-	const session = VoiceChatSessions.getInstance(instantiationService).start(controller, context);
+	const session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 
 	await holdMode;
 	handle.dispose();
@@ -545,7 +545,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 		const handle = disposableTimeout(async () => {
 			const controller = await VoiceChatSessionControllerFactory.create(accessor, 'view');
 			if (controller) {
-				session = VoiceChatSessions.getInstance(instantiationService).start(controller, context);
+				session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 				session.setTimeoutDisabled(true);
 			}
 		}, VOICE_KEY_HOLD_THRESHOLD);
@@ -921,7 +921,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private registerListeners(): void {
-		this._register(Event.runAndSubscribe(this.speechService.onDidRegisterSpeechProvider, () => {
+		this._register(Event.runAndSubscribe(this.speechService.onDidChangeHasSpeechProvider, () => {
 			this.updateConfiguration();
 			this.handleKeywordActivation();
 		}));
