@@ -42,7 +42,7 @@ import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQui
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { CodeBlockContextProviderRegistry } from 'vs/workbench/contrib/chat/browser/chat';
+import { ICodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
@@ -172,7 +172,8 @@ export class AccessibleView extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@ICodeBlockContextProviderService private readonly _codeBlockContextProviderService: ICodeBlockContextProviderService
 	) {
 		super();
 
@@ -340,7 +341,7 @@ export class AccessibleView extends Disposable {
 			this._lastProvider = provider;
 		}
 		if (provider.id === AccessibleViewProviderId.Chat) {
-			this._register(CodeBlockContextProviderRegistry.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
+			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
 		}
 	}
 

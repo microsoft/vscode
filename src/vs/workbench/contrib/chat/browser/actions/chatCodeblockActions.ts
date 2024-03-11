@@ -26,7 +26,7 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { CodeBlockContextProviderRegistry, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidgetService, ICodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
@@ -563,6 +563,7 @@ export function registerChatCodeBlockActions() {
 
 function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): ICodeBlockActionContext | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
+	const codeBlockContextProviderService = accessor.get(ICodeBlockContextProviderService);
 	const model = editor.getModel();
 	if (!model) {
 		return;
@@ -571,7 +572,7 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 	const widget = chatWidgetService.lastFocusedWidget;
 	const codeBlockInfo = widget?.getCodeBlockInfoForEditor(model.uri);
 	if (!codeBlockInfo) {
-		for (const provider of CodeBlockContextProviderRegistry.providers) {
+		for (const provider of codeBlockContextProviderService.providers) {
 			const context = provider.getCodeBlockContext(editor);
 			if (context) {
 				return context;

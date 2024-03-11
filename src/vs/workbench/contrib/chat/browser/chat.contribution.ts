@@ -32,7 +32,7 @@ import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/act
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { registerQuickChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
-import { IChatAccessibilityService, IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CodeBlockContextProviderService, IChatAccessibilityService, IChatWidget, IChatWidgetService, ICodeBlockContextProviderService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ChatContributionService } from 'vs/workbench/contrib/chat/browser/chatContributionServiceImpl';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
@@ -331,3 +331,4 @@ registerSingleton(IChatSlashCommandService, ChatSlashCommandService, Instantiati
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
+registerSingleton(ICodeBlockContextProviderService, CodeBlockContextProviderService, InstantiationType.Delayed);
