@@ -76,7 +76,7 @@ interface INavigator {
 declare const navigator: INavigator;
 
 // Native environment
-if (typeof nodeProcess === 'object') {
+if (typeof nodeProcess?.versions?.node === 'string') {
 	_isWindows = (nodeProcess.platform === 'win32');
 	_isMacintosh = (nodeProcess.platform === 'darwin');
 	_isLinux = (nodeProcess.platform === 'linux');
