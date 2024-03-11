@@ -36,6 +36,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 		private readonly _onDidWatch = this._register(new Emitter<void>());
 		readonly onDidWatch = this._onDidWatch.event;
 
+		readonly onWatchFail = this._onDidWatchFail.event;
+
 		testNormalizePaths(paths: string[], excludes: string[] = []): string[] {
 
 			// Work with strings as paths to simplify testing
@@ -699,5 +701,26 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await onDidWatch;
 
 		await basicCrudTest(join(folderPath, 'newFile.txt'), 1);
+	});
+
+	test('watching missing path emits event', async function () {
+		const didWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'missing');
+		watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		await didWatchFail;
+	});
+
+	test('deleting watched path emits event', async function () {
+		const didWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const watchedPath = join(testDir, 'deep');
+
+		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		Promises.rm(watchedPath, RimRafMode.UNLINK);
+
+		await didWatchFail;
 	});
 });

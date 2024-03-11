@@ -462,6 +462,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
 		if (!this.shouldRestartWatching(watcher.request)) {
+			this._onDidWatchFail.fire(watcher.request);
+
 			return; // return if this deletion is handled outside
 		}
 
