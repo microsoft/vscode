@@ -6,6 +6,7 @@
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/terminalChatWidget';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,7 +31,8 @@ export class TerminalChatWidget extends Disposable {
 		terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
 	) {
 		super();
 
@@ -48,7 +50,7 @@ export class TerminalChatWidget extends Disposable {
 				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,
 				statusMenuId: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-				telemetrySource: 'terminal-inline-chat',
+				telemetrySource: 'terminal-inline-chat'
 			}
 		);
 		this._reset();
@@ -126,12 +128,16 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.value = value ?? '';
 	}
 	acceptCommand(shouldExecute: boolean): void {
-		// Trim command to remove any whitespace, otherwise this may execute the command
-		const value = parseCodeFromBlock(this._inlineChatWidget?.responseContent?.trim());
-		if (!value) {
+		const editor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
+		if (!editor) {
 			return;
 		}
-		this._instance.runCommand(value, shouldExecute);
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+		const code = editor.getValue();
+		this._instance.runCommand(code, shouldExecute);
 		this.hide();
 	}
 	updateProgress(progress?: IChatProgress): void {
@@ -140,11 +146,6 @@ export class TerminalChatWidget extends Disposable {
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;
 	}
-}
-
-function parseCodeFromBlock(block?: string): string | undefined {
-	const match = block?.match(/```.*?\n([\s\S]*?)```/);
-	return match ? match[1].trim() : undefined;
 }
 
 const enum ChatElementSelectors {

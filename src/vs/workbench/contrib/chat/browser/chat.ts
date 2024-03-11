@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -16,6 +18,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWel
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
+export const IChatCodeBlockContextProviderService = createDecorator<IChatCodeBlockContextProviderService>('chatCodeBlockContextProviderService');
 
 export interface IChatWidgetService {
 
@@ -133,4 +136,14 @@ export interface IChatWidget {
 
 export interface IChatViewPane {
 	clear(): void;
+}
+
+
+export interface ICodeBlockActionContextProvider {
+	getCodeBlockContext(editor?: ICodeEditor): ICodeBlockActionContext | undefined;
+}
+export interface IChatCodeBlockContextProviderService {
+	readonly _serviceBrand: undefined;
+	readonly providers: ICodeBlockActionContextProvider[];
+	registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable;
 }
