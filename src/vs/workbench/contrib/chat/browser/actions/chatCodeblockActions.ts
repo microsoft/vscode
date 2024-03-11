@@ -88,7 +88,8 @@ export function registerChatCodeBlockActions() {
 				icon: Codicon.copy,
 				menu: {
 					id: MenuId.ChatCodeBlock,
-					group: 'navigation'
+					group: 'navigation',
+					order: 1
 				}
 			});
 		}
@@ -189,6 +190,7 @@ export function registerChatCodeBlockActions() {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					when: CONTEXT_IN_CHAT_SESSION,
+					order: 2
 				},
 				keybinding: {
 					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()), accessibleViewInCodeBlock),
