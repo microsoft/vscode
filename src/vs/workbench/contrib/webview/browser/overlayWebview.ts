@@ -123,6 +123,9 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		if (this._windowId !== targetWindow.vscodeWindowId) {
 			// moving to a new window
 			this.release(oldOwner);
+			// since we are moving to a new window, we need to dispose the webview and recreate
+			this._webview.clear();
+			this._webviewEvents.clear();
 			this._container?.domNode.remove();
 			this._container = undefined;
 		}
