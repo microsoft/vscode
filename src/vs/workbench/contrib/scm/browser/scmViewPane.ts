@@ -462,6 +462,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 
 		const element = append(container, $('.resource-group'));
+		element.tabIndex = 0;
 		const name = append(element, $('.name'));
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider });
@@ -1014,6 +1015,7 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 	renderTemplate(container: HTMLElement): HistoryItemChangeTemplate {
 		const element = append(container, $('.change'));
 		const name = append(element, $('.name'));
+		name.tabIndex = 0;
 		const fileLabel = this.labels.create(name, { supportDescriptionHighlights: true, supportHighlights: true });
 		const decorationIcon = append(element, $('.decoration-icon'));
 
