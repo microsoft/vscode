@@ -214,6 +214,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		this._focusMetadata.focusRemains = true;
 		this._focusMetadata.element.replaceWith(renderedMarkdown);
 		this._focusMetadata.element = renderedMarkdown;
+		this._context.onContentsChanged();
 		renderedMarkdown.focus();
 	}
 
