@@ -8,7 +8,7 @@ import { asArray } from 'vs/base/common/arrays';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { HoverExtensionMetadata, HoverExtensionRequest, HoverProvider } from 'vs/editor/common/languages';
+import { HoverVerbosityMetadata, HoverVerbosityRequest, HoverProvider } from 'vs/editor/common/languages';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -60,7 +60,7 @@ export class ExpandableMarkdownHover extends MarkdownHover {
 		isBeforeContent: boolean,
 		ordinal: number,
 		public readonly provider: HoverProvider | undefined,
-		public readonly extensionMetadata: HoverExtensionMetadata | undefined,
+		public readonly verbosityMetadata: HoverVerbosityMetadata | undefined,
 	) {
 		super(owner, range, contents, isBeforeContent, ordinal);
 	}
@@ -84,6 +84,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		element: undefined,
 		focusRemains: false
 	};
+	private _verbosityLevels: Map<number, number> | undefined;
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
@@ -168,12 +169,16 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
-				return new ExpandableMarkdownHover(this, rng, item.hover.contents, false, item.ordinal, item.provider, item.hover.extensionMetadata);
+				return new ExpandableMarkdownHover(this, rng, item.hover.contents, false, item.ordinal, item.provider, item.hover.verbosityMetadata);
 			});
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ExpandableMarkdownHover[]): IDisposable {
 		this._context = context;
+		this._verbosityLevels = new Map();
+		context.disposables?.add(toDisposable(() => {
+			this._verbosityLevels = undefined;
+		}));
 		this._providers = hoverParts.map(hoverPart => hoverPart.provider);
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 		const disposables = new DisposableStore();
@@ -181,31 +186,36 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			const renderedMarkdown = this._renderMarkdownHoversAndActions(
 				hoverPart.contents,
 				hoverIndex,
-				hoverPart.extensionMetadata,
+				hoverPart.verbosityMetadata,
 				disposables
 			);
+			this._verbosityLevels.set(hoverIndex, 0);
 			context.fragment.appendChild(renderedMarkdown);
 		}
 		return disposables;
 	}
 
-	public async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
+	public async changeFocusedHoverVerbosityLevel(extend: boolean): Promise<void> {
 		if (
 			this._focusMetadata.index === undefined
 			|| this._focusMetadata.element === undefined
 			|| !this._anchor
 			|| !this._context
 			|| !this._context.disposables
+			|| !this._verbosityLevels
 		) {
 			return;
 		}
+		const currentVerbosityLevel = this._verbosityLevels.get(this._focusMetadata.index);
 		const provider = this._providers[this._focusMetadata.index];
 		const model = this._editor.getModel();
-		if (!provider || !model) {
+		if (!provider || !model || currentVerbosityLevel === undefined) {
 			return;
 		}
+		const verbosityLevel = currentVerbosityLevel + (extend ? 1 : -1);
+		this._verbosityLevels.set(this._focusMetadata.index, verbosityLevel);
 		const position = new Position(this._anchor.range.startLineNumber, this._anchor.range.startColumn);
-		const request: HoverExtensionRequest = { position, extend };
+		const request: HoverVerbosityRequest = { position, verbosityLevel };
 		const hover = await Promise.resolve(provider.provideHover(model, request, CancellationToken.None));
 		if (!hover) {
 			return;
@@ -213,7 +223,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const renderedMarkdown = this._renderMarkdownHoversAndActions(
 			hover.contents,
 			this._focusMetadata.index,
-			hover.extensionMetadata,
+			hover.verbosityMetadata,
 			this._context.disposables
 		);
 		this._focusMetadata.focusRemains = true;
@@ -225,7 +235,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _renderMarkdownHoversAndActions(
 		hoverContents: IMarkdownString[],
 		hoverIndex: number,
-		extensionMetadata: HoverExtensionMetadata | undefined,
+		verbosityMetadata: HoverVerbosityMetadata | undefined,
 		store: DisposableStore,
 	): HTMLElement {
 
@@ -240,14 +250,14 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			this._openerService,
 			store
 		);
-		if (!extensionMetadata || !this._context || !this._context.disposables) {
+		if (!verbosityMetadata || !this._context || !this._context.disposables || !this._verbosityLevels) {
 			return contents;
 		}
 		const actionsContainer = $('div.expansion-actions');
 		contents.appendChild(actionsContainer);
 
-		this._renderHoverExpansionAction(actionsContainer, { extend: true, enabled: extensionMetadata.canExtend ?? false }, store);
-		this._renderHoverExpansionAction(actionsContainer, { extend: false, enabled: extensionMetadata.canContract ?? false }, store);
+		this._renderHoverExpansionAction(actionsContainer, { extend: true, enabled: verbosityMetadata.canIncreaseVerbosity ?? false }, store);
+		this._renderHoverExpansionAction(actionsContainer, { extend: false, enabled: verbosityMetadata.canDecreaseVerbosity ?? false }, store);
 
 		const focusTracker = this._context.disposables.add(dom.trackFocus(contents));
 		this._context.disposables.add(focusTracker.onDidFocus(() => {
@@ -280,7 +290,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			return;
 		}
 		element.classList.add('enabled');
-		registerActionOnClickOrAcceptKeydown(element, () => this.extendOrContractFocusedMessage(expansionMetadata.extend), store);
+		registerActionOnClickOrAcceptKeydown(element, () => this.changeFocusedHoverVerbosityLevel(expansionMetadata.extend), store);
 	}
 }
 

@@ -170,21 +170,21 @@ export interface Hover {
 	range?: IRange;
 
 	/**
-	 * Meta-data concerning whether this hover can be extended/contracted or not
+	 * Meta-data concerning the verbosity of the hover
 	 */
-	extensionMetadata?: HoverExtensionMetadata;
+	verbosityMetadata?: HoverVerbosityMetadata;
 }
 
-export interface HoverExtensionMetadata {
+export interface HoverVerbosityMetadata {
 	/**
-	 * Can extend the hover
+	 * Can increase the verbosity of the hover
 	 */
-	canExtend?: boolean;
+	canIncreaseVerbosity?: boolean;
 
 	/**
-	 * Can contract the hover
+	 * Can decrease the verbosity of the hover
 	 */
-	canContract?: boolean;
+	canDecreaseVerbosity?: boolean;
 }
 
 /**
@@ -197,19 +197,19 @@ export interface HoverProvider {
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, request: Position | HoverExtensionRequest, token: CancellationToken): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, request: Position | HoverVerbosityRequest, token: CancellationToken): ProviderResult<Hover>;
 }
 
-export interface HoverExtensionRequest {
+export interface HoverVerbosityRequest {
 	/**
 	 * The position for which the hover is requested.
 	 */
 	position: Position;
 
 	/**
-	 * Wether the request is for an extension or a contraction of the given hover
+	 * The verbosity level request for the hover.
 	 */
-	extend: boolean;
+	verbosityLevel: number;
 }
 
 /**

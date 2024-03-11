@@ -31,17 +31,6 @@ import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHints
 
 const $ = dom.$;
 
-export interface IHoverOptions {
-	/**
-	 * Start mode of the hover
-	 */
-	mode: HoverStartMode;
-	/**
-	 * Whether the hover should be focused
-	 */
-	focus: boolean;
-}
-
 export class ContentHoverController extends Disposable {
 
 	private _currentResult: HoverResult | null = null;
@@ -372,8 +361,8 @@ export class ContentHoverController extends Disposable {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
-	public async extendOrContractFocusedMessage(extend: boolean): Promise<void> {
-		this._markdownHoverParticipant?.extendOrContractFocusedMessage(extend);
+	public async changeFocusedHoverVerbosityLevel(increaseVerbosity: boolean): Promise<void> {
+		this._markdownHoverParticipant?.changeFocusedHoverVerbosityLevel(increaseVerbosity);
 	}
 
 	public getWidgetContent(): string | undefined {

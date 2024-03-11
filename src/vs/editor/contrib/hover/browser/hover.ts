@@ -396,8 +396,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
-	public extendOrContractFocusedMessage(extend: boolean): void {
-		this._getOrCreateContentWidget().extendOrContractFocusedMessage(extend);
+	public changeFocusedHoverVerbosityLevel(increaseVerbosity: boolean): void {
+		this._getOrCreateContentWidget().changeFocusedHoverVerbosityLevel(increaseVerbosity);
 	}
 
 	public focus(): void {
@@ -885,7 +885,7 @@ export function extendOrContractFocusedMessage(editor: ICodeEditor, extend: bool
 	if (!controller) {
 		return;
 	}
-	controller.extendOrContractFocusedMessage(extend);
+	controller.changeFocusedHoverVerbosityLevel(extend);
 }
 
 registerEditorContribution(HoverController.ID, HoverController, EditorContributionInstantiation.BeforeFirstInteraction);

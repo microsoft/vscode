@@ -950,7 +950,7 @@ export namespace Hover {
 		return <languages.Hover>{
 			range: Range.from(hover.range),
 			contents: MarkdownString.fromMany(hover.contents),
-			extensionMetadata: hover.extensionMetadata
+			verbosityMetadata: hover.verbosityMetadata
 		};
 	}
 

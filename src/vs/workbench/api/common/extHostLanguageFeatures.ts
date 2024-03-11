@@ -260,11 +260,11 @@ class HoverAdapter {
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	async provideHover(resource: URI, request: IPosition | { position: IPosition; extend: boolean }, token: CancellationToken): Promise<languages.Hover | undefined> {
+	async provideHover(resource: URI, request: IPosition | { position: IPosition; verbosityLevel: number }, token: CancellationToken): Promise<languages.Hover | undefined> {
 		const isRequestAPosition = 'position' in request;
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(isRequestAPosition ? request.position : request);
-		const req = isRequestAPosition ? { position: pos, extend: request.extend } : pos;
+		const req = isRequestAPosition ? { position: pos, verbosityLevel: request.verbosityLevel } : pos;
 		const value = await this._provider.provideHover(doc, req, token);
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
@@ -2233,7 +2233,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, request: IPosition | { position: IPosition; extend: boolean }, token: CancellationToken): Promise<languages.Hover | undefined> {
+	$provideHover(handle: number, resource: UriComponents, request: IPosition | { position: IPosition; verbosityLevel: number }, token: CancellationToken): Promise<languages.Hover | undefined> {
 		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), request, token), undefined, token);
 	}
 

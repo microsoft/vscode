@@ -481,7 +481,7 @@ export function registerSignatureHelpProvider(languageSelector: LanguageSelector
 export function registerHoverProvider(languageSelector: LanguageSelector, provider: languages.HoverProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.hoverProvider.register(languageSelector, {
-		provideHover: (model: model.ITextModel, request: Position | { position: Position; extend: boolean }, token: CancellationToken): Promise<languages.Hover | undefined> => {
+		provideHover: (model: model.ITextModel, request: Position | { position: Position; verbosityLevel: number }, token: CancellationToken): Promise<languages.Hover | undefined> => {
 			const position: Position = request instanceof Position ? request : request.position;
 			const word = model.getWordAtPosition(position);
 

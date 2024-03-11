@@ -1185,7 +1185,7 @@ export class Hover {
 
 	public contents: (vscode.MarkdownString | vscode.MarkedString)[];
 	public range: Range | undefined;
-	public extensionMetadata: vscode.HoverExtensionMetadata | undefined;
+	public verbosityMetadata: vscode.HoverVerbosityMetadata | undefined;
 
 	constructor(
 		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
