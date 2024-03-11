@@ -42,7 +42,7 @@ import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQui
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { ICodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
@@ -173,7 +173,7 @@ export class AccessibleView extends Disposable {
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@ICodeBlockContextProviderService private readonly _codeBlockContextProviderService: ICodeBlockContextProviderService
+		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService
 	) {
 		super();
 

@@ -18,7 +18,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWel
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
-export const ICodeBlockContextProviderService = createDecorator<ICodeBlockContextProviderService>('codeBlockContextProviderService');
+export const IChatCodeBlockContextProviderService = createDecorator<IChatCodeBlockContextProviderService>('chatCodeBlockContextProviderService');
 
 export interface IChatWidgetService {
 
@@ -142,7 +142,7 @@ export interface IChatViewPane {
 export interface ICodeBlockActionContextProvider {
 	getCodeBlockContext(editor?: ICodeEditor): ICodeBlockActionContext | undefined;
 }
-export interface ICodeBlockContextProviderService {
+export interface IChatCodeBlockContextProviderService {
 	readonly _serviceBrand: undefined;
 	readonly providers: ICodeBlockActionContextProvider[];
 	registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable;
