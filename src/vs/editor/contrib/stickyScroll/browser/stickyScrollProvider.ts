@@ -107,10 +107,9 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		if (editor.hasModel()) {
 			this._stickyModelProvider = new StickyModelProvider(
 				editor,
+				() => this._updateSoon.schedule(),
 				this._languageConfigurationService,
-				this._languageFeaturesService,
-				this._editor.getOption(EditorOption.stickyScroll).defaultModel,
-				() => this._updateSoon.schedule()
+				this._languageFeaturesService
 			);
 		}
 	}

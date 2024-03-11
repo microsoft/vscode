@@ -17,6 +17,8 @@ import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges'
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { StickyElement, StickyModel, StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
 import { Iterable } from 'vs/base/common/iterator';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 enum ModelProvider {
 	OUTLINE_MODEL = 'outlineModel',
@@ -49,34 +51,27 @@ export class StickyModelProvider extends Disposable implements IStickyModelProvi
 
 	constructor(
 		private readonly _editor: IActiveCodeEditor,
-		@ILanguageConfigurationService readonly _languageConfigurationService: ILanguageConfigurationService,
+		onProviderUpdate: () => void,
+		@IInstantiationService readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService readonly _languageFeaturesService: ILanguageFeaturesService,
-		defaultModel: string,
-		onProviderUpdate: () => void
 	) {
 		super();
 
-		const stickyModelFromCandidateOutlineProvider = new StickyModelFromCandidateOutlineProvider(this._editor, _languageFeaturesService);
-		const stickyModelFromSyntaxFoldingProvider = new StickyModelFromCandidateSyntaxFoldingProvider(this._editor, _languageFeaturesService, onProviderUpdate);
-		const stickyModelFromIndentationFoldingProvider = new StickyModelFromCandidateIndentationFoldingProvider(this._editor, _languageConfigurationService);
-
-		switch (defaultModel) {
+		switch (this._editor.getOption(EditorOption.stickyScroll).defaultModel) {
 			case ModelProvider.OUTLINE_MODEL:
-				this._modelProviders.push(stickyModelFromCandidateOutlineProvider);
-				this._modelProviders.push(stickyModelFromSyntaxFoldingProvider);
-				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
-				break;
+				this._modelProviders.push(new StickyModelFromCandidateOutlineProvider(this._editor, _languageFeaturesService));
+			// fall through
 			case ModelProvider.FOLDING_PROVIDER_MODEL:
-				this._modelProviders.push(stickyModelFromSyntaxFoldingProvider);
-				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
-				break;
+				this._modelProviders.push(new StickyModelFromCandidateSyntaxFoldingProvider(this._editor, onProviderUpdate, _languageFeaturesService));
+			// fall through
 			case ModelProvider.INDENTATION_MODEL:
-				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
+				this._modelProviders.push(new StickyModelFromCandidateIndentationFoldingProvider(this._editor, _languageConfigurationService));
 				break;
 		}
 	}
 
 	public override dispose(): void {
+		this._modelProviders.forEach(provider => provider.dispose());
 		this._updateOperation.clear();
 		this._cancelModelPromise();
 		super.dispose();
@@ -394,8 +389,8 @@ class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandi
 	private readonly provider: SyntaxRangeProvider | undefined;
 
 	constructor(editor: IActiveCodeEditor,
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		onProviderUpdate: () => void
+		onProviderUpdate: () => void,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService
 	) {
 		super(editor);
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, editor.getModel());
