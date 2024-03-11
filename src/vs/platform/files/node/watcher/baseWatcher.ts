@@ -9,7 +9,6 @@ import { ILogMessage, IUniversalWatchRequest, IWatcher } from 'vs/platform/files
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { GLOBSTAR } from 'vs/base/common/glob';
 
 export abstract class BaseWatcher extends Disposable implements IWatcher {
 
@@ -30,18 +29,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	protected readonly missingRequestPathPollingInterval: number | undefined;
 
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
-
-		// Keep track of all watch requests that do not exclude everything
-		this.allWatchRequests.clear();
-		for (const request of requests) {
-			if (request.excludes.includes(GLOBSTAR)) {
-				this.trace(`ignoring a watch request that excludes everything via '**': ${request.path}`);
-
-				continue;
-			}
-
-			this.allWatchRequests.add(request);
-		}
+		this.allWatchRequests = new Set([...requests]);
 
 		const correlationIds = new Set<number>();
 		for (const request of requests) {

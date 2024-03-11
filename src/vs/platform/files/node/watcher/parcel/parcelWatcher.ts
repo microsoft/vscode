@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { randomPath } from 'vs/base/common/extpath';
-import { ParsedPattern, patternsEquals } from 'vs/base/common/glob';
+import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -584,6 +584,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// Map request paths to correlation and ignore identical paths
 		const mapCorrelationtoRequests = new Map<number | undefined /* correlation */, Map<string, IRecursiveWatchRequest>>();
 		for (const request of requests) {
+			if (request.excludes.includes(GLOBSTAR)) {
+				continue; // path is ignored entirely (via `**` glob exclude)
+			}
+
 			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
 
 			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);

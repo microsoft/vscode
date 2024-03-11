@@ -50,18 +50,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 		}
 	}
 
-	class TestNodeJSFileWatcherLibrary extends NodeJSFileWatcherLibrary {
-
-		private readonly _whenDisposed = new DeferredPromise<void>();
-		readonly whenDisposed = this._whenDisposed.p;
-
-		override dispose(): void {
-			super.dispose();
-
-			this._whenDisposed.complete();
-		}
-	}
-
 	let testDir: string;
 	let watcher: TestNodeJSWatcher;
 
@@ -517,25 +505,42 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: false }]);
 	});
 
-	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('deleting watched path is handled properly (folder watch)', async function () {
+	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('deleting watched path emits event (folder watch)', async function () {
 		const watchedPath = join(testDir, 'deep');
 
-		const watcher = new TestNodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => { });
+		const didWatchFail = new DeferredPromise<void>();
+		const didEmitDelete = new DeferredPromise<void>();
+
+		const watcher = new NodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => {
+			if (changes.some(change => change.type === FileChangeType.DELETED && change.resource.fsPath === watchedPath)) {
+				didEmitDelete.complete();
+			}
+		}, () => didWatchFail.complete());
 		await watcher.ready;
 
-		// Delete watched path and ensure watcher is now disposed
 		Promises.rm(watchedPath, RimRafMode.UNLINK);
-		await watcher.whenDisposed;
+
+		await didWatchFail.p;
+		await didEmitDelete.p;
 	});
 
-	test('deleting watched path is handled properly (file watch)', async function () {
+	test('deleting watched path emits event (file watch)', async function () {
 		const watchedPath = join(testDir, 'lorem.txt');
-		const watcher = new TestNodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => { });
+
+		const didWatchFail = new DeferredPromise<void>();
+		const didEmitDelete = new DeferredPromise<void>();
+
+		const watcher = new NodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => {
+			if (changes.some(change => change.type === FileChangeType.DELETED && change.resource.fsPath === watchedPath)) {
+				didEmitDelete.complete();
+			}
+		}, () => didWatchFail.complete());
 		await watcher.ready;
 
-		// Delete watched path and ensure watcher is now disposed
 		Promises.unlink(watchedPath);
-		await watcher.whenDisposed;
+
+		await didWatchFail.p;
+		await didEmitDelete.p;
 	});
 
 	test('watchFileContents', async function () {
@@ -628,5 +633,15 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await Event.toPromise(watcher.onDidWatch);
 
 		await basicCrudTest(filePath, undefined, 1);
+	});
+
+	test('watching missing path emits event', async function () {
+		const watchedPath = join(testDir, 'missing');
+
+		const didWatchFail = new DeferredPromise<void>();
+		const watcher = new NodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, c => { }, () => didWatchFail.complete());
+		await watcher.ready;
+
+		await didWatchFail.p;
 	});
 });
