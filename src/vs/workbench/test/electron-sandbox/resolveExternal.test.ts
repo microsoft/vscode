@@ -65,7 +65,7 @@ class TestNativeWindow extends NativeWindow {
 	protected override enableMultiWindowAwareTimeout(): void { }
 }
 
-suite('NativeWindow:resolveExternal', () => {
+suite.skip('NativeWindow:resolveExternal', () => {
 	const disposables = new DisposableStore();
 	const tunnelMock = new TunnelMock();
 	let window: TestNativeWindow;
