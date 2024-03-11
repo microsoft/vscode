@@ -1602,7 +1602,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 		const defaults: EditorFindOptions = {
 			cursorMoveOnType: true,
 			seedSearchStringFromSelection: 'always',
-			autoFindInSelection: 'selection',
+			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true
