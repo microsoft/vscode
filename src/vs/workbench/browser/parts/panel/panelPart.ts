@@ -163,6 +163,10 @@ export class PanelPart extends AbstractPaneCompositePart {
 		]);
 	}
 
+	protected override getToolbarWidth(): number {
+		return super.getToolbarWidth() + 5; // 5px toolBar padding-left
+	}
+
 	override layout(width: number, height: number, top: number, left: number): void {
 		let dimensions: Dimension;
 		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
