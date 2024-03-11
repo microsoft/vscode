@@ -9,11 +9,11 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
-import { NodeJSFileWatcherLibrary, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
+import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { FileAccess } from 'vs/base/common/network';
@@ -40,15 +40,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 			await super.doWatch(requests);
-			await this.whenReady();
-
-			this._onDidWatch.fire();
-		}
-
-		async whenReady(): Promise<void> {
 			for (const [, watcher] of this.watchers) {
 				await watcher.instance.ready;
 			}
+
+			this._onDidWatch.fire();
 		}
 	}
 
@@ -618,6 +614,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 			await changeFuture;
 			await onDidWatch;
 
+			await timeout(500); // somehow needed on Linux
+
 			await basicCrudTest(filePath, undefined, 1);
 		}
 	});
@@ -638,6 +636,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await Promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
+
+		await timeout(500); // somehow needed on Linux
 
 		await basicCrudTest(filePath, undefined, 1);
 	});
