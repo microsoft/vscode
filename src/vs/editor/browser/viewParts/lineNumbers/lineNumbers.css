@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .margin-view-overlays .line-numbers {
-	bottom: 0;
 	font-variant-numeric: tabular-nums;
 	position: absolute;
 	text-align: right;
@@ -12,6 +11,7 @@
 	vertical-align: middle;
 	box-sizing: border-box;
 	cursor: default;
+	height: 100%;
 }
 
 .monaco-editor .relative-current-line-number {
