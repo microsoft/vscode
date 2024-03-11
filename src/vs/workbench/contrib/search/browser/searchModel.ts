@@ -26,7 +26,7 @@ import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/co
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -41,7 +41,7 @@ import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, I
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { rawCellPrefix, INotebookCellMatchNoModel, isINotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
 
@@ -1984,6 +1984,7 @@ export class SearchModel extends Disposable {
 	private _preserveCase: boolean = false;
 	private _startStreamDelay: Promise<void> = Promise.resolve();
 	private readonly _resultQueue: IFileMatch[] = [];
+	private readonly _aiResultQueue: IFileMatch[] = [];
 	private _aiResultsEnabled = false;
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
@@ -2005,6 +2006,7 @@ export class SearchModel extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookSearchService private readonly notebookSearchService: INotebookSearchService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
@@ -2052,23 +2054,21 @@ export class SearchModel extends Disposable {
 	}
 
 	async addAIResults(onProgress?: (result: ISearchProgressItem) => void) {
-		if (this._aiResultsEnabled) {
+		if (this.searchResult.count(true)) {
+			// already has matches
 			return;
 		} else {
 			if (this._searchQuery) {
 				const start = Date.now();
 				const searchInstanceID = Date.now().toString();
-				const asyncAIResults = this.searchService.aiTextSearch(
+				await this.doAISearch(
 					{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
-					this.currentCancelTokenSource?.token, async (p: ISearchProgressItem) => {
-						this.onSearchProgress(p, searchInstanceID, false);
-						onProgress?.(p);
-					});
-
-
-				await asyncAIResults.then(
+					searchInstanceID,
+					this.currentCancelTokenSource?.token,
+					onProgress
+				).then(
 					value => {
-						this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
+						this.onSearchCompleted(value, Date.now() - start, searchInstanceID);
 						return value;
 					},
 					e => {
@@ -2078,6 +2078,20 @@ export class SearchModel extends Disposable {
 			}
 			this._aiResultsEnabled = true;
 		}
+	}
+
+	private async doAISearch(searchQuery: IAITextQuery, searchInstanceID: string, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void) {
+		const promise = this.searchService.aiTextSearch(
+			searchQuery,
+			token, async (p: ISearchProgressItem) => {
+				this.onSearchProgress(p, searchInstanceID, false, true);
+				onProgress?.(p);
+			});
+		return this.progressService.withProgress<ISearchComplete>({
+			location: ProgressLocation.Notification,
+			type: 'syncing',
+			title: 'Searching for AI results...',
+		}, async (_) => promise);
 	}
 
 	private doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
@@ -2105,8 +2119,8 @@ export class SearchModel extends Disposable {
 			notebookResult.allScannedFiles,
 		);
 
-		const asyncAIResults = this._aiResultsEnabled ? this.searchService.aiTextSearch(
-			{ ...searchQuery, contentPattern: searchQuery.contentPattern.pattern, type: QueryType.aiText },
+		const asyncAIResults = this._aiResultsEnabled ? this.doAISearch({ ...searchQuery, contentPattern: searchQuery.contentPattern.pattern, type: QueryType.aiText },
+			searchInstanceID,
 			this.currentCancelTokenSource.token, async (p: ISearchProgressItem) => {
 				progressEmitter.fire();
 				this.onSearchProgress(p, searchInstanceID, false, true);
@@ -2217,13 +2231,16 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string, ai = false): ISearchComplete | undefined {
+	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string): ISearchComplete | undefined {
 		if (!this._searchQuery) {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
 
-		this._searchResult.add(this._resultQueue, searchInstanceID, ai);
+		this._searchResult.add(this._resultQueue, searchInstanceID, false);
 		this._resultQueue.length = 0;
+
+		this._searchResult.add(this._aiResultQueue, searchInstanceID, true);
+		this._aiResultQueue.length = 0;
 
 		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
 		delete (options as any).pattern;
@@ -2271,19 +2288,20 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchProgress(p: ISearchProgressItem, searchInstanceID: string, sync = true, ai = false) {
+	private onSearchProgress(p: ISearchProgressItem, searchInstanceID: string, sync = true, ai: boolean = false) {
+		const targetQueue = ai ? this._aiResultQueue : this._resultQueue;
 		if ((<IFileMatch>p).resource) {
-			this._resultQueue.push(<IFileMatch>p);
+			targetQueue.push(<IFileMatch>p);
 			if (sync) {
-				if (this._resultQueue.length) {
-					this._searchResult.add(this._resultQueue, searchInstanceID, ai, true);
-					this._resultQueue.length = 0;
+				if (targetQueue.length) {
+					this._searchResult.add(targetQueue, searchInstanceID, false, true);
+					targetQueue.length = 0;
 				}
 			} else {
 				this._startStreamDelay.then(() => {
-					if (this._resultQueue.length) {
-						this._searchResult.add(this._resultQueue, searchInstanceID, ai, true);
-						this._resultQueue.length = 0;
+					if (targetQueue.length) {
+						this._searchResult.add(targetQueue, searchInstanceID, ai, true);
+						targetQueue.length = 0;
 					}
 				});
 			}

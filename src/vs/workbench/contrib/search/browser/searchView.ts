@@ -159,6 +159,7 @@ export class SearchView extends ViewPane {
 
 	private treeViewKey: IContextKey<boolean>;
 	private aiResultsVisibleKey: IContextKey<boolean>;
+	private hasAISettingEnabledKey: IContextKey<boolean>;
 
 	private _visibleMatches: number = 0;
 
@@ -220,7 +221,8 @@ export class SearchView extends ViewPane {
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
 		this.aiResultsVisibleKey = Constants.SearchContext.AIResultsVisibleKey.bindTo(this.contextKeyService);
-		const hasAISettingEnabledKey = Constants.SearchContext.hasAISettingEnabled.bindTo(this.contextKeyService);
+		this.hasAISettingEnabledKey = Constants.SearchContext.hasAISettingEnabled.bindTo(this.contextKeyService);
+		this.refreshHasAISetting();
 
 		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
@@ -242,10 +244,7 @@ export class SearchView extends ViewPane {
 				}
 				this.refreshTree();
 			} else if (e.affectsConfiguration('search.aiResults')) {
-				const val = this.configurationService.getValue<boolean>('search.aiResults');
-				if (val) {
-					hasAISettingEnabledKey.set(val);
-				}
+				this.refreshHasAISetting();
 			}
 		});
 
@@ -328,8 +327,10 @@ export class SearchView extends ViewPane {
 			await this.model.addAIResults();
 		} else {
 			this.model.disableAIResults();
+			this.searchWidget.toggleReplace(false);
 		}
 		this.onSearchResultsChanged();
+		this.onSearchComplete(() => { }, undefined, undefined, { results: [], messages: [] });
 	}
 
 	private get state(): SearchUIState {
@@ -352,6 +353,12 @@ export class SearchView extends ViewPane {
 		return this.viewModel;
 	}
 
+	private refreshHasAISetting() {
+		const val = this.configurationService.getValue<boolean>('search.aiResults');
+		if (val) {
+			this.hasAISettingEnabledKey.set(!!val);
+		}
+	}
 	private onDidChangeWorkbenchState(): void {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageElement) {
 			dom.hide(this.searchWithoutFolderMessageElement);

@@ -212,12 +212,12 @@ registerAction2(class ViewAIResultsAction extends Action2 {
 			title: nls.localize2('ViewAIResultsAction.label', "Show AI Results"),
 			category,
 			icon: searchSparkleEmpty,
-			precondition: ContextKeyExpr.and(Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.AIResultsVisibleKey.toNegated()),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey.toNegated()),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.AIResultsVisibleKey.toNegated()), // disabled for now
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey.toNegated()), // disabled for now
 			}]
 		});
 	}
@@ -236,12 +236,12 @@ registerAction2(class HideAIResultsAction extends Action2 {
 			title: nls.localize2('HideAIResultsAction.label', "Hide AI Results"),
 			category,
 			icon: searchSparkleFilled,
-			precondition: ContextKeyExpr.and(Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.AIResultsVisibleKey),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.AIResultsVisibleKey), // disabled for now
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey), // disabled for now
 			}]
 		});
 	}
