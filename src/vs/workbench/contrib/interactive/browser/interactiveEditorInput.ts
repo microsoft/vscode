@@ -17,7 +17,7 @@ import { EditorInputCapabilities, GroupIdentifier, IRevertOptions, ISaveOptions,
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IResolvedNotebookEditorModel, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -100,7 +100,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	) {
 		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, 'interactive', {});
 		super();
-		this.isScratchpad = configurationService.getValue<boolean>('interactiveWindow.promptSaveOnClose') !== true;
+		this.isScratchpad = configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
 		this.name = title ?? InteractiveEditorInput.windowNames[resource.path] ?? paths.basename(resource.path, paths.extname(resource.path));
