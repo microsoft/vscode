@@ -36,6 +36,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 		private readonly _onDidWatch = this._register(new Emitter<void>());
 		readonly onDidWatch = this._onDidWatch.event;
 
+		readonly onWatchFail = this._onDidWatchFail.event;
+
 		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 			await super.doWatch(requests);
 			await this.whenReady();
@@ -580,7 +582,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 		const filePath = join(testDir, 'not-found.txt');
 		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
 
+		const didWatchFail = Event.toPromise(watcher.onWatchFail);
 		await basicCrudTest(filePath, undefined, 1, undefined, true);
+		await didWatchFail;
+
 		await basicCrudTest(filePath, undefined, 1, undefined, true);
 	});
 
@@ -588,13 +593,19 @@ import { Emitter, Event } from 'vs/base/common/event';
 		const filePath = join(testDir, 'lorem.txt');
 		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
 
+		const didWatchFail = Event.toPromise(watcher.onWatchFail);
 		await basicCrudTest(filePath, true, 1);
+		await didWatchFail;
+
 		await basicCrudTest(filePath, undefined, 1, undefined, true);
 	});
 
 	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
+		let didWatchFail = Event.toPromise(watcher.onWatchFail);
+
 		const folderPath = join(testDir, 'not-found');
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+		await didWatchFail;
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
 		await Promises.mkdir(folderPath);
@@ -604,44 +615,45 @@ import { Emitter, Event } from 'vs/base/common/event';
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath, undefined, 1);
 
-		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
-		await Promises.rmdir(folderPath);
-		await changeFuture;
+		if (!isMacintosh) { // macOS does not report DELETE events for folders
+			didWatchFail = Event.toPromise(watcher.onWatchFail);
+			await Promises.rmdir(folderPath);
+			await didWatchFail;
 
-		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
-		await Promises.mkdir(folderPath);
-		await changeFuture;
-		await Event.toPromise(watcher.onDidWatch);
+			changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+			await Promises.mkdir(folderPath);
+			await changeFuture;
+			await Event.toPromise(watcher.onDidWatch);
 
-		await basicCrudTest(filePath, undefined, 1);
+			await basicCrudTest(filePath, undefined, 1);
+		}
 	});
 
-	test('correlated watch requests support suspend/resume (folder, exists in beginning)', async function () {
+	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('correlated watch requests support suspend/resume (folder, exists in beginning)', async function () {
 		const folderPath = join(testDir, 'deep');
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
 
-		const filePath = join(folderPath, 'newFile.txt');
-		await basicCrudTest(filePath, undefined, 1);
-
+		const didWatchFail = Event.toPromise(watcher.onWatchFail);
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
 		await Promises.rm(folderPath);
 		await changeFuture;
+		await didWatchFail;
 
 		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
 		await Promises.mkdir(folderPath);
 		await changeFuture;
 		await Event.toPromise(watcher.onDidWatch);
 
+		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath, undefined, 1);
 	});
 
 	test('watching missing path emits watcher fail event', async function () {
-		const watchedPath = join(testDir, 'missing');
+		const didWatchFail = Event.toPromise(watcher.onWatchFail);
 
-		const didWatchFail = new DeferredPromise<void>();
-		const watcher = new NodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, c => { }, () => didWatchFail.complete());
-		await watcher.ready;
+		const folderPath = join(testDir, 'missing');
+		watcher.watch([{ path: folderPath, excludes: [], recursive: true }]);
 
-		await didWatchFail.p;
+		await didWatchFail;
 	});
 });

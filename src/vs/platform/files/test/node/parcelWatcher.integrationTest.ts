@@ -670,8 +670,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 	});
 
 	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async () => {
+		let didWatchFail = Event.toPromise(watcher.onWatchFail);
+
 		const folderPath = join(testDir, 'not-found');
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+		await didWatchFail;
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
 		let onDidWatch = Event.toPromise(watcher.onDidWatch);
@@ -681,11 +684,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 		await basicCrudTest(join(folderPath, 'newFile.txt'), 1);
 
-		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
-		onDidWatch = Event.toPromise(watcher.onDidWatch);
+		didWatchFail = Event.toPromise(watcher.onWatchFail);
 		await Promises.rm(folderPath);
-		await changeFuture;
-		await onDidWatch;
+		await didWatchFail;
 
 		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
 		onDidWatch = Event.toPromise(watcher.onDidWatch);
@@ -700,14 +701,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 		const folderPath = join(testDir, 'deep');
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
 
-		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
-		let onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await Promises.rm(folderPath);
-		await changeFuture;
-		await onDidWatch;
+		await basicCrudTest(join(folderPath, 'newFile.txt'), 1);
 
-		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
-		onDidWatch = Event.toPromise(watcher.onDidWatch);
+		const didWatchFail = Event.toPromise(watcher.onWatchFail);
+		await Promises.rm(folderPath);
+		await didWatchFail;
+
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		const onDidWatch = Event.toPromise(watcher.onDidWatch);
 		await Promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
@@ -719,7 +720,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 		const didWatchFail = Event.toPromise(watcher.onWatchFail);
 
 		const folderPath = join(testDir, 'missing');
-		watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+		watcher.watch([{ path: folderPath, excludes: [], recursive: true }]);
 
 		await didWatchFail;
 	});
