@@ -239,8 +239,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		store: DisposableStore,
 	): HTMLElement {
 
-		const contents = $('div.hover-row');
-		contents.tabIndex = 0;
+		const contentsWrapper = $('div.hover-row');
+		contentsWrapper.tabIndex = 0;
+		const contents = $('div.hover-row-contents');
+		contentsWrapper.appendChild(contents);
 		renderMarkdownInContainer(
 			this._editor,
 			this._context,
@@ -251,20 +253,20 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			store
 		);
 		if (!verbosityMetadata || !this._context || !this._context.disposables || !this._verbosityLevels) {
-			return contents;
+			return contentsWrapper;
 		}
 		const actionsContainer = $('div.expansion-actions');
-		contents.appendChild(actionsContainer);
+		contentsWrapper.appendChild(actionsContainer);
 
 		this._renderHoverExpansionAction(actionsContainer, { extend: true, enabled: verbosityMetadata.canIncreaseVerbosity ?? false }, store);
 		this._renderHoverExpansionAction(actionsContainer, { extend: false, enabled: verbosityMetadata.canDecreaseVerbosity ?? false }, store);
 
-		const focusTracker = this._context.disposables.add(dom.trackFocus(contents));
+		const focusTracker = this._context.disposables.add(dom.trackFocus(contentsWrapper));
 		this._context.disposables.add(focusTracker.onDidFocus(() => {
 			const focusRemains = this._focusMetadata.focusRemains;
 			this._focusMetadata = {
 				index: hoverIndex,
-				element: contents,
+				element: contentsWrapper,
 				focusRemains
 			};
 		}));
@@ -279,7 +281,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				focusRemains: false
 			};
 		}));
-		return contents;
+		return contentsWrapper;
 	}
 
 	private _renderHoverExpansionAction(container: HTMLElement, expansionMetadata: { extend: boolean; enabled: boolean }, store: DisposableStore): void {

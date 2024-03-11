@@ -27,11 +27,6 @@
 	padding: 4px 8px;
 }
 
-.monaco-hover .markdown-hover {
-	display: flex;
-	align-items: center;
-}
-
 .monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
 	max-width: var(--vscode-hover-maxWidth, 500px);
 	word-wrap: break-word;
@@ -114,6 +109,11 @@
 	white-space: var(--vscode-hover-sourceWhiteSpace, pre-wrap);
 }
 
+.monaco-hover .hover-row .hover-row-contents {
+	display: grid;
+	place-content: center;
+}
+
 .monaco-hover .hover-row.status-bar {
 	font-size: 12px;
 	line-height: 22px;
@@ -174,6 +174,11 @@
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span {
 	margin-bottom: 4px;
 	display: inline-block;
+}
+
+.monaco-hover-content {
+	padding-right: 2px;
+	box-sizing: border-box;
 }
 
 .monaco-hover-content .action-container a {
