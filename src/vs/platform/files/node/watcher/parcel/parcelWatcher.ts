@@ -465,6 +465,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 		// Do monitoring of the request path parent unless this request
 		// can be handled via suspend/resume in the super class
+		//
 		// TODO@bpasero we should remove this logic in favor of the
 		// support in the super class so that we have 1 consistent
 		// solution for handling this.
