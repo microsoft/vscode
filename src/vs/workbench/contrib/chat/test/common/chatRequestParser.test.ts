@@ -117,7 +117,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent with subcommand after text', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getRegisteredAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
+		agentsService.getAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -127,7 +127,7 @@ suite('ChatRequestParser', () => {
 
 	test('agents, subCommand', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getRegisteredAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
+		agentsService.getAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -137,7 +137,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent with question mark', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getRegisteredAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
+		agentsService.getAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -147,7 +147,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent and subcommand with leading whitespace', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getRegisteredAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
+		agentsService.getAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -157,7 +157,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent and subcommand after newline', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getRegisteredAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
+		agentsService.getAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -167,7 +167,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent not first', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getRegisteredAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
+		agentsService.getAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -177,7 +177,7 @@ suite('ChatRequestParser', () => {
 
 	test('agents and variables and multiline', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getRegisteredAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
+		agentsService.getAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		varService.hasVariable.returns(true);
@@ -189,7 +189,7 @@ suite('ChatRequestParser', () => {
 
 	test('agents and variables and multiline, part2', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getRegisteredAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
+		agentsService.getAgent.returns(getAgentWithSlashCommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		varService.hasVariable.returns(true);

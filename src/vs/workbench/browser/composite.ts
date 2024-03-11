@@ -36,17 +36,13 @@ export abstract class Composite extends Component implements IComposite {
 	private readonly _onTitleAreaUpdate = this._register(new Emitter<void>());
 	readonly onTitleAreaUpdate = this._onTitleAreaUpdate.event;
 
-	private _onDidFocus: Emitter<void> | undefined;
+	protected _onDidFocus: Emitter<void> | undefined;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
 			this._onDidFocus = this.registerFocusTrackEvents().onDidFocus;
 		}
 
 		return this._onDidFocus.event;
-	}
-
-	protected fireOnDidFocus(): void {
-		this._onDidFocus?.fire();
 	}
 
 	private _onDidBlur: Emitter<void> | undefined;
@@ -86,22 +82,16 @@ export abstract class Composite extends Component implements IComposite {
 
 	protected actionRunner: IActionRunner | undefined;
 
-	private _telemetryService: ITelemetryService;
-	protected get telemetryService(): ITelemetryService { return this._telemetryService; }
-
-	private visible: boolean;
+	private visible = false;
 	private parent: HTMLElement | undefined;
 
 	constructor(
 		id: string,
-		telemetryService: ITelemetryService,
+		protected readonly telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		storageService: IStorageService
 	) {
 		super(id, themeService, storageService);
-
-		this._telemetryService = telemetryService;
-		this.visible = false;
 	}
 
 	getTitle(): string | undefined {

@@ -88,7 +88,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 						additionalProperties: false,
 						type: 'object',
 						defaultSnippets: [{ body: { name: '', description: '' } }],
-						required: ['name', 'description'],
+						required: ['name'],
 						properties: {
 							name: {
 								description: localize('chatCommand', "A short name by which this command is referred to in the UI, e.g. `fix` or * `explain` for commands that fix an issue or explain code. The name should be unique among the commands provided by this participant."),

@@ -55,7 +55,8 @@
           _lower: "nullextensiondescription"
         },
         metadata: { description: undefined },
-        slashCommands: [  ]
+        slashCommands: [  ],
+        isDefault: undefined
       },
       slashCommand: undefined,
       usedContext: {

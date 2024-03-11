@@ -24,8 +24,8 @@ export class TimestampWidget extends Disposable {
 		this._date = dom.append(container, dom.$('span.timestamp'));
 		this._date.style.display = 'none';
 		this._useRelativeTime = this.useRelativeTimeSetting;
-		this.setTimestamp(timeStamp);
 		this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._date, ''));
+		this.setTimestamp(timeStamp);
 	}
 
 	private get useRelativeTimeSetting(): boolean {

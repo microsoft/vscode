@@ -61,7 +61,7 @@ import {
 	InstallDropdownAction, InstallingLabelAction,
 	LocalInstallAction,
 	MigrateDeprecatedExtensionAction,
-	ReloadAction,
+	ExtensionRuntimeStateAction,
 	RemoteInstallAction,
 	SetColorThemeAction,
 	SetFileIconThemeAction,
@@ -315,7 +315,7 @@ export class ExtensionEditor extends EditorPane {
 
 		const installAction = this.instantiationService.createInstance(InstallDropdownAction);
 		const actions = [
-			this.instantiationService.createInstance(ReloadAction),
+			this.instantiationService.createInstance(ExtensionRuntimeStateAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
 				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, true, [true, 'onlyEnabledExtensions'])]]),
@@ -683,7 +683,7 @@ export class ExtensionEditor extends EditorPane {
 			webview.setHtml(body);
 			webview.claim(this, this.window, undefined);
 
-			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
+			this.contentDisposables.add(webview.onDidFocus(() => this._onDidFocus?.fire()));
 
 			this.contentDisposables.add(webview.onDidScroll(() => this.initialScrollProgress.set(webviewIndex, webview.initialScrollProgress)));
 

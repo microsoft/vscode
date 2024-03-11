@@ -39,6 +39,16 @@ export const enum ExtensionState {
 	Uninstalled
 }
 
+export const enum ExtensionRuntimeActionType {
+	ReloadWindow = 'reloadWindow',
+	RestartExtensions = 'restartExtensions',
+	DownloadUpdate = 'downloadUpdate',
+	ApplyUpdate = 'applyUpdate',
+	QuitAndInstall = 'quitAndInstall',
+}
+
+export type ExtensionRuntimeState = { action: ExtensionRuntimeActionType; reason: string };
+
 export interface IExtension {
 	readonly type: ExtensionType;
 	readonly isBuiltin: boolean;
@@ -69,7 +79,7 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly outdatedTargetPlatform: boolean;
-	readonly reloadRequiredStatus?: string;
+	readonly runtimeState: ExtensionRuntimeState | undefined;
 	readonly enablementState: EnablementState;
 	readonly tags: readonly string[];
 	readonly categories: readonly string[];
@@ -130,6 +140,7 @@ export interface IExtensionsWorkbenchService {
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
+	updateRunningExtensions(): Promise<void>;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
