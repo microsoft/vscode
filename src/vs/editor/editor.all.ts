@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/editor/browser/coreCommands';
-import 'vs/editor/browser/widget/codeEditorWidget';
+import 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
 import 'vs/editor/contrib/anchorSelect/browser/anchorSelect';
 import 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
@@ -41,6 +41,7 @@ import 'vs/editor/contrib/linkedEditing/browser/linkedEditing';
 import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/longLinesHelper/browser/longLinesHelper';
 import 'vs/editor/contrib/multicursor/browser/multicursor';
+import 'vs/editor/contrib/inlineEdit/browser/inlineEdit.contribution';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/semanticTokens/browser/documentSemanticTokens';

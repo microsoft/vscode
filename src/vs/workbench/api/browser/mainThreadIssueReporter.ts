@@ -13,7 +13,8 @@ import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } f
 @extHostNamedCustomer(MainContext.MainThreadIssueReporter)
 export class MainThreadIssueReporter extends Disposable implements MainThreadIssueReporterShape {
 	private readonly _proxy: ExtHostIssueReporterShape;
-	private readonly _registrations = this._register(new DisposableMap<string>());
+	private readonly _registrationsUri = this._register(new DisposableMap<string>());
+	private readonly _registrationsData = this._register(new DisposableMap<string>());
 
 	constructor(
 		context: IExtHostContext,
@@ -30,11 +31,11 @@ export class MainThreadIssueReporter extends Disposable implements MainThreadIss
 				return URI.from(parts);
 			}
 		};
-		this._registrations.set(extensionId, this._issueService.registerIssueUriRequestHandler(extensionId, handler));
+		this._registrationsUri.set(extensionId, this._issueService.registerIssueUriRequestHandler(extensionId, handler));
 	}
 
 	$unregisterIssueUriRequestHandler(extensionId: string): void {
-		this._registrations.deleteAndDispose(extensionId);
+		this._registrationsUri.deleteAndDispose(extensionId);
 	}
 
 	$registerIssueDataProvider(extensionId: string): void {
@@ -48,10 +49,10 @@ export class MainThreadIssueReporter extends Disposable implements MainThreadIss
 				return parts;
 			}
 		};
-		this._registrations.set(extensionId, this._issueService.registerIssueDataProvider(extensionId, provider));
+		this._registrationsData.set(extensionId, this._issueService.registerIssueDataProvider(extensionId, provider));
 	}
 
 	$unregisterIssueDataProvider(extensionId: string): void {
-		this._registrations.deleteAndDispose(extensionId);
+		this._registrationsData.deleteAndDispose(extensionId);
 	}
 }

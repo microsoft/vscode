@@ -205,7 +205,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		if (!this._terminalInstance) {
 			return [];
 		}
-		const extraClasses: string[] = ['terminal-tab', 'product-icon'];
+		const extraClasses: string[] = ['terminal-tab', 'predefined-file-icon'];
 		const colorClass = getColorClass(this._terminalInstance);
 		if (colorClass) {
 			extraClasses.push(colorClass);

@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { patternsEquals } from 'vs/base/common/glob';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { isLinux } from 'vs/base/common/platform';
-import { IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 
 export interface INodeJSWatcherInstance {
@@ -24,13 +23,7 @@ export interface INodeJSWatcherInstance {
 	readonly request: INonRecursiveWatchRequest;
 }
 
-export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
-
-	private readonly _onDidChangeFile = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
-
-	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage = this._onDidLogMessage.event;
+export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 
 	readonly onDidError = Event.None;
 
@@ -38,7 +31,7 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 
 	private verboseLogging = false;
 
-	async watch(requests: INonRecursiveWatchRequest[]): Promise<void> {
+	protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 
 		// Figure out duplicates to remove from the requests
 		const normalizedRequests = this.normalizeRequests(requests);
@@ -90,7 +83,9 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 		this.watchers.set(request.path, watcher);
 	}
 
-	async stop(): Promise<void> {
+	override async stop(): Promise<void> {
+		await super.stop();
+
 		for (const [path] of this.watchers) {
 			this.stopWatching(path);
 		}
@@ -134,13 +129,19 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 		}
 	}
 
-	private trace(message: string): void {
+	protected trace(message: string): void {
 		if (this.verboseLogging) {
 			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message) });
 		}
 	}
 
-	private toMessage(message: string, watcher?: INodeJSWatcherInstance): string {
-		return watcher ? `[File Watcher (node.js)] ${message} (path: ${watcher.request.path})` : `[File Watcher (node.js)] ${message}`;
+	protected warn(message: string): void {
+		if (this.verboseLogging) {
+			this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message) });
+		}
+	}
+
+	private toMessage(message: string): string {
+		return `[File Watcher (node.js)] ${message}`;
 	}
 }

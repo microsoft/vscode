@@ -19,7 +19,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 
 const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	return {
-		type: ['string', 'boolean'],
+		type: 'string',
 		enum: ['always', 'explicit', 'never', true, false],
 		enumDescriptions: [
 			nls.localize('alwaysSave', 'Triggers Code Actions on explicit saves and auto saves triggered by window or focus changes.'),
@@ -28,7 +28,7 @@ const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 			nls.localize('explicitSaveBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "explicit".'),
 			nls.localize('neverSaveBoolean', 'Never triggers Code Actions on save. This value will be deprecated in favor of "never".')
 		],
-		default: true,
+		default: 'explicit',
 		description: description
 	};
 };
@@ -43,7 +43,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			type: 'object',
 			properties: codeActionsOnSaveDefaultProperties,
 			additionalProperties: {
-				type: ['string', 'boolean']
+				type: 'string'
 			},
 		},
 		{
@@ -54,7 +54,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run Code Actions for the editor on save. Code Actions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
 	type: ['object', 'array'],
 	additionalProperties: {
-		type: ['string', 'boolean'],
+		type: 'string',
 		enum: ['always', 'explicit', 'never', true, false],
 	},
 	default: {},

@@ -50,10 +50,7 @@ use crate::{
 		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
 	},
 	util::{
-		app_lock::AppMutex,
-		command::new_std_command,
-		errors::{wrap, AnyError, CodeError},
-		prereqs::PreReqChecker,
+		app_lock::AppMutex, command::new_std_command, errors::{wrap, AnyError, CodeError}, machine::canonical_exe, prereqs::PreReqChecker
 	},
 };
 use crate::{
@@ -231,7 +228,7 @@ pub async fn service(
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 			let current_exe =
-				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+				canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 
 			manager
 				.register(

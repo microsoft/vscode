@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -21,7 +21,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
+import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./media/quickInput';
@@ -30,6 +30,8 @@ import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEve
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -46,7 +48,11 @@ export interface IQuickInputOptions {
 		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 	): List<T>;
-	hoverDelegate?: IHoverDelegate;
+	/**
+	 * @todo With IHover in vs/editor, can we depend on the service directly
+	 * instead of passing it through a hover delegate?
+	 */
+	hoverDelegate: IHoverDelegate;
 	styles: IQuickInputStyles;
 }
 
@@ -156,6 +162,7 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _lastSeverity: Severity | undefined;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
+	private readonly onWillHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
 	private readonly onDisposeEmitter = this._register(new Emitter<void>());
 
 	protected readonly visibleDisposables = this._register(new DisposableStore());
@@ -345,6 +352,11 @@ class QuickInput extends Disposable implements IQuickInput {
 	}
 
 	readonly onDidHide = this.onDidHideEmitter.event;
+
+	willHide(reason = QuickInputHideReason.Other): void {
+		this.onWillHideEmitter.fire({ reason });
+	}
+	readonly onWillHide = this.onWillHideEmitter.event;
 
 	protected update() {
 		if (!this.visible) {
@@ -814,20 +826,25 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				this.ui.inputBox.onDidChange(value => {
 					this.doSetValue(value, true /* skip update since this originates from the UI */);
 				}));
+			// Keybindings for the input box or list if there is no input box
 			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
-						this.ui.list.focus(QuickInputListFocus.Next);
+						if (isMacintosh ? event.metaKey : event.ctrlKey) {
+							this.ui.list.focus(QuickInputListFocus.NextSeparator);
+						} else {
+							this.ui.list.focus(QuickInputListFocus.Next);
+						}
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
 						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.UpArrow:
-						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus(QuickInputListFocus.Previous);
+						if (isMacintosh ? event.metaKey : event.ctrlKey) {
+							this.ui.list.focus(QuickInputListFocus.PreviousSeparator);
 						} else {
-							this.ui.list.focus(QuickInputListFocus.Last);
+							this.ui.list.focus(QuickInputListFocus.Previous);
 						}
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
@@ -1249,5 +1266,36 @@ export class QuickWidget extends QuickInput implements IQuickWidget {
 
 		this.ui.setVisibilities(visibilities);
 		super.update();
+	}
+}
+
+export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService
+	) {
+		super('element', false, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+	}
+
+	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
+		// Only show the hover hint if the content is of a decent size
+		const showHoverHint = (
+			options.content instanceof HTMLElement
+				? options.content.textContent ?? ''
+				: typeof options.content === 'string'
+					? options.content
+					: options.content.value
+		).includes('\n');
+
+		return {
+			persistence: {
+				hideOnKeyDown: false,
+			},
+			appearance: {
+				showHoverHint,
+				skipFadeInAnimation: true,
+			},
+		};
 	}
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { CallHierarchyProviderRegistry, CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -179,14 +179,15 @@ registerAction2(class PeekCallHierarchyAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.showCallHierarchy',
-			title: { value: localize('title', "Peek Call Hierarchy"), original: 'Peek Call Hierarchy' },
+			title: localize2('title', 'Peek Call Hierarchy'),
 			menu: {
 				id: MenuId.EditorContextPeek,
 				group: 'navigation',
 				order: 1000,
 				when: ContextKeyExpr.and(
 					_ctxHasCallHierarchyProvider,
-					PeekContext.notInPeekEditor
+					PeekContext.notInPeekEditor,
+					EditorContextKeys.isInEmbeddedEditor.toNegated(),
 				),
 			},
 			keybinding: {
@@ -212,7 +213,7 @@ registerAction2(class extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.showIncomingCalls',
-			title: { value: localize('title.incoming', "Show Incoming Calls"), original: 'Show Incoming Calls' },
+			title: localize2('title.incoming', 'Show Incoming Calls'),
 			icon: registerIcon('callhierarchy-incoming', Codicon.callIncoming, localize('showIncomingCallsIcons', 'Icon for incoming calls in the call hierarchy view.')),
 			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsFrom)),
 			keybinding: {
@@ -237,7 +238,7 @@ registerAction2(class extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.showOutgoingCalls',
-			title: { value: localize('title.outgoing', "Show Outgoing Calls"), original: 'Show Outgoing Calls' },
+			title: localize2('title.outgoing', 'Show Outgoing Calls'),
 			icon: registerIcon('callhierarchy-outgoing', Codicon.callOutgoing, localize('showOutgoingCallsIcon', 'Icon for outgoing calls in the call hierarchy view.')),
 			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsTo)),
 			keybinding: {
@@ -263,7 +264,7 @@ registerAction2(class extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.refocusCallHierarchy',
-			title: { value: localize('title.refocus', "Refocus Call Hierarchy"), original: 'Refocus Call Hierarchy' },
+			title: localize2('title.refocus', 'Refocus Call Hierarchy'),
 			precondition: _ctxCallHierarchyVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

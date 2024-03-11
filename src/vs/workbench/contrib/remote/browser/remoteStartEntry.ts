@@ -44,7 +44,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	}
 
 	private registerActions(): void {
-		const category = { value: nls.localize('remote.category', "Remote"), original: 'Remote' };
+		const category = nls.localize2('remote.category', "Remote");
 
 		// Show Remote Start Action
 		const startEntry = this;
@@ -53,7 +53,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 				super({
 					id: RemoteStartEntry.REMOTE_WEB_START_ENTRY_ACTIONS_COMMAND_ID,
 					category,
-					title: { value: nls.localize('remote.showWebStartEntryActions', "Show Remote Start Entry for web"), original: 'Show Remote Start Entry for web' },
+					title: nls.localize2('remote.showWebStartEntryActions', "Show Remote Start Entry for web"),
 					f1: false
 				});
 			}

@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { $ } from 'vs/base/browser/dom';
 import { unthemedMenuStyles } from 'vs/base/browser/ui/menu/menu';
 import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function getButtonElementByAriaLabel(menubarElement: HTMLElement, ariaLabel: string): HTMLElement | null {
 	let i;
@@ -53,14 +54,15 @@ function validateMenuBarItem(menubar: MenuBar, menubarContainer: HTMLElement, la
 	const buttonElement = getButtonElementByAriaLabel(menubarContainer, readableLabel);
 	assert(buttonElement !== null, `Button element not found for ${readableLabel} button.`);
 
-	const titleDiv = getTitleDivFromButtonDiv(buttonElement!);
+	const titleDiv = getTitleDivFromButtonDiv(buttonElement);
 	assert(titleDiv !== null, `Title div not found for ${readableLabel} button.`);
 
-	const mnem = getMnemonicFromTitleDiv(titleDiv!);
+	const mnem = getMnemonicFromTitleDiv(titleDiv);
 	assert.strictEqual(mnem, mnemonic, 'Mnemonic not correct');
 }
 
 suite('Menubar', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const container = $('.container');
 
 	const menubar = new MenuBar(container, {

@@ -10,7 +10,7 @@ import * as browser from 'vs/base/browser/browser';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import * as dom from 'vs/base/browser/dom';
 import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -183,6 +183,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _cachedResolver: KeybindingResolver | null;
 	private userKeybindings: UserKeybindings;
 	private isComposingGlobalContextKey: IContextKey<boolean>;
+	private _keybindingHoldMode: DeferredPromise<void> | null;
 	private readonly _contributions: KeybindingsSchemaContribution[] = [];
 	private readonly kbsJsonSchema: KeybindingsJsonSchema;
 
@@ -212,6 +213,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this.updateResolver();
 		});
 
+		this._keybindingHoldMode = null;
 		this._cachedResolver = null;
 
 		this.userKeybindings = this._register(new UserKeybindings(userDataProfileService, uriIdentityService, fileService, logService));
@@ -241,14 +243,18 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => disposables.add(this._registerKeyListeners(window)), { window: mainWindow, disposables: this._store }));
 
-		this._register(browser.onDidChangeFullscreen(() => {
+		this._register(browser.onDidChangeFullscreen(windowId => {
+			if (windowId !== mainWindow.vscodeWindowId) {
+				return;
+			}
+
 			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
 
 			if (BrowserFeatures.keyboard === KeyboardSupport.None) {
 				return;
 			}
 
-			if (browser.isFullscreen()) {
+			if (browser.isFullscreen(mainWindow)) {
 				keyboard?.lock(['Escape']);
 			} else {
 				keyboard?.unlock();
@@ -265,6 +271,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		// for standard keybindings
 		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (this._keybindingHoldMode) {
+				return;
+			}
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
@@ -278,6 +287,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		// for single modifier chord keybindings (e.g. shift shift)
 		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			this._resetKeybindingHoldMode();
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
@@ -387,6 +397,28 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return JSON.stringify(info, null, '\t');
 	}
 
+	public override enableKeybindingHoldMode(commandId: string): Promise<void> | undefined {
+		if (this._currentlyDispatchingCommandId !== commandId) {
+			return undefined;
+		}
+		this._keybindingHoldMode = new DeferredPromise<void>();
+		const focusTracker = dom.trackFocus(dom.getWindow(undefined));
+		const listener = focusTracker.onDidBlur(() => this._resetKeybindingHoldMode());
+		this._keybindingHoldMode.p.finally(() => {
+			listener.dispose();
+			focusTracker.dispose();
+		});
+		this._log(`+ Enabled hold-mode for ${commandId}.`);
+		return this._keybindingHoldMode.p;
+	}
+
+	private _resetKeybindingHoldMode(): void {
+		if (this._keybindingHoldMode) {
+			this._keybindingHoldMode?.complete();
+			this._keybindingHoldMode = null;
+		}
+	}
+
 	public override customKeybindingsCount(): number {
 		return this.userKeybindings.keybindings.length;
 	}
@@ -461,7 +493,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 
-		if (BrowserFeatures.keyboard === KeyboardSupport.FullScreen && browser.isFullscreen()) {
+		if (BrowserFeatures.keyboard === KeyboardSupport.FullScreen && browser.isFullscreen(mainWindow)) {
 			return false;
 		}
 

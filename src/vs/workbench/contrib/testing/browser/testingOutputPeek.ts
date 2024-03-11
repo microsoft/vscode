@@ -37,18 +37,19 @@ import 'vs/css!./testingOutputPeek';
 import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IPeekViewService, PeekViewWidget, peekViewResultsBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { FloatingClickMenu } from 'vs/platform/actions/browser/floatingMenu';
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -78,7 +79,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { DetachedProcessInfo } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
 import { IDetachedTerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
@@ -96,12 +98,18 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { ITaskRawOutput, ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChange, TestResultItemChangeReason, maxCountPriority, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestMessageMenuArgs, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset, getMarkId } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IRichLocation, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessage, ITestMessageMenuArgs, ITestRunTask, ITestTaskState, InternalTestItem, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset, getMarkId, testResultStateToContextValues } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IShowResultOptions, ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { ParsedTestUri, TestUriType, buildTestUri, parseTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+
+const getMessageArgs = (test: TestResultItem, message: ITestMessage): ITestMessageMenuArgs => ({
+	$mid: MarshalledId.TestMessageMenuArgs,
+	test: InternalTestItem.serialize(test),
+	message: ITestMessage.serialize(message),
+});
 
 class MessageSubject {
 	public readonly test: ITestItem;
@@ -110,6 +118,7 @@ class MessageSubject {
 	public readonly actualUri: URI;
 	public readonly messageUri: URI;
 	public readonly revealLocation: IRichLocation | undefined;
+	public readonly context: ITestMessageMenuArgs | undefined;
 
 	public get isDiffable() {
 		return this.message.type === TestMessageType.Error && isDiffable(this.message);
@@ -117,14 +126,6 @@ class MessageSubject {
 
 	public get contextValue() {
 		return this.message.type === TestMessageType.Error ? this.message.contextValue : undefined;
-	}
-
-	public get context(): ITestMessageMenuArgs {
-		return {
-			$mid: MarshalledId.TestMessageMenuArgs,
-			extId: this.test.extId,
-			message: ITestMessage.serialize(this.message),
-		};
 	}
 
 	constructor(public readonly result: ITestResult, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
@@ -138,6 +139,7 @@ class MessageSubject {
 		this.messageUri = buildTestUri({ ...parts, type: TestUriType.ResultMessage });
 
 		const message = this.message = messages[this.messageIndex];
+		this.context = getMessageArgs(test, message);
 		this.revealLocation = message.location ?? (test.item.uri && test.item.range ? { uri: test.item.uri, range: Range.lift(test.item.range) } : undefined);
 	}
 }
@@ -585,7 +587,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			});
 
 			this.visible.set(true);
-			this.peek.value!.create();
+			this.peek.value.create();
 		}
 
 		if (subject instanceof MessageSubject) {
@@ -1067,11 +1069,11 @@ class TestResultsPeek extends PeekViewWidget {
 }
 
 export class TestResultsView extends ViewPane {
-	private readonly content = this._register(this.instantiationService.createInstance(TestResultsViewContent, undefined, {
+	private readonly content = new Lazy(() => this._register(this.instantiationService.createInstance(TestResultsViewContent, undefined, {
 		historyVisible: staticObservableValue(true),
 		showRevealLocationOnMessages: true,
 		locationForProgress: Testing.ExplorerViewId,
-	}));
+	})));
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1090,7 +1092,7 @@ export class TestResultsView extends ViewPane {
 	}
 
 	public get subject() {
-		return this.content.current;
+		return this.content.rawValue?.current;
 	}
 
 	public showLatestRun(preserveFocus = false) {
@@ -1099,27 +1101,34 @@ export class TestResultsView extends ViewPane {
 			return;
 		}
 
-		this.content.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
-	}
-
-	public showMessage(result: ITestResult, test: TestResultItem, taskIndex: number, messageIndex: number) {
-		this.content.reveal({ preserveFocus: false, subject: new MessageSubject(result, test, taskIndex, messageIndex) });
+		this.content.rawValue?.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
 	}
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		this.content.fillBody(container);
-		this.content.onDidRequestReveal(subject => this.content.reveal({ preserveFocus: true, subject }));
-
-		const [lastResult] = this.resultService.results;
-		if (lastResult && lastResult.tasks.length) {
-			this.content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult, 0) });
+		// Avoid rendering into the body until it's attached the DOM, as it can
+		// result in rendering issues in the terminal (#194156)
+		if (this.isBodyVisible()) {
+			this.renderContent(container);
+		} else {
+			this._register(Event.once(Event.filter(this.onDidChangeBodyVisibility, Boolean))(() => this.renderContent(container)));
 		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.content.onLayoutBody(height, width);
+		this.content.rawValue?.onLayoutBody(height, width);
+	}
+
+	private renderContent(container: HTMLElement) {
+		const content = this.content.value;
+		content.fillBody(container);
+		content.onDidRequestReveal(subject => content.reveal({ preserveFocus: true, subject }));
+
+		const [lastResult] = this.resultService.results;
+		if (lastResult && lastResult.tasks.length) {
+			content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult, 0) });
+		}
 	}
 }
 
@@ -1717,7 +1726,7 @@ class CoverageElement implements ITreeElement {
 	}
 
 	public get icon() {
-		return this.isOpen ? widgetClose : icons.testingCoverage;
+		return this.isOpen ? widgetClose : icons.testingCoverageReport;
 	}
 
 	public get isOpen() {
@@ -1736,7 +1745,10 @@ class CoverageElement implements ITreeElement {
 
 class TestCaseElement implements ITreeElement {
 	public readonly type = 'test';
-	public readonly context = this.test.item.extId;
+	public readonly context: ITestItemContext = {
+		$mid: MarshalledId.TestItemContext,
+		tests: [InternalTestItem.serialize(this.test)],
+	};
 	public readonly id = `${this.results.id}/${this.test.item.extId}`;
 	public readonly description?: string;
 
@@ -1817,13 +1829,12 @@ class TestMessageElement implements ITreeElement {
 	}
 
 	public get context(): ITestMessageMenuArgs {
-		return {
-			$mid: MarshalledId.TestMessageMenuArgs,
-			extId: this.test.item.extId,
-			message: ITestMessage.serialize(this.message),
-		};
+		return getMessageArgs(this.test, this.message);
 	}
 
+	public get outputSubject() {
+		return new TestOutputSubject(this.result, this.taskIndex, this.test);
+	}
 
 	constructor(
 		public readonly result: ITestResult,
@@ -2218,9 +2229,9 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		const label = dom.append(wrapper, dom.$('.name'));
 
 		const actionBar = new ActionBar(wrapper, {
-			actionViewItemProvider: action =>
+			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
-					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
+					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
 					: undefined
 		});
 
@@ -2348,11 +2359,10 @@ class TreeActionsProvider {
 		if (element instanceof TestCaseElement || element instanceof TestMessageElement) {
 			contextKeys.push(
 				[TestingContextKeys.testResultOutdated.key, element.test.retired],
+				[TestingContextKeys.testResultState.key, testResultStateToContextValues[element.test.ownComputedState]],
 				...getTestItemContextOverlay(element.test, capabilities),
 			);
-		}
 
-		if (element instanceof TestCaseElement) {
 			const extId = element.test.item.extId;
 			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
 				primary.push(new Action(
@@ -2392,12 +2402,15 @@ class TreeActionsProvider {
 				));
 			}
 
+		}
+
+		if (element instanceof TestMessageElement) {
 			primary.push(new Action(
 				'testing.outputPeek.goToFile',
 				localize('testing.goToFile', "Go to Source"),
 				ThemeIcon.asClassName(Codicon.goToFile),
 				undefined,
-				() => this.commandService.executeCommand('vscode.revealTest', extId),
+				() => this.commandService.executeCommand('vscode.revealTest', element.test.item.extId),
 			));
 		}
 
@@ -2474,7 +2487,7 @@ export class GoToNextMessageAction extends Action2 {
 		super({
 			id: GoToNextMessageAction.ID,
 			f1: true,
-			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
+			title: localize2('testing.goToNextMessage', 'Go to Next Test Failure'),
 			icon: Codicon.arrowDown,
 			category: Categories.Test,
 			keybinding: {
@@ -2507,7 +2520,7 @@ export class GoToPreviousMessageAction extends Action2 {
 		super({
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
-			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
+			title: localize2('testing.goToPreviousMessage', 'Go to Previous Test Failure'),
 			icon: Codicon.arrowUp,
 			category: Categories.Test,
 			keybinding: {
@@ -2540,7 +2553,7 @@ export class OpenMessageInEditorAction extends Action2 {
 		super({
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
-			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
+			title: localize2('testing.openMessageInEditor', 'Open in Editor'),
 			icon: Codicon.goToFile,
 			category: Categories.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
@@ -2558,7 +2571,7 @@ export class ToggleTestingPeekHistory extends Action2 {
 		super({
 			id: ToggleTestingPeekHistory.ID,
 			f1: true,
-			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
+			title: localize2('testing.toggleTestingPeekHistory', 'Toggle Test History in Peek'),
 			icon: Codicon.history,
 			category: Categories.Test,
 			menu: [{

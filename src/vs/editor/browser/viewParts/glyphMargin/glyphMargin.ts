@@ -11,7 +11,9 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { GlyphMarginLane } from 'vs/editor/common/model';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 
@@ -261,11 +263,13 @@ export class GlyphMarginWidgets extends ViewPart {
 
 			const startLineNumber = Math.max(d.range.startLineNumber, visibleStartLineNumber);
 			const endLineNumber = Math.min(d.range.endLineNumber, visibleEndLineNumber);
-			const lane = Math.min(d.options.glyphMargin?.position ?? 1, this._glyphMarginDecorationLaneCount);
+			const lane = d.options.glyphMargin?.position ?? GlyphMarginLane.Center;
 			const zIndex = d.options.zIndex ?? 0;
 
 			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-				requests.push(new DecorationBasedGlyphRenderRequest(lineNumber, lane, zIndex, glyphMarginClassName));
+				const modelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 0));
+				const laneIndex = this._context.viewModel.glyphLanes.getLanesAtLine(modelPosition.lineNumber).indexOf(lane);
+				requests.push(new DecorationBasedGlyphRenderRequest(lineNumber, laneIndex, zIndex, glyphMarginClassName));
 			}
 		}
 	}
@@ -284,8 +288,9 @@ export class GlyphMarginWidgets extends ViewPart {
 
 			// The widget is in the viewport, find a good line for it
 			const widgetLineNumber = Math.max(startLineNumber, visibleStartLineNumber);
-			const lane = Math.min(widget.preference.lane, this._glyphMarginDecorationLaneCount);
-			requests.push(new WidgetBasedGlyphRenderRequest(widgetLineNumber, lane, widget.preference.zIndex, widget));
+			const modelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(widgetLineNumber, 0));
+			const laneIndex = this._context.viewModel.glyphLanes.getLanesAtLine(modelPosition.lineNumber).indexOf(widget.preference.lane);
+			requests.push(new WidgetBasedGlyphRenderRequest(widgetLineNumber, laneIndex, widget.preference.zIndex, widget));
 		}
 	}
 
@@ -300,7 +305,7 @@ export class GlyphMarginWidgets extends ViewPart {
 		// don't change this sort unless you understand `prepareRender` below.
 		requests.sort((a, b) => {
 			if (a.lineNumber === b.lineNumber) {
-				if (a.lane === b.lane) {
+				if (a.laneIndex === b.laneIndex) {
 					if (a.zIndex === b.zIndex) {
 						if (b.type === a.type) {
 							if (a.type === GlyphRenderRequestType.Decoration && b.type === GlyphRenderRequestType.Decoration) {
@@ -312,7 +317,7 @@ export class GlyphMarginWidgets extends ViewPart {
 					}
 					return b.zIndex - a.zIndex;
 				}
-				return a.lane - b.lane;
+				return a.laneIndex - b.laneIndex;
 			}
 			return a.lineNumber - b.lineNumber;
 		});
@@ -343,7 +348,7 @@ export class GlyphMarginWidgets extends ViewPart {
 			}
 
 			// Requests are sorted by lineNumber and lane, so we read all requests for this particular location
-			const requestsAtLocation = requests.takeWhile((el) => el.lineNumber === first.lineNumber && el.lane === first.lane);
+			const requestsAtLocation = requests.takeWhile((el) => el.lineNumber === first.lineNumber && el.laneIndex === first.laneIndex);
 			if (!requestsAtLocation || requestsAtLocation.length === 0) {
 				// not possible
 				break;
@@ -369,7 +374,7 @@ export class GlyphMarginWidgets extends ViewPart {
 				// widgets cannot be combined
 				winner.widget.renderInfo = {
 					lineNumber: winner.lineNumber,
-					lane: winner.lane,
+					laneIndex: winner.laneIndex,
 				};
 			}
 		}
@@ -397,7 +402,7 @@ export class GlyphMarginWidgets extends ViewPart {
 				widget.domNode.setDisplay('none');
 			} else {
 				const top = ctx.viewportData.relativeVerticalOffset[widget.renderInfo.lineNumber - ctx.viewportData.startLineNumber];
-				const left = this._glyphMarginLeft + (widget.renderInfo.lane - 1) * this._lineHeight;
+				const left = this._glyphMarginLeft + widget.renderInfo.laneIndex * this._lineHeight;
 
 				widget.domNode.setDisplay('block');
 				widget.domNode.setTop(top);
@@ -411,7 +416,7 @@ export class GlyphMarginWidgets extends ViewPart {
 		for (let i = 0; i < this._decorationGlyphsToRender.length; i++) {
 			const dec = this._decorationGlyphsToRender[i];
 			const top = ctx.viewportData.relativeVerticalOffset[dec.lineNumber - ctx.viewportData.startLineNumber];
-			const left = this._glyphMarginLeft + (dec.lane - 1) * this._lineHeight;
+			const left = this._glyphMarginLeft + dec.laneIndex * this._lineHeight;
 
 			let domNode: FastDomNode<HTMLElement>;
 			if (i < this._managedDomNodes.length) {
@@ -451,7 +456,7 @@ export interface IWidgetData {
 
 export interface IRenderInfo {
 	lineNumber: number;
-	lane: number;
+	laneIndex: number;
 }
 
 const enum GlyphRenderRequestType {
@@ -467,13 +472,13 @@ class DecorationBasedGlyphRenderRequest {
 
 	constructor(
 		public readonly lineNumber: number,
-		public readonly lane: number,
+		public readonly laneIndex: number,
 		public readonly zIndex: number,
 		public readonly className: string,
 	) { }
 
 	accept(combinedClassName: string): DecorationBasedGlyph {
-		return new DecorationBasedGlyph(this.lineNumber, this.lane, combinedClassName);
+		return new DecorationBasedGlyph(this.lineNumber, this.laneIndex, combinedClassName);
 	}
 }
 
@@ -485,7 +490,7 @@ class WidgetBasedGlyphRenderRequest {
 
 	constructor(
 		public readonly lineNumber: number,
-		public readonly lane: number,
+		public readonly laneIndex: number,
 		public readonly zIndex: number,
 		public readonly widget: IWidgetData,
 	) { }
@@ -496,7 +501,7 @@ type GlyphRenderRequest = DecorationBasedGlyphRenderRequest | WidgetBasedGlyphRe
 class DecorationBasedGlyph {
 	constructor(
 		public readonly lineNumber: number,
-		public readonly lane: number,
+		public readonly laneIndex: number,
 		public readonly combinedClassName: string
 	) { }
 }

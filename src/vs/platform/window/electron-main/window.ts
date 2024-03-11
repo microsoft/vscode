@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Rectangle } from 'electron';
+import { BrowserWindow, Rectangle, screen } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -81,6 +81,8 @@ export interface ICodeWindow extends IBaseWindow {
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
+	notifyZoomLevel(zoomLevel: number | undefined): void;
+
 	serializeWindowState(): IWindowState;
 }
 
@@ -131,6 +133,7 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+	zoomLevel?: number;
 	readonly display?: number;
 }
 
@@ -139,6 +142,30 @@ export const defaultWindowState = function (mode = WindowMode.Normal): IWindowSt
 		width: 1024,
 		height: 768,
 		mode
+	};
+};
+
+export const defaultAuxWindowState = function (): IWindowState {
+
+	// Auxiliary windows are being created from a `window.open` call
+	// that sets `windowFeatures` that encode the desired size and
+	// position of the new window (`top`, `left`).
+	// In order to truly override this to a good default window state
+	// we need to set not only width and height but also x and y to
+	// a good location on the primary display.
+
+	const width = 800;
+	const height = 600;
+	const workArea = screen.getPrimaryDisplay().workArea;
+	const x = Math.max(workArea.x + (workArea.width / 2) - (width / 2), 0);
+	const y = Math.max(workArea.y + (workArea.height / 2) - (height / 2), 0);
+
+	return {
+		x,
+		y,
+		width,
+		height,
+		mode: WindowMode.Normal
 	};
 };
 

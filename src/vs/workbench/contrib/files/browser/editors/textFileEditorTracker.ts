@@ -22,6 +22,8 @@ import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.textFileEditorTracker';
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -69,7 +71,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false; // resource must not be pending to save
 			}
 
-			if (resource.scheme !== Schemas.untitled && !fileModel?.hasState(TextFileEditorModelState.ERROR) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(resource)) {
+			if (resource.scheme !== Schemas.untitled && !fileModel?.hasState(TextFileEditorModelState.ERROR) && this.filesConfigurationService.hasShortAutoSaveDelay(resource)) {
 				// leave models auto saved after short delay unless
 				// the save resulted in an error and not for untitled
 				// that are not auto-saved anyway

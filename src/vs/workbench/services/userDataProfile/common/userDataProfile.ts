@@ -5,7 +5,7 @@
 
 import { isUndefined } from 'vs/base/common/types';
 import { Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -138,7 +138,7 @@ export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Co
 
 export const ProfilesMenu = new MenuId('Profiles');
 export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
-export const PROFILES_TITLE = { value: localize('profiles', "Profiles"), original: 'Profiles' };
+export const PROFILES_TITLE = localize2('profiles', 'Profiles');
 export const PROFILES_CATEGORY = { ...PROFILES_TITLE };
 export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Profile"), extensions: [PROFILE_EXTENSION] }];

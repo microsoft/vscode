@@ -7,29 +7,22 @@ import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { basename } from 'vs/base/common/resources';
-import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentNode, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { IWorkspaceCommentThreadsEvent, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { CommentsList, COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE, Filter } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { IViewPaneOptions, ViewAction, FilterViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { CommentsList, COMMENTS_VIEW_TITLE, Filter } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { IViewPaneOptions, FilterViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
 import { CommentsFilters, CommentsFiltersChangeEvent } from 'vs/workbench/contrib/comments/browser/commentsViewActions';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
@@ -38,13 +31,12 @@ import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFil
 import { CommentThreadState } from 'vs/editor/common/languages';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
-import { CommentController } from 'vs/workbench/contrib/comments/browser/commentsController';
-import { Range } from 'vs/editor/common/core/range';
+import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 
-const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
-const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
+export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
+export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
 const VIEW_STORAGE_ID = 'commentsViewState';
 
 function createResourceCommentsIterator(model: ICommentsModel): Iterable<ITreeElement<ResourceWithCommentThreads | CommentNode>> {
@@ -195,10 +187,6 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this._register(this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
 		this._register(this.commentService.onDidDeleteDataProvider(this.onDataProviderDeleted, this));
 
-		const styleElement = dom.createStyleSheet(container);
-		this.applyStyles(styleElement);
-		this._register(this.themeService.onDidColorThemeChange(_ => this.applyStyles(styleElement)));
-
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				this.refresh();
@@ -221,33 +209,6 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		} else if (this.tree) {
 			this.tree.domFocus();
 		}
-	}
-
-	private applyStyles(styleElement: HTMLStyleElement) {
-		const content: string[] = [];
-
-		const theme = this.themeService.getColorTheme();
-		const linkColor = theme.getColor(textLinkForeground);
-		if (linkColor) {
-			content.push(`.comments-panel .comments-panel-container a { color: ${linkColor}; }`);
-		}
-
-		const linkActiveColor = theme.getColor(textLinkActiveForeground);
-		if (linkActiveColor) {
-			content.push(`.comments-panel .comments-panel-container a:hover, a:active { color: ${linkActiveColor}; }`);
-		}
-
-		const focusColor = theme.getColor(focusBorder);
-		if (focusColor) {
-			content.push(`.comments-panel .comments-panel-container a:focus { outline-color: ${focusColor}; }`);
-		}
-
-		const codeTextForegroundColor = theme.getColor(textPreformatForeground);
-		if (codeTextForegroundColor) {
-			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
-		}
-
-		styleElement.textContent = content.join('\n');
 	}
 
 	private async renderComments(): Promise<void> {
@@ -321,7 +282,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 					if (element instanceof CommentNode) {
 						if (element.range) {
 							return nls.localize('resourceWithCommentLabel',
-								"Comment from ${0} at line {1} column {2} in {3}, source: {4}",
+								"${0} at line {1} column {2} in {3}, source: {4}",
 								element.comment.userName,
 								element.range.startLineNumber,
 								element.range.startColumn,
@@ -330,7 +291,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 							);
 						} else {
 							return nls.localize('resourceWithCommentLabelFile',
-								"Comment from ${0} in {1}, source: {2}",
+								"${0} in {1}, source: {2}",
 								element.comment.userName,
 								basename(element.resource),
 								(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
@@ -358,62 +319,17 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}));
 	}
 
-	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): boolean {
+	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
 		if (!element) {
-			return false;
+			return;
 		}
 
 		if (!(element instanceof ResourceWithCommentThreads || element instanceof CommentNode)) {
-			return false;
+			return;
 		}
-
-		if (!this.commentService.isCommentingEnabled) {
-			this.commentService.enableCommenting(true);
-		}
-
-		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
-
-		const activeEditor = this.editorService.activeTextEditorControl;
-		// If the active editor is a diff editor where one of the sides has the comment,
-		// then we try to reveal the comment in the diff editor.
-		const currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
-			: (activeEditor ? [activeEditor] : []);
-
-		for (const editor of currentActiveResources) {
-			const model = editor.getModel();
-			if ((model instanceof TextModel) && this.uriIdentityService.extUri.isEqual(element.resource, model.uri)) {
-				const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
-				const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
-				if (threadToReveal && isCodeEditor(editor)) {
-					const controller = CommentController.get(editor);
-					controller?.revealCommentThread(threadToReveal, commentToReveal, true, !preserveFocus);
-				}
-
-				return true;
-			}
-		}
-
-		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
+		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].thread : element.thread;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
-
-		this.editorService.openEditor({
-			resource: element.resource,
-			options: {
-				pinned: pinned,
-				preserveFocus: preserveFocus,
-				selection: range ?? new Range(1, 1, 1, 1)
-			}
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-			if (editor) {
-				const control = editor.getControl();
-				if (threadToReveal && isCodeEditor(control)) {
-					const controller = CommentController.get(control);
-					controller?.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true, !preserveFocus);
-				}
-			}
-		});
-
-		return true;
+		return revealCommentThread(this.commentService, this.editorService, this.uriIdentityService, threadToReveal, commentToReveal, false, pinned, preserveFocus, sideBySide);
 	}
 
 	private async refresh(): Promise<void> {
@@ -504,53 +420,3 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		return false;
 	}
 }
-
-CommandsRegistry.registerCommand({
-	id: 'workbench.action.focusCommentsPanel',
-	handler: async (accessor) => {
-		const viewsService = accessor.get(IViewsService);
-		viewsService.openView(COMMENTS_VIEW_ID, true);
-	}
-});
-
-registerAction2(class Collapse extends ViewAction<CommentsPanel> {
-	constructor() {
-		super({
-			viewId: COMMENTS_VIEW_ID,
-			id: 'comments.collapse',
-			title: nls.localize('collapseAll', "Collapse All"),
-			f1: false,
-			icon: Codicon.collapseAll,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.and(ContextKeyExpr.equals('view', COMMENTS_VIEW_ID), CONTEXT_KEY_HAS_COMMENTS), CONTEXT_KEY_SOME_COMMENTS_EXPANDED),
-				order: 100
-			}
-		});
-	}
-	runInView(_accessor: ServicesAccessor, view: CommentsPanel) {
-		view.collapseAll();
-	}
-});
-
-registerAction2(class Expand extends ViewAction<CommentsPanel> {
-	constructor() {
-		super({
-			viewId: COMMENTS_VIEW_ID,
-			id: 'comments.expand',
-			title: nls.localize('expandAll', "Expand All"),
-			f1: false,
-			icon: Codicon.expandAll,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.and(ContextKeyExpr.equals('view', COMMENTS_VIEW_ID), CONTEXT_KEY_HAS_COMMENTS), ContextKeyExpr.not(CONTEXT_KEY_SOME_COMMENTS_EXPANDED.key)),
-				order: 100
-			}
-		});
-	}
-	runInView(_accessor: ServicesAccessor, view: CommentsPanel) {
-		view.expandAll();
-	}
-});

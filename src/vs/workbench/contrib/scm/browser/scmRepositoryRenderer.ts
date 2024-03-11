@@ -6,11 +6,11 @@
 import 'vs/css!./media/scm';
 import { IDisposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { append, $ } from 'vs/base/browser/dom';
-import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMProvider, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IAction } from 'vs/base/common/actions';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { connectPrimaryMenu, isSCMRepository, StatusBarAction } from './util';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
@@ -19,10 +19,27 @@ import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+export class RepositoryActionRunner extends ActionRunner {
+	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context: ISCMProvider): Promise<void> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		const selection = this.getSelectedRepositories().map(r => r.provider);
+		const actionContext = selection.some(s => s === context) ? selection : [context];
+
+		await action.run(...actionContext);
+	}
+}
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;

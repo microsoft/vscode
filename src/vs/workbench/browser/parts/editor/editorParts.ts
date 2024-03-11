@@ -8,14 +8,30 @@ import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, Gro
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { EditorPart, IEditorPartUIState, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IAuxiliaryWindowOpenOptions } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { distinct } from 'vs/base/common/arrays';
-import { AuxiliaryEditorPart } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
+import { distinct, firstOrDefault } from 'vs/base/common/arrays';
+import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
 import { MultiWindowParts } from 'vs/workbench/browser/part';
+import { DeferredPromise } from 'vs/base/common/async';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IRectangle } from 'vs/platform/window/common/window';
+import { getWindow } from 'vs/base/browser/dom';
+import { getZoomLevel } from 'vs/base/browser/browser';
+
+interface IEditorPartsUIState {
+	readonly auxiliary: IAuxiliaryEditorPartState[];
+	readonly mru: number[];
+}
+
+interface IAuxiliaryEditorPartState {
+	readonly state: IEditorPartUIState;
+	readonly bounds?: IRectangle;
+	readonly zoomLevel?: number;
+}
 
 export class EditorParts extends MultiWindowParts<EditorPart> implements IEditorGroupsService, IEditorPartsView {
 
@@ -23,14 +39,23 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	readonly mainPart = this._register(this.createMainEditorPart());
 
-	private readonly mostRecentActiveParts = [this.mainPart];
+	private mostRecentActiveParts = [this.mainPart];
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService
 	) {
-		super();
+		super('workbench.editorParts', themeService, storageService);
 
 		this._register(this.registerPart(this.mainPart));
+
+		this.restoreParts();
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.onDidChangeMementoValue(StorageScope.WORKSPACE, this._store)(e => this.onDidChangeMementoState(e)));
 	}
 
 	protected createMainEditorPart(): MainEditorPart {
@@ -42,7 +67,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	private readonly _onDidCreateAuxiliaryEditorPart = this._register(new Emitter<IAuxiliaryEditorPartCreateEvent>());
 	readonly onDidCreateAuxiliaryEditorPart = this._onDidCreateAuxiliaryEditorPart.event;
 
-	async createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart> {
+	async createAuxiliaryEditorPart(options?: IAuxiliaryEditorPartOpenOptions): Promise<IAuxiliaryEditorPart> {
 		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
 
 		// Events
@@ -152,6 +177,165 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 
 		return this.mainPart;
+	}
+
+	//#endregion
+
+	//#region Lifecycle / State
+
+	private static readonly EDITOR_PARTS_UI_STATE_STORAGE_KEY = 'editorparts.state';
+
+	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+
+	private _isReady = false;
+	get isReady(): boolean { return this._isReady; }
+
+	private readonly whenReadyPromise = new DeferredPromise<void>();
+	readonly whenReady = this.whenReadyPromise.p;
+
+	private readonly whenRestoredPromise = new DeferredPromise<void>();
+	readonly whenRestored = this.whenRestoredPromise.p;
+
+	private async restoreParts(): Promise<void> {
+
+		// Join on the main part being ready to pick
+		// the right moment to begin restoring.
+		// The main part is automatically being created
+		// as part of the overall startup process.
+		await this.mainPart.whenReady;
+
+		// Only attempt to restore auxiliary editor parts
+		// when the main part did restore. It is possible
+		// that restoring was not attempted because specific
+		// editors were opened.
+		if (this.mainPart.willRestoreState) {
+			const state = this.loadState();
+			if (state) {
+				await this.restoreState(state);
+			}
+		}
+
+		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+		mostRecentActivePart?.activeGroup.focus();
+
+		this._isReady = true;
+		this.whenReadyPromise.complete();
+
+		// Await restored
+		await Promise.allSettled(this.parts.map(part => part.whenRestored));
+		this.whenRestoredPromise.complete();
+	}
+
+	private loadState(): IEditorPartsUIState | undefined {
+		return this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
+	}
+
+	protected override saveState(): void {
+		const state = this.createState();
+		if (state.auxiliary.length === 0) {
+			delete this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
+		} else {
+			this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY] = state;
+		}
+	}
+
+	private createState(): IEditorPartsUIState {
+		return {
+			auxiliary: this.parts.filter(part => part !== this.mainPart).map(part => {
+				return {
+					state: part.createState(),
+					bounds: (() => {
+						const auxiliaryWindow = getWindow(part.getContainer());
+						if (auxiliaryWindow) {
+							return {
+								x: auxiliaryWindow.screenX,
+								y: auxiliaryWindow.screenY,
+								width: auxiliaryWindow.outerWidth,
+								height: auxiliaryWindow.outerHeight
+							};
+						}
+
+						return undefined;
+					})(),
+					zoomLevel: (() => {
+						const auxiliaryWindow = getWindow(part.getContainer());
+						if (auxiliaryWindow) {
+							return getZoomLevel(auxiliaryWindow);
+						}
+
+						return undefined;
+					})()
+				};
+			}),
+			mru: this.mostRecentActiveParts.map(part => this.parts.indexOf(part))
+		};
+	}
+
+	private async restoreState(state: IEditorPartsUIState): Promise<void> {
+		if (state.auxiliary.length) {
+			const auxiliaryEditorPartPromises: Promise<IAuxiliaryEditorPart>[] = [];
+
+			// Create auxiliary editor parts
+			for (const auxiliaryEditorPartState of state.auxiliary) {
+				auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart({
+					bounds: auxiliaryEditorPartState.bounds,
+					state: auxiliaryEditorPartState.state,
+					zoomLevel: auxiliaryEditorPartState.zoomLevel
+				}));
+			}
+
+			// Await creation
+			await Promise.allSettled(auxiliaryEditorPartPromises);
+
+			// Update MRU list
+			if (state.mru.length === this.parts.length) {
+				this.mostRecentActiveParts = state.mru.map(index => this.parts[index]);
+			} else {
+				this.mostRecentActiveParts = [...this.parts];
+			}
+
+			// Await ready
+			await Promise.allSettled(this.parts.map(part => part.whenReady));
+		}
+	}
+
+	get hasRestorableState(): boolean {
+		return this.parts.some(part => part.hasRestorableState);
+	}
+
+	private onDidChangeMementoState(e: IStorageValueChangeEvent): void {
+		if (e.external && e.scope === StorageScope.WORKSPACE) {
+			this.reloadMemento(e.scope);
+
+			const state = this.loadState();
+			if (state) {
+				this.applyState(state);
+			}
+		}
+	}
+
+	private async applyState(state: IEditorPartsUIState): Promise<boolean> {
+
+		// Close all editors and auxiliary parts first
+		for (const part of this.parts) {
+			if (part === this.mainPart) {
+				continue; // main part takes care on its own
+			}
+
+			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+				const closed = await group.closeAllEditors();
+				if (!closed) {
+					return false;
+				}
+			}
+
+			(part as unknown as IAuxiliaryEditorPart).close();
+		}
+
+		// Restore auxiliary state
+		await this.restoreState(state);
+
+		return true;
 	}
 
 	//#endregion

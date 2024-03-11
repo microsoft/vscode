@@ -362,7 +362,7 @@ class TestNotebookKernel implements INotebookKernel {
 	supportedLanguages: string[] = [];
 	async executeNotebookCellsRequest(): Promise<void> { }
 	async cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void> { }
-	provideVariables(notebookUri: URI, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
 		return AsyncIterableObject.EMPTY;
 	}
 

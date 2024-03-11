@@ -44,8 +44,14 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
 				this._variables = coalesce(this._variables.map(ref => {
-					if (Range.areIntersecting(ref.range, c.range)) {
+					const intersection = Range.intersectRanges(ref.range, c.range);
+					if (intersection && !intersection.isEmpty()) {
 						// The reference text was changed, it's broken
+						const rangeToDelete = new Range(ref.range.startLineNumber, ref.range.startColumn, ref.range.endLineNumber, ref.range.endColumn - 1);
+						this.widget.inputEditor.executeEdits(this.id, [{
+							range: rangeToDelete,
+							text: '',
+						}]);
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;

@@ -134,7 +134,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 					sourceMappingURL: !build ? null : f => `${baseUrl}/${f.relative}.map`,
 					addComment: !!build,
 					includeContent: !!build,
-					sourceRoot: '../src'
+					// note: trailing slash is important, else the source URLs in V8's file coverage are incorrect
+					sourceRoot: '../src/',
 				}))
 				.pipe(tsFilter.restore)
 				.pipe(build ? nlsDev.bundleMetaDataFiles(headerId, headerOut) : es.through())

@@ -49,7 +49,7 @@ _@@APPNAME@@()
 			--list-extensions --show-versions --install-extension
 			--uninstall-extension --enable-proposed-api --verbose --log -s
 			--status -p --performance --prof-startup --disable-extensions
-			--disable-extension --inspect-extensions
+			--disable-extension --inspect-extensions --update-extensions
 			--inspect-brk-extensions --disable-gpu' -- "$cur") )
 		[[ $COMPREPLY == *= ]] && compopt -o nospace
 		return
