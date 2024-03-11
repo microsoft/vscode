@@ -63,11 +63,6 @@
 	width: 100%;
 }
 
-.monaco-editor .view-line > span {
-	bottom: 0;
-	position: absolute;
-}
-
 .monaco-editor .mtkw {
 	color: var(--vscode-editorWhitespace-foreground) !important;
 }
