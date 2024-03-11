@@ -551,7 +551,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		];
 	}
 
-	private async _initialize(content: string, targetWindow: CodeWindow): Promise<void> {
+	private _initialize(content: string, targetWindow: CodeWindow): Promise<void> {
 		if (!getWindow(this.element).document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
