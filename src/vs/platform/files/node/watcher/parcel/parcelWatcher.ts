@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { randomPath } from 'vs/base/common/extpath';
-import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
+import { ParsedPattern, patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -295,6 +295,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 			this.onUnexpectedError(error, watcher);
 
 			instance.complete(undefined);
+
+			this._onDidWatchFail.fire(request);
 		});
 	}
 
@@ -488,7 +490,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 						}
 					}
 				}
-			}, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+			}, undefined, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 			// Make sure to stop watching when the watcher is disposed
 			watcher.token.onCancellationRequested(() => nodeWatcher.dispose());
@@ -582,10 +584,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// Map request paths to correlation and ignore identical paths
 		const mapCorrelationtoRequests = new Map<number | undefined /* correlation */, Map<string, IRecursiveWatchRequest>>();
 		for (const request of requests) {
-			if (request.excludes.includes(GLOBSTAR)) {
-				continue; // path is ignored entirely (via `**` glob exclude)
-			}
-
 			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
 
 			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);
@@ -626,12 +624,16 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 					} catch (error) {
 						this.trace(`ignoring a path for watching who's realpath failed to resolve: ${request.path} (error: ${error})`);
 
+						this._onDidWatchFail.fire(request);
+
 						continue;
 					}
 				}
 
 				// Check for invalid paths
 				if (validatePaths && !this.isPathValid(request.path)) {
+					this._onDidWatchFail.fire(request);
+
 					continue;
 				}
 
