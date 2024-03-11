@@ -24,7 +24,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	private allWatchRequests = new Set<IUniversalWatchRequest>();
 	private suspendedWatchRequests = this._register(new DisposableMap<IUniversalWatchRequest>());
 
-	protected readonly failedRequestPathPollingInterval: number | undefined;
+	protected readonly suspendedWatchRequestPollingInterval: number | undefined;
 
 	constructor() {
 		super();
@@ -33,11 +33,21 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	private handleDidWatchFail(request: IUniversalWatchRequest): void {
-		if (typeof request.correlationId !== 'number') {
-			return; // for now limit this to correlated watch requests only (monitoring failed requests is experimental)
+		if (!this.supportsRequestSuspendResume(request)) {
+			return;
 		}
 
-		this.monitorSuspendedWatchRequest(request);
+		this.suspendWatchRequest(request);
+	}
+
+	protected supportsRequestSuspendResume(request: IUniversalWatchRequest): boolean {
+
+		// For now, limit failed watch monitoring to requests with a correlationId
+		// to experiment with this feature in a controlled way. Monitoring requests
+		// requires us to install polling watchers (via `fs.watchFile()`) and thus
+		// should be used sparingly.
+
+		return typeof request.correlationId === 'number';
 	}
 
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
@@ -57,17 +67,31 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		return this.doWatch(Array.from(this.allWatchRequests).filter(request => !this.suspendedWatchRequests.has(request)));
 	}
 
-	private monitorSuspendedWatchRequest(request: IUniversalWatchRequest): void {
+	private suspendWatchRequest(request: IUniversalWatchRequest): void {
 		if (this.suspendedWatchRequests.has(request)) {
-			return; // already monitored
+			return; // already suspended
 		}
 
 		const disposables = new DisposableStore();
 		this.suspendedWatchRequests.set(request, disposables);
 
+		this.monitorSuspendedWatchRequest(request, disposables);
+
+		this.updateWatchers();
+	}
+
+	private resumeWatchRequest(request: IUniversalWatchRequest): void {
+		this.suspendedWatchRequests.deleteAndDispose(request);
+
+		this.updateWatchers();
+	}
+
+	private monitorSuspendedWatchRequest(request: IUniversalWatchRequest, disposables: DisposableStore) {
 		const resource = URI.file(request.path);
 		const that = this;
+
 		let pathNotFound = false;
+
 		const watchFileCallback: (curr: Stats, prev: Stats) => void = (curr, prev) => {
 			if (disposables.isDisposed) {
 				return; // return early if already disposed
@@ -79,8 +103,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			pathNotFound = currentPathNotFound;
 
 			// Watch path created: resume watching request
-			if (
-				(previousPathNotFound && !currentPathNotFound) || 					// file was created
+			if ((previousPathNotFound && !currentPathNotFound) || 					// file was created
 				(oldPathNotFound && !currentPathNotFound && !previousPathNotFound) 	// file was created from a rename
 			) {
 				this.trace(`fs.watchFile() detected ${request.path} exists again, resuming watcher (correlationId: ${request.correlationId})`);
@@ -91,14 +114,13 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 				this.traceEvent(event, request);
 
 				// Resume watching
-				this.suspendedWatchRequests.deleteAndDispose(request);
-				this.updateWatchers();
+				this.resumeWatchRequest(request);
 			}
 		};
 
 		this.trace(`starting fs.watchFile() on ${request.path} (correlationId: ${request.correlationId})`);
 		try {
-			watchFile(request.path, { persistent: false, interval: this.failedRequestPathPollingInterval }, watchFileCallback);
+			watchFile(request.path, { persistent: false, interval: this.suspendedWatchRequestPollingInterval }, watchFileCallback);
 		} catch (error) {
 			this.warn(`fs.watchFile() failed with error ${error} on path ${request.path} (correlationId: ${request.correlationId})`);
 		}
@@ -120,10 +142,6 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	async stop(): Promise<void> {
 		this.suspendedWatchRequests.clearAndDisposeAll();
-	}
-
-	protected shouldRestartWatching(request: IUniversalWatchRequest): boolean {
-		return typeof request.correlationId !== 'number';
 	}
 
 	protected traceEvent(event: IFileChange, request: IUniversalWatchRequest): void {

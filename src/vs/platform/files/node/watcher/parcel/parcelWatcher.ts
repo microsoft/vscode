@@ -461,12 +461,20 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 	private onWatchedPathDeleted(watcher: IParcelWatcherInstance): void {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
-		if (!this.shouldRestartWatching(watcher.request)) {
-			this._onDidWatchFail.fire(watcher.request);
+		this._onDidWatchFail.fire(watcher.request);
 
-			return; // return if this deletion is handled outside
+		// Do monitoring of the request path parent unless this request
+		// can be handled via suspend/resume in the super class
+		// TODO@bpasero we should remove this logic in favor of the
+		// support in the super class so that we have 1 consistent
+		// solution for handling this.
+
+		if (!this.supportsRequestSuspendResume(watcher.request)) {
+			this.legacyMonitorRequest(watcher);
 		}
+	}
 
+	private legacyMonitorRequest(watcher: IParcelWatcherInstance): void {
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
 			this.trace('Trying to watch on the parent path to restart the watcher...', watcher);
