@@ -46,7 +46,8 @@
 			const interval = 250;
 			let isFocused = document.hasFocus();
 			setInterval(() => {
-				const isCurrentlyFocused = document.hasFocus();
+				const target = getActiveFrame();
+				const isCurrentlyFocused = document.hasFocus() || !!(target && target.contentDocument && target.contentDocument.body.classList.contains('vscode-context-menu-visible'));
 				if (isCurrentlyFocused === isFocused) {
 					return;
 				}

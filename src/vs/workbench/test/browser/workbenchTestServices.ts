@@ -918,7 +918,6 @@ export class TestEditorGroupView implements IEditorGroupView {
 	pinEditor(_editor?: EditorInput): void { }
 	stickEditor(editor?: EditorInput | undefined): void { }
 	unstickEditor(editor?: EditorInput | undefined): void { }
-	setTransient(editor: EditorInput | undefined, transient: boolean): void { }
 	lock(locked: boolean): void { }
 	focus(): void { }
 	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
