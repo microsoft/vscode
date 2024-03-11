@@ -15,7 +15,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { ContentHoverWidget, ContentHoverController, IHoverOptions } from 'vs/editor/contrib/hover/browser/contentHover';
+import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -387,12 +387,13 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	public showContentHover(
 		range: Range,
+		mode: HoverStartMode,
 		source: HoverStartSource,
-		activatedByColorDecoratorClick: boolean = false,
-		hoverOptions: IHoverOptions
+		focus: boolean,
+		activatedByColorDecoratorClick: boolean = false
 	): void {
 		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
-		this._getOrCreateContentWidget().startShowingAtRange(range, source, hoverOptions);
+		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
 	public extendOrContractFocusedMessage(extend: boolean): void {
@@ -527,7 +528,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 		const showContentHover = (focus: boolean) => {
 			const position = editor.getPosition();
 			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-			controller.showContentHover(range, HoverStartSource.Keyboard, false, { mode: HoverStartMode.Immediate, focus });
+			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
 		};
 
 		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
@@ -580,7 +581,7 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 
 		const promise = goto.startFindDefinitionFromCursor(position);
 		promise.then(() => {
-			controller.showContentHover(range, HoverStartSource.Keyboard, false, { mode: HoverStartMode.Immediate, focus: true });
+			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, true);
 		});
 	}
 }
