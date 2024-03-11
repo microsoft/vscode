@@ -168,7 +168,8 @@ export const SPEECH_LANGUAGES = {
 		name: localize('speechLanguage.sv-SE', "Swedish (Sweden)")
 	},
 	['tr-TR']: {
-		name: localize('speechLanguage.tr-TR', "Turkish (Turkey)")
+		// allow-any-unicode-next-line
+		name: localize('speechLanguage.tr-TR', "Turkish (Türkiye)")
 	},
 	['zh-CN']: {
 		name: localize('speechLanguage.zh-CN', "Chinese (Simplified, China)")

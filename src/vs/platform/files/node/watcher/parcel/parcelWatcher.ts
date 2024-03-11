@@ -13,7 +13,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { randomPath } from 'vs/base/common/extpath';
 import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { dirname, normalize } from 'vs/base/common/path';
@@ -21,7 +21,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 export interface IParcelWatcherInstance {
 
@@ -58,7 +58,7 @@ export interface IParcelWatcherInstance {
 	stop(): Promise<void>;
 }
 
-export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
+export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 	private static readonly MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE = new Map<parcelWatcher.EventType, number>(
 		[
@@ -69,12 +69,6 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	);
 
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
-
-	private readonly _onDidChangeFile = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
-
-	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage = this._onDidLogMessage.event;
 
 	private readonly _onDidError = this._register(new Emitter<string>());
 	readonly onDidError = this._onDidError.event;
@@ -120,7 +114,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		process.on('unhandledRejection', error => this.onUnexpectedError(error));
 	}
 
-	async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
+	protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
 
 		// Figure out duplicates to remove from the requests
 		const normalizedRequests = this.normalizeRequests(requests);
@@ -370,8 +364,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 		if (this.verboseLogging) {
 			for (const event of events) {
-				const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
-				this.trace(typeof watcher.request.correlationId === 'number' ? `${traceMsg} (correlationId: ${watcher.request.correlationId})` : traceMsg);
+				this.traceEvent(event, watcher.request);
 			}
 		}
 
@@ -383,7 +376,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			this.warn(`started ignoring events due to too many file change events at once (incoming: ${events.length}, most recent change: ${events[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 		} else {
 			if (this.throttledFileChangesEmitter.pending > 0) {
-				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${events[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${events[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`, watcher);
 			}
 		}
 	}
@@ -466,8 +459,14 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	private onWatchedPathDeleted(watcher: IParcelWatcherInstance): void {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
+		if (!this.shouldRestartWatching(watcher.request)) {
+			return; // return if this deletion is handled outside
+		}
+
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
+			this.trace('Trying to watch on the parent path to restart the watcher...', watcher);
+
 			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false, correlationId: watcher.request.correlationId }, changes => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
@@ -522,7 +521,9 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	async stop(): Promise<void> {
+	override async stop(): Promise<void> {
+		await super.stop();
+
 		for (const [path] of this.watchers) {
 			await this.stopWatching(path);
 		}
@@ -559,7 +560,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	private async stopWatching(path: string): Promise<void> {
 		const watcher = this.watchers.get(path);
 		if (watcher) {
-			this.trace(`stopping file watcher on ${watcher.request.path}`);
+			this.trace(`stopping file watcher`, watcher);
 
 			this.watchers.delete(path);
 
@@ -664,13 +665,13 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		this.verboseLogging = enabled;
 	}
 
-	private trace(message: string) {
+	protected trace(message: string, watcher?: IParcelWatcherInstance): void {
 		if (this.verboseLogging) {
-			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message) });
+			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message, watcher) });
 		}
 	}
 
-	private warn(message: string, watcher?: IParcelWatcherInstance) {
+	protected warn(message: string, watcher?: IParcelWatcherInstance) {
 		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, watcher) });
 	}
 

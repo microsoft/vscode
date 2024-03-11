@@ -1562,6 +1562,7 @@ export class ExtensionRuntimeStateAction extends ExtensionAction {
 	updateWhenCounterExtensionChanges: boolean = true;
 
 	constructor(
+		@IHostService private readonly hostService: IHostService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -1598,15 +1599,20 @@ export class ExtensionRuntimeStateAction extends ExtensionAction {
 		this.enabled = true;
 		this.class = ExtensionRuntimeStateAction.EnabledClass;
 		this.tooltip = runtimeState.reason;
-		this.label = runtimeState.action === ExtensionRuntimeActionType.RestartExtensions ? localize('restart extensions', 'Restart Extensions')
-			: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart to Update')
-				: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', 'Update {0}', this.productService.nameShort) : '';
+		this.label = runtimeState.action === ExtensionRuntimeActionType.ReloadWindow ? localize('reload window', 'Reload Window')
+			: runtimeState.action === ExtensionRuntimeActionType.RestartExtensions ? localize('restart extensions', 'Restart Extensions')
+				: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart to Update')
+					: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', 'Update {0}', this.productService.nameShort) : '';
 	}
 
 	override async run(): Promise<any> {
 		const runtimeState = this.extension?.runtimeState;
 
-		if (runtimeState?.action === ExtensionRuntimeActionType.RestartExtensions) {
+		if (runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow) {
+			return this.hostService.reload();
+		}
+
+		else if (runtimeState?.action === ExtensionRuntimeActionType.RestartExtensions) {
 			return this.extensionsWorkbenchService.updateRunningExtensions();
 		}
 

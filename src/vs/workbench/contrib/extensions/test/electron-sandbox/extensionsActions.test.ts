@@ -1441,7 +1441,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, `Please restart extensions to enable this extension.`);
+		assert.strictEqual(testObject.tooltip, `Please reload window to enable this extension.`);
 	});
 
 	test('Test Runtime State when ui extension is disabled on remote server and installed in local server', async () => {
@@ -1480,7 +1480,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		await promise;
 		assert.ok(testObject.enabled);
-		assert.strictEqual(testObject.tooltip, `Please restart extensions to enable this extension.`);
+		assert.strictEqual(testObject.tooltip, `Please reload window to enable this extension.`);
 	});
 
 	test('Test Runtime State for remote ui extension is disabled when it is installed and enabled in local server', async () => {

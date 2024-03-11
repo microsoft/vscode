@@ -35,8 +35,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .part > .title,
-.monaco-workbench .part > .header-or-footer {
+.monaco-workbench .part > .title {
 	padding-left: 8px;
 	padding-right: 8px;
 }

@@ -7,12 +7,11 @@ import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { basename } from 'vs/base/common/resources';
-import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentNode, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { IWorkspaceCommentThreadsEvent, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentsList, COMMENTS_VIEW_TITLE, Filter } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { IViewPaneOptions, FilterViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -24,8 +23,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
 import { CommentsFilters, CommentsFiltersChangeEvent } from 'vs/workbench/contrib/comments/browser/commentsViewActions';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
@@ -34,8 +31,7 @@ import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFil
 import { CommentThreadState } from 'vs/editor/common/languages';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
-import { CommentController } from 'vs/workbench/contrib/comments/browser/commentsController';
-import { Range } from 'vs/editor/common/core/range';
+import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 
@@ -323,62 +319,17 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}));
 	}
 
-	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): boolean {
+	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
 		if (!element) {
-			return false;
+			return;
 		}
 
 		if (!(element instanceof ResourceWithCommentThreads || element instanceof CommentNode)) {
-			return false;
+			return;
 		}
-
-		if (!this.commentService.isCommentingEnabled) {
-			this.commentService.enableCommenting(true);
-		}
-
-		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
-
-		const activeEditor = this.editorService.activeTextEditorControl;
-		// If the active editor is a diff editor where one of the sides has the comment,
-		// then we try to reveal the comment in the diff editor.
-		const currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
-			: (activeEditor ? [activeEditor] : []);
-
-		for (const editor of currentActiveResources) {
-			const model = editor.getModel();
-			if ((model instanceof TextModel) && this.uriIdentityService.extUri.isEqual(element.resource, model.uri)) {
-				const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
-				const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
-				if (threadToReveal && isCodeEditor(editor)) {
-					const controller = CommentController.get(editor);
-					controller?.revealCommentThread(threadToReveal, commentToReveal, true, !preserveFocus);
-				}
-
-				return true;
-			}
-		}
-
-		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
+		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].thread : element.thread;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
-
-		this.editorService.openEditor({
-			resource: element.resource,
-			options: {
-				pinned: pinned,
-				preserveFocus: preserveFocus,
-				selection: range ?? new Range(1, 1, 1, 1)
-			}
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-			if (editor) {
-				const control = editor.getControl();
-				if (threadToReveal && isCodeEditor(control)) {
-					const controller = CommentController.get(control);
-					controller?.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true, !preserveFocus);
-				}
-			}
-		});
-
-		return true;
+		return revealCommentThread(this.commentService, this.editorService, this.uriIdentityService, threadToReveal, commentToReveal, false, pinned, preserveFocus, sideBySide);
 	}
 
 	private async refresh(): Promise<void> {
