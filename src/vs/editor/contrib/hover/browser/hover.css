@@ -37,12 +37,12 @@
 	cursor: pointer;
 }
 
-.monaco-editor .monaco-hover .hover-row .expansion-actions .codicon:hover {
-	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
-}
-
 .monaco-editor .monaco-hover .hover-row .expansion-actions .codicon.enabled {
 	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-editor .monaco-hover .hover-row .expansion-actions .codicon.disabled {
+	opacity: 0.6;
 }
 
 .monaco-editor .monaco-hover .hover-row .actions {
