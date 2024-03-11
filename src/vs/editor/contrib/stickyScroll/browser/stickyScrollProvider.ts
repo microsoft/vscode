@@ -68,8 +68,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	}
 
 	private readConfiguration() {
-
-		this._stickyModelProvider = null;
 		this._sessionStore.clear();
 
 		const options = this._editor.getOption(EditorOption.stickyScroll);
@@ -102,6 +100,9 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	}
 
 	private updateStickyModelProvider() {
+		this._stickyModelProvider?.dispose();
+		this._stickyModelProvider = null;
+
 		const editor = this._editor;
 		if (editor.hasModel()) {
 			this._stickyModelProvider = new StickyModelProvider(
@@ -111,8 +112,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				this._editor.getOption(EditorOption.stickyScroll).defaultModel,
 				() => this._updateSoon.schedule()
 			);
-		} else {
-			this._stickyModelProvider = null;
 		}
 	}
 
