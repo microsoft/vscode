@@ -103,7 +103,9 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 							notebookEdits.push(metadataEdit);
 						}
 					}
-
+					if (!notebookEdits.length) {
+						return;
+					}
 					const workspaceEdit = new vscode.WorkspaceEdit();
 					workspaceEdit.set(e.notebook.uri, notebookEdits);
 
@@ -229,7 +231,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 
 		this.updateDiagnostics(cell.document.uri, diagnostics);
 
-		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse, cell.metadata.attachments)) {
+		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse || {}, cell.metadata.attachments || {})) {
 			const updateMetadata: { [key: string]: any } = deepClone(cell.metadata);
 			if (Object.keys(markdownAttachmentsInUse).length === 0) {
 				updateMetadata.attachments = undefined;
