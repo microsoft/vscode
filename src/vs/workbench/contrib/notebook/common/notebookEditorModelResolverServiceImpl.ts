@@ -77,7 +77,8 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			);
 			this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
 		}
-		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager);
+		const scratchPad = viewType === 'interactive' && this._configurationService.getValue<boolean>('interactiveWindow.promptSaveOnClose') !== true;
+		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager, scratchPad);
 		const result = await model.load({ limits });
 
 
