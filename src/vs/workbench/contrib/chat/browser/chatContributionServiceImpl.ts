@@ -5,10 +5,11 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { localize, localize2 } from 'vs/nls';
+import { ILocalizedString, localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
@@ -131,7 +132,8 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	private _registrationDisposables = new Map<string, IDisposable>();
 
 	constructor(
-		@IChatContributionService readonly _chatContributionService: IChatContributionService
+		@IChatContributionService readonly _chatContributionService: IChatContributionService,
+		@IProductService readonly productService: IProductService,
 	) {
 		this._viewContainer = this.registerViewContainer();
 		this.handleAndRegisterChatExtensions();
@@ -190,6 +192,26 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			hideIfEmpty: true,
 			order: 100,
 		}, ViewContainerLocation.Sidebar);
+
+		if (this.productService.chatWelcomeView) {
+			const viewId = this._chatContributionService.getViewIdForProvider(this.productService.chatWelcomeView.welcomeViewId);
+			const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+			viewsRegistry.registerViews([{
+				id: viewId,
+				name: { original: this.productService.chatWelcomeView.welcomeViewTitle, value: this.productService.chatWelcomeView.welcomeViewTitle },
+				containerIcon: icon,
+				ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: this.productService.chatWelcomeView.welcomeViewId }]),
+				canToggleVisibility: false,
+				canMoveView: true,
+				when: ContextKeyExpr.equals(this.productService.chatWelcomeView.when, true),
+				order: 100
+			}], viewContainer);
+
+			viewsRegistry.registerViewWelcomeContent(viewId, {
+				content: this.productService.chatWelcomeView.welcomeViewContent,
+				when: ContextKeyExpr.equals(this.productService.chatWelcomeView.when, true),
+			});
+		}
 
 		return viewContainer;
 	}
