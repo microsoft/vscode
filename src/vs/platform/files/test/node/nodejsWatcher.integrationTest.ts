@@ -505,7 +505,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: false }]);
 	});
 
-	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('deleting watched path emits event (folder watch)', async function () {
+	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('deleting watched path emits file change and watcher fail events (folder watch)', async function () {
 		const watchedPath = join(testDir, 'deep');
 
 		const didWatchFail = new DeferredPromise<void>();
@@ -524,7 +524,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await didEmitDelete.p;
 	});
 
-	test('deleting watched path emits event (file watch)', async function () {
+	test('deleting watched path emits file change and watcher fail events (file watch)', async function () {
 		const watchedPath = join(testDir, 'lorem.txt');
 
 		const didWatchFail = new DeferredPromise<void>();
@@ -635,7 +635,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await basicCrudTest(filePath, undefined, 1);
 	});
 
-	test('watching missing path emits event', async function () {
+	test('watching missing path emits watcher fail event', async function () {
 		const watchedPath = join(testDir, 'missing');
 
 		const didWatchFail = new DeferredPromise<void>();

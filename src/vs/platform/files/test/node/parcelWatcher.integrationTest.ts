@@ -552,7 +552,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: true }]);
 	});
 
-	(isWindows /* flaky on windows */ ? test.skip : test)('deleting watched path is handled properly', async function () {
+	(isWindows /* flaky on windows */ ? test.skip : test)('deleting watched path without correlation restarts watching', async function () {
 		const watchedPath = join(testDir, 'deep');
 
 		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true }]);
@@ -573,6 +573,18 @@ import { Emitter, Event } from 'vs/base/common/event';
 		const changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
+	});
+
+	test('deleting watched path with correlation emits watcher fail event', async function () {
+		const didWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const watchedPath = join(testDir, 'deep');
+
+		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		Promises.rm(watchedPath, RimRafMode.UNLINK);
+
+		await didWatchFail;
 	});
 
 	test('correlationId is supported', async function () {
@@ -703,23 +715,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await basicCrudTest(join(folderPath, 'newFile.txt'), 1);
 	});
 
-	test('watching missing path emits event', async function () {
+	test('watching missing path emits watcher fail event', async function () {
 		const didWatchFail = Event.toPromise(watcher.onWatchFail);
 
 		const folderPath = join(testDir, 'missing');
 		watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
-
-		await didWatchFail;
-	});
-
-	test('deleting watched path emits event', async function () {
-		const didWatchFail = Event.toPromise(watcher.onWatchFail);
-
-		const watchedPath = join(testDir, 'deep');
-
-		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true, correlationId: 1 }]);
-
-		Promises.rm(watchedPath, RimRafMode.UNLINK);
 
 		await didWatchFail;
 	});
