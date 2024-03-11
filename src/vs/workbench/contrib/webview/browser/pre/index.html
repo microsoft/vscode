@@ -37,27 +37,78 @@
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 		/**
-		 * Use polling to track focus of main webview and iframes within the webview
+		 * Track focus of the main webview and iframes within the webview using event listeners.
 		 *
 		 * @param {Object} handlers
-		 * @param {() => void} handlers.onFocus
-		 * @param {() => void} handlers.onBlur
+		 * @param {() => void} handlers.onFocus - Function to call when focus is gained.
+		 * @param {() => void} handlers.onBlur - Function to call when focus is lost.
 		 */
 		const trackFocus = ({ onFocus, onBlur }) => {
-			const interval = 250;
-			let isFocused = document.hasFocus();
-			setInterval(() => {
-				const isCurrentlyFocused = document.hasFocus();
-				if (isCurrentlyFocused === isFocused) {
-					return;
+			// Flag to track the current focus state.
+			let isFocused = false;
+
+			// Function to update the focus state and call the appropriate handler.
+			const updateFocus = (focused) => {
+				if (isFocused !== focused) {
+					isFocused = focused;
+					if (focused) {
+						onFocus();
+					} else {
+						onBlur();
+					}
 				}
-				isFocused = isCurrentlyFocused;
-				if (isCurrentlyFocused) {
-					onFocus();
-				} else {
-					onBlur();
+			};
+
+			// Handler for focus events on the main window.
+			const handleWindowFocus = () => updateFocus(true);
+
+			// Handler for blur events on the main window.
+			const handleWindowBlur = () => updateFocus(false);
+
+			// Add event listeners for focus and blur on the main window.
+			window.addEventListener('focus', handleWindowFocus, true);
+			window.addEventListener('blur', handleWindowBlur, true);
+
+			// Function to attach focus and blur event listeners to an iframe's content window.
+			const attachListenersToIframe = (iframe) => {
+				if (iframe.contentWindow) {
+					iframe.contentWindow.addEventListener('focus', handleWindowFocus, true);
+					iframe.contentWindow.addEventListener('blur', handleWindowBlur, true);
 				}
-			}, interval);
+			};
+
+			// Attach listeners to existing iframes in the document.
+			const iframes = document.querySelectorAll('iframe');
+			iframes.forEach(attachListenersToIframe);
+
+			// Use MutationObserver to monitor the DOM for added iframes and attach listeners to them.
+			const observer = new MutationObserver((mutations) => {
+				mutations.forEach((mutation) => {
+					if (mutation.type === 'childList') {
+						mutation.addedNodes.forEach((node) => {
+							if (node.nodeName === 'IFRAME') {
+								attachListenersToIframe(node);
+							}
+						});
+					}
+				});
+			});
+
+			// Start observing the document body for changes in child elements.
+			observer.observe(document.body, { childList: true, subtree: true });
+
+			// Cleanup function to remove event listeners and disconnect the observer.
+			return () => {
+				window.removeEventListener('focus', handleWindowFocus, true);
+				window.removeEventListener('blur', handleWindowBlur, true);
+				iframes.forEach((iframe) => {
+					if (iframe.contentWindow) {
+						iframe.contentWindow.removeEventListener('focus', handleWindowFocus, true);
+						iframe.contentWindow.removeEventListener('blur', handleWindowBlur, true);
+					}
+				});
+				observer.disconnect();
+			};
 		};
 
 		const getActiveFrame = () => {
