@@ -1015,7 +1015,6 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 	renderTemplate(container: HTMLElement): HistoryItemChangeTemplate {
 		const element = append(container, $('.change'));
 		const name = append(element, $('.name'));
-		name.tabIndex = 0;
 		const fileLabel = this.labels.create(name, { supportDescriptionHighlights: true, supportHighlights: true });
 		const decorationIcon = append(element, $('.decoration-icon'));
 
