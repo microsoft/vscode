@@ -97,11 +97,6 @@ export interface IInlineChatWidgetConstructionOptions {
 	 * The men that rendered in the lower right corner, use for feedback
 	 */
 	feedbackMenuId: MenuId;
-
-	/**
-	 * Whether the code blocks are editable.
-	 */
-	editableCodeBlock?: boolean;
 }
 
 export interface IInlineChatMessage {
@@ -177,7 +172,7 @@ export class InlineChatWidget {
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 
 	constructor(
-		private readonly _options: IInlineChatWidgetConstructionOptions,
+		options: IInlineChatWidgetConstructionOptions,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -192,7 +187,7 @@ export class InlineChatWidget {
 		const hoverDelegate = this._store.add(createInstantHoverDelegate());
 
 		// input editor logic
-		this._inputWidget = this._instantiationService.createInstance(InlineChatInputWidget, { menuId: _options.inputMenuId, telemetrySource: _options.telemetrySource, hoverDelegate });
+		this._inputWidget = this._instantiationService.createInstance(InlineChatInputWidget, { menuId: options.inputMenuId, telemetrySource: options.telemetrySource, hoverDelegate });
 		this._elements.body.replaceChild(this._inputWidget.domNode, this._elements.content);
 		this._store.add(this._inputWidget);
 		this._store.add(this._inputWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -224,15 +219,15 @@ export class InlineChatWidget {
 		this._store.add(this._progressBar);
 
 
-		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.widgetToolbar, _options.widgetMenuId, {
-			telemetrySource: _options.telemetrySource,
+		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.widgetToolbar, options.widgetMenuId, {
+			telemetrySource: options.telemetrySource,
 			toolbarOptions: { primaryGroup: 'main' },
 			hoverDelegate
 		}));
 
 
-		const statusMenuId = _options.statusMenuId instanceof MenuId ? _options.statusMenuId : _options.statusMenuId.menu;
-		const statusMenuOptions = _options.statusMenuId instanceof MenuId ? undefined : _options.statusMenuId.options;
+		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
+		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
 
 		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, statusMenuId, statusMenuOptions);
 		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
@@ -247,7 +242,7 @@ export class InlineChatWidget {
 			}
 		};
 
-		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, _options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
 		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(feedbackToolbar);
 
@@ -366,7 +361,8 @@ export class InlineChatWidget {
 
 	updateChatMessage(message: IInlineChatMessage, isIncomplete: true): IInlineChatMessageAppender;
 	updateChatMessage(message: IInlineChatMessage | undefined): void;
-	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean): IInlineChatMessageAppender | undefined {
+	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined;
+	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined {
 
 		this._chatMessageDisposables.clear();
 		this._chatMessage = message ? new MarkdownString(message.message.value) : undefined;
@@ -378,7 +374,7 @@ export class InlineChatWidget {
 			const sessionModel = this._chatMessageDisposables.add(new ChatModel(message.providerId, undefined, this._logService, this._chatAgentService, this._instantiationService));
 			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, undefined, message.requestId, !isIncomplete, false, undefined));
 			const viewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
-			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true, editableCodeBlock: this._options.editableCodeBlock };
+			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true, editableCodeBlock: isCodeBlockEditable ?? false };
 			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
 			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate, this._codeBlockModelCollection, undefined));
 			renderer.layout(this._chatMessageContents.clientWidth - 4); // 2 for the padding used for the tab index border

@@ -50,8 +50,7 @@ export class TerminalChatWidget extends Disposable {
 				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,
 				statusMenuId: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-				telemetrySource: 'terminal-inline-chat',
-				editableCodeBlock: true
+				telemetrySource: 'terminal-inline-chat'
 			}
 		);
 		this._reset();
