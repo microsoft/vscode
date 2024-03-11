@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { watchFile, unwatchFile, Stats } from 'fs';
-import { Disposable, DisposableMap, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogMessage, IUniversalWatchRequest, IWatcher } from 'vs/platform/files/common/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
@@ -21,47 +21,32 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	protected readonly _onDidWatchFail = this._register(new Emitter<IUniversalWatchRequest>());
 	private readonly onDidWatchFail = this._onDidWatchFail.event;
 
-	private mapWatchMissingRequestPathToCorrelationId = this._register(new DisposableMap<number>());
-
 	private allWatchRequests = new Set<IUniversalWatchRequest>();
-	private suspendedWatchRequests = new Set<IUniversalWatchRequest>();
+	private suspendedWatchRequests = this._register(new DisposableMap<IUniversalWatchRequest>());
 
-	protected readonly missingRequestPathPollingInterval: number | undefined;
+	protected readonly failedRequestPathPollingInterval: number | undefined;
+
+	constructor() {
+		super();
+
+		this._register(this.onDidWatchFail(request => this.handleDidWatchFail(request)));
+	}
+
+	private handleDidWatchFail(request: IUniversalWatchRequest): void {
+		if (typeof request.correlationId !== 'number') {
+			return; // for now limit this to correlated watch requests only (monitoring failed requests is experimental)
+		}
+
+		this.monitorSuspendedWatchRequest(request);
+	}
 
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
 		this.allWatchRequests = new Set([...requests]);
 
-		const correlationIds = new Set<number>();
-		for (const request of requests) {
-
-			// Request with correlation: watch request path to support
-			// watching paths that do not exist yet or are potentially
-			// being deleted and recreated.
-			//
-			// We are not doing this for all watch requests yet to see
-			// how it goes, thus its limitd to correlated requests.
-
-			if (typeof request.correlationId === 'number') {
-				correlationIds.add(request.correlationId);
-
-				if (!this.mapWatchMissingRequestPathToCorrelationId.has(request.correlationId)) {
-					this.mapWatchMissingRequestPathToCorrelationId.set(request.correlationId, this.watchMissingRequestPath(request));
-				}
-			}
-		}
-
-		// Remove all watched correlated paths that are no longer
-		// needed because the request is no longer there
-		for (const [correlationId] of this.mapWatchMissingRequestPathToCorrelationId) {
-			if (!correlationIds.has(correlationId)) {
-				this.mapWatchMissingRequestPathToCorrelationId.deleteAndDispose(correlationId);
-			}
-		}
-
-		// Remove all suspended requests that are no longer needed
-		for (const request of this.suspendedWatchRequests) {
+		// Remove all suspended watch requests that are no longer watched
+		for (const [request] of this.suspendedWatchRequests) {
 			if (!this.allWatchRequests.has(request)) {
-				this.suspendedWatchRequests.delete(request);
+				this.suspendedWatchRequests.deleteAndDispose(request);
 			}
 		}
 
@@ -72,19 +57,19 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		return this.doWatch(Array.from(this.allWatchRequests).filter(request => !this.suspendedWatchRequests.has(request)));
 	}
 
-	private watchMissingRequestPath(request: IUniversalWatchRequest): IDisposable {
-		if (typeof request.correlationId !== 'number') {
-			return Disposable.None; // for now limit this to correlated watch requests only (reduces surface)
+	private monitorSuspendedWatchRequest(request: IUniversalWatchRequest): void {
+		if (this.suspendedWatchRequests.has(request)) {
+			return; // already monitored
 		}
 
-		const that = this;
+		const disposables = new DisposableStore();
+		this.suspendedWatchRequests.set(request, disposables);
+
 		const resource = URI.file(request.path);
-
-		let disposed = false;
+		const that = this;
 		let pathNotFound = false;
-
 		const watchFileCallback: (curr: Stats, prev: Stats) => void = (curr, prev) => {
-			if (disposed) {
+			if (disposables.isDisposed) {
 				return; // return early if already disposed
 			}
 
@@ -105,47 +90,28 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 				that._onDidChangeFile.fire([event]);
 				this.traceEvent(event, request);
 
-				this.suspendedWatchRequests.delete(request);
-				this.updateWatchers();
-			}
-
-			// Watch path deleted or never existed: suspend watching request
-			else if (currentPathNotFound) {
-				this.trace(`fs.watchFile() detected ${request.path} not found, suspending watcher (correlationId: ${request.correlationId})`);
-
-				if (!previousPathNotFound) {
-					const event: IFileChange = { resource, type: FileChangeType.DELETED, cId: request.correlationId };
-					that._onDidChangeFile.fire([event]);
-					this.traceEvent(event, request);
-				}
-
-				this.suspendedWatchRequests.add(request);
+				// Resume watching
+				this.suspendedWatchRequests.deleteAndDispose(request);
 				this.updateWatchers();
 			}
 		};
 
 		this.trace(`starting fs.watchFile() on ${request.path} (correlationId: ${request.correlationId})`);
 		try {
-			watchFile(request.path, { persistent: false, interval: this.missingRequestPathPollingInterval }, watchFileCallback);
+			watchFile(request.path, { persistent: false, interval: this.failedRequestPathPollingInterval }, watchFileCallback);
 		} catch (error) {
 			this.warn(`fs.watchFile() failed with error ${error} on path ${request.path} (correlationId: ${request.correlationId})`);
-
-			return Disposable.None;
 		}
 
-		return toDisposable(() => {
+		disposables.add(toDisposable(() => {
 			this.trace(`stopping fs.watchFile() on ${request.path} (correlationId: ${request.correlationId})`);
-
-			disposed = true;
-
-			this.suspendedWatchRequests.delete(request);
 
 			try {
 				unwatchFile(request.path, watchFileCallback);
 			} catch (error) {
 				this.warn(`fs.unwatchFile() failed with error ${error} on path ${request.path} (correlationId: ${request.correlationId})`);
 			}
-		});
+		}));
 	}
 
 	private isPathNotFound(stats: Stats): boolean {
@@ -153,8 +119,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	async stop(): Promise<void> {
-		this.mapWatchMissingRequestPathToCorrelationId.clearAndDisposeAll();
-		this.suspendedWatchRequests.clear();
+		this.suspendedWatchRequests.clearAndDisposeAll();
 	}
 
 	protected shouldRestartWatching(request: IUniversalWatchRequest): boolean {
