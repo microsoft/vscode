@@ -29,6 +29,7 @@ export interface IssueReporterData {
 	extensionsDisabled?: boolean;
 	fileOnExtension?: boolean;
 	fileOnMarketplace?: boolean;
+	fileOnProduct?: boolean;
 	selectedExtension?: IssueReporterExtensionData;
 	actualSearchResults?: ISettingSearchResult[];
 	query?: string;

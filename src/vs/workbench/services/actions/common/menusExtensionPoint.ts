@@ -22,6 +22,9 @@ import { IExtensionManifest, IKeyBinding } from 'vs/platform/extensions/common/e
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { platform } from 'vs/base/common/process';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 interface IAPIMenu {
 	readonly key: string;
@@ -288,6 +291,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribCommentPeekContext'
 	},
 	{
+		key: 'commentsView/commentThread/context',
+		id: MenuId.CommentsViewThreadActions,
+		description: localize('commentsView.threadActions', "The contributed comment thread context menu in the comments view"),
+		proposed: 'contribCommentsViewThreadMenus'
+	},
+	{
 		key: 'notebook/toolbar',
 		id: MenuId.NotebookToolbar,
 		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
@@ -319,6 +328,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
 	},
 	{
+		key: 'issue/reporter',
+		id: MenuId.IssueReporter,
+		description: localize('issue.reporter', "The contributed issue reporter menu"),
+		proposed: 'contribIssueReporter'
+	},
+	{
 		key: 'testing/item/context',
 		id: MenuId.TestItem,
 		description: localize('testing.item.context', "The contributed test item menu"),
@@ -327,6 +342,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'testing/item/gutter',
 		id: MenuId.TestItemGutter,
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
+	},
+	{
+		key: 'testing/item/result',
+		id: MenuId.TestPeekElement,
+		description: localize('testing.item.result.title', "The menu for an item in the Test Results view or peek."),
 	},
 	{
 		key: 'testing/message/context',
@@ -391,6 +411,13 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
 		supportsSubmenus: false,
 		proposed: 'inlineCompletionsAdditions'
+	},
+	{
+		key: 'editor/inlineEdit/actions',
+		id: MenuId.InlineEditActions,
+		description: localize('inlineEdit.actions', "The actions shown when hovering on an inline edit"),
+		supportsSubmenus: false,
+		proposed: 'inlineEdit'
 	},
 	{
 		key: 'editor/content',
@@ -996,6 +1023,10 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 	readonly type = 'table';
 
+	constructor(
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) { super(); }
+
 	shouldRender(manifest: IExtensionManifest): boolean {
 		return !!manifest.contributes?.commands;
 	}
@@ -1005,7 +1036,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 		const commands = rawCommands.map(c => ({
 			id: c.command,
 			title: c.title,
-			keybindings: [] as string[],
+			keybindings: [] as ResolvedKeybinding[],
 			menus: [] as string[]
 		}));
 
@@ -1062,10 +1093,10 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 		const rows: IRowData[][] = commands.sort((a, b) => a.id.localeCompare(b.id))
 			.map(command => {
 				return [
-					{ data: command.id, type: 'code' },
+					new MarkdownString().appendMarkdown(`\`${command.id}\``),
 					typeof command.title === 'string' ? command.title : command.title.value,
-					{ data: command.keybindings, type: 'keybinding' },
-					{ data: command.menus, type: 'code' },
+					command.keybindings,
+					new MarkdownString().appendMarkdown(`${command.menus.map(menu => `\`${menu}\``).join('&nbsp;')}`),
 				];
 			});
 
@@ -1078,7 +1109,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 		};
 	}
 
-	private resolveKeybinding(rawKeyBinding: IKeyBinding): string | undefined {
+	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding | undefined {
 		let key: string | undefined;
 
 		switch (platform) {
@@ -1087,7 +1118,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		return key ?? rawKeyBinding.key;
+		return this._keybindingService.resolveUserBinding(key ?? rawKeyBinding.key)[0];
 	}
 
 }

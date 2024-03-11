@@ -29,6 +29,7 @@ import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IEditorPlaceholderContents {
 	icon: string;
@@ -55,11 +56,12 @@ export abstract class EditorPlaceholder extends EditorPane {
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService, storageService);
+		super(id, group, telemetryService, themeService, storageService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -100,7 +102,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 
 		// Icon
 		const iconContainer = container.appendChild($('.editor-placeholder-icon-container'));
-		const iconWidget = new SimpleIconLabel(iconContainer);
+		const iconWidget = disposables.add(new SimpleIconLabel(iconContainer));
 		iconWidget.text = icon;
 
 		// Label
@@ -186,13 +188,14 @@ export class WorkspaceTrustRequiredPlaceholderEditor extends EditorPlaceholder {
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredPlaceholderEditor, WorkspaceTrustRequiredPlaceholderEditor.ID, WorkspaceTrustRequiredPlaceholderEditor.LABEL);
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(WorkspaceTrustRequiredPlaceholderEditor.ID, telemetryService, themeService, storageService);
+		super(WorkspaceTrustRequiredPlaceholderEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	override getTitle(): string {
@@ -223,18 +226,18 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(ErrorPlaceholderEditor, ErrorPlaceholderEditor.ID, ErrorPlaceholderEditor.LABEL);
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
-		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService);
+		super(ErrorPlaceholderEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected async getContents(input: EditorInput, options: IErrorEditorPlaceholderOptions, disposables: DisposableStore): Promise<IEditorPlaceholderContents> {
 		const resource = input.resource;
-		const group = this.group;
 		const error = options.error;
 		const isFileNotFound = (<FileOperationError | undefined>error)?.fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 
@@ -274,20 +277,20 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 					}
 				};
 			});
-		} else if (group) {
+		} else {
 			actions = [
 				{
 					label: localize('retry', "Try Again"),
-					run: () => group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
+					run: () => this.group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
 				}
 			];
 		}
 
 		// Auto-reload when file is added
-		if (group && isFileNotFound && resource && this.fileService.hasProvider(resource)) {
+		if (isFileNotFound && resource && this.fileService.hasProvider(resource)) {
 			disposables.add(this.fileService.onDidFilesChange(e => {
 				if (e.contains(resource, FileChangeType.ADDED, FileChangeType.UPDATED)) {
-					group.openEditor(input, options);
+					this.group.openEditor(input, options);
 				}
 			}));
 		}

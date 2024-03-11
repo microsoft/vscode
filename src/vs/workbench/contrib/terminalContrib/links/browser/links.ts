@@ -84,6 +84,11 @@ export interface ITerminalSimpleLink {
 	uri?: URI;
 
 	/**
+	 * An optional full line to be used for context when resolving.
+	 */
+	contextLine?: string;
+
+	/**
 	 * The location or selection range of the link.
 	 */
 	selection?: ITextEditorSelection;

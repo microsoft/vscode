@@ -474,6 +474,11 @@
 	pointer-events: none;
 }
 
+.terminal-range-highlight {
+	outline: 1px solid var(--vscode-focusBorder);
+	pointer-events: none;
+}
+
 .terminal-command-guide {
 	left: 0;
 	border: 1.5px solid #ffffff;

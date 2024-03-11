@@ -118,6 +118,9 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 				enabled = confirmationResult.confirmed;
 			}
 			this.setEnablement(extension, featureId, enabled);
+			if (!enabled) {
+				return false;
+			}
 		}
 
 		featureState.accessData.current = {

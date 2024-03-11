@@ -26,7 +26,7 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAn
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableMap, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MenuId, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ResourceContextKey, MultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
@@ -67,6 +67,7 @@ export class OpenEditorsView extends ViewPane {
 	private dirtyCountElement!: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler | undefined;
 	private structuralRefreshDelay: number;
+	private dnd: OpenEditorsDragAndDrop | undefined;
 	private list: WorkbenchList<OpenEditor | IEditorGroup> | undefined;
 	private listLabels: ResourceLabels | undefined;
 	private needsRefresh = false;
@@ -117,7 +118,7 @@ export class OpenEditorsView extends ViewPane {
 			this.listRefreshScheduler?.schedule(this.structuralRefreshDelay);
 		};
 
-		const groupDisposables = new Map<number, IDisposable>();
+		const groupDisposables = this._register(new DisposableMap<number>());
 		const addGroupListener = (group: IEditorGroup) => {
 			const groupModelChangeListener = group.onDidModelChange(e => {
 				if (this.listRefreshScheduler?.isScheduled()) {
@@ -155,7 +156,6 @@ export class OpenEditorsView extends ViewPane {
 				}
 			});
 			groupDisposables.set(group.id, groupModelChangeListener);
-			this._register(groupDisposables.get(group.id)!);
 		};
 
 		this.editorGroupService.groups.forEach(g => addGroupListener(g));
@@ -166,7 +166,7 @@ export class OpenEditorsView extends ViewPane {
 		this._register(this.editorGroupService.onDidMoveGroup(() => updateWholeList()));
 		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.focusActiveEditor()));
 		this._register(this.editorGroupService.onDidRemoveGroup(group => {
-			dispose(groupDisposables.get(group.id));
+			groupDisposables.deleteAndDispose(group.id);
 			updateWholeList();
 		}));
 	}
@@ -198,13 +198,16 @@ export class OpenEditorsView extends ViewPane {
 		if (this.listLabels) {
 			this.listLabels.clear();
 		}
+
+		this.dnd = new OpenEditorsDragAndDrop(this.sortOrder, this.instantiationService, this.editorGroupService);
+
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
-			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService),
+			dnd: this.dnd,
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
 			},
@@ -448,6 +451,9 @@ export class OpenEditorsView extends ViewPane {
 		// Trigger a 'repaint' when decoration settings change or the sort order changed
 		if (event.affectsConfiguration('explorer.decorations') || event.affectsConfiguration('explorer.openEditors.sortOrder')) {
 			this.sortOrder = this.configurationService.getValue('explorer.openEditors.sortOrder');
+			if (this.dnd) {
+				this.dnd.sortOrder = this.sortOrder;
+			}
 			this.listRefreshScheduler?.schedule();
 		}
 	}
@@ -672,10 +678,18 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 
 class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGroup> {
 
+	private _sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
+	public set sortOrder(value: 'editorOrder' | 'alphabetical' | 'fullPath') {
+		this._sortOrder = value;
+	}
+
 	constructor(
+		sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath',
 		private instantiationService: IInstantiationService,
 		private editorGroupService: IEditorGroupsService
-	) { }
+	) {
+		this._sortOrder = sortOrder;
+	}
 
 	@memoize private get dropHandler(): ResourcesDropHandler {
 		return this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
@@ -721,6 +735,16 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		if (data instanceof NativeDragAndDropData) {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES)) {
 				return false;
+			}
+		}
+
+		if (this._sortOrder !== 'editorOrder') {
+			if (data instanceof ElementsDragAndDropData) {
+				// No reordering supported when sorted
+				return false;
+			} else {
+				// Allow droping files to open them
+				return { accept: true, effect: { type: ListDragOverEffectType.Move }, feedback: [-1] } as IListDragOverReaction;
 			}
 		}
 

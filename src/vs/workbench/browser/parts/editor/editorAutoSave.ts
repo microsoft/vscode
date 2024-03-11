@@ -80,7 +80,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			if (workingCopyResult?.condition === condition) {
 				if (
 					workingCopyResult.workingCopy.isDirty() &&
-					this.filesConfigurationService.getAutoSaveMode(workingCopyResult.workingCopy.resource).mode !== AutoSaveMode.OFF
+					this.filesConfigurationService.getAutoSaveMode(workingCopyResult.workingCopy.resource, workingCopyResult.reason).mode !== AutoSaveMode.OFF
 				) {
 					this.discardAutoSave(workingCopyResult.workingCopy);
 
@@ -96,7 +96,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 					editorResult?.condition === condition &&
 					!editorResult.editor.editor.isDisposed() &&
 					editorResult.editor.editor.isDirty() &&
-					this.filesConfigurationService.getAutoSaveMode(editorResult.editor.editor).mode !== AutoSaveMode.OFF
+					this.filesConfigurationService.getAutoSaveMode(editorResult.editor.editor, editorResult.reason).mode !== AutoSaveMode.OFF
 				) {
 					this.waitingOnConditionAutoSaveEditors.delete(resource);
 
@@ -151,7 +151,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 				return; // no auto save for non-dirty, readonly or untitled editors
 			}
 
-			const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(editorIdentifier.editor);
+			const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(editorIdentifier.editor, reason);
 			if (autoSaveMode.mode !== AutoSaveMode.OFF) {
 				// Determine if we need to save all. In case of a window focus change we also save if
 				// auto save mode is configured to be ON_FOCUS_CHANGE (editor focus change)
@@ -198,7 +198,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 				continue; // we never auto save untitled working copies
 			}
 
-			const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource);
+			const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource, reason);
 			if (autoSaveMode.mode !== AutoSaveMode.OFF) {
 				workingCopy.save({ reason });
 			} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS || autoSaveMode.reason === AutoSaveDisabledReason.DISABLED) {
@@ -257,12 +257,13 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 			// Save if dirty and unless prevented by other conditions such as error markers
 			if (workingCopy.isDirty()) {
-				const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource);
+				const reason = SaveReason.AUTO;
+				const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource, reason);
 				if (autoSaveMode.mode !== AutoSaveMode.OFF) {
 					this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
-					workingCopy.save({ reason: SaveReason.AUTO });
+					workingCopy.save({ reason });
 				} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS || autoSaveMode.reason === AutoSaveDisabledReason.DISABLED) {
-					this.waitingOnConditionAutoSaveWorkingCopies.set(workingCopy.resource, { workingCopy, reason: SaveReason.AUTO, condition: autoSaveMode.reason });
+					this.waitingOnConditionAutoSaveWorkingCopies.set(workingCopy.resource, { workingCopy, reason, condition: autoSaveMode.reason });
 				}
 			}
 		}, autoSaveAfterDelay);

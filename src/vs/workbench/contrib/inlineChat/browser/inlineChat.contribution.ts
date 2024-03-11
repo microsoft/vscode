@@ -42,6 +42,8 @@ registerAction2(InlineChatActions.DiscardAction);
 registerAction2(InlineChatActions.DiscardToClipboardAction);
 registerAction2(InlineChatActions.DiscardUndoToNewFileAction);
 registerAction2(InlineChatActions.CancelSessionAction);
+registerAction2(InlineChatActions.MoveToNextHunk);
+registerAction2(InlineChatActions.MoveToPreviousHunk);
 
 registerAction2(InlineChatActions.ArrowOutUpAction);
 registerAction2(InlineChatActions.ArrowOutDownAction);
@@ -49,8 +51,6 @@ registerAction2(InlineChatActions.FocusInlineChat);
 registerAction2(InlineChatActions.PreviousFromHistory);
 registerAction2(InlineChatActions.NextFromHistory);
 registerAction2(InlineChatActions.ViewInChatAction);
-registerAction2(InlineChatActions.ExpandMessageAction);
-registerAction2(InlineChatActions.ContractMessageAction);
 
 registerAction2(InlineChatActions.ToggleDiffForChange);
 registerAction2(InlineChatActions.FeebackHelpfulCommand);

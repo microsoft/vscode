@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -52,7 +52,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
@@ -219,7 +219,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
 			this.registerCommandDecoration(command);
 			if (command.exitCode) {
-				this._audioCueService.playAudioCue(AudioCue.terminalCommandFailed);
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
 			}
 		}));
 		// Command invalidated

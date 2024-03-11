@@ -8,7 +8,7 @@ import { localize, localize2 } from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/contextkeys';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
@@ -199,7 +199,7 @@ AlignPanelActionConfigs.forEach(alignPanelAction => {
 		constructor() {
 			super({
 				id,
-				title: title,
+				title,
 				category: Categories.View,
 				toggled: when.negate(),
 				f1: true
@@ -349,7 +349,12 @@ registerAction2(class extends Action2 {
 			}, {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
-				order: 2
+				order: 2,
+				when: ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP)
+			}, {
+				id: MenuId.AuxiliaryBarHeader,
+				group: 'navigation',
+				when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP)
 			}]
 		});
 	}
