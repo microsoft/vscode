@@ -23,9 +23,14 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { HoverExtensionMetadata, HoverExtensionRequest, HoverProvider } from 'vs/editor/common/languages';
-import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { registerActionOnClickOrAcceptKeydown } from 'vs/base/browser/ui/hover/hoverWidget';
 
 const $ = dom.$;
+const showMoreHoverInformationIcon = registerIcon('hover-show-more', Codicon.chevronUp, nls.localize('showMoreHoverInformation', 'Icon for showing more hover information.'));
+const showLessHoverInformationIcon = registerIcon('hover-show-less', Codicon.chevronDown, nls.localize('showLessHoverInformation', 'Icon for showing less hover information.'));
 
 export class MarkdownHover implements IHoverPart {
 
@@ -236,17 +241,14 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			this._openerService,
 			store
 		);
-		const actionsToolbar = $('div.hover-row.status-bar');
-		contents.appendChild(actionsToolbar);
-		const actionsContainer = $('div.actions');
-		actionsContainer.style.display = 'flex';
-		actionsToolbar.appendChild(actionsContainer);
-
 		if (!extensionMetadata || !this._context || !this._context.disposables) {
 			return contents;
 		}
-		this._renderHoverExpansionAction(actionsContainer, extensionMetadata.canContract === true ? false : undefined);
-		this._renderHoverExpansionAction(actionsContainer, extensionMetadata.canExtend === true ? true : undefined);
+		const actionsContainer = $('div.expansion-actions');
+		contents.appendChild(actionsContainer);
+
+		this._renderHoverExpansionAction(actionsContainer, { extend: true, enabled: extensionMetadata.canExtend ?? false }, store);
+		this._renderHoverExpansionAction(actionsContainer, { extend: false, enabled: extensionMetadata.canContract ?? false }, store);
 
 		const focusTracker = this._context.disposables.add(dom.trackFocus(contents));
 		this._context.disposables.add(focusTracker.onDidFocus(() => {
@@ -271,15 +273,15 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return contents;
 	}
 
-	private _renderHoverExpansionAction(container: HTMLElement, extend: boolean | undefined): void {
-		if (extend === undefined) {
+	private _renderHoverExpansionAction(container: HTMLElement, expansionMetadata: { extend: boolean; enabled: boolean }, store: DisposableStore): void {
+		const element = dom.append(container, $(ThemeIcon.asCSSSelector(expansionMetadata.extend ? showMoreHoverInformationIcon : showLessHoverInformationIcon)));
+		element.tabIndex = 0;
+		if (!expansionMetadata.enabled) {
+			element.classList.add('disabled');
 			return;
 		}
-		HoverAction.render(container, {
-			label: extend ? nls.localize('show more', "Show More...") : nls.localize('show less', "Show Less..."),
-			commandId: extend ? 'editor.hover.showMore' : 'editor.hover.showLess',
-			run: () => { this.extendOrContractFocusedMessage(extend); }
-		}, null);
+		element.classList.add('enabled');
+		registerActionOnClickOrAcceptKeydown(element, () => this.extendOrContractFocusedMessage(expansionMetadata.extend), store);
 	}
 }
 

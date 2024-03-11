@@ -999,6 +999,7 @@ export class EditorHoverStatusBar extends Disposable implements IEditorHoverStat
 	) {
 		super();
 		this.hoverElement = $('div.hover-row.status-bar');
+		this.hoverElement.tabIndex = 0;
 		this.actionsElement = dom.append(this.hoverElement, $('div.actions'));
 	}
 

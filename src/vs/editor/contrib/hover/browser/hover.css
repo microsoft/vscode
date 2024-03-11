@@ -22,6 +22,29 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
+.monaco-editor .monaco-hover .hover-row {
+	display: flex;
+	justify-content: space-between;
+}
+
+.monaco-editor .monaco-hover .hover-row .expansion-actions {
+	display: flex;
+	flex-direction: column;
+	margin-right: 10px;
+}
+
+.monaco-editor .monaco-hover .hover-row .expansion-actions .codicon {
+	cursor: pointer;
+}
+
+.monaco-editor .monaco-hover .hover-row .expansion-actions .codicon:hover {
+	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
+}
+
+.monaco-editor .monaco-hover .hover-row .expansion-actions .codicon.enabled {
+	color: var(--vscode-textLink-foreground);
+}
+
 .monaco-editor .monaco-hover .hover-row .actions {
 	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
 }

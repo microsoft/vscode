@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./hover';
 import { localize } from 'vs/nls';
 
@@ -67,21 +67,7 @@ export class HoverAction extends Disposable {
 		const label = dom.append(this.action, $('span'));
 		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(this.actionContainer);
-		}));
-
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				e.stopPropagation();
-				e.preventDefault();
-				actionOptions.run(this.actionContainer);
-			}
-		}));
-
+		registerActionOnClickOrAcceptKeydown(this.actionContainer, actionOptions.run, this._store);
 		this.setEnabled(true);
 	}
 
@@ -98,4 +84,20 @@ export class HoverAction extends Disposable {
 
 export function getHoverAccessibleViewHint(shouldHaveHint?: boolean, keybinding?: string | null): string | undefined {
 	return shouldHaveHint && keybinding ? localize('acessibleViewHint', "Inspect this in the accessible view with {0}.", keybinding) : shouldHaveHint ? localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.") : '';
+}
+
+export function registerActionOnClickOrAcceptKeydown(container: HTMLElement, run: (container: HTMLElement) => void, store: DisposableStore) {
+	store.add(dom.addDisposableListener(container, dom.EventType.CLICK, e => {
+		e.stopPropagation();
+		e.preventDefault();
+		run(container);
+	}));
+	store.add(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, e => {
+		const event = new StandardKeyboardEvent(e);
+		if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+			e.stopPropagation();
+			e.preventDefault();
+			run(container);
+		}
+	}));
 }
