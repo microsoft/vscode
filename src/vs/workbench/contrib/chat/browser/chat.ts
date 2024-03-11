@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -146,16 +146,4 @@ export interface ICodeBlockContextProviderService {
 	readonly _serviceBrand: undefined;
 	readonly providers: ICodeBlockActionContextProvider[];
 	registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable;
-}
-export class CodeBlockContextProviderService implements ICodeBlockContextProviderService {
-	declare _serviceBrand: undefined;
-	private readonly _providers = new Map<string, ICodeBlockActionContextProvider>();
-
-	get providers(): ICodeBlockActionContextProvider[] {
-		return [...this._providers.values()];
-	}
-	registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable {
-		this._providers.set(id, provider);
-		return toDisposable(() => this._providers.delete(id));
-	}
 }
