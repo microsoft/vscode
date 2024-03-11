@@ -328,18 +328,18 @@ class GetErrRequest {
 				request = client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token);
 			}
 			else {
-				const regions: Proto.FileRangeRequestArgs[] = coalesce(Array.from(files.entries())
+				const filesWithRanges = coalesce(Array.from(files.entries())
 					.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
 					.map(entry => {
 						const file = client.toTsFilePath(entry.resource);
 						const ranges = entry.value;
 						if (file && ranges) {
-							return typeConverters.Range.toFileRangeRequestArgs(file, ranges[0]);
+							return typeConverters.Range.toFileRangesRequestArgs(file, ranges);
 						}
-						return undefined;
+
+						return file;
 					}));
-				/* @ts-ignore-error */
-				request = client.executeAsync('geterr', { delay: 0, files: allFiles, regions }, this._token.token);
+				request = client.executeAsync('geterr', { delay: 0, files: filesWithRanges }, this._token.token);
 			}
 			// const request = this.areProjectDiagnosticsEnabled()
 			// 	// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
