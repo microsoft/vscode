@@ -165,6 +165,7 @@ extends:
           projectName: 'DevDiv'
           areaPath: "DevDiv\\VS Code (compliance tracking only)\\Visual Studio Code Client"
           notificationAliases: ['monacotools@microsoft.com']
+          validateToolOutput: None
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
       sourceAnalysisPool: 1es-windows-2022-x64
