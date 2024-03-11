@@ -225,7 +225,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		store: DisposableStore,
 	): HTMLElement {
 
-		const contents = document.createElement('div');
+		const contents = $('div.hover-row');
 		contents.tabIndex = 0;
 		renderMarkdownInContainer(
 			this._editor,
@@ -322,7 +322,7 @@ function renderMarkdownInContainer(
 		if (isEmptyMarkdownString(contents)) {
 			continue;
 		}
-		const markdownHoverElement = $('div.hover-row.markdown-hover');
+		const markdownHoverElement = $('div.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
 		const renderer = disposableStore.add(new MarkdownRenderer({ editor }, languageService, openerService));
 		disposableStore.add(renderer.onDidRenderAsync(() => {
