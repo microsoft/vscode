@@ -2238,7 +2238,6 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalInteraction(id: number): void;
-	$acceptTerminalShellIntegrationActivation(id: number): void;
 	$acceptTerminalSelection(id: number, selection: string | undefined): void;
 	$startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined>;
 	$acceptProcessAckDataEvent(id: number, charCount: number): void;
