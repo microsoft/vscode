@@ -922,8 +922,8 @@ export class GettingStartedPage extends EditorPane {
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
 				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
-				this.hasScrolledToFirstCategory = true;
 				if (first) {
+					this.hasScrolledToFirstCategory = true;
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
 					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
