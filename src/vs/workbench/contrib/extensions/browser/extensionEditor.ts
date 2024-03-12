@@ -44,6 +44,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultCheckboxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
@@ -78,6 +79,7 @@ import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from
 import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, VerifiedPublisherWidget, onClick } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtension, IExtensionContainer, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { IWebview, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
@@ -86,6 +88,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { VIEW_ID as EXPLORER_VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 class NavBar extends Disposable {
 
@@ -155,6 +160,7 @@ interface IExtensionEditorTemplate {
 	builtin: HTMLElement;
 	publisher: HTMLElement;
 	publisherDisplayName: HTMLElement;
+	resource: HTMLElement;
 	installCount: HTMLElement;
 	rating: HTMLElement;
 	description: HTMLElement;
@@ -245,6 +251,10 @@ export class ExtensionEditor extends EditorPane {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IExplorerService private readonly explorerService: IExplorerService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -290,6 +300,9 @@ export class ExtensionEditor extends EditorPane {
 		publisher.setAttribute('role', 'button');
 		const publisherDisplayName = append(publisher, $('.publisher-name'));
 		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $('.verified-publisher')), false);
+
+		const resource = append(append(subtitle, $('.subtitle-entry.resource')), $('', { tabIndex: 0 }));
+		resource.setAttribute('role', 'button');
 
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { tabIndex: 0 }));
 		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), installCount, localize('install count', "Install count")));
@@ -419,6 +432,7 @@ export class ExtensionEditor extends EditorPane {
 			preview,
 			publisher,
 			publisherDisplayName,
+			resource,
 			rating,
 			actionsAndStatusContainer,
 			extensionActionBar,
@@ -473,6 +487,12 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private async getGalleryVersionToShow(extension: IExtension, preRelease?: boolean): Promise<IGalleryExtension | null> {
+		if (extension.resourceExtension) {
+			return null;
+		}
+		if (extension.local?.source === 'resource') {
+			return null;
+		}
 		if (isUndefined(preRelease)) {
 			return null;
 		}
@@ -521,6 +541,25 @@ export class ExtensionEditor extends EditorPane {
 		// subtitle
 		template.publisher.classList.toggle('clickable', !!extension.url);
 		template.publisherDisplayName.textContent = extension.publisherDisplayName;
+		template.publisher.parentElement?.classList.toggle('hide', !!extension.resourceExtension || extension.local?.source === 'resource');
+
+		const location = extension.resourceExtension?.location ?? (extension.local?.source === 'resource' ? extension.local?.location : undefined);
+		template.resource.parentElement?.classList.toggle('hide', !location);
+		if (location) {
+			const workspaceFolder = this.contextService.getWorkspaceFolder(location);
+			if (workspaceFolder && extension.isWorkspaceScoped) {
+				template.resource.parentElement?.classList.add('clickable');
+				this.transientDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), template.resource, this.uriIdentityService.extUri.relativePath(workspaceFolder.uri, location)));
+				template.resource.textContent = localize('workspace extension', "Workspace Extension");
+				this.transientDisposables.add(onClick(template.resource, () => {
+					this.viewsService.openView(EXPLORER_VIEW_ID, true).then(() => this.explorerService.select(location, true));
+				}));
+			} else {
+				template.resource.parentElement?.classList.remove('clickable');
+				this.transientDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), template.resource, location.path));
+				template.resource.textContent = localize('local extension', "Local Extension");
+			}
+		}
 
 		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
 		template.rating.parentElement?.classList.toggle('hide', !extension.url);

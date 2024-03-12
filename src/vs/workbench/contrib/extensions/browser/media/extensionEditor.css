@@ -163,7 +163,7 @@
 	margin-left: 6px;
 }
 
-.extension-editor > .header > .details > .subtitle > div:not(:first-child):not(:empty) {
+.extension-editor > .header > .details > .subtitle > div:not(:first-child):not(:empty):not(.resource) {
 	border-left: 1px solid rgba(128, 128, 128, 0.7);
 	margin-left: 14px;
 	padding-left: 14px;
