@@ -423,7 +423,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					listFocusAndSelectionForeground: this.styles.listForeground,
 				}
 			});
-		this.tree.onContextMenu(e => this.onContextMenu(e));
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidChangeContentHeight(() => {
 			this.onDidChangeTreeContentHeight();

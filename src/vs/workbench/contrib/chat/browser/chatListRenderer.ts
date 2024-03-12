@@ -738,7 +738,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 		const buttonElement = $('.chat-used-context-label', undefined);
 
-		const collapseButton = new Button(buttonElement, {
+		const collapseButton = listDisposables.add(new Button(buttonElement, {
 			buttonBackground: undefined,
 			buttonBorder: undefined,
 			buttonForeground: undefined,
@@ -747,7 +747,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			buttonSecondaryForeground: undefined,
 			buttonSecondaryHoverBackground: undefined,
 			buttonSeparator: undefined
-		});
+		}));
 		const container = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 		collapseButton.element.append(iconElement);
