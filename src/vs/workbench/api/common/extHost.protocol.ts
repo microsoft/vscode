@@ -2080,7 +2080,7 @@ export interface IPasteEditDto {
 	kind: { value: string } | undefined;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
-	yieldTo?: readonly languages.DropYieldTo[];
+	yieldTo?: readonly string[];
 }
 
 export interface IDocumentDropEditProviderMetadata {
@@ -2092,7 +2092,7 @@ export interface IDocumentOnDropEditDto {
 	kind: string | undefined;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
-	yieldTo?: readonly languages.DropYieldTo[];
+	yieldTo?: readonly string[];
 }
 
 export interface ExtHostLanguageFeaturesShape {
