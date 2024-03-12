@@ -361,7 +361,7 @@ export class ContentHoverController extends Disposable {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
-	public async changeFocusedHoverVerbosityLevel(increaseVerbosity: boolean): Promise<void> {
+	public async changeFocusedMarkdownHoverVerbosityLevel(increaseVerbosity: boolean): Promise<void> {
 		this._markdownHoverParticipant?.changeFocusedHoverVerbosityLevel(increaseVerbosity);
 	}
 

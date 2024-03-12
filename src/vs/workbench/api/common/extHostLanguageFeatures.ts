@@ -261,12 +261,12 @@ class HoverAdapter {
 		private readonly _metadata?: vscode.languages.HoverProviderMetadata,
 	) { }
 
-	async provideHover(resource: URI, position: IPosition, token: CancellationToken, hoverContext?: { verbosityLevel: number }): Promise<languages.Hover | undefined> {
+	async provideHover(resource: URI, position: IPosition, token: CancellationToken, hoverContext?: languages.HoverContext): Promise<languages.Hover | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		let value;
+		let value: vscode.VerboseHover | null | undefined;
 		if (this._metadata?.canIncreaseVerbosity && hoverContext) {
 			value = await this._provider.provideHover(doc, pos, token, hoverContext);
 		} else {
@@ -2239,8 +2239,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken, hoverContext?: { verbosityLevel: number }): Promise<languages.Hover | undefined> {
-		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token, hoverContext), undefined, token);
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken, context?: languages.HoverContext): Promise<languages.Hover | undefined> {
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token, context), undefined, token);
 	}
 
 	// --- debug hover

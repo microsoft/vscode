@@ -327,8 +327,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 			resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded ||
 			(resolvedKeyboardEvent.kind === ResultKind.KbFound
 				&& (resolvedKeyboardEvent.commandId === 'editor.action.showHover'
-					|| resolvedKeyboardEvent.commandId === 'editor.action.showMoreHoverInformation'
-					|| resolvedKeyboardEvent.commandId === 'editor.action.showLessHoverInformation')
+					|| resolvedKeyboardEvent.commandId === 'editor.action.increaseHoverVerbosityLevel'
+					|| resolvedKeyboardEvent.commandId === 'editor.action.decreaseHoverVerbosityLevel')
 				&& this._contentWidget?.isVisible
 			)
 		);
@@ -396,8 +396,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
-	public changeFocusedHoverVerbosityLevel(increaseVerbosity: boolean): void {
-		this._getOrCreateContentWidget().changeFocusedHoverVerbosityLevel(increaseVerbosity);
+	public changeFocusedMarkdownHoverVerbosityLevel(increaseVerbosity: boolean): void {
+		this._getOrCreateContentWidget().changeFocusedMarkdownHoverVerbosityLevel(increaseVerbosity);
 	}
 
 	public focus(): void {
@@ -832,16 +832,16 @@ class GoToBottomHoverAction extends EditorAction {
 	}
 }
 
-class ShowMoreHoverInformationAction extends EditorAction {
+class IncreaseHoverVerbosityLevel extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showMoreHoverInformation',
+			id: 'editor.action.increaseHoverVerbosityLevel',
 			label: nls.localize({
-				key: 'showMoreHoverInformation',
-				comment: ['Label for action that will trigger showing more hover information.']
-			}, "Show More Hover Information"),
-			alias: 'Show More Hover Information',
+				key: 'increaseHoverVerbosityLevel',
+				comment: ['Label for action that will increase the hover verbosity level.']
+			}, "Increase Hover Verbosity Level"),
+			alias: 'Increase Hover Verbosity Level',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -852,20 +852,20 @@ class ShowMoreHoverInformationAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		extendOrContractFocusedMessage(editor, true);
+		changeFocusedMarkdownHoverVerbosityLevel(editor, true);
 	}
 }
 
-class ShowLessHoverInformationAction extends EditorAction {
+class DecreaseHoverVerbosityLevel extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showLessHoverInformation',
+			id: 'editor.action.decreaseHoverVerbosityLevel',
 			label: nls.localize({
-				key: 'showLessHoverInformation',
-				comment: ['Label for action that will trigger showing less hover information.']
-			}, "Show Less Hover Information"),
-			alias: 'Show Less Hover Information',
+				key: 'decreaseHoverVerbosityLevel',
+				comment: ['Label for action that will decrease the hover verbosity level.']
+			}, "Decrease Hover Verbosity Level"),
+			alias: 'Decrease Hover Verbosity Level',
 			precondition: EditorContextKeys.hoverFocused,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
@@ -876,16 +876,16 @@ class ShowLessHoverInformationAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		extendOrContractFocusedMessage(editor, false);
+		changeFocusedMarkdownHoverVerbosityLevel(editor, false);
 	}
 }
 
-export function extendOrContractFocusedMessage(editor: ICodeEditor, extend: boolean) {
+export function changeFocusedMarkdownHoverVerbosityLevel(editor: ICodeEditor, extend: boolean) {
 	const controller = HoverController.get(editor);
 	if (!controller) {
 		return;
 	}
-	controller.changeFocusedHoverVerbosityLevel(extend);
+	controller.changeFocusedMarkdownHoverVerbosityLevel(extend);
 }
 
 registerEditorContribution(HoverController.ID, HoverController, EditorContributionInstantiation.BeforeFirstInteraction);
@@ -899,8 +899,8 @@ registerEditorAction(PageUpHoverAction);
 registerEditorAction(PageDownHoverAction);
 registerEditorAction(GoToTopHoverAction);
 registerEditorAction(GoToBottomHoverAction);
-registerEditorAction(ShowMoreHoverInformationAction);
-registerEditorAction(ShowLessHoverInformationAction);
+registerEditorAction(IncreaseHoverVerbosityLevel);
+registerEditorAction(DecreaseHoverVerbosityLevel);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 

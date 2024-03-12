@@ -193,16 +193,16 @@ export interface HoverVerbosityMetadata {
  */
 export interface HoverProvider {
 	/**
-	 * Provide a hover for the given position, extension metadata and document. Multiple hovers at the same
+	 * Provide a hover for the given position, context and document. Multiple hovers at the same
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, request: Position, token: CancellationToken, context?: HoverContext): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext): ProviderResult<Hover>;
 }
 
 export interface HoverContext {
 	/**
-	 * The verbosity level request for the hover.
+	 * The verbosity level for the hover request.
 	 */
 	verbosityLevel: number;
 }

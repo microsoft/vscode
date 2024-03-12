@@ -104,7 +104,7 @@ export interface IEditorHoverRenderContext {
 	 */
 	readonly statusBar: IEditorHoverStatusBar;
 	/**
-	 * The disposable store for the hover
+	 * The disposable store for this hover
 	 */
 	readonly disposables: DisposableStore | undefined;
 	/**

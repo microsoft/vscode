@@ -21,7 +21,11 @@ export class HoverProviderResult {
 	) { }
 }
 
-async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, context: { verbosityLevel: number } | undefined, token: CancellationToken): Promise<HoverProviderResult | undefined> {
+interface HoverContext {
+	verbosityLevel: number;
+}
+
+async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, context: HoverContext | undefined, token: CancellationToken): Promise<HoverProviderResult | undefined> {
 	try {
 		const result = await Promise.resolve(provider.provideHover(model, position, token, context));
 		if (result && isValid(result)) {
@@ -33,13 +37,13 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 	return undefined;
 }
 
-export function getHover(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, context: { verbosityLevel: number } | undefined, token: CancellationToken): AsyncIterableObject<HoverProviderResult> {
+export function getHover(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, context: HoverContext | undefined, token: CancellationToken): AsyncIterableObject<HoverProviderResult> {
 	const providers = registry.ordered(model);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, context, token));
 	return AsyncIterableObject.fromPromises(promises).coalesce();
 }
 
-export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, context: { verbosityLevel: number } | undefined, token: CancellationToken,): Promise<Hover[]> {
+export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, context: HoverContext | undefined, token: CancellationToken,): Promise<Hover[]> {
 	return getHover(registry, model, position, context, token).map(item => item.hover).toPromise();
 }
 
