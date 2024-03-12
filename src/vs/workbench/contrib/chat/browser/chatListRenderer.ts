@@ -870,8 +870,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return $('div');
 					}
 				} else {
+					if (!isRequestVM(element) && !isResponseVM(element)) {
+						console.error('Trying to render code block in welcome', element.id, index);
+						return $('div');
+					}
+
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
-					const blockModel = this.codeBlockModelCollection.getOrCreate(sessionId, element.id, index);
+					const blockModel = this.codeBlockModelCollection.get(sessionId, element, index);
 					if (!blockModel) {
 						console.error('Trying to render code block without model', element.id, index);
 						return $('div');
