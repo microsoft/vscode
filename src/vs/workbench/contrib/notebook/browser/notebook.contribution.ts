@@ -62,6 +62,7 @@ import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook
 import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
 import 'vs/workbench/contrib/notebook/browser/controller/executeActions';
+import 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
 import 'vs/workbench/contrib/notebook/browser/controller/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';

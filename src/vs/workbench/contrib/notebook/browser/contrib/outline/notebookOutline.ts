@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import * as DOM from 'vs/base/browser/dom';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IIconLabelValueOptions, IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -25,7 +27,7 @@ import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { CellRevealType, ICellModelDecorations, ICellModelDeltaDecorations, INotebookEditorOptions, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealType, ICellModelDecorations, ICellModelDeltaDecorations, INotebookEditor, INotebookEditorOptions, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -37,7 +39,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { mainWindow } from 'vs/base/browser/window';
-import { WindowIdleValue } from 'vs/base/browser/dom';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction } from 'vs/base/common/actions';
+import { NotebookSectionArgs } from 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
 
 class NotebookOutlineTemplate {
 
@@ -47,7 +54,9 @@ class NotebookOutlineTemplate {
 		readonly container: HTMLElement,
 		readonly iconClass: HTMLElement,
 		readonly iconLabel: IconLabel,
-		readonly decoration: HTMLElement
+		readonly decoration: HTMLElement,
+		readonly actionMenu: HTMLElement,
+		readonly elementDisposables: DisposableStore,
 	) { }
 }
 
@@ -56,11 +65,19 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	templateId: string = NotebookOutlineTemplate.templateId;
 
 	constructor(
+		private readonly _editor: INotebookEditor | undefined,
+		private readonly _target: OutlineTarget,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): NotebookOutlineTemplate {
+		const elementDisposables = new DisposableStore();
+
 		container.classList.add('notebook-outline-element', 'show-file-icons');
 		const iconClass = document.createElement('div');
 		container.append(iconClass);
@@ -68,7 +85,11 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		const decoration = document.createElement('div');
 		decoration.className = 'element-decoration';
 		container.append(decoration);
-		return new NotebookOutlineTemplate(container, iconClass, iconLabel, decoration);
+		const actionMenu = document.createElement('div');
+		actionMenu.className = 'action-menu';
+		container.append(actionMenu);
+
+		return new NotebookOutlineTemplate(container, iconClass, iconLabel, decoration, actionMenu, elementDisposables);
 	}
 
 	renderElement(node: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate, _height: number | undefined): void {
@@ -79,7 +100,8 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 			extraClasses,
 		};
 
-		if (node.element.cell.cellKind === CellKind.Code && this._themeService.getFileIconTheme().hasFileIcons && !node.element.isExecuting) {
+		const isCodeCell = node.element.cell.cellKind === CellKind.Code;
+		if (isCodeCell && this._themeService.getFileIconTheme().hasFileIcons && !node.element.isExecuting) {
 			template.iconClass.className = '';
 			extraClasses.push(...getIconClassesForLanguageId(node.element.cell.language ?? ''));
 		} else {
@@ -118,11 +140,61 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 				template.container.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
 			}
 		}
+
+		if (this._target === OutlineTarget.OutlinePane) {
+			const nbCell = node.element.cell;
+			const nbViewModel = this._editor?.getViewModel();
+			if (!nbViewModel) {
+				return;
+			}
+			const idx = nbViewModel.getCellIndex(nbCell);
+			const length = isCodeCell ? 0 : nbViewModel.getFoldedLength(idx);
+
+			const scopedContextKeyService = template.elementDisposables.add(this._contextKeyService.createScoped(template.container));
+			NotebookOutlineContext.CellKind.bindTo(scopedContextKeyService).set(isCodeCell ? 'code' : 'markdown');
+			NotebookOutlineContext.CellHasChildren.bindTo(scopedContextKeyService).set(length > 0);
+			NotebookOutlineContext.CellHasHeader.bindTo(scopedContextKeyService).set(node.element.level !== 7);
+			NotebookOutlineContext.OutlineElementTarget.bindTo(scopedContextKeyService).set('outline');
+
+			const outlineEntryToolbar = template.elementDisposables.add(new ToolBar(template.actionMenu, this._contextMenuService, {
+				actionViewItemProvider: action => {
+					if (action instanceof MenuItemAction) {
+						return this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
+					}
+					return undefined;
+				},
+
+			}));
+
+			const menu = template.elementDisposables.add(this._menuService.createMenu(MenuId.NotebookOutlineActionMenu, scopedContextKeyService));
+			const updateActions = () => {
+				const actions = getOutlineToolbarActions(menu, { notebookEditor: this._editor, outlineEntry: node.element });
+				outlineEntryToolbar.setActions(actions.primary, actions.secondary);
+			};
+			updateActions();
+		}
 	}
 
 	disposeTemplate(templateData: NotebookOutlineTemplate): void {
 		templateData.iconLabel.dispose();
+		templateData.elementDisposables.clear();
 	}
+
+	disposeElement(element: ITreeNode<OutlineEntry, FuzzyScore>, index: number, templateData: NotebookOutlineTemplate, height: number | undefined): void {
+		templateData.elementDisposables.clear();
+		DOM.clearNode(templateData.actionMenu);
+	}
+}
+
+function getOutlineToolbarActions(menu: IMenu, args?: NotebookSectionArgs): { primary: IAction[]; secondary: IAction[] } {
+	const primary: IAction[] = [];
+	const secondary: IAction[] = [];
+	const result = { primary, secondary };
+
+	// TODO: @Yoyokrazy bring the "inline" back when there's an appropriate run in section icon
+	createAndFillInActionBarActions(menu, { shouldForwardArgs: true, arg: args }, result); //, g => /^inline/.test(g));
+
+	return result;
 }
 
 class NotebookOutlineAccessibility implements IListAccessibilityProvider<OutlineEntry> {
@@ -183,7 +255,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
-	private readonly _collator = new WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = new DOM.WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
 
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
 		return a.index - b.index;
@@ -251,7 +323,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		installSelectionListener();
 		const treeDataSource: IDataSource<this, OutlineEntry> = { getChildren: parent => parent instanceof NotebookCellOutline ? (this._outlineProvider?.entries ?? []) : parent.children };
 		const delegate = new NotebookOutlineVirtualDelegate();
-		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer)];
+		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer, this._editor.getControl(), _target)];
 		const comparator = new NotebookComparator();
 
 		const options: IWorkbenchDataTreeOptions<OutlineEntry, FuzzyScore> = {
@@ -404,8 +476,14 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookOutlineCreator, LifecyclePhase.Eventually);
+export const NotebookOutlineContext = {
+	CellKind: new RawContextKey<string>('notebookCellKind', undefined),
+	CellHasChildren: new RawContextKey<boolean>('notebookCellHasChildren', false),
+	CellHasHeader: new RawContextKey<boolean>('notebookCellHasHeader', false),
+	OutlineElementTarget: new RawContextKey<string>('notebookOutlineElementTarget', undefined),
+};
 
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookOutlineCreator, LifecyclePhase.Eventually);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'notebook',
