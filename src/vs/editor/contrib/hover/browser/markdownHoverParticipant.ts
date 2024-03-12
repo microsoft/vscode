@@ -85,7 +85,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		element: undefined,
 		focusRemains: false
 	};
-	private _verbosityLevels: Map<number, number> | undefined;
+	private _verbosityLevels: Map<number, number> = new Map();
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
@@ -176,10 +176,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: VerboseMarkdownHover[]): IDisposable {
 		this._context = context;
-		this._verbosityLevels = new Map();
-		context.disposables?.add(toDisposable(() => {
-			this._verbosityLevels = undefined;
-		}));
+		this._verbosityLevels.clear();
 		this._providers = hoverParts.map(hoverPart => hoverPart.provider);
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 		const disposables = new DisposableStore();
