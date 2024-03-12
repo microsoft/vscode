@@ -11,6 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { InlineChatInputWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatInputWidget';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
+import { clamp } from 'vs/base/common/numbers';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -73,9 +74,14 @@ export class InlineChatContentWidget implements IContentWidget {
 	}
 
 	beforeRender(): IDimension | null {
-		const width = Math.max(300, this._editor.getLayoutInfo().contentWidth * 0.4);
-		const height = this._widget.getPreferredHeight();
-		this._widget.layout(new dom.Dimension(width, height));
+
+		const contentWidth = this._editor.getLayoutInfo().contentWidth;
+		const minWidth = contentWidth * 0.27;
+		const maxWidth = contentWidth * 0.42;
+
+		const dim = this._widget.getPreferredSize();
+		const width = clamp(dim.width, minWidth, maxWidth);
+		this._widget.layout(new dom.Dimension(width, dim.height));
 
 		return null;
 	}
@@ -105,7 +111,9 @@ export class InlineChatContentWidget implements IContentWidget {
 	}
 
 	hide() {
-		this._visible = false;
-		this._editor.removeContentWidget(this);
+		if (this._visible) {
+			this._visible = false;
+			this._editor.removeContentWidget(this);
+		}
 	}
 }

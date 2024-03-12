@@ -289,7 +289,7 @@ export class InlineChatWidget {
 		try {
 			const widgetToolbarWidth = getTotalWidth(this._elements.widgetToolbar);
 			const innerEditorWidth = widgetDim.width - widgetToolbarWidth;
-			const inputDim = new Dimension(innerEditorWidth, this._inputWidget.getPreferredHeight());
+			const inputDim = new Dimension(innerEditorWidth, this._inputWidget.getPreferredSize().height);
 			if (!this._lastDim || !Dimension.equals(this._lastDim, inputDim)) {
 				this._lastDim = inputDim;
 				this._doLayout(widgetDim, inputDim);
@@ -308,7 +308,7 @@ export class InlineChatWidget {
 	}
 
 	getHeight(): number {
-		const editorHeight = this._inputWidget.getPreferredHeight() + 4 /*padding*/;
+		const editorHeight = this._inputWidget.getPreferredSize().height + 4 /*padding*/;
 		const progressHeight = getTotalHeight(this._elements.progress);
 		const detectedIntentHeight = getTotalHeight(this._elements.detectedIntent);
 		const chatResponseHeight = getTotalHeight(this._chatMessageContents);

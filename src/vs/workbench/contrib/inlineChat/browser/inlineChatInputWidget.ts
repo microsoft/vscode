@@ -196,8 +196,10 @@ export class InlineChatInputWidget {
 		this._elements.placeholder.style.width = `${editorWidth}px`;
 	}
 
-	getPreferredHeight(): number {
-		return this._inputEditor.getContentHeight();
+	getPreferredSize(): Dimension {
+		const width = this._inputEditor.getContentWidth() + getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */;
+		const height = this._inputEditor.getContentHeight();
+		return new Dimension(width, height);
 	}
 
 	reset() {
