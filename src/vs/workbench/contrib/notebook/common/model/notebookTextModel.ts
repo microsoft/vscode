@@ -56,8 +56,10 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 		return this._operations.length === 0;
 	}
 	pushEndState(alternativeVersionId: string, selectionState: ISelectionState | undefined) {
+		// Hack
 		this._resultAlternativeVersionId = alternativeVersionId;
-		// this._resultSelectionState = selectionState;
+		// Hack
+		this._resultSelectionState = selectionState || this._resultSelectionState;
 	}
 	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined, alternativeVersionId: string) {
 		if (this._operations.length === 0) {
@@ -114,9 +116,9 @@ class NotebookOperationManager {
 		return this._pendingStackOperation === null || this._pendingStackOperation.isEmpty;
 	}
 
-	pushStackElement(alternativeVersionId: string) {
+	pushStackElement(alternativeVersionId: string, selectionState: ISelectionState | undefined) {
 		if (this._pendingStackOperation && !this._pendingStackOperation.isEmpty) {
-			this._pendingStackOperation.pushEndState(alternativeVersionId, undefined);
+			this._pendingStackOperation.pushEndState(alternativeVersionId, selectionState);
 			this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
 		}
 		this._pendingStackOperation = null;
@@ -359,7 +361,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	pushStackElement() {
-		this._operationManager.pushStackElement(this._alternativeVersionId);
+		this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
 	}
 
 	private _getCellIndexByHandle(handle: number) {
@@ -510,7 +512,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
 
 			// Finalize undo element
-			this.pushStackElement();
+			this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
+			// this.pushStackElement();
 			// Broadcast changes
 			this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
 			this._pauseableEmitter.resume();
