@@ -45,6 +45,7 @@ export interface INodeProcess {
 	arch: string;
 	env: IProcessEnvironment;
 	versions?: {
+		node?: string;
 		electron?: string;
 		chrome?: string;
 	};
