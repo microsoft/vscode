@@ -28,7 +28,7 @@ declare module 'vscode' {
 		/**
 		 * The name of the {@link ChatCommand command} that was selected for this request.
 		 */
-		readonly command: string | undefined;
+		readonly command?: string;
 
 		/**
 		 * The variables that were referenced in this message.
@@ -266,6 +266,9 @@ declare module 'vscode' {
 		readonly range: [start: number, end: number];
 
 		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
+		/**
+		 * The values of the variable. Can be an empty array if the variable doesn't currently have a value.
+		 */
 		readonly values: ChatVariableValue[];
 	}
 

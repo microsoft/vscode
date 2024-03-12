@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
@@ -366,7 +367,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			const provider = this._providers.get(model.providerId);
 			if (!provider) {
-				throw new Error(`Unknown provider: ${model.providerId}`);
+				throw new ErrorNoTelemetry(`Unknown provider: ${model.providerId}`);
 			}
 
 			let session: IChat | undefined;
@@ -384,7 +385,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			const defaultAgent = this.chatAgentService.getDefaultAgent();
 			if (!defaultAgent) {
-				throw new Error('No default agent');
+				throw new ErrorNoTelemetry('No default agent');
 			}
 
 			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(token) ?? undefined;

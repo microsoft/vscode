@@ -20,6 +20,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { Emitter, Event } from 'vs/base/common/event';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -29,6 +30,13 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 ((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
 
 	class TestParcelWatcher extends ParcelWatcher {
+
+		protected override readonly suspendedWatchRequestPollingInterval = 100;
+
+		private readonly _onDidWatch = this._register(new Emitter<void>());
+		readonly onDidWatch = this._onDidWatch.event;
+
+		readonly onWatchFail = this._onDidWatchFail.event;
 
 		testNormalizePaths(paths: string[], excludes: string[] = []): string[] {
 
@@ -40,9 +48,11 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 			return this.normalizeRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
 		}
 
-		override async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
-			await super.watch(requests);
+		protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
+			await super.doWatch(requests);
 			await this.whenReady();
+
+			this._onDidWatch.fire();
 		}
 
 		async whenReady(): Promise<void> {
@@ -542,7 +552,7 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: true }]);
 	});
 
-	(isWindows /* flaky on windows */ ? test.skip : test)('deleting watched path is handled properly', async function () {
+	(isWindows /* flaky on windows */ ? test.skip : test)('deleting watched path without correlation restarts watching', async function () {
 		const watchedPath = join(testDir, 'deep');
 
 		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true }]);
@@ -645,5 +655,75 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 		await basicCrudTest(join(testDir, 'deep', 'newFile.txt'), null, 3);
 		await basicCrudTest(join(testDir, 'deep', 'otherNewFile.txt'), null, 3);
+	});
+
+	test('watching missing path emits watcher fail event', async function () {
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'missing');
+		watcher.watch([{ path: folderPath, excludes: [], recursive: true }]);
+
+		await onDidWatchFail;
+	});
+
+	test('deleting watched path emits watcher fail and delete event if correlated', async function () {
+		const folderPath = join(testDir, 'deep');
+
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
+		Promises.rm(folderPath, RimRafMode.UNLINK);
+		await onDidWatchFail;
+		await changeFuture;
+	});
+
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async () => {
+		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'not-found');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+		await onDidWatchFail;
+
+		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		let onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, 1);
+
+		onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await Promises.rm(folderPath);
+		await onDidWatchFail;
+
+		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		await basicCrudTest(filePath, 1);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, exist in beginning)', async () => {
+		const folderPath = join(testDir, 'deep');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, 1);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await Promises.rm(folderPath);
+		await onDidWatchFail;
+
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		const onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		await basicCrudTest(filePath, 1);
 	});
 });

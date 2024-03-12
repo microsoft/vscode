@@ -519,9 +519,9 @@ export interface IExtensionService {
 	stopExtensionHosts(reason: string): Promise<boolean>;
 
 	/**
-	 * Starts the extension hosts.
+	 * Starts the extension hosts. If updates are provided, the extension hosts are started with the given updates.
 	 */
-	startExtensionHosts(): Promise<void>;
+	startExtensionHosts(updates?: { readonly toAdd: readonly IExtension[]; readonly toRemove: readonly string[] }): Promise<void>;
 
 	/**
 	 * Modify the environment of the remote extension host
