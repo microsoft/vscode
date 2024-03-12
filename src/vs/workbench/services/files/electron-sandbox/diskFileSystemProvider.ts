@@ -45,8 +45,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	private registerListeners(): void {
 
 		// Forward events from the embedded provider
-		this.provider.onDidChangeFile(changes => this._onDidChangeFile.fire(changes));
-		this.provider.onDidWatchError(error => this._onDidWatchError.fire(error));
+		this._register(this.provider.onDidChangeFile(changes => this._onDidChangeFile.fire(changes)));
+		this._register(this.provider.onDidWatchError(error => this._onDidWatchError.fire(error)));
 	}
 
 	//#region File Capabilities
