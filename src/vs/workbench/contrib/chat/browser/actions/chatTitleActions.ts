@@ -5,7 +5,6 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { marked } from 'vs/base/common/marked/marked';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { localize2 } from 'vs/nls';
@@ -14,6 +13,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { splitMarkdownAndCodeBlocks } from 'vs/workbench/contrib/chat/browser/actions/chatContentParser';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -256,47 +256,4 @@ export function registerChatTitleActions() {
 			}
 		}
 	});
-}
-
-interface MarkdownContent {
-	type: 'markdown';
-	content: string;
-}
-
-interface CodeContent {
-	type: 'code';
-	language: string;
-	content: string;
-}
-
-type Content = MarkdownContent | CodeContent;
-
-function splitMarkdownAndCodeBlocks(markdown: string): Content[] {
-	const lexer = new marked.Lexer();
-	const tokens = lexer.lex(markdown);
-
-	const splitContent: Content[] = [];
-
-	let markdownPart = '';
-	tokens.forEach((token) => {
-		if (token.type === 'code') {
-			if (markdownPart.trim()) {
-				splitContent.push({ type: 'markdown', content: markdownPart });
-				markdownPart = '';
-			}
-			splitContent.push({
-				type: 'code',
-				language: token.lang || '',
-				content: token.text,
-			});
-		} else {
-			markdownPart += token.raw;
-		}
-	});
-
-	if (markdownPart.trim()) {
-		splitContent.push({ type: 'markdown', content: markdownPart });
-	}
-
-	return splitContent;
 }

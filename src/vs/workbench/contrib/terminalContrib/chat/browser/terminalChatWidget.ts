@@ -6,10 +6,10 @@
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/terminalChatWidget';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { splitMarkdownAndCodeBlocks } from 'vs/workbench/contrib/chat/browser/actions/chatContentParser';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -31,8 +31,7 @@ export class TerminalChatWidget extends Disposable {
 		terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -128,18 +127,19 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.value = value ?? '';
 	}
 	acceptCommand(shouldExecute: boolean): void {
-		const editor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
-		if (!editor) {
+		const responseContent = this._inlineChatWidget?.responseContent?.trim();
+		if (!responseContent) {
 			return;
 		}
-		const model = editor.getModel();
-		if (!model) {
+		const firstCodeBlock = splitMarkdownAndCodeBlocks(responseContent).filter(c => c.type === 'code').map(c => c.content)?.[0];
+		if (!firstCodeBlock) {
 			return;
 		}
-		const code = editor.getValue();
-		this._instance.runCommand(code, shouldExecute);
+
+		this._instance.runCommand(firstCodeBlock, shouldExecute);
 		this.hide();
 	}
+
 	updateProgress(progress?: IChatProgress): void {
 		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
 	}
