@@ -55,7 +55,10 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 	get isEmpty(): boolean {
 		return this._operations.length === 0;
 	}
-
+	pushEndState(alternativeVersionId: string, selectionState: ISelectionState | undefined) {
+		this._resultAlternativeVersionId = alternativeVersionId;
+		// this._resultSelectionState = selectionState;
+	}
 	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined, alternativeVersionId: string) {
 		if (this._operations.length === 0) {
 			this._beginSelectionState = this._beginSelectionState ?? beginSelectionState;
@@ -111,8 +114,9 @@ class NotebookOperationManager {
 		return this._pendingStackOperation === null || this._pendingStackOperation.isEmpty;
 	}
 
-	pushStackElement() {
+	pushStackElement(alternativeVersionId: string) {
 		if (this._pendingStackOperation && !this._pendingStackOperation.isEmpty) {
+			this._pendingStackOperation.pushEndState(alternativeVersionId, undefined);
 			this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
 		}
 		this._pendingStackOperation = null;
@@ -355,7 +359,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	pushStackElement() {
-		this._operationManager.pushStackElement();
+		this._operationManager.pushStackElement(this._alternativeVersionId);
 	}
 
 	private _getCellIndexByHandle(handle: number) {
