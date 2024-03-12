@@ -426,7 +426,6 @@ class CodeActionAdapter {
 			: <vscode.Range>typeConvert.Range.to(rangeOrSelection);
 		const allDiagnostics: vscode.Diagnostic[] = [];
 
-
 		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
 			if (ran.intersection(diagnostic.range)) {
 				const newLen = allDiagnostics.push(diagnostic);
