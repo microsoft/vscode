@@ -5,6 +5,7 @@
 
 declare module 'vscode' {
 
+	// What does this look like for 'file'? Does it even make sense for 'file' to be a tool?
 	export interface ChatToolInvocations {
 		/**
 		 * The name of the tool.
@@ -13,6 +14,8 @@ declare module 'vscode' {
 		 * e.g `selection` for `#selection`.
 		 */
 		readonly name: string;
+
+		readonly parameters: any;
 
 		/**
 		 * The start and end index of the tool in the {@link ChatAgentRequest.prompt prompt}.
@@ -56,7 +59,7 @@ declare module 'vscode' {
 		 */
 		readonly userToolInvocations: ChatToolInvocations[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; name: string });
+		private constructor(prompt: string, command: string | undefined, userToolInvocations: ChatToolInvocations[], participant: { extensionId: string; name: string });
 	}
 
 	/**
@@ -266,30 +269,6 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	/**
-	 * A resolved variable value is a name-value pair as well as the range in the prompt where a variable was used.
-	 */
-	export interface ChatResolvedVariable {
-		/**
-		 * The name of the variable.
-		 *
-		 * *Note* that the name doesn't include the leading `#`-character,
-		 * e.g `selection` for `#selection`.
-		 */
-		readonly name: string;
-
-		/**
-		 * The start and end index of the variable in the {@link ChatRequest.prompt prompt}.
-		 *
-		 * *Note* that the indices take the leading `#`-character into account which means they can
-		 * used to modify the prompt as-is.
-		 */
-		readonly range: [start: number, end: number];
-
-		// This type is just used in history, and `values` is set if the participant resolved this variable.
-		readonly values?: ChatVariableValue[];
-	}
-
 	export interface ChatRequest {
 		/**
 		 * The prompt as entered by the user.
@@ -446,31 +425,5 @@ declare module 'vscode' {
 		 * @returns A new chat participant
 		 */
 		export function createChatParticipant(name: string, handler: ChatRequestHandler): ChatParticipant;
-	}
-
-	/**
-	 * The detail level of this chat variable value.
-	 */
-	export enum ChatVariableLevel {
-		Short = 1,
-		Medium = 2,
-		Full = 3
-	}
-
-	export interface ChatVariableValue {
-		/**
-		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
-		 */
-		level: ChatVariableLevel;
-
-		/**
-		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
-		 */
-		value: string | Uri;
-
-		/**
-		 * A description of this value, which could be provided to the LLM as a hint.
-		 */
-		description?: string;
 	}
 }
