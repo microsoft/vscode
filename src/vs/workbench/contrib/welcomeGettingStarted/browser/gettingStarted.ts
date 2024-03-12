@@ -1170,7 +1170,7 @@ export class GettingStartedPage extends EditorPane {
 		}
 		const videoList = this.videoList = new GettingStartedIndexList(
 			{
-				title: '',
+				title: localize('videos', "Videos"),
 				klass: 'getting-started-videos',
 				limit: 1,
 				renderElement: renderFeaturedExtensions,
@@ -1183,11 +1183,11 @@ export class GettingStartedPage extends EditorPane {
 
 		videoList.setEntries([{
 			id: 'getting-started-videos',
-			title: localize('videos-title', 'Discover Getting Started Tutorials'),
+			title: localize('videos-title', 'Watch Getting Started Tutorials'),
 			description: localize('videos-description', 'Learn VS Code\'s must-have features in short and practical videos'),
 			command: 'https://aka.ms/vscode-getting-started-tutorials',
 			order: 0,
-			icon: { type: 'icon', icon: Codicon.play },
+			icon: { type: 'icon', icon: Codicon.deviceCameraVideo },
 			when: ContextKeyExpr.true(),
 		}]);
 		videoList.onDidChange(() => this.registerDispatchListeners());
