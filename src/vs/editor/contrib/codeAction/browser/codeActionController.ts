@@ -62,7 +62,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget | null>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 	private _showDisabled = false;
-	private recentlyChanged = false;
 
 	private readonly _resolver: CodeActionKeybindingResolver;
 
@@ -85,10 +84,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		this._editor = editor;
 		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
-
-		this._editor.onDidChangeModelContent(async () => {
-			this.recentlyChanged = true;
-		});
 
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._editor.getContribution<LightBulbWidget>(LightBulbWidget.ID);
@@ -144,7 +139,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		MessageController.get(this._editor)?.closeMessage();
 		const triggerPosition = this._editor.getPosition();
 		this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
-		this.recentlyChanged = false;
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
