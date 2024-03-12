@@ -28,7 +28,7 @@ suite('sortEditsByYieldTo', () => {
 
 	test('Yielded to edit should get sorted after target', () => {
 		const edits: DocumentOnDropEdit[] = [
-			createTestEdit('a', { yieldTo: [{ kind: 'b' }] }),
+			createTestEdit('a', { yieldTo: [{ kind: new HierarchicalKind('b') }] }),
 			createTestEdit('b'),
 		];
 		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind?.value), ['b', 'a']);
@@ -37,8 +37,8 @@ suite('sortEditsByYieldTo', () => {
 	test('Should handle chain of yield to', () => {
 		{
 			const edits: DocumentOnDropEdit[] = [
-				createTestEdit('c', { yieldTo: [{ kind: 'a' }] }),
-				createTestEdit('a', { yieldTo: [{ kind: 'b' }] }),
+				createTestEdit('c', { yieldTo: [{ kind: new HierarchicalKind('a') }] }),
+				createTestEdit('a', { yieldTo: [{ kind: new HierarchicalKind('b') }] }),
 				createTestEdit('b'),
 			];
 
@@ -46,8 +46,8 @@ suite('sortEditsByYieldTo', () => {
 		}
 		{
 			const edits: DocumentOnDropEdit[] = [
-				createTestEdit('a', { yieldTo: [{ kind: 'b' }] }),
-				createTestEdit('c', { yieldTo: [{ kind: 'a' }] }),
+				createTestEdit('a', { yieldTo: [{ kind: new HierarchicalKind('b') }] }),
+				createTestEdit('c', { yieldTo: [{ kind: new HierarchicalKind('a') }] }),
 				createTestEdit('b'),
 			];
 
@@ -57,8 +57,8 @@ suite('sortEditsByYieldTo', () => {
 
 	test(`Should not reorder when yield to isn't used`, () => {
 		const edits: DocumentOnDropEdit[] = [
-			createTestEdit('c', { yieldTo: [{ kind: 'x' }] }),
-			createTestEdit('a', { yieldTo: [{ kind: 'y' }] }),
+			createTestEdit('c', { yieldTo: [{ kind: new HierarchicalKind('x') }] }),
+			createTestEdit('a', { yieldTo: [{ kind: new HierarchicalKind('y') }] }),
 			createTestEdit('b'),
 		];
 

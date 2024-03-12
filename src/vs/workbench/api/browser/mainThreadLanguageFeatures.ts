@@ -1053,6 +1053,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 							return {
 								...edit,
 								kind: edit.kind ? new HierarchicalKind(edit.kind.value) : new HierarchicalKind(''),
+								yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
 								additionalEdit: edit.additionalEdit ? reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
 							};
 						}),
@@ -1112,6 +1113,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 			return edits.map(edit => {
 				return {
 					...edit,
+					yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
 					kind: edit.kind ? new HierarchicalKind(edit.kind) : undefined,
 					additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
 				};

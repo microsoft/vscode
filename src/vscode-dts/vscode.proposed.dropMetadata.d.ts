@@ -10,8 +10,8 @@ declare module 'vscode' {
 
 	/**
 	 * TODO:
-	 * - Add ctor(insertText: string | SnippetString, title?: string, kind?: DocumentPasteEditKind);
-	 * - Update provide to return multiple edits
+	 * - Add ctor(insertText: string | SnippetString, title?: string, kind?: DocumentPasteEditKind); Can't be done as this is an extension to an existing class
+	 * - Update provider to return multiple edits
 	 */
 
 	export interface DocumentDropEdit {
@@ -39,7 +39,7 @@ declare module 'vscode' {
 		/**
 		 * Controls the ordering or multiple paste edits. If this provider yield to edits, it will be shown lower in the list.
 		 */
-		yieldTo?: ReadonlyArray<{ readonly kind: DocumentPasteEditKind } | { readonly mimeType: string }>;
+		yieldTo?: ReadonlyArray<DocumentPasteEditKind>;
 	}
 
 	export interface DocumentDropEditProviderMetadata {
