@@ -21,6 +21,8 @@ export const enum TerminalChatCommandId {
 	RunCommand = 'workbench.action.terminal.chat.runCommand',
 	InsertCommand = 'workbench.action.terminal.chat.insertCommand',
 	ViewInChat = 'workbench.action.terminal.chat.viewInChat',
+	PreviousFromHistory = 'workbench.action.terminal.chat.previousFromHistory',
+	NextFromHistory = 'workbench.action.terminal.chat.nextFromHistory',
 }
 
 export const MENU_TERMINAL_CHAT_INPUT = MenuId.for('terminalChatInput');
