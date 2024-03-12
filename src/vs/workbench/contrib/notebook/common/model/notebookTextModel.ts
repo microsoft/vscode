@@ -500,6 +500,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean): boolean {
+		// TODO: Should return if there are no edits.
+		// Else we increase versions and the like unnecessarily.
 		this._pauseableEmitter.pause();
 		this.pushStackElement();
 
@@ -512,7 +514,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
 
 			// Finalize undo element
-			this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
+			this._operationManager.pushStackElement(this._alternativeVersionId, endSelections);
 			// this.pushStackElement();
 			// Broadcast changes
 			this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
