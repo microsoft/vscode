@@ -26,7 +26,7 @@
 	display: flex;
 }
 
-.monaco-workbench .inline-chat .body .content {
+.monaco-workbench .inline-chat-input {
 	display: flex;
 	box-sizing: border-box;
 	outline: 1px solid var(--vscode-inlineChatInput-border);
@@ -34,11 +34,11 @@
 	border-radius: 2px;
 }
 
-.monaco-workbench .inline-chat .body .content.synthetic-focus {
+.monaco-workbench .inline-chat-input.synthetic-focus {
 	outline: 1px solid var(--vscode-inlineChatInput-focusBorder);
 }
 
-.monaco-workbench .inline-chat .body .content .input {
+.monaco-workbench .inline-chat-input .input {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -47,11 +47,11 @@
 	cursor: text;
 }
 
-.monaco-workbench .inline-chat .body .content .input .monaco-editor-background {
+.monaco-workbench .inline-chat-input .input .monaco-editor-background {
 	background-color: var(--vscode-inlineChatInput-background);
 }
 
-.monaco-workbench .inline-chat .body .content .input .editor-placeholder {
+.monaco-workbench .inline-chat-input .input .editor-placeholder {
 	position: absolute;
 	z-index: 1;
 	color: var(--vscode-inlineChatInput-placeholderForeground);
@@ -60,15 +60,15 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench .inline-chat .body .content .input .editor-placeholder.hidden {
+.monaco-workbench .inline-chat-input .input .editor-placeholder.hidden {
 	display: none;
 }
 
-.monaco-workbench .inline-chat .body .content .input .editor-container {
+.monaco-workbench .inline-chat-input .input .editor-container {
 	vertical-align: middle;
 }
 
-.monaco-workbench .inline-chat .body .toolbar {
+.monaco-workbench .inline-chat-input .toolbar {
 	display: flex;
 	flex-direction: column;
 	align-self: stretch;
@@ -78,7 +78,7 @@
 	background: var(--vscode-inlineChatInput-background);
 }
 
-.monaco-workbench .inline-chat .body .toolbar .actions-container {
+.monaco-workbench .inline-chat-input .toolbar .actions-container {
 	display: flex;
 	flex-direction: row;
 	gap: 4px;

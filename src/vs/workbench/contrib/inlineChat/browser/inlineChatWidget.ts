@@ -188,7 +188,7 @@ export class InlineChatWidget {
 
 		// input editor logic
 		this._inputWidget = this._instantiationService.createInstance(InlineChatInputWidget, { menuId: options.inputMenuId, telemetrySource: options.telemetrySource, hoverDelegate });
-		this._elements.body.replaceChild(this._inputWidget.domNode, this._elements.content);
+		this._inputWidget.moveTo(this._elements.content);
 		this._store.add(this._inputWidget);
 		this._store.add(this._inputWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
@@ -325,6 +325,14 @@ export class InlineChatWidget {
 			this._progressBar.stop();
 			this._progressBar.hide();
 		}
+	}
+
+	get inputWidget(): InlineChatInputWidget {
+		return this._inputWidget;
+	}
+
+	takeInputWidgetOwnership(): void {
+		this._inputWidget.moveTo(this._elements.content);
 	}
 
 	get value(): string {
