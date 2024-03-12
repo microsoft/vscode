@@ -456,7 +456,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			return this.installFromLocation(extension.location);
 		}
 
-		this.logService.info(`Installing the extension ${extension.identifier.id} from ${location.toString()} in workspace`);
+		this.logService.info(`Installing the extension ${extension.identifier.id} from ${extension.location.toString()} in workspace`);
 		const server = this.getWorkspaceExtensionsServer();
 		this._onInstallExtension.fire({
 			identifier: extension.identifier,
@@ -490,7 +490,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			this.saveWorkspaceExtensionsLocations(existingLocations);
 
 			// log
-			this.logService.info(`Successfully installed the extension ${workspaceExtension.identifier.id} from ${location.toString()} in the workspace`);
+			this.logService.info(`Successfully installed the extension ${workspaceExtension.identifier.id} from ${extension.location.toString()} in the workspace`);
 			this.telemetryService.publicLog2<{}, {
 				owner: 'sandy081';
 				comment: 'Install workspace extension';
