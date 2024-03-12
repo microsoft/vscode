@@ -394,7 +394,7 @@ export class InlineChatWidget {
 			this._sessionId = sessionModel.sessionId;
 			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, undefined, message.requestId, !isIncomplete, false, undefined));
 			this._responseViewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
-			const chatViewModel = this._instantiationService.createInstance(ChatViewModel, sessionModel, this._codeBlockModelCollection);
+			const chatViewModel = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatViewModel, sessionModel, this._codeBlockModelCollection));
 			chatViewModel.updateCodeBlockTextModels(this._responseViewModel);
 			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true, editableCodeBlock: isCodeBlockEditable ?? false };
 			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
