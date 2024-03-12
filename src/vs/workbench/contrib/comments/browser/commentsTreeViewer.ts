@@ -199,10 +199,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
 		const metadata = dom.append(metadataContainer, dom.$('.comment-metadata'));
 		const threadMetadata = {
-			relevance: dom.append(metadata, dom.$('.relevance')),
 			icon: dom.append(metadata, dom.$('.icon')),
 			userNames: dom.append(metadata, dom.$('.user')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(metadata, dom.$('.timestamp-container'))),
+			relevance: dom.append(metadata, dom.$('.relevance')),
 			separator: dom.append(metadata, dom.$('.separator')),
 			commentPreview: dom.append(metadata, dom.$('.text')),
 			range: dom.append(metadata, dom.$('.range'))
@@ -271,9 +271,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		if (node.element.threadRelevance === CommentThreadRelevance.Outdated) {
 			templateData.threadMetadata.relevance.style.display = '';
 			templateData.threadMetadata.relevance.innerText = nls.localize('outdated', "Outdated");
+			templateData.threadMetadata.separator.style.display = 'none';
 		} else {
 			templateData.threadMetadata.relevance.innerText = '';
 			templateData.threadMetadata.relevance.style.display = 'none';
+			templateData.threadMetadata.separator.style.display = '';
 		}
 
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
