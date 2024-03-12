@@ -11,7 +11,7 @@ import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } fro
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { randomPath } from 'vs/base/common/extpath';
+import { randomPath, isEqual } from 'vs/base/common/extpath';
 import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
@@ -133,7 +133,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// Gather paths that we should stop watching
 		const pathsToStopWatching = Array.from(this.watchers.values()).filter(({ request }) => {
 			return !normalizedRequests.find(normalizedRequest => {
-				return normalizedRequest.path === request.path &&
+				return isEqual(normalizedRequest.path, request.path, !isLinux) &&
 					patternsEquals(normalizedRequest.excludes, request.excludes) &&
 					patternsEquals(normalizedRequest.includes, request.includes) &&
 					normalizedRequest.pollingInterval === request.pollingInterval;
@@ -441,7 +441,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		let rootDeleted = false;
 
 		for (const event of events) {
-			if (event.type === FileChangeType.DELETED && event.resource.fsPath === watcher.request.path) {
+			if (event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux)) {
 
 				// Explicitly exclude changes to root if we have any
 				// to avoid VS Code closing all opened editors which
@@ -487,7 +487,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 				// Watcher path came back! Restart watching...
 				for (const { resource, type } of changes) {
-					if (resource.fsPath === watcher.request.path && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
+					if (isEqual(resource.fsPath, watcher.request.path, !isLinux) && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
 						if (this.isPathValid(watcher.request.path)) {
 							this.warn('Watcher restarts because watched path got created again', watcher);
 
