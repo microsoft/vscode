@@ -11,7 +11,7 @@ import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } fro
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { randomPath } from 'vs/base/common/extpath';
+import { randomPath, isEqual } from 'vs/base/common/extpath';
 import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
@@ -133,7 +133,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// Gather paths that we should stop watching
 		const pathsToStopWatching = Array.from(this.watchers.values()).filter(({ request }) => {
 			return !normalizedRequests.find(normalizedRequest => {
-				return normalizedRequest.path === request.path &&
+				return isEqual(normalizedRequest.path, request.path, !isLinux) &&
 					patternsEquals(normalizedRequest.excludes, request.excludes) &&
 					patternsEquals(normalizedRequest.includes, request.includes) &&
 					normalizedRequest.pollingInterval === request.pollingInterval;
@@ -295,6 +295,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 			this.onUnexpectedError(error, watcher);
 
 			instance.complete(undefined);
+
+			this._onDidWatchFail.fire(request);
 		});
 	}
 
@@ -439,7 +441,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		let rootDeleted = false;
 
 		for (const event of events) {
-			if (event.type === FileChangeType.DELETED && event.resource.fsPath === watcher.request.path) {
+			if (event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux)) {
 
 				// Explicitly exclude changes to root if we have any
 				// to avoid VS Code closing all opened editors which
@@ -459,10 +461,21 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 	private onWatchedPathDeleted(watcher: IParcelWatcherInstance): void {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
-		if (!this.shouldRestartWatching(watcher.request)) {
-			return; // return if this deletion is handled outside
-		}
+		this._onDidWatchFail.fire(watcher.request);
 
+		// Do monitoring of the request path parent unless this request
+		// can be handled via suspend/resume in the super class
+		//
+		// TODO@bpasero we should remove this logic in favor of the
+		// support in the super class so that we have 1 consistent
+		// solution for handling this.
+
+		if (!this.supportsRequestSuspendResume(watcher.request)) {
+			this.legacyMonitorRequest(watcher);
+		}
+	}
+
+	private legacyMonitorRequest(watcher: IParcelWatcherInstance): void {
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
 			this.trace('Trying to watch on the parent path to restart the watcher...', watcher);
@@ -474,7 +487,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 				// Watcher path came back! Restart watching...
 				for (const { resource, type } of changes) {
-					if (resource.fsPath === watcher.request.path && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
+					if (isEqual(resource.fsPath, watcher.request.path, !isLinux) && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
 						if (this.isPathValid(watcher.request.path)) {
 							this.warn('Watcher restarts because watched path got created again', watcher);
 
@@ -488,7 +501,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 						}
 					}
 				}
-			}, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+			}, undefined, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 			// Make sure to stop watching when the watcher is disposed
 			watcher.token.onCancellationRequested(() => nodeWatcher.dispose());
@@ -626,12 +639,16 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 					} catch (error) {
 						this.trace(`ignoring a path for watching who's realpath failed to resolve: ${request.path} (error: ${error})`);
 
+						this._onDidWatchFail.fire(request);
+
 						continue;
 					}
 				}
 
 				// Check for invalid paths
 				if (validatePaths && !this.isPathValid(request.path)) {
+					this._onDidWatchFail.fire(request);
+
 					continue;
 				}
 

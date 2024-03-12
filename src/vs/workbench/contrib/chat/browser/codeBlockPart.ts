@@ -113,7 +113,7 @@ export interface ICodeBlockPart {
 	readonly element: HTMLElement;
 	readonly uri: URI | undefined;
 	layout(width: number): void;
-	render(data: ICodeBlockData, width: number): Promise<void>;
+	render(data: ICodeBlockData, width: number, editable?: boolean): Promise<void>;
 	focus(): void;
 	reset(): unknown;
 	dispose(): void;
@@ -331,7 +331,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 		return this.editor.getContentHeight();
 	}
 
-	async render(data: ICodeBlockData, width: number) {
+	async render(data: ICodeBlockData, width: number, editable: boolean) {
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
@@ -345,7 +345,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 		await this.updateEditor(data);
 
 		this.layout(width);
-		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1) });
+		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1), readOnly: !editable });
 
 		if (data.hideToolbar) {
 			dom.hide(this.toolbar.getElement());

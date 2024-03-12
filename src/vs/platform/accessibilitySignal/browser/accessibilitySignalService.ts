@@ -315,6 +315,7 @@ export class Sound {
 	public static readonly save = Sound.register({ fileName: 'save.mp3' });
 	public static readonly format = Sound.register({ fileName: 'format.mp3' });
 	public static readonly voiceRecordingStarted = Sound.register({ fileName: 'voiceRecordingStarted.mp3' });
+	public static readonly voiceRecordingStopped = Sound.register({ fileName: 'voiceRecordingStopped.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -588,6 +589,13 @@ export class AccessibilitySignal {
 		sound: Sound.voiceRecordingStarted,
 		legacySoundSettingsKey: 'audioCues.voiceRecordingStarted',
 		settingsKey: 'accessibility.signals.voiceRecordingStarted'
+	});
+
+	public static readonly voiceRecordingStopped = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.voiceRecordingStopped', 'Voice Recording Stopped'),
+		sound: Sound.voiceRecordingStopped,
+		legacySoundSettingsKey: 'audioCues.voiceRecordingStopped',
+		settingsKey: 'accessibility.signals.voiceRecordingStopped'
 	});
 
 	private constructor(

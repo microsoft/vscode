@@ -9,11 +9,11 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
-import { NodeJSFileWatcherLibrary, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
+import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { FileAccess } from 'vs/base/common/network';
@@ -31,34 +31,20 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
-		protected override readonly missingRequestPathPollingInterval = 100;
+		protected override readonly suspendedWatchRequestPollingInterval = 100;
 
 		private readonly _onDidWatch = this._register(new Emitter<void>());
 		readonly onDidWatch = this._onDidWatch.event;
 
+		readonly onWatchFail = this._onDidWatchFail.event;
+
 		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 			await super.doWatch(requests);
-			await this.whenReady();
-
-			this._onDidWatch.fire();
-		}
-
-		async whenReady(): Promise<void> {
 			for (const [, watcher] of this.watchers) {
 				await watcher.instance.ready;
 			}
-		}
-	}
 
-	class TestNodeJSFileWatcherLibrary extends NodeJSFileWatcherLibrary {
-
-		private readonly _whenDisposed = new DeferredPromise<void>();
-		readonly whenDisposed = this._whenDisposed.p;
-
-		override dispose(): void {
-			super.dispose();
-
-			this._whenDisposed.complete();
+			this._onDidWatch.fire();
 		}
 	}
 
@@ -517,27 +503,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: false }]);
 	});
 
-	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('deleting watched path is handled properly (folder watch)', async function () {
-		const watchedPath = join(testDir, 'deep');
-
-		const watcher = new TestNodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => { });
-		await watcher.ready;
-
-		// Delete watched path and ensure watcher is now disposed
-		Promises.rm(watchedPath, RimRafMode.UNLINK);
-		await watcher.whenDisposed;
-	});
-
-	test('deleting watched path is handled properly (file watch)', async function () {
-		const watchedPath = join(testDir, 'lorem.txt');
-		const watcher = new TestNodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => { });
-		await watcher.ready;
-
-		// Delete watched path and ensure watcher is now disposed
-		Promises.unlink(watchedPath);
-		await watcher.whenDisposed;
-	});
-
 	test('watchFileContents', async function () {
 		const watchedPath = join(testDir, 'lorem.txt');
 
@@ -571,9 +536,41 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, null, 3);
 	});
 
+	test('watching missing path emits watcher fail event', async function () {
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'missing');
+		watcher.watch([{ path: folderPath, excludes: [], recursive: true }]);
+
+		await onDidWatchFail;
+	});
+
+	test('deleting watched path emits watcher fail event (file watch)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false }]);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		Promises.unlink(filePath);
+		await onDidWatchFail;
+	});
+
+	(isMacintosh /* macOS: does not seem to report deletes on folders */ ? test.skip : test)('deleting watched path emits watcher fail event (folder watch)', async function () {
+		const folderPath = join(testDir, 'deep');
+
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false }]);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		Promises.rm(folderPath, RimRafMode.UNLINK);
+		await onDidWatchFail;
+	});
+
 	test('correlated watch requests support suspend/resume (file, does not exist in beginning)', async function () {
 		const filePath = join(testDir, 'not-found.txt');
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+		await onDidWatchFail;
 
 		await basicCrudTest(filePath, undefined, 1, undefined, true);
 		await basicCrudTest(filePath, undefined, 1, undefined, true);
@@ -583,49 +580,64 @@ import { Emitter, Event } from 'vs/base/common/event';
 		const filePath = join(testDir, 'lorem.txt');
 		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
 
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		await basicCrudTest(filePath, true, 1);
+		await onDidWatchFail;
+
 		await basicCrudTest(filePath, undefined, 1, undefined, true);
 	});
 
 	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
+		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
 		const folderPath = join(testDir, 'not-found');
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+		await onDidWatchFail;
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		let onDidWatch = Event.toPromise(watcher.onDidWatch);
 		await Promises.mkdir(folderPath);
 		await changeFuture;
-		await Event.toPromise(watcher.onDidWatch);
+		await onDidWatch;
 
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath, undefined, 1);
 
-		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
-		await Promises.rmdir(folderPath);
-		await changeFuture;
+		if (!isMacintosh) { // macOS does not report DELETE events for folders
+			onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+			await Promises.rmdir(folderPath);
+			await onDidWatchFail;
 
-		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
-		await Promises.mkdir(folderPath);
-		await changeFuture;
-		await Event.toPromise(watcher.onDidWatch);
+			changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+			onDidWatch = Event.toPromise(watcher.onDidWatch);
+			await Promises.mkdir(folderPath);
+			await changeFuture;
+			await onDidWatch;
 
-		await basicCrudTest(filePath, undefined, 1);
+			await timeout(500); // somehow needed on Linux
+
+			await basicCrudTest(filePath, undefined, 1);
+		}
 	});
 
-	test('correlated watch requests support suspend/resume (folder, exists in beginning)', async function () {
+	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('correlated watch requests support suspend/resume (folder, exists in beginning)', async function () {
 		const folderPath = join(testDir, 'deep');
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
 
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath, undefined, 1);
 
-		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		await Promises.rm(folderPath);
-		await changeFuture;
+		await onDidWatchFail;
 
-		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		const onDidWatch = Event.toPromise(watcher.onDidWatch);
 		await Promises.mkdir(folderPath);
 		await changeFuture;
-		await Event.toPromise(watcher.onDidWatch);
+		await onDidWatch;
+
+		await timeout(500); // somehow needed on Linux
 
 		await basicCrudTest(filePath, undefined, 1);
 	});

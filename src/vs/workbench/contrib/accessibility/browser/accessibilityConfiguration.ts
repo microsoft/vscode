@@ -564,6 +564,17 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
+		'accessibility.signals.voiceRecordingStopped': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.voiceRecordingStopped', "Indicates when the voice recording has stopped."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.voiceRecordingStopped.sound', "Plays a sound when the voice recording has stopped."),
+					...soundFeatureBase,
+					default: 'off'
+				},
+			}
+		},
 		'accessibility.signals.clear': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel)."),

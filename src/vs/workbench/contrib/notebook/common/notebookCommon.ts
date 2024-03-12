@@ -950,7 +950,8 @@ export const NotebookSetting = {
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell',
 	cellChat: 'notebook.experimental.cellChat',
-	notebookVariablesView: 'notebook.experimental.variablesView'
+	notebookVariablesView: 'notebook.experimental.variablesView',
+	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose'
 } as const;
 
 export const enum CellStatusbarAlignment {

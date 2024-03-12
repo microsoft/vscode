@@ -57,9 +57,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	readonly ready = this.watch();
 
 	constructor(
-		private request: INonRecursiveWatchRequest,
-		private onDidFilesChange: (changes: IFileChange[]) => void,
-		private onLogMessage?: (msg: ILogMessage) => void,
+		private readonly request: INonRecursiveWatchRequest,
+		private readonly onDidFilesChange: (changes: IFileChange[]) => void,
+		private readonly onDidWatchFail?: () => void,
+		private readonly onLogMessage?: (msg: ILogMessage) => void,
 		private verboseLogging?: boolean
 	) {
 		super();
@@ -76,13 +77,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			// Watch via node.js
 			const stat = await Promises.stat(realPath);
 			this._register(await this.doWatch(realPath, stat.isDirectory()));
-
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				this.error(error);
 			} else {
 				this.trace(error);
 			}
+
+			this.onDidWatchFail?.();
 		}
 	}
 
@@ -164,9 +166,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			watcher.on('error', (code: number, signal: string) => {
 				this.error(`Failed to watch ${path} for changes using fs.watch() (${code}, ${signal})`);
 
-				// The watcher is no longer functional reliably
-				// so we go ahead and dispose it
-				this.dispose();
+				this.onDidWatchFail?.();
 			});
 
 			watcher.on('change', (type, raw) => {
@@ -230,9 +230,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							if (changedFileName === pathBasename && !await Promises.exists(path)) {
 								this.warn('Watcher shutdown because watched path got deleted');
 
-								// The watcher is no longer functional reliably
-								// so we go ahead and dispose it
-								this.dispose();
+								this.onDidWatchFail?.();
 
 								return;
 							}
@@ -335,7 +333,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 								// we will loose this event.
 								this.fileChangesAggregator.flush();
 
-								this.dispose();
+								this.onDidWatchFail?.();
 							}
 						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
 
@@ -352,9 +350,13 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				}
 			});
 		} catch (error) {
-			if (await Promises.exists(path) && !cts.token.isCancellationRequested) {
+			if (!cts.token.isCancellationRequested && await Promises.exists(path)) {
 				this.error(`Failed to watch ${path} for changes using fs.watch() (${error.toString()})`);
 			}
+
+			this.onDidWatchFail?.();
+
+			return Disposable.None;
 		}
 
 		return toDisposable(() => {
