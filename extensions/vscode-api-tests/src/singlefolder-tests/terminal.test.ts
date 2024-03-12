@@ -233,7 +233,10 @@ import { assertNoRpc, poll } from '../utils';
 
 		test('onDidChangeTerminalState should fire after writing to a terminal', async () => {
 			const terminal = window.createTerminal();
-			deepStrictEqual(terminal.state, { isInteractedWith: false });
+			deepStrictEqual(terminal.state, {
+				isInteractedWith: false,
+				isShellIntegrationActivated: false
+			});
 			const eventState = await new Promise<TerminalState>(r => {
 				disposables.push(window.onDidChangeTerminalState(e => {
 					if (e === terminal) {
@@ -242,8 +245,8 @@ import { assertNoRpc, poll } from '../utils';
 				}));
 				terminal.sendText('test');
 			});
-			deepStrictEqual(eventState, { isInteractedWith: true });
-			deepStrictEqual(terminal.state, { isInteractedWith: true });
+			strictEqual(eventState.isInteractedWith, true);
+			strictEqual(terminal.state.isInteractedWith, true);
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
