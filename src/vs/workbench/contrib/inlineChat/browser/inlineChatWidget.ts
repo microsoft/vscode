@@ -395,8 +395,6 @@ export class InlineChatWidget {
 			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, undefined, message.requestId, !isIncomplete, false, undefined));
 			this._responseViewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
 			const chatViewModel = this._instantiationService.createInstance(ChatViewModel, sessionModel, this._codeBlockModelCollection);
-			// Since the model is created as progress/events are occurring, the listeners to such events are registered
-			// after they've already happened. Force update here so that _codeBlockModelCollection gets populated.
 			chatViewModel.updateCodeBlockTextModels(this._responseViewModel);
 			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true, editableCodeBlock: isCodeBlockEditable ?? false };
 			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
