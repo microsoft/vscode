@@ -1503,6 +1503,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CommentState: extHostTypes.CommentState,
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CommentThreadState: extHostTypes.CommentThreadState,
+			CommentThreadRelevance: extHostTypes.CommentThreadRelevance,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionItemTag: extHostTypes.CompletionItemTag,

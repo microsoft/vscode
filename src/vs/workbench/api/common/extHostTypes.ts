@@ -3272,6 +3272,11 @@ export enum CommentThreadState {
 	Resolved = 1
 }
 
+export enum CommentThreadRelevance {
+	Current = 0,
+	Outdated = 1
+}
+
 //#endregion
 
 //#region Semantic Coloring

@@ -265,6 +265,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		canReply: boolean;
 		state: vscode.CommentThreadState;
 		isTemplate: boolean;
+		relevance: vscode.CommentThreadRelevance;
 	}>;
 
 	class ExtHostCommentThread implements vscode.CommentThread2 {
@@ -380,6 +381,19 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			this._onDidUpdateCommentThread.fire();
 		}
 
+		private _relevance?: vscode.CommentThreadRelevance;
+
+		get relevance(): vscode.CommentThreadRelevance {
+			return this._relevance!;
+		}
+
+		set relevance(newRelevance: vscode.CommentThreadRelevance) {
+			checkProposedApiEnabled(this.extensionDescription, 'commentThreadRelevance');
+			this._relevance = newRelevance;
+			this.modifications.relevance = newRelevance;
+			this._onDidUpdateCommentThread.fire();
+		}
+
 		private _localDisposables: types.Disposable[];
 
 		private _isDiposed: boolean;
@@ -456,6 +470,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				set label(value: string | undefined) { that.label = value; },
 				get state() { return that.state; },
 				set state(value: vscode.CommentThreadState) { that.state = value; },
+				get relevance() { return that.relevance; },
+				set relevance(value: vscode.CommentThreadRelevance) { that.relevance = value; },
 				dispose: () => {
 					that.dispose();
 				}
@@ -509,6 +525,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			}
 			if (modified('state')) {
 				formattedModifications.state = convertToState(this._state);
+			}
+			if (modified('relevance')) {
+				formattedModifications.relevance = convertToRelevance(this._relevance);
 			}
 			if (modified('isTemplate')) {
 				formattedModifications.isTemplate = this._isTemplate;
@@ -776,6 +795,18 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			}
 		}
 		return languages.CommentThreadState.Unresolved;
+	}
+
+	function convertToRelevance(kind: vscode.CommentThreadRelevance | undefined): languages.CommentThreadRelevance {
+		if (kind !== undefined) {
+			switch (kind) {
+				case types.CommentThreadRelevance.Current:
+					return languages.CommentThreadRelevance.Current;
+				case types.CommentThreadRelevance.Outdated:
+					return languages.CommentThreadRelevance.Outdated;
+			}
+		}
+		return languages.CommentThreadRelevance.Current;
 	}
 
 	return new ExtHostCommentsImpl();

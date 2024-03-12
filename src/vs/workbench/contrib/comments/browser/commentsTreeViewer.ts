@@ -22,7 +22,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from 'vs/workbench/contrib/comments/browser/commentColors';
-import { CommentThreadState } from 'vs/editor/common/languages';
+import { CommentThreadRelevance, CommentThreadState } from 'vs/editor/common/languages';
 import { Color } from 'vs/base/common/color';
 import { IMatch } from 'vs/base/common/filters';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
@@ -56,6 +56,7 @@ interface IResourceTemplateData {
 
 interface ICommentThreadTemplateData {
 	threadMetadata: {
+		relevance: HTMLElement;
 		icon: HTMLElement;
 		userNames: HTMLSpanElement;
 		timestamp: TimestampWidget;
@@ -194,11 +195,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	) { }
 
 	renderTemplate(container: HTMLElement) {
-
 		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
 		const metadata = dom.append(metadataContainer, dom.$('.comment-metadata'));
 		const threadMetadata = {
+			relevance: dom.append(metadata, dom.$('.relevance')),
 			icon: dom.append(metadata, dom.$('.icon')),
 			userNames: dom.append(metadata, dom.$('.user')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(metadata, dom.$('.timestamp-container'))),
@@ -267,6 +268,14 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		templateData.actionBar.clear();
 
 		const commentCount = node.element.replies.length + 1;
+		if (node.element.threadRelevance === CommentThreadRelevance.Outdated) {
+			templateData.threadMetadata.relevance.style.display = '';
+			templateData.threadMetadata.relevance.innerText = nls.localize('outdated', "Outdated");
+		} else {
+			templateData.threadMetadata.relevance.innerText = '';
+			templateData.threadMetadata.relevance.style.display = 'none';
+		}
+
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
 		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
