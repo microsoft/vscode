@@ -361,6 +361,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	pushStackElement() {
+		// TODO: We can move this code into the applyEdits, and make this method a noop.
+		// Or move the line `const endSelections = endSelectionsComputer();` into the _doApplyEdits method.
+		// Gets a little tricky as some of the individual applyEdit methods have their own endSelections.
 		this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
 	}
 
