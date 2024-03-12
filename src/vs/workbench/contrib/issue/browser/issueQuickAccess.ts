@@ -79,7 +79,6 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			}
 		});
 
-		// Sort issuePicks in alphabetical order based on picks.labels
 		issuePicksParts.sort((a, b) => {
 			const aLabel = a.label ?? '';
 			const bLabel = b.label ?? '';
