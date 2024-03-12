@@ -8,7 +8,7 @@ import { CancelablePromise, Queue, createCancelablePromise, disposableTimeout, r
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { MovingAverage } from 'vs/base/common/numbers';
@@ -100,6 +100,15 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 
 	restoreEditingCell(initEditingCell: ICellViewModel) {
 		this._editingCell = initEditingCell;
+
+		const decorationIds = this._notebookEditor.deltaCellDecorations([], [{
+			handle: this._editingCell.handle,
+			options: { className: 'nb-chatGenerationHighlight', outputClassName: 'nb-chatGenerationHighlight' }
+		}]);
+
+		this._register(toDisposable(() => {
+			this._notebookEditor.deltaCellDecorations(decorationIds, []);
+		}));
 	}
 
 	hasFocus() {
@@ -150,6 +159,16 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		}
 
 		await this._notebookEditor.revealFirstLineIfOutsideViewport(this._editingCell);
+
+		// update decoration
+		const decorationIds = this._notebookEditor.deltaCellDecorations([], [{
+			handle: this._editingCell.handle,
+			options: { className: 'nb-chatGenerationHighlight', outputClassName: 'nb-chatGenerationHighlight' }
+		}]);
+
+		this._register(toDisposable(() => {
+			this._notebookEditor.deltaCellDecorations(decorationIds, []);
+		}));
 
 		if (widgetHasFocus) {
 			this.focus();
