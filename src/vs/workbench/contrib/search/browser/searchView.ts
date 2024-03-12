@@ -323,6 +323,10 @@ export class SearchView extends ViewPane {
 			return;
 		}
 		this.aiResultsVisible = visible;
+		if (this.viewModel.searchResult.isEmpty()) {
+			return;
+		}
+
 		if (visible) {
 			await this.model.addAIResults();
 		} else {
