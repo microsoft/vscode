@@ -2023,7 +2023,7 @@ export namespace TestCoverage {
 		return 'line' in location ? Position.from(location) : Range.from(location);
 	}
 
-	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails.Serialized {
+	export function fromDetails(coverage: vscode.FileCoverageDetail): CoverageDetails.Serialized {
 		if ('branches' in coverage) {
 			return {
 				count: coverage.executed,
@@ -2043,13 +2043,13 @@ export namespace TestCoverage {
 		}
 	}
 
-	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage.Serialized {
+	export function fromFile(id: string, coverage: vscode.FileCoverage): IFileCoverage.Serialized {
 		return {
+			id,
 			uri: coverage.uri,
 			statement: fromCoveredCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
 			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
-			details: coverage.detailedCoverage?.map(fromDetailed),
 		};
 	}
 }

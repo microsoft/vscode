@@ -4032,7 +4032,7 @@ const validateCC = (cc?: vscode.CoveredCount) => {
 };
 
 export class FileCoverage implements vscode.FileCoverage {
-	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
+	public static fromDetails(uri: vscode.Uri, details: vscode.FileCoverageDetail[]): vscode.FileCoverage {
 		const statements = new CoveredCount(0, 0);
 		const branches = new CoveredCount(0, 0);
 		const decl = new CoveredCount(0, 0);
@@ -4064,7 +4064,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		return coverage;
 	}
 
-	detailedCoverage?: vscode.DetailedCoverage[];
+	detailedCoverage?: vscode.FileCoverageDetail[];
 
 	constructor(
 		public readonly uri: vscode.Uri,

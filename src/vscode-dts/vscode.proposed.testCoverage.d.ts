@@ -17,7 +17,7 @@ declare module 'vscode' {
 		 * An event fired when the editor is no longer interested in data
 		 * associated with the test run.
 		 */
-		onWillDispose: Event<void>;
+		onDidDispose: Event<void>;
 	}
 
 	export interface TestRunProfile {
@@ -27,7 +27,7 @@ declare module 'vscode' {
 		 * The {@link FileCoverage} object passed to this function is the same instance
 		 * emitted on {@link TestRun.addCoverage} calls associated with this profile.
 		 */
-		getDetailedCoverage?: (fileCoverage: FileCoverage, token: CancellationToken) => Thenable<DetailedCoverage[]>;
+		loadDetailedCoverage?: (testRun: TestRun, fileCoverage: FileCoverage, token: CancellationToken) => Thenable<FileCoverageDetail[]>;
 	}
 
 	/**
@@ -72,12 +72,18 @@ declare module 'vscode' {
 		branchCoverage?: CoveredCount;
 
 		/**
+		 * Declaration coverage information. Depending on the reporter and
+		 * language, this may be types such as functions, methods, or namespaces.
+		 */
+		declarationCoverage?: CoveredCount;
+
+		/**
 		 * Creates a {@link FileCoverage} instance with counts filled in from
 		 * the coverage details.
 		 * @param uri Covered file URI
 		 * @param detailed Detailed coverage information
 		 */
-		static fromDetails(uri: Uri, details: readonly DetailedCoverage[]): FileCoverage;
+		static fromDetails(uri: Uri, details: readonly FileCoverageDetail[]): FileCoverage;
 
 		/**
 		 * @param uri Covered file URI
@@ -190,6 +196,6 @@ declare module 'vscode' {
 		constructor(name: string, executed: number | boolean, location: Position | Range);
 	}
 
-	export type DetailedCoverage = StatementCoverage | DeclarationCoverage;
+	export type FileCoverageDetail = StatementCoverage | DeclarationCoverage;
 
 }
