@@ -109,11 +109,6 @@
 	white-space: var(--vscode-hover-sourceWhiteSpace, pre-wrap);
 }
 
-.monaco-hover .hover-row .hover-row-contents {
-	display: grid;
-	place-content: center;
-}
-
 .monaco-hover .hover-row.status-bar {
 	font-size: 12px;
 	line-height: 22px;

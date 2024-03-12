@@ -170,7 +170,7 @@ export interface Hover {
 	range?: IRange;
 
 	/**
-	 * Meta-data concerning the verbosity of the hover
+	 * Metadata concerning the verbosity of the hover
 	 */
 	verbosityMetadata?: HoverVerbosityMetadata;
 }

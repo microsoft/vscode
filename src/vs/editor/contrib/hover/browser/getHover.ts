@@ -22,6 +22,7 @@ export class HoverProviderResult {
 }
 
 interface HoverContext {
+	/** Verbosity level of the hover request */
 	verbosityLevel: number;
 }
 
@@ -43,7 +44,7 @@ export function getHover(registry: LanguageFeatureRegistry<HoverProvider>, model
 	return AsyncIterableObject.fromPromises(promises).coalesce();
 }
 
-export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, context: HoverContext | undefined, token: CancellationToken,): Promise<Hover[]> {
+export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, context: HoverContext | undefined, token: CancellationToken): Promise<Hover[]> {
 	return getHover(registry, model, position, context, token).map(item => item.hover).toPromise();
 }
 

@@ -261,14 +261,14 @@ class HoverAdapter {
 		private readonly _metadata?: vscode.languages.HoverProviderMetadata,
 	) { }
 
-	async provideHover(resource: URI, position: IPosition, token: CancellationToken, hoverContext?: languages.HoverContext): Promise<languages.Hover | undefined> {
+	async provideHover(resource: URI, position: IPosition, token: CancellationToken, context?: languages.HoverContext): Promise<languages.Hover | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
 		let value: vscode.VerboseHover | null | undefined;
 		if (this._metadata?.canIncreaseVerbosity) {
-			value = await this._provider.provideHover(doc, pos, token, hoverContext ?? { verbosityLevel: 0 });
+			value = await this._provider.provideHover(doc, pos, token, context ?? { verbosityLevel: 0 });
 		} else {
 			value = await this._provider.provideHover(doc, pos, token);
 		}

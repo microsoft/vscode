@@ -262,7 +262,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		if (!verbosityMetadata || !this._context || !this._context.disposables || !this._verbosityLevels) {
 			return contentsWrapper;
 		}
-		const actionsContainer = $('div.expansion-actions');
+		const actionsContainer = $('div.verbosity-actions');
 		contentsWrapper.appendChild(actionsContainer);
 
 		this._renderHoverExpansionAction(actionsContainer, { increase: true, activated: verbosityMetadata.canIncreaseVerbosity ?? false }, store);
