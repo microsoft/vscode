@@ -545,24 +545,28 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await onDidWatchFail;
 	});
 
-	test('deleting watched path emits watcher fail event (file watch)', async function () {
+	test('deleting watched path emits watcher fail and delete event when correlated (file watch)', async function () {
 		const filePath = join(testDir, 'lorem.txt');
 
-		await watcher.watch([{ path: filePath, excludes: [], recursive: false }]);
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
 
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, 1);
 		Promises.unlink(filePath);
 		await onDidWatchFail;
+		await changeFuture;
 	});
 
-	(isMacintosh /* macOS: does not seem to report deletes on folders */ ? test.skip : test)('deleting watched path emits watcher fail event (folder watch)', async function () {
+	(isMacintosh /* macOS: does not seem to report deletes on folders */ ? test.skip : test)('deleting watched path emits watcher fail and delete event when correlated (folder watch)', async function () {
 		const folderPath = join(testDir, 'deep');
 
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: false }]);
 
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
 		Promises.rm(folderPath, RimRafMode.UNLINK);
 		await onDidWatchFail;
+		await changeFuture;
 	});
 
 	test('correlated watch requests support suspend/resume (file, does not exist in beginning)', async function () {

@@ -33,20 +33,20 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	private handleDidWatchFail(request: IUniversalWatchRequest): void {
-		if (!this.supportsRequestSuspendResume(request)) {
+		if (!this.isCorrelated(request)) {
+
+			// For now, limit failed watch monitoring to requests with a correlationId
+			// to experiment with this feature in a controlled way. Monitoring requests
+			// requires us to install polling watchers (via `fs.watchFile()`) and thus
+			// should be used sparingly.
+
 			return;
 		}
 
 		this.suspendWatchRequest(request);
 	}
 
-	protected supportsRequestSuspendResume(request: IUniversalWatchRequest): boolean {
-
-		// For now, limit failed watch monitoring to requests with a correlationId
-		// to experiment with this feature in a controlled way. Monitoring requests
-		// requires us to install polling watchers (via `fs.watchFile()`) and thus
-		// should be used sparingly.
-
+	protected isCorrelated(request: IUniversalWatchRequest): boolean {
 		return typeof request.correlationId === 'number';
 	}
 

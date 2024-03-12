@@ -441,18 +441,25 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		let rootDeleted = false;
 
 		for (const event of events) {
-			if (event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux)) {
+			rootDeleted = event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux);
+
+			if (rootDeleted && !this.isCorrelated(watcher.request)) {
 
 				// Explicitly exclude changes to root if we have any
 				// to avoid VS Code closing all opened editors which
 				// can happen e.g. in case of network connectivity
 				// issues
 				// (https://github.com/microsoft/vscode/issues/136673)
+				//
+				// Update 2024: with the new correlated events, we
+				// really do not want to skip over file events any
+				// more, so we only ignore this event for non-correlated
+				// watch requests.
 
-				rootDeleted = true;
-			} else {
-				filteredEvents.push(event);
+				continue;
 			}
+
+			filteredEvents.push(event);
 		}
 
 		return { events: filteredEvents, rootDeleted };
@@ -470,7 +477,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// support in the super class so that we have 1 consistent
 		// solution for handling this.
 
-		if (!this.supportsRequestSuspendResume(watcher.request)) {
+		if (!this.isCorrelated(watcher.request)) {
 			this.legacyMonitorRequest(watcher);
 		}
 	}

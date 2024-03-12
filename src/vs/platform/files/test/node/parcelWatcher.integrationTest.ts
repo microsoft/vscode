@@ -666,14 +666,16 @@ import { Emitter, Event } from 'vs/base/common/event';
 		await onDidWatchFail;
 	});
 
-	test('deleting watched path emits watcher fail event', async function () {
+	test('deleting watched path emits watcher fail and delete event if correlated', async function () {
 		const folderPath = join(testDir, 'deep');
 
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
 
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
 		Promises.rm(folderPath, RimRafMode.UNLINK);
 		await onDidWatchFail;
+		await changeFuture;
 	});
 
 	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async () => {
