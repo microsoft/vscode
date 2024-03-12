@@ -509,6 +509,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._doApplyEdits(rawEdits, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
 			return true;
 		} finally {
+			// TODO: Before calling pushStackElement we still need to call
+			// these two methods to compute the final version and final selection.
+			// this._increaseVersionId is something we do in stackEdits._doApplyEdits today.
+			// selection/focus is never stored as part of the model.
+			// Suggestion: Perhaps we should pass the endSelection computer into each edit operation.
+
 			// Update selection and versionId after applying edits.
 			const endSelections = endSelectionsComputer();
 			this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
@@ -806,7 +812,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					redo() {
 						that._updateNotebookMetadata(metadata, false, beginSelectionState, undoRedoGroup);
 					}
-				}(), undefined, undefined, this._alternativeVersionId, undoRedoGroup);
+				}(), beginSelectionState, undefined, this._alternativeVersionId, undoRedoGroup);
 			}
 		}
 
@@ -1031,7 +1037,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				redo() {
 					that._changeCellLanguage(cell, languageId, false, beginSelectionState, undoRedoGroup);
 				}
-			}(), undefined, undefined, this._alternativeVersionId, undoRedoGroup);
+			}(), beginSelectionState, undefined, this._alternativeVersionId, undoRedoGroup);
 		}
 
 		this._pauseableEmitter.fire({
