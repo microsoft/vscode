@@ -604,7 +604,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		for (const { edit, cellIndex } of flattenEdits) {
 			switch (edit.editType) {
 				case CellEditType.Replace:
-					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo, undoRedoGroup);
+					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
 					break;
 				case CellEditType.Output: {
 					this._assertIndex(cellIndex);
@@ -693,7 +693,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return cellDto.collapseState ?? (defaultConfig ?? undefined);
 	}
 
-	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean, undoRedoGroup: UndoRedoGroup | undefined): void {
+	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean, beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined): void {
 
 		if (count === 0 && cellDtos.length === 0) {
 			return;
@@ -761,7 +761,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				insertCell: (index, cell, endSelections) => { this._insertNewCell(index, [cell], true, endSelections); },
 				deleteCell: (index, endSelections) => { this._removeCell(index, 1, true, endSelections); },
 				replaceCell: (index, count, cells, endSelections) => { this._replaceNewCells(index, count, cells, true, endSelections); },
-			}, undefined, undefined), undefined, undefined, this._alternativeVersionId, undoRedoGroup);
+			}, undefined, undefined), beginSelectionState, undefined, this._alternativeVersionId, undoRedoGroup);
 		}
 
 		// should be deferred
