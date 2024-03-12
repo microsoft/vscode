@@ -25,6 +25,7 @@ import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/br
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { InlineChatHistory } from 'vs/workbench/contrib/inlineChat/browser/inlineChatHistory';
 
 const enum Message {
 	NONE = 0,
@@ -71,6 +72,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private _currentRequest: ChatRequestModel | undefined;
 
+	private readonly _history: InlineChatHistory;
 	private _lastInput: string | undefined;
 	private _lastResponseContent: string | undefined;
 	get lastResponseContent(): string | undefined {
@@ -105,6 +107,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
+
+		this._history = this._instantiationService.createInstance(InlineChatHistory, 'terminal-chat-history');
 
 		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
 			return;
@@ -270,6 +274,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		};
 
 		await model.waitForInitialization();
+		this._history.update(this._lastInput);
 		const request: IParsedChatRequest = {
 			text: this._lastInput,
 			parts: []
@@ -376,6 +381,14 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 	}
 
+	populateHistory(up: boolean) {
+		const entry = this._history.populateHistory(this.getInput(), up);
+		if (entry) {
+			this.updateInput(entry, true);
+		}
+	}
+
+	// TODO: Move to register calls, don't override
 	override dispose() {
 		if (this._currentRequest) {
 			this._model.value?.cancelRequest(this._currentRequest);
