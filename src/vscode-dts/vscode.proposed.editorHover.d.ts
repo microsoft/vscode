@@ -92,7 +92,7 @@ declare module 'vscode' {
 			/**
 			 * Whether the hover provider can increase the verbosity of the hover
 			 */
-			canIncreaseVerbosity: boolean;
+			canIncreaseVerbosity?: boolean;
 		}
 	}
 }
