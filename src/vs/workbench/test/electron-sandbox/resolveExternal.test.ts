@@ -70,13 +70,13 @@ suite.skip('NativeWindow:resolveExternal', () => {
 	const tunnelMock = new TunnelMock();
 	let window: TestNativeWindow;
 
-	suiteSetup(() => {
+	setup(() => {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ITunnelService, tunnelMock);
 		window = disposables.add(instantiationService.createInstance(TestNativeWindow));
 	});
 
-	suiteTeardown(() => {
+	teardown(() => {
 		disposables.clear();
 	});
 

@@ -25,9 +25,8 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidgetService, IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
@@ -89,7 +88,8 @@ export function registerChatCodeBlockActions() {
 				icon: Codicon.copy,
 				menu: {
 					id: MenuId.ChatCodeBlock,
-					group: 'navigation'
+					group: 'navigation',
+					order: 1
 				}
 			});
 		}
@@ -190,6 +190,7 @@ export function registerChatCodeBlockActions() {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					when: CONTEXT_IN_CHAT_SESSION,
+					order: 2
 				},
 				keybinding: {
 					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()), accessibleViewInCodeBlock),
@@ -564,23 +565,21 @@ export function registerChatCodeBlockActions() {
 
 function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): ICodeBlockActionContext | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
-	const accessibleViewService = accessor.get(IAccessibleViewService);
-	const accessibleViewCodeBlock = accessibleViewService.getCodeBlockContext();
-	if (accessibleViewCodeBlock) {
-		return accessibleViewCodeBlock;
-	}
+	const chatCodeBlockContextProviderService = accessor.get(IChatCodeBlockContextProviderService);
 	const model = editor.getModel();
 	if (!model) {
 		return;
 	}
 
 	const widget = chatWidgetService.lastFocusedWidget;
-	if (!widget) {
-		return;
-	}
-
-	const codeBlockInfo = widget.getCodeBlockInfoForEditor(model.uri);
+	const codeBlockInfo = widget?.getCodeBlockInfoForEditor(model.uri);
 	if (!codeBlockInfo) {
+		for (const provider of chatCodeBlockContextProviderService.providers) {
+			const context = provider.getCodeBlockContext(editor);
+			if (context) {
+				return context;
+			}
+		}
 		return;
 	}
 

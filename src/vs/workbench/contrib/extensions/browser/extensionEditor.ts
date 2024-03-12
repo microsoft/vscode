@@ -676,12 +676,12 @@ export class ExtensionEditor extends EditorPane {
 
 			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;
 
-			webview.claim(this, this.scopedContextKeyService);
+			webview.claim(this, this.window, this.scopedContextKeyService);
 			setParentFlowTo(webview.container, container);
 			webview.layoutWebviewOverElement(container);
 
 			webview.setHtml(body);
-			webview.claim(this, undefined);
+			webview.claim(this, this.window, undefined);
 
 			this.contentDisposables.add(webview.onDidFocus(() => this._onDidFocus?.fire()));
 

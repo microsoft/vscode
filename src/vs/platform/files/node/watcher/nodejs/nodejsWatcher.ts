@@ -76,7 +76,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	private startWatching(request: INonRecursiveWatchRequest): void {
 
 		// Start via node.js lib
-		const instance = new NodeJSFileWatcherLibrary(request, changes => this._onDidChangeFile.fire(changes), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+		const instance = new NodeJSFileWatcherLibrary(request, changes => this._onDidChangeFile.fire(changes), () => this._onDidWatchFail.fire(request), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 		// Remember as watcher instance
 		const watcher: INodeJSWatcherInstance = { request, instance };

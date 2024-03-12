@@ -7,8 +7,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
@@ -127,14 +128,54 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatExtensionPointHandler';
 
+	private readonly disposables = new DisposableStore();
+	private _welcomeViewDescriptor?: IViewDescriptor;
 	private _viewContainer: ViewContainer;
 	private _registrationDisposables = new Map<string, IDisposable>();
 
 	constructor(
-		@IChatContributionService readonly _chatContributionService: IChatContributionService
+		@IChatContributionService readonly _chatContributionService: IChatContributionService,
+		@IProductService readonly productService: IProductService,
+		@IContextKeyService readonly contextService: IContextKeyService
 	) {
 		this._viewContainer = this.registerViewContainer();
+		this.registerListeners();
 		this.handleAndRegisterChatExtensions();
+	}
+
+	private registerListeners() {
+		this.contextService.onDidChangeContext(e => {
+
+			if (!this.productService.chatWelcomeView) {
+				return;
+			}
+
+			const keys = new Set([this.productService.chatWelcomeView.when]);
+			if (e.affectsSome(keys)) {
+				const contextKeyExpr = ContextKeyExpr.equals(this.productService.chatWelcomeView.when, true);
+				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+				if (this.contextService.contextMatchesRules(contextKeyExpr)) {
+					const viewId = this._chatContributionService.getViewIdForProvider(this.productService.chatWelcomeView.welcomeViewId);
+
+					this._welcomeViewDescriptor = {
+						id: viewId,
+						name: { original: this.productService.chatWelcomeView.welcomeViewTitle, value: this.productService.chatWelcomeView.welcomeViewTitle },
+						containerIcon: this._viewContainer.icon,
+						ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: this.productService.chatWelcomeView.welcomeViewId }]),
+						canToggleVisibility: false,
+						canMoveView: true,
+						order: 100
+					};
+					viewsRegistry.registerViews([this._welcomeViewDescriptor], this._viewContainer);
+
+					viewsRegistry.registerViewWelcomeContent(viewId, {
+						content: this.productService.chatWelcomeView.welcomeViewContent,
+					});
+				} else if (this._welcomeViewDescriptor) {
+					viewsRegistry.deregisterViews([this._welcomeViewDescriptor], this._viewContainer);
+				}
+			}
+		}, null, this.disposables);
 	}
 
 	private handleAndRegisterChatExtensions(): void {
