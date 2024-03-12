@@ -520,14 +520,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	private _attachProcessLayoutListeners(): void {
-		this.onDidChangeActiveGroup(() => this._saveState());
-		this.onDidChangeActiveInstance(() => this._saveState());
-		this.onDidChangeInstances(() => this._saveState());
+		this._register(this.onDidChangeActiveGroup(() => this._saveState()));
+		this._register(this.onDidChangeActiveInstance(() => this._saveState()));
+		this._register(this.onDidChangeInstances(() => this._saveState()));
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
-		this.onAnyInstanceProcessIdReady(() => this._saveState());
-		this.onAnyInstanceTitleChange(instance => this._updateTitle(instance));
-		this.onAnyInstanceIconChange(e => this._updateIcon(e.instance, e.userInitiated));
+		this._register(this.onAnyInstanceProcessIdReady(() => this._saveState()));
+		this._register(this.onAnyInstanceTitleChange(instance => this._updateTitle(instance)));
+		this._register(this.onAnyInstanceIconChange(e => this._updateIcon(e.instance, e.userInitiated)));
 	}
 
 	private _handleInstanceContextKeys(): void {
