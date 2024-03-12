@@ -347,8 +347,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		return !!this._chatWidget?.value.hasFocus();
 	}
 
-	acceptCommand(shouldExecute: boolean): void {
-		this._chatWidget?.value.acceptCommand(shouldExecute);
+	async acceptCommand(shouldExecute: boolean): Promise<void> {
+		const response = this._currentRequest?.response;
+		if (!response) {
+			return;
+		}
+		const code = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo();
+		if (!code) {
+			return;
+		}
+		this._chatWidget?.value.acceptCommand(code.object.textEditorModel.getValue(), shouldExecute);
 	}
 
 	reveal(): void {

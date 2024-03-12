@@ -9,7 +9,6 @@ import 'vs/css!./media/terminalChatWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { splitMarkdownAndCodeBlocks } from 'vs/workbench/contrib/chat/browser/actions/chatContentParser';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -126,17 +125,8 @@ export class TerminalChatWidget extends Disposable {
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 	}
-	acceptCommand(shouldExecute: boolean): void {
-		const responseContent = this._inlineChatWidget?.responseContent?.trim();
-		if (!responseContent) {
-			return;
-		}
-		const firstCodeBlock = splitMarkdownAndCodeBlocks(responseContent).filter(c => c.type === 'code').map(c => c.content)?.[0];
-		if (!firstCodeBlock) {
-			return;
-		}
-
-		this._instance.runCommand(firstCodeBlock, shouldExecute);
+	acceptCommand(code: string, shouldExecute: boolean): void {
+		this._instance.runCommand(code, shouldExecute);
 		this.hide();
 	}
 
