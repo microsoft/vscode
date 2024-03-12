@@ -267,8 +267,8 @@ class HoverAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		let value: vscode.VerboseHover | null | undefined;
-		if (this._metadata?.canIncreaseVerbosity && hoverContext) {
-			value = await this._provider.provideHover(doc, pos, token, hoverContext);
+		if (this._metadata?.canIncreaseVerbosity) {
+			value = await this._provider.provideHover(doc, pos, token, hoverContext ?? { verbosityLevel: 0 });
 		} else {
 			value = await this._provider.provideHover(doc, pos, token);
 		}

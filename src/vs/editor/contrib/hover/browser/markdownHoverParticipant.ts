@@ -22,11 +22,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { HoverVerbosityMetadata, HoverProvider } from 'vs/editor/common/languages';
+import { HoverVerbosityMetadata, HoverProvider, Hover } from 'vs/editor/common/languages';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { registerActionOnClickOrAcceptKeydown } from 'vs/base/browser/ui/hover/hoverWidget';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.chevronUp, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -216,7 +217,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		this._verbosityLevels.set(this._focusMetadata.index, verbosityLevel);
 		const position = new Position(this._anchor.range.startLineNumber, this._anchor.range.startColumn);
 		const context = { verbosityLevel };
-		const hover = await Promise.resolve(provider.provideHover(model, position, CancellationToken.None, context));
+		let hover: Hover | null | undefined;
+		try {
+			hover = await Promise.resolve(provider.provideHover(model, position, CancellationToken.None, context));
+		} catch (e) {
+			onUnexpectedExternalError(e);
+		}
 		if (!hover) {
 			return;
 		}
@@ -229,6 +235,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		this._focusMetadata.focusRemains = true;
 		this._focusMetadata.element.replaceWith(renderedMarkdown);
 		this._focusMetadata.element = renderedMarkdown;
+		this._context.onContentsChanged();
 		renderedMarkdown.focus();
 	}
 
