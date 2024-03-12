@@ -22,7 +22,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	private readonly onDidWatchFail = this._onDidWatchFail.event;
 
 	private allWatchRequests = new Set<IUniversalWatchRequest>();
-	private suspendedWatchRequests = this._register(new DisposableMap<IUniversalWatchRequest>());
+	private readonly suspendedWatchRequests = this._register(new DisposableMap<IUniversalWatchRequest>());
 
 	protected readonly suspendedWatchRequestPollingInterval: number | undefined;
 
