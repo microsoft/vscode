@@ -224,13 +224,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							// file watching specifically we want to handle
 							// the atomic-write cases where the file is being
 							// deleted and recreated with different contents.
-							//
-							// Same as with recursive watching, we do not
-							// emit a delete event in this case.
 							if (changedFileName === pathBasename && !await Promises.exists(path)) {
-								this.warn('Watcher shutdown because watched path got deleted');
-
-								this.onDidWatchFail?.();
+								this.onWatchedPathDeleted(requestResource);
 
 								return;
 							}
@@ -324,16 +319,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 								disposables.add(await this.doWatch(path, false));
 							}
 
-							// File seems to be really gone, so emit a deleted event and dispose
+							// File seems to be really gone, so emit a deleted and failed event
 							else {
-								this.onFileChange({ resource: requestResource, type: FileChangeType.DELETED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
-
-								// Important to flush the event delivery
-								// before disposing the watcher, otherwise
-								// we will loose this event.
-								this.fileChangesAggregator.flush();
-
-								this.onDidWatchFail?.();
+								this.onWatchedPathDeleted(requestResource);
 							}
 						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
 
@@ -363,6 +351,16 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			cts.dispose(true);
 			disposables.dispose();
 		});
+	}
+
+	private onWatchedPathDeleted(resource: URI): void {
+		this.warn('Watcher shutdown because watched path got deleted');
+
+		// Emit events and flush in case the watcher gets disposed
+		this.onFileChange({ resource, type: FileChangeType.DELETED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
+		this.fileChangesAggregator.flush();
+
+		this.onDidWatchFail?.();
 	}
 
 	private onFileChange(event: IFileChange, skipIncludeExcludeChecks = false): void {
