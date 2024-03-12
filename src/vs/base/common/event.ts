@@ -911,6 +911,20 @@ const forEachListener = <T>(listeners: ListenerOrListeners<T>, fn: (c: ListenerC
 	}
 };
 
+
+const listenerTraces = new Map<number, string>();
+const listenerFinalizers = new FinalizationRegistry(heldValue => {
+
+	const stack = listenerTraces.get(heldValue as number);
+
+	if (stack) {
+		listenerTraces.delete(heldValue as number);
+		console.warn('GC\'ed listener that was NOT disposed');
+		console.warn(stack);
+	}
+
+});
+
 /**
  * The Emitter can be used to expose an Event to the public
  * to fire it from the insides.
@@ -1054,11 +1068,21 @@ export class Emitter<T> {
 
 			this._size++;
 
-			const result = toDisposable(() => { removeMonitor?.(); this._removeListener(contained); });
+			const handle = Math.random();
+
+			const result = toDisposable(() => {
+				listenerTraces.delete(handle);
+				listenerFinalizers.unregister(result);
+				removeMonitor?.();
+				this._removeListener(contained);
+			});
 			if (disposables instanceof DisposableStore) {
 				disposables.add(result);
 			} else if (Array.isArray(disposables)) {
 				disposables.push(result);
+			} else {
+				listenerTraces.set(handle, new Error().stack!);
+				listenerFinalizers.register(result, handle, result);
 			}
 
 			return result;
