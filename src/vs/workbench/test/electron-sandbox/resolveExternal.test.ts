@@ -72,7 +72,6 @@ suite('NativeWindow:resolveExternal', () => {
 
 	suiteSetup(() => {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
-		disposables.add(instantiationService);
 		instantiationService.stub(ITunnelService, tunnelMock);
 		window = disposables.add(instantiationService.createInstance(TestNativeWindow));
 	});
