@@ -217,7 +217,7 @@ registerAction2(class ViewAIResultsAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey.toNegated()), // disabled for now
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey.toNegated()),
 			}]
 		});
 	}
