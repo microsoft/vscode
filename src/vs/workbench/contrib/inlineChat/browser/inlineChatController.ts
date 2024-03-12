@@ -44,10 +44,11 @@ import { IInlineChatSessionService } from './inlineChatSessionService';
 import { EditModeStrategy, IEditObserver, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { IInlineChatMessageAppender } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
-import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StashedSession } from './inlineChatSession';
 import { IValidEditOperation } from 'vs/editor/common/model';
+import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -114,7 +115,10 @@ export class InlineChatController implements IEditorContribution {
 
 	private _isDisposed: boolean = false;
 	private readonly _store = new DisposableStore();
+	private readonly _input: Lazy<InlineChatContentWidget>;
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
+
+	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private readonly _ctxResponseTypes: IContextKey<undefined | InlineChatResponseTypes>;
 	private readonly _ctxDidEdit: IContextKey<boolean>;
@@ -151,13 +155,16 @@ export class InlineChatController implements IEditorContribution {
 		@IStorageService private readonly _storageService: IStorageService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
+		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
 		this._ctxUserDidEdit = CTX_INLINE_CHAT_USER_DID_EDIT.bindTo(contextKeyService);
 		this._ctxResponseTypes = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
 		this._ctxSupportIssueReporting = CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING.bindTo(contextKeyService);
+
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
+		this._input = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatContentWidget, this._editor, this._zone.value.widget.inputWidget)));
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
 			if (this._session || !e.newModelUrl) {
@@ -377,6 +384,8 @@ export class InlineChatController implements IEditorContribution {
 		this._sessionStore.add(this._session.wholeRange.onDidChange(updateWholeRangeDecoration));
 		updateWholeRangeDecoration();
 
+		this._sessionStore.add(this._input.value.onDidBlur(() => this.cancelSession()));
+
 		this._zone.value.widget.updateSlashCommands(this._session.session.slashCommands ?? []);
 		this._updatePlaceholder();
 		this._zone.value.widget.updateInfo(this._session.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
@@ -547,6 +556,8 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._session);
 		assertType(this._strategy);
 		assertType(this._session.lastInput);
+
+		this._showWidget(false);
 
 		const requestCts = new CancellationTokenSource();
 
@@ -912,32 +923,36 @@ export class InlineChatController implements IEditorContribution {
 			widgetPosition = this._editor.getSelection().getStartPosition().delta(-1);
 		}
 
-		if (initialRender) {
-			this._zone.value.setContainerMargins();
-		}
-
 		if (this._session && !position && (this._session.hasChangedText || this._session.lastExchange)) {
 			widgetPosition = this._session.wholeRange.value.getStartPosition().delta(-1);
 		}
 		if (this._session) {
 			this._zone.value.updateBackgroundColor(widgetPosition, this._session.wholeRange.value);
 		}
+
 		if (!this._zone.value.position) {
-			this._zone.value.setWidgetMargins(widgetPosition);
-			this._zone.value.show(widgetPosition);
+			if (initialRender) {
+				// this._zone.value.hide();
+				this._input.value.show(this._editor.getSelection().getStartPosition());
+			} else {
+				this._input.value.hide();
+				this._zone.value.show(widgetPosition);
+			}
 		} else {
-			this._zone.value.setWidgetMargins(widgetPosition);
 			this._zone.value.updatePositionAndHeight(widgetPosition);
 		}
+		this._ctxVisible.set(true);
 	}
 
 	private _resetWidget() {
 		this._sessionStore.clear();
+		this._ctxVisible.reset();
 		this._ctxDidEdit.reset();
 		this._ctxUserDidEdit.reset();
 		this._ctxLastFeedbackKind.reset();
 		this._ctxSupportIssueReporting.reset();
 
+		this._input.rawValue?.hide();
 		this._zone.rawValue?.hide();
 
 		// Return focus to the editor only if the current focus is within the editor widget

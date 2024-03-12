@@ -188,7 +188,7 @@ export class InlineChatWidget {
 
 		// input editor logic
 		this._inputWidget = this._instantiationService.createInstance(InlineChatInputWidget, { menuId: options.inputMenuId, telemetrySource: options.telemetrySource, hoverDelegate });
-		this._elements.body.replaceChild(this._inputWidget.domNode, this._elements.content);
+		this._inputWidget.moveTo(this._elements.content);
 		this._store.add(this._inputWidget);
 		this._store.add(this._inputWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
@@ -289,7 +289,7 @@ export class InlineChatWidget {
 		try {
 			const widgetToolbarWidth = getTotalWidth(this._elements.widgetToolbar);
 			const innerEditorWidth = widgetDim.width - widgetToolbarWidth;
-			const inputDim = new Dimension(innerEditorWidth, this._inputWidget.getPreferredHeight());
+			const inputDim = new Dimension(innerEditorWidth, this._inputWidget.getPreferredSize().height);
 			if (!this._lastDim || !Dimension.equals(this._lastDim, inputDim)) {
 				this._lastDim = inputDim;
 				this._doLayout(widgetDim, inputDim);
@@ -301,6 +301,7 @@ export class InlineChatWidget {
 	}
 
 	protected _doLayout(widgetDimension: Dimension, inputDimension: Dimension): void {
+		this._elements.progress.style.width = `${inputDimension.width}px`;
 		this._chatMessageContents.style.width = `${widgetDimension.width - 10}px`;
 		this._chatMessageContents.style.maxHeight = `270px`;
 
@@ -308,7 +309,7 @@ export class InlineChatWidget {
 	}
 
 	getHeight(): number {
-		const editorHeight = this._inputWidget.getPreferredHeight() + 4 /*padding*/;
+		const editorHeight = this._inputWidget.getPreferredSize().height + 4 /*padding*/;
 		const progressHeight = getTotalHeight(this._elements.progress);
 		const detectedIntentHeight = getTotalHeight(this._elements.detectedIntent);
 		const chatResponseHeight = getTotalHeight(this._chatMessageContents);
@@ -325,6 +326,14 @@ export class InlineChatWidget {
 			this._progressBar.stop();
 			this._progressBar.hide();
 		}
+	}
+
+	get inputWidget(): InlineChatInputWidget {
+		return this._inputWidget;
+	}
+
+	takeInputWidgetOwnership(): void {
+		this._inputWidget.moveTo(this._elements.content);
 	}
 
 	get value(): string {
@@ -361,7 +370,8 @@ export class InlineChatWidget {
 
 	updateChatMessage(message: IInlineChatMessage, isIncomplete: true): IInlineChatMessageAppender;
 	updateChatMessage(message: IInlineChatMessage | undefined): void;
-	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean): IInlineChatMessageAppender | undefined {
+	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined;
+	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined {
 
 		this._chatMessageDisposables.clear();
 		this._chatMessage = message ? new MarkdownString(message.message.value) : undefined;
@@ -373,7 +383,7 @@ export class InlineChatWidget {
 			const sessionModel = this._chatMessageDisposables.add(new ChatModel(message.providerId, undefined, this._logService, this._chatAgentService, this._instantiationService));
 			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, undefined, message.requestId, !isIncomplete, false, undefined));
 			const viewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
-			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true };
+			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true, editableCodeBlock: isCodeBlockEditable ?? false };
 			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
 			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate, this._codeBlockModelCollection, undefined));
 			renderer.layout(this._chatMessageContents.clientWidth - 4); // 2 for the padding used for the tab index border

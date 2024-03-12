@@ -163,6 +163,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 			if (session === this._activeSpeechToTextSession) {
 				this._activeSpeechToTextSession = undefined;
 				this.speechToTextInProgress.reset();
+				this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped, { allowManyInParallel: true });
 				this._onDidEndSpeechToTextSession.fire();
 
 				type SpeechToTextSessionClassification = {

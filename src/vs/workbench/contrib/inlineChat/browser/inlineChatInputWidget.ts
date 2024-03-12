@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Dimension, addDisposableListener, getTotalWidth, h } from 'vs/base/browser/dom';
+import { Dimension, addDisposableListener, getTotalWidth, h, isAncestor } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -37,7 +37,7 @@ import { localize } from 'vs/nls';
 export class InlineChatInputWidget {
 
 	private readonly _elements = h(
-		'div.content@content',
+		'div.inline-chat-input@content',
 		[
 			h('div.input@input', [
 				h('div.editor-placeholder@placeholder'),
@@ -55,7 +55,6 @@ export class InlineChatInputWidget {
 	private readonly _ctxInnerCursorStart: IContextKey<boolean>;
 	private readonly _ctxInnerCursorEnd: IContextKey<boolean>;
 	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
-	// private readonly _ctxResponseFocused: IContextKey<boolean>;
 
 	private readonly _inputEditor: IActiveCodeEditor;
 	private readonly _inputModel: ITextModel;
@@ -137,6 +136,7 @@ export class InlineChatInputWidget {
 			this._ctxInnerCursorEnd.set(fullRange.getEndPosition().equals(selection.getEndPosition()));
 		};
 		this._store.add(this._inputEditor.onDidChangeCursorPosition(updateInnerCursorFirstLast));
+		this._store.add(this._inputEditor.onDidChangeModelContent(updateInnerCursorFirstLast));
 		updateInnerCursorFirstLast();
 
 		// (2) input editor focused or not
@@ -183,6 +183,12 @@ export class InlineChatInputWidget {
 		return this._elements.content;
 	}
 
+	moveTo(parent: HTMLElement) {
+		if (!isAncestor(this.domNode, parent)) {
+			parent.insertBefore(this.domNode, parent.firstChild);
+		}
+	}
+
 	layout(dim: Dimension) {
 		const toolbarWidth = getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */;
 		const editorWidth = dim.width - toolbarWidth;
@@ -190,8 +196,10 @@ export class InlineChatInputWidget {
 		this._elements.placeholder.style.width = `${editorWidth}px`;
 	}
 
-	getPreferredHeight(): number {
-		return this._inputEditor.getContentHeight();
+	getPreferredSize(): Dimension {
+		const width = this._inputEditor.getContentWidth() + getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */;
+		const height = this._inputEditor.getContentHeight();
+		return new Dimension(width, height);
 	}
 
 	reset() {
@@ -201,7 +209,8 @@ export class InlineChatInputWidget {
 		this._ctxInnerCursorStart.reset();
 		this._ctxInnerCursorEnd.reset();
 		this._ctxInputEditorFocused.reset();
-		this.value = '';
+
+		this.value = ''; // update/re-inits some context keys again
 	}
 
 	focus() {
