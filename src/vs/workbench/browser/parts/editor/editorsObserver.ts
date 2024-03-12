@@ -97,7 +97,7 @@ export class EditorsObserver extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.editorGroupsContainer.onDidAddGroup(group => this.onGroupAdded(group)));
-		this._register(this.editorGroupsContainer.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
+		this._register(this.editorGroupService.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
@@ -310,17 +310,17 @@ export class EditorsObserver extends Disposable {
 
 	private async ensureOpenedEditorsLimit(exclude: IEditorIdentifier | undefined, groupId?: GroupIdentifier): Promise<void> {
 		if (
-			!this.editorGroupsContainer.partOptions.limit?.enabled ||
-			typeof this.editorGroupsContainer.partOptions.limit.value !== 'number' ||
-			this.editorGroupsContainer.partOptions.limit.value <= 0
+			!this.editorGroupService.partOptions.limit?.enabled ||
+			typeof this.editorGroupService.partOptions.limit.value !== 'number' ||
+			this.editorGroupService.partOptions.limit.value <= 0
 		) {
 			return; // return early if not enabled or invalid
 		}
 
-		const limit = this.editorGroupsContainer.partOptions.limit.value;
+		const limit = this.editorGroupService.partOptions.limit.value;
 
 		// In editor group
-		if (this.editorGroupsContainer.partOptions.limit?.perEditorGroup) {
+		if (this.editorGroupService.partOptions.limit?.perEditorGroup) {
 
 			// For specific editor groups
 			if (typeof groupId === 'number') {
@@ -349,7 +349,7 @@ export class EditorsObserver extends Disposable {
 		// Check for `excludeDirty` setting and apply it by excluding
 		// any recent editor that is dirty from the opened editors limit
 		let mostRecentEditorsCountingForLimit: IEditorIdentifier[];
-		if (this.editorGroupsContainer.partOptions.limit?.excludeDirty) {
+		if (this.editorGroupService.partOptions.limit?.excludeDirty) {
 			mostRecentEditorsCountingForLimit = mostRecentEditors.filter(({ editor }) => {
 				if ((editor.isDirty() && !editor.isSaving()) || editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
 					return false; // not dirty editors (unless in the process of saving) or scratchpads

@@ -109,7 +109,7 @@ export class WorkspaceWatcher extends Disposable {
 		const config = this.configurationService.getValue<IFilesConfiguration>({ resource: workspace.uri });
 		if (config.files?.watcherExclude) {
 			for (const key in config.files.watcherExclude) {
-				if (config.files.watcherExclude[key] === true) {
+				if (key && config.files.watcherExclude[key] === true) {
 					excludes.push(key);
 				}
 			}

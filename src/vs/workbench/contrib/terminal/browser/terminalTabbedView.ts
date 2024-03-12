@@ -387,7 +387,7 @@ export class TerminalTabbedView extends Disposable {
 			}
 			terminalContainer.focus();
 			if (!this._cancelContextMenu) {
-				openContextMenu(dom.getWindow(terminalContainer), event, this._terminalGroupService.activeInstance!, this._instanceMenu, this._contextMenuService);
+				openContextMenu(dom.getWindow(terminalContainer), event, this._terminalGroupService.activeInstance, this._instanceMenu, this._contextMenuService);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();

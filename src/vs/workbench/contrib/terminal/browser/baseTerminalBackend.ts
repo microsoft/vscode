@@ -46,7 +46,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 		this._register(this._ptyHostController.onPtyHostExit(() => {
 			this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
 		}));
-		this.onPtyHostConnected(() => hasStarted = true);
+		this._register(this.onPtyHostConnected(() => hasStarted = true));
 		this._register(this._ptyHostController.onPtyHostStart(() => {
 			this._logService.debug(`The terminal's pty host process is starting`);
 			// Only fire the _restart_ event after it has started

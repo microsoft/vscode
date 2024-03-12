@@ -48,6 +48,7 @@ import { arch } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
 
 suite('ExtensionsViews Tests', () => {
 
@@ -61,8 +62,8 @@ suite('ExtensionsViews Tests', () => {
 	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] }, { installedTimestamp: 234567 });
 	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installedTimestamp: Date.now() - 50000, updated: true });
 	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] }, { installedTimestamp: 345678 });
-	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
-	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
+	const builtInTheme = aLocalExtension('my-theme', { categories: ['Themes'], contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
+	const builtInBasic = aLocalExtension('my-lang', { categories: ['Programming Languages'], contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
 
 	const galleryEnabledLanguage = aGalleryExtension(localEnabledLanguage.manifest.name, { ...localEnabledLanguage.manifest, version: '1.0.1', identifier: localDisabledLanguage.identifier });
 
@@ -187,6 +188,7 @@ suite('ExtensionsViews Tests', () => {
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
 
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 	});
@@ -286,12 +288,12 @@ suite('ExtensionsViews Tests', () => {
 			assert.strictEqual(result.get(2).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query.');
 		});
 
-		await testableView.show('@builtin:themes').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @builtin:themes query');
+		await testableView.show('@builtin category:themes').then(result => {
+			assert.strictEqual(result.length, 1, 'Unexpected number of results for @builtin category:themes query');
 			assert.strictEqual(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin:themes query.');
 		});
 
-		await testableView.show('@builtin:basics').then(result => {
+		await testableView.show('@builtin category:"programming languages"').then(result => {
 			assert.strictEqual(result.length, 1, 'Unexpected number of results for @builtin:basics query');
 			assert.strictEqual(result.get(0).name, builtInBasic.manifest.name, 'Unexpected extension for @builtin:basics query.');
 		});

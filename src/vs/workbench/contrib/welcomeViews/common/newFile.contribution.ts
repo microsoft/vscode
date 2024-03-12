@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promiseWithResolvers } from 'vs/base/common/async';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -95,10 +96,7 @@ class NewFileTemplatesManager extends Disposable {
 	}
 
 	private async selectNewEntry(entries: NewFileItem[]): Promise<boolean> {
-		let resolveResult: (res: boolean) => void;
-		const resultPromise = new Promise<boolean>(resolve => {
-			resolveResult = resolve;
-		});
+		const { promise: resultPromise, resolve: resolveResult } = promiseWithResolvers<boolean>();
 
 		const disposables = new DisposableStore();
 		const qp = this.quickInputService.createQuickPick();

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from 'vs/platform/files/common/files';
@@ -22,7 +22,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -57,7 +57,8 @@ export const enum AutoSaveMode {
 export const enum AutoSaveDisabledReason {
 	SETTINGS = 1,
 	OUT_OF_WORKSPACE,
-	ERRORS
+	ERRORS,
+	DISABLED
 }
 
 export type IAutoSaveMode = IEnabledAutoSaveMode | IDisabledAutoSaveMode;
@@ -81,13 +82,17 @@ export interface IFilesConfigurationService {
 
 	readonly onDidChangeAutoSaveConfiguration: Event<void>;
 
+	readonly onDidChangeAutoSaveDisabled: Event<URI>;
+
 	getAutoSaveConfiguration(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveConfiguration;
 
-	isShortAutoSaveDelayConfigured(resourceOrEditor: EditorInput | URI | undefined): boolean;
+	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean;
 
-	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveMode;
+	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined, saveReason?: SaveReason): IAutoSaveMode;
 
 	toggleAutoSave(): Promise<void>;
+
+	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable;
 
 	//#endregion
 
@@ -128,6 +133,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly _onDidChangeAutoSaveConfiguration = this._register(new Emitter<void>());
 	readonly onDidChangeAutoSaveConfiguration = this._onDidChangeAutoSaveConfiguration.event;
 
+	private readonly _onDidChangeAutoSaveDisabled = this._register(new Emitter<URI>());
+	readonly onDidChangeAutoSaveDisabled = this._onDidChangeAutoSaveDisabled.event;
+
 	private readonly _onDidChangeFilesAssociation = this._register(new Emitter<void>());
 	readonly onDidChangeFilesAssociation = this._onDidChangeFilesAssociation.event;
 
@@ -139,6 +147,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private currentHotExitConfiguration: string;
 
 	private readonly autoSaveConfigurationCache = new LRUCache<URI, ICachedAutoSaveConfiguration>(1000);
+	private readonly autoSaveDisabledOverrides = new ResourceMap<number /* counter */>();
 
 	private readonly autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(this.contextKeyService);
 
@@ -366,15 +375,34 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return resourceOrEditor;
 	}
 
-	isShortAutoSaveDelayConfigured(resourceOrEditor: EditorInput | URI | undefined): boolean {
-		return this.getAutoSaveConfiguration(resourceOrEditor).isShortAutoSaveDelay === true;
+	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean {
+		const resource = this.toResource(resourceOrEditor);
+		if (this.getAutoSaveConfiguration(resource).isShortAutoSaveDelay) {
+			return !resource || !this.autoSaveDisabledOverrides.has(resource);
+		}
+
+		return false;
 	}
 
-	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveMode {
+	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined, saveReason?: SaveReason): IAutoSaveMode {
 		const resource = this.toResource(resourceOrEditor);
+		if (resource && this.autoSaveDisabledOverrides.has(resource)) {
+			return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.DISABLED };
+		}
+
 		const autoSaveConfiguration = this.getAutoSaveConfiguration(resource);
 		if (typeof autoSaveConfiguration.autoSave === 'undefined') {
 			return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.SETTINGS };
+		}
+
+		if (typeof saveReason === 'number') {
+			if (
+				(autoSaveConfiguration.autoSave === 'afterDelay' && saveReason !== SaveReason.AUTO) ||
+				(autoSaveConfiguration.autoSave === 'onFocusChange' && saveReason !== SaveReason.FOCUS_CHANGE && saveReason !== SaveReason.WINDOW_CHANGE) ||
+				(autoSaveConfiguration.autoSave === 'onWindowChange' && saveReason !== SaveReason.WINDOW_CHANGE)
+			) {
+				return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.SETTINGS };
+			}
 		}
 
 		if (resource) {
@@ -416,6 +444,30 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		}
 
 		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
+	}
+
+	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable {
+		const resource = this.toResource(resourceOrEditor);
+		if (!resource) {
+			return Disposable.None;
+		}
+
+		const counter = this.autoSaveDisabledOverrides.get(resource) ?? 0;
+		this.autoSaveDisabledOverrides.set(resource, counter + 1);
+
+		if (counter === 0) {
+			this._onDidChangeAutoSaveDisabled.fire(resource);
+		}
+
+		return toDisposable(() => {
+			const counter = this.autoSaveDisabledOverrides.get(resource) ?? 0;
+			if (counter <= 1) {
+				this.autoSaveDisabledOverrides.delete(resource);
+				this._onDidChangeAutoSaveDisabled.fire(resource);
+			} else {
+				this.autoSaveDisabledOverrides.set(resource, counter - 1);
+			}
+		});
 	}
 
 	get isHotExitEnabled(): boolean {

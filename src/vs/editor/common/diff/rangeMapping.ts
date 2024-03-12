@@ -36,6 +36,18 @@ export class LineRangeMapping {
 		return result;
 	}
 
+	public static clip(mapping: readonly LineRangeMapping[], originalRange: LineRange, modifiedRange: LineRange): LineRangeMapping[] {
+		const result: LineRangeMapping[] = [];
+		for (const m of mapping) {
+			const original = m.original.intersect(originalRange);
+			const modified = m.modified.intersect(modifiedRange);
+			if (original && !original.isEmpty && modified && !modified.isEmpty) {
+				result.push(new LineRangeMapping(original, modified));
+			}
+		}
+		return result;
+	}
+
 	/**
 	 * The line range in the original text model.
 	 */

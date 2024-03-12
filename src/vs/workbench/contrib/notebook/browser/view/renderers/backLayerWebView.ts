@@ -5,6 +5,7 @@
 
 import { getWindow } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { CodeWindow } from 'vs/base/browser/window';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise, runWhenGlobalIdle } from 'vs/base/common/async';
@@ -512,10 +513,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return !!this.webview;
 	}
 
-	createWebview(): Promise<void> {
+	createWebview(targetWindow: CodeWindow): Promise<void> {
 		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
 		const htmlContent = this.generateContent(baseUrl.toString());
-		return this._initialize(htmlContent);
+		return this._initialize(htmlContent, targetWindow);
 	}
 
 	private getNotebookBaseUri() {
@@ -550,16 +551,16 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		];
 	}
 
-	private _initialize(content: string): Promise<void> {
+	private _initialize(content: string, targetWindow: CodeWindow): Promise<void> {
 		if (!getWindow(this.element).document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
 
 		this.webview = this._createInset(this.webviewService, content);
-		this.webview.mountTo(this.element);
+		this.webview.mountTo(this.element, targetWindow);
 		this._register(this.webview);
 
-		this._register(new WebviewWindowDragMonitor(() => this.webview));
+		this._register(new WebviewWindowDragMonitor(targetWindow, () => this.webview));
 
 		const initializePromise = new DeferredPromise<void>();
 
@@ -666,7 +667,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 						if (latestCell) {
 							latestCell.outputIsFocused = true;
-							this.notebookEditor.focusNotebookCell(latestCell, 'output', { skipReveal: true, outputWebviewFocused: true });
+							this.notebookEditor.focusNotebookCell(latestCell, 'output', { outputId: resolvedResult.output.model.outputId, skipReveal: true, outputWebviewFocused: true });
 						}
 					}
 					break;

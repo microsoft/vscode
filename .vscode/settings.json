@@ -170,4 +170,5 @@
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
 	"inlineChat.mode": "live",
+	"typescript.enablePromptUseWorkspaceTsdk": true,
 }

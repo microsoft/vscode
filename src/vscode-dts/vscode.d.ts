@@ -657,7 +657,11 @@ declare module 'vscode' {
 		/**
 		 * Render the line numbers with values relative to the primary cursor location.
 		 */
-		Relative = 2
+		Relative = 2,
+		/**
+		 * Render the line numbers on every 10th line number.
+		 */
+		Interval = 3,
 	}
 
 	/**
@@ -1352,7 +1356,7 @@ declare module 'vscode' {
 	export interface TextEditorEdit {
 		/**
 		 * Replace a certain text region with a new value.
-		 * You can use \r\n or \n in `value` and they will be normalized to the current {@link TextDocument document}.
+		 * You can use `\r\n` or `\n` in `value` and they will be normalized to the current {@link TextDocument document}.
 		 *
 		 * @param location The range this operation should remove.
 		 * @param value The new text this operation should insert after removing `location`.
@@ -1361,7 +1365,7 @@ declare module 'vscode' {
 
 		/**
 		 * Insert text at a location.
-		 * You can use \r\n or \n in `value` and they will be normalized to the current {@link TextDocument document}.
+		 * You can use `\r\n` or `\n` in `value` and they will be normalized to the current {@link TextDocument document}.
 		 * Although the equivalent text edit can be made with {@link TextEditorEdit.replace replace}, `insert` will produce a different resulting selection (it will get moved).
 		 *
 		 * @param location The position where the new text should be inserted.
@@ -3952,7 +3956,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
+		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata | undefined]>): void;
 
 		/**
 		 * Set (and replace) notebook edits for a resource.
@@ -3968,7 +3972,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata | undefined]>): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -7331,7 +7335,7 @@ declare module 'vscode' {
 		 *
 		 * @param text The text to send.
 		 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
-		 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
+		 * The character(s) added are `\n` or `\r\n`, depending on the platform. This defaults to `true`.
 		 */
 		sendText(text: string, shouldExecute?: boolean): void;
 
@@ -9598,7 +9602,7 @@ declare module 'vscode' {
 	 */
 	export interface WebviewViewProvider {
 		/**
-		 * Revolves a webview view.
+		 * Resolves a webview view.
 		 *
 		 * `resolveWebviewView` is called when a view first becomes visible. This may happen when the view is
 		 * first loaded or when the user hides and then shows a view again.
@@ -11737,7 +11741,7 @@ declare module 'vscode' {
 		 * until `Terminal.show` is called. The typical usage for this is when you need to run
 		 * something that may need interactivity but only want to tell the user about it when
 		 * interaction is needed. Note that the terminals will still be exposed to all extensions
-		 * as normal.
+		 * as normal. The hidden terminals will not be restored when the workspace is next opened.
 		 */
 		hideFromUser?: boolean;
 
@@ -13287,6 +13291,29 @@ declare module 'vscode' {
 		export function findFiles(include: GlobPattern, exclude?: GlobPattern | null, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
 
 		/**
+		 * Saves the editor identified by the given resource and returns the resulting resource or `undefined`
+		 * if save was not successful or no editor with the given resource was found.
+		 *
+		 * **Note** that an editor with the provided resource must be opened in order to be saved.
+		 *
+		 * @param uri the associated uri for the opened editor to save.
+		 * @returns A thenable that resolves when the save operation has finished.
+		 */
+		export function save(uri: Uri): Thenable<Uri | undefined>;
+
+		/**
+		 * Saves the editor identified by the given resource to a new file name as provided by the user and
+		 * returns the resulting resource or `undefined` if save was not successful or cancelled or no editor
+		 * with the given resource was found.
+		 *
+		 * **Note** that an editor with the provided resource must be opened in order to be saved as.
+		 *
+		 * @param uri the associated uri for the opened editor to save as.
+		 * @returns A thenable that resolves when the save-as operation has finished.
+		 */
+		export function saveAs(uri: Uri): Thenable<Uri | undefined>;
+
+		/**
 		 * Save all dirty files.
 		 *
 		 * @param includeUntitled Also save files that have been created during this session.
@@ -13649,29 +13676,6 @@ declare module 'vscode' {
 		 * Event that fires when the current workspace has been trusted.
 		 */
 		export const onDidGrantWorkspaceTrust: Event<void>;
-
-		/**
-		 * Saves the editor identified by the given resource and returns the resulting resource or `undefined`
-		 * if save was not successful or no editor with the given resource was found.
-		 *
-		 * **Note** that an editor with the provided resource must be opened in order to be saved.
-		 *
-		 * @param uri the associated uri for the opened editor to save.
-		 * @returns A thenable that resolves when the save operation has finished.
-		 */
-		export function save(uri: Uri): Thenable<Uri | undefined>;
-
-		/**
-		 * Saves the editor identified by the given resource to a new file name as provided by the user and
-		 * returns the resulting resource or `undefined` if save was not successful or cancelled or no editor
-		 * with the given resource was found.
-		 *
-		 * **Note** that an editor with the provided resource must be opened in order to be saved as.
-		 *
-		 * @param uri the associated uri for the opened editor to save as.
-		 * @returns A thenable that resolves when the save-as operation has finished.
-		 */
-		export function saveAs(uri: Uri): Thenable<Uri | undefined>;
 	}
 
 	/**
@@ -17148,6 +17152,12 @@ declare module 'vscode' {
 		 * in this property after a {@link onDidChangeDefault} event.
 		 */
 		isDefault: boolean;
+
+		/**
+		 * Fired when a user has changed whether this is a default profile. The
+		 * event contains the new value of {@link isDefault}
+		 */
+		onDidChangeDefault: Event<boolean>;
 
 		/**
 		 * Whether this profile supports continuous running of requests. If so,

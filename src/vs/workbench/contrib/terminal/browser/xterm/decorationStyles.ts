@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Delayer } from 'vs/base/common/async';
-import { fromNow } from 'vs/base/common/date';
+import { fromNow, getDurationString } from 'vs/base/common/date';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -71,14 +71,29 @@ export class TerminalDecorationHoverManager extends Disposable {
 						} else {
 							return;
 						}
-					} else if (command.exitCode) {
-						if (command.exitCode === -1) {
-							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
-						} else {
-							hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
-						}
 					} else {
-						hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
+						if (command.duration) {
+							const durationText = getDurationString(command.duration);
+							if (command.exitCode) {
+								if (command.exitCode === -1) {
+									hoverContent += localize('terminalPromptCommandFailed.duration', 'Command executed {0}, took {1} and failed', fromNow(command.timestamp, true), durationText);
+								} else {
+									hoverContent += localize('terminalPromptCommandFailedWithExitCode.duration', 'Command executed {0}, took {1} and failed (Exit Code {2})', fromNow(command.timestamp, true), durationText, command.exitCode);
+								}
+							} else {
+								hoverContent += localize('terminalPromptCommandSuccess.duration', 'Command executed {0} and took {1}', fromNow(command.timestamp, true), durationText);
+							}
+						} else {
+							if (command.exitCode) {
+								if (command.exitCode === -1) {
+									hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
+								} else {
+									hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
+								}
+							} else {
+								hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
+							}
+						}
 					}
 					this._hoverService.showHover({ content: new MarkdownString(hoverContent), target: element });
 				});

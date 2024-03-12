@@ -156,6 +156,15 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	 * Whether the stored file working copy is readonly or not.
 	 */
 	isReadonly(): boolean | IMarkdownString;
+
+	/**
+	 * Asks the stored file working copy to save. If the stored file
+	 * working copy was dirty, it is expected to be non-dirty after
+	 * this operation has finished.
+	 *
+	 * @returns `true` if the operation was successful and `false` otherwise.
+	 */
+	save(options?: IStoredFileWorkingCopySaveAsOptions): Promise<boolean>;
 }
 
 export interface IResolvedStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IStoredFileWorkingCopy<M> {
@@ -234,6 +243,14 @@ export interface IStoredFileWorkingCopySaveOptions extends ISaveOptions {
 	 * the caller instead of handling it.
 	 */
 	readonly ignoreErrorHandler?: boolean;
+}
+
+export interface IStoredFileWorkingCopySaveAsOptions extends IStoredFileWorkingCopySaveOptions {
+
+	/**
+	 * Optional URI of the resource the text file is saved from if known.
+	 */
+	readonly from?: URI;
 }
 
 export interface IStoredFileWorkingCopyResolver {
@@ -815,7 +832,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	private ignoreSaveFromSaveParticipants = false;
 
-	async save(options: IStoredFileWorkingCopySaveOptions = Object.create(null)): Promise<boolean> {
+	async save(options: IStoredFileWorkingCopySaveAsOptions = Object.create(null)): Promise<boolean> {
 		if (!this.isResolved()) {
 			return false;
 		}
@@ -843,7 +860,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		return this.hasState(StoredFileWorkingCopyState.SAVED);
 	}
 
-	private async doSave(options: IStoredFileWorkingCopySaveOptions): Promise<void> {
+	private async doSave(options: IStoredFileWorkingCopySaveAsOptions): Promise<void> {
 		if (typeof options.reason !== 'number') {
 			options.reason = SaveReason.EXPLICIT;
 		}
@@ -947,7 +964,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 					if (!saveCancellation.token.isCancellationRequested) {
 						this.ignoreSaveFromSaveParticipants = true;
 						try {
-							await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+							await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT, savedFrom: options.from }, saveCancellation.token);
 						} finally {
 							this.ignoreSaveFromSaveParticipants = false;
 						}
@@ -1039,7 +1056,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		})(), () => saveCancellation.cancel());
 	}
 
-	private handleSaveSuccess(stat: IFileStatWithMetadata, versionId: number, options: IStoredFileWorkingCopySaveOptions): void {
+	private handleSaveSuccess(stat: IFileStatWithMetadata, versionId: number, options: IStoredFileWorkingCopySaveAsOptions): void {
 
 		// Updated resolved stat with updated stat
 		this.updateLastResolvedFileStat(stat);
@@ -1059,7 +1076,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		this._onDidSave.fire({ reason: options.reason, stat, source: options.source });
 	}
 
-	private handleSaveError(error: Error, versionId: number, options: IStoredFileWorkingCopySaveOptions): void {
+	private handleSaveError(error: Error, versionId: number, options: IStoredFileWorkingCopySaveAsOptions): void {
 		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error).apply(this.logService, [`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(), this.typeId]);
 
 		// Return early if the save() call was made asking to
@@ -1083,13 +1100,13 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		}
 
 		// Show save error to user for handling
-		this.doHandleSaveError(error);
+		this.doHandleSaveError(error, options);
 
 		// Emit as event
 		this._onDidSaveError.fire();
 	}
 
-	private doHandleSaveError(error: Error): void {
+	private doHandleSaveError(error: Error, options: IStoredFileWorkingCopySaveAsOptions): void {
 		const fileOperationError = error as FileOperationError;
 		const primaryActions: IAction[] = [];
 
@@ -1099,7 +1116,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 			message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Do you want to overwrite the file with your changes?", this.name);
 
-			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ignoreModifiedSince: true }) }));
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ...options, ignoreModifiedSince: true, reason: SaveReason.EXPLICIT }) }));
 			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
 		}
 
@@ -1123,19 +1140,19 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 						isWindows ? localize('overwriteElevated', "Overwrite as Admin...") : localize('overwriteElevatedSudo', "Overwrite as Sudo...") :
 						isWindows ? localize('saveElevated', "Retry as Admin...") : localize('saveElevatedSudo', "Retry as Sudo..."),
 					run: () => {
-						this.save({ writeElevated: true, writeUnlock: triedToUnlock, reason: SaveReason.EXPLICIT });
+						this.save({ ...options, writeElevated: true, writeUnlock: triedToUnlock, reason: SaveReason.EXPLICIT });
 					}
 				}));
 			}
 
 			// Unlock
 			else if (isWriteLocked) {
-				primaryActions.push(toAction({ id: 'fileWorkingCopy.unlock', label: localize('overwrite', "Overwrite"), run: () => this.save({ writeUnlock: true, reason: SaveReason.EXPLICIT }) }));
+				primaryActions.push(toAction({ id: 'fileWorkingCopy.unlock', label: localize('overwrite', "Overwrite"), run: () => this.save({ ...options, writeUnlock: true, reason: SaveReason.EXPLICIT }) }));
 			}
 
 			// Retry
 			else {
-				primaryActions.push(toAction({ id: 'fileWorkingCopy.retry', label: localize('retry', "Retry"), run: () => this.save({ reason: SaveReason.EXPLICIT }) }));
+				primaryActions.push(toAction({ id: 'fileWorkingCopy.retry', label: localize('retry', "Retry"), run: () => this.save({ ...options, reason: SaveReason.EXPLICIT }) }));
 			}
 
 			// Save As
@@ -1147,7 +1164,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 					if (editor) {
 						const result = await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
 						if (!result.success) {
-							this.doHandleSaveError(error); // show error again given the operation failed
+							this.doHandleSaveError(error, options); // show error again given the operation failed
 						}
 					}
 				}

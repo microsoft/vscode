@@ -77,6 +77,7 @@ import 'vs/workbench/services/textresourceProperties/common/textResourceProperti
 import 'vs/workbench/services/textfile/common/textEditorService';
 import 'vs/workbench/services/language/common/languageService';
 import 'vs/workbench/services/model/common/modelService';
+import 'vs/workbench/services/notebook/common/notebookDocumentService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
@@ -85,6 +86,7 @@ import 'vs/workbench/services/extensionManagement/browser/extensionEnablementSer
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
 import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import 'vs/workbench/services/extensionManagement/common/extensionFeaturesManagemetService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileImportExportService';
@@ -102,7 +104,10 @@ import 'vs/workbench/services/views/browser/viewsService';
 import 'vs/workbench/services/quickinput/browser/quickInputService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService';
 import 'vs/workbench/services/authentication/browser/authenticationService';
-import 'vs/editor/browser/services/hoverService';
+import 'vs/workbench/services/authentication/browser/authenticationExtensionsService';
+import 'vs/workbench/services/authentication/browser/authenticationUsageService';
+import 'vs/workbench/services/authentication/browser/authenticationAccessService';
+import 'vs/editor/browser/services/hoverService/hoverService';
 import 'vs/workbench/services/assignment/common/assignmentService';
 import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
@@ -113,6 +118,7 @@ import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contr
 import 'vs/workbench/services/userActivity/common/userActivityService';
 import 'vs/workbench/services/userActivity/browser/userActivityBrowser';
 import 'vs/workbench/services/issue/browser/issueTroubleshoot';
+import 'vs/workbench/services/editor/browser/editorPaneService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -178,7 +184,7 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
 // Speech
-import 'vs/workbench/contrib/speech/common/speech.contribution';
+import 'vs/workbench/contrib/speech/browser/speech.contribution';
 
 // Chat
 import 'vs/workbench/contrib/chat/browser/chat.contribution';
@@ -338,6 +344,9 @@ import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contrib
 // Language Status
 import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
 
+// Authentication
+import 'vs/workbench/contrib/authentication/browser/authentication.contribution';
+
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
@@ -365,8 +374,8 @@ import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 // List
 import 'vs/workbench/contrib/list/browser/list.contribution';
 
-// Audio Cues
-import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
+// Accessibility Signals
+import 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
 
 // Deprecated Extension Migrator
 import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';

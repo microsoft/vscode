@@ -15,7 +15,7 @@ import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -23,7 +23,7 @@ import * as network from 'vs/base/common/network';
 import 'vs/css!./media/searchview';
 import { getCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -70,7 +70,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchViewModelWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchViewModelWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchModelLocation, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -80,7 +80,9 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 
@@ -156,10 +158,14 @@ export class SearchView extends ViewPane {
 	private treeAccessibilityProvider: SearchAccessibilityProvider;
 
 	private treeViewKey: IContextKey<boolean>;
+	private aiResultsVisibleKey: IContextKey<boolean>;
+	private hasAISettingEnabledKey: IContextKey<boolean>;
 
 	private _visibleMatches: number = 0;
 
 	private _refreshResultsScheduler: RunOnceScheduler;
+
+	private _onSearchResultChangedDisposable: IDisposable | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -190,7 +196,7 @@ export class SearchView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -198,30 +204,33 @@ export class SearchView extends ViewPane {
 		this.container = dom.$('.search-view');
 
 		// globals
-		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(this.contextKeyService);
-		this.firstMatchFocused = Constants.FirstMatchFocusKey.bindTo(this.contextKeyService);
-		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(this.contextKeyService);
-		this.fileMatchOrFolderMatchFocus = Constants.FileMatchOrFolderMatchFocusKey.bindTo(this.contextKeyService);
-		this.fileMatchOrFolderMatchWithResourceFocus = Constants.FileMatchOrFolderMatchWithResourceFocusKey.bindTo(this.contextKeyService);
-		this.fileMatchFocused = Constants.FileFocusKey.bindTo(this.contextKeyService);
-		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(this.contextKeyService);
-		this.folderMatchWithResourceFocused = Constants.ResourceFolderFocusKey.bindTo(this.contextKeyService);
-		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
-		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
+		this.viewletVisible = Constants.SearchContext.SearchViewVisibleKey.bindTo(this.contextKeyService);
+		this.firstMatchFocused = Constants.SearchContext.FirstMatchFocusKey.bindTo(this.contextKeyService);
+		this.fileMatchOrMatchFocused = Constants.SearchContext.FileMatchOrMatchFocusKey.bindTo(this.contextKeyService);
+		this.fileMatchOrFolderMatchFocus = Constants.SearchContext.FileMatchOrFolderMatchFocusKey.bindTo(this.contextKeyService);
+		this.fileMatchOrFolderMatchWithResourceFocus = Constants.SearchContext.FileMatchOrFolderMatchWithResourceFocusKey.bindTo(this.contextKeyService);
+		this.fileMatchFocused = Constants.SearchContext.FileFocusKey.bindTo(this.contextKeyService);
+		this.folderMatchFocused = Constants.SearchContext.FolderFocusKey.bindTo(this.contextKeyService);
+		this.folderMatchWithResourceFocused = Constants.SearchContext.ResourceFolderFocusKey.bindTo(this.contextKeyService);
+		this.hasSearchResultsKey = Constants.SearchContext.HasSearchResults.bindTo(this.contextKeyService);
+		this.matchFocused = Constants.SearchContext.MatchFocusKey.bindTo(this.contextKeyService);
 		this.searchStateKey = SearchStateKey.bindTo(this.contextKeyService);
-		this.hasSearchPatternKey = Constants.ViewHasSearchPatternKey.bindTo(this.contextKeyService);
-		this.hasReplacePatternKey = Constants.ViewHasReplacePatternKey.bindTo(this.contextKeyService);
-		this.hasFilePatternKey = Constants.ViewHasFilePatternKey.bindTo(this.contextKeyService);
-		this.hasSomeCollapsibleResultKey = Constants.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
-		this.treeViewKey = Constants.InTreeViewKey.bindTo(this.contextKeyService);
+		this.hasSearchPatternKey = Constants.SearchContext.ViewHasSearchPatternKey.bindTo(this.contextKeyService);
+		this.hasReplacePatternKey = Constants.SearchContext.ViewHasReplacePatternKey.bindTo(this.contextKeyService);
+		this.hasFilePatternKey = Constants.SearchContext.ViewHasFilePatternKey.bindTo(this.contextKeyService);
+		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
+		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
+		this.aiResultsVisibleKey = Constants.SearchContext.AIResultsVisibleKey.bindTo(this.contextKeyService);
+		this.hasAISettingEnabledKey = Constants.SearchContext.hasAISettingEnabled.bindTo(this.contextKeyService);
+		this.refreshHasAISetting();
 
 		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
-		Constants.SearchViewFocusedKey.bindTo(this.contextKeyService).set(true);
-		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
-		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
-		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
-		this.isEditableItem = Constants.IsEditableItemKey.bindTo(this.contextKeyService);
+		Constants.SearchContext.SearchViewFocusedKey.bindTo(this.contextKeyService).set(true);
+		this.inputBoxFocused = Constants.SearchContext.InputBoxFocusedKey.bindTo(this.contextKeyService);
+		this.inputPatternIncludesFocused = Constants.SearchContext.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
+		this.inputPatternExclusionsFocused = Constants.SearchContext.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
+		this.isEditableItem = Constants.SearchContext.IsEditableItemKey.bindTo(this.contextKeyService);
 
 		this.instantiationService = this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService]));
@@ -234,6 +243,8 @@ export class SearchView extends ViewPane {
 					this.removeFileStats();
 				}
 				this.refreshTree();
+			} else if (e.affectsConfiguration('search.aiResults')) {
+				this.refreshHasAISetting();
 			}
 		});
 
@@ -254,7 +265,7 @@ export class SearchView extends ViewPane {
 		this.toggleCollapseStateDelayer = this._register(new Delayer<void>(100));
 		this.triggerQueryDelayer = this._register(new Delayer<void>(0));
 
-		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
+		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this);
 		this.isTreeLayoutViewVisible = this.viewletState['view.treeLayout'] ?? (this.searchConfig.defaultViewMode === ViewMode.Tree);
 
 		this._refreshResultsScheduler = this._register(new RunOnceScheduler(this._updateResults.bind(this), 80));
@@ -290,6 +301,14 @@ export class SearchView extends ViewPane {
 		this.treeViewKey.set(visible);
 	}
 
+	get aiResultsVisible(): boolean {
+		return this.aiResultsVisibleKey.get() ?? false;
+	}
+
+	private set aiResultsVisible(visible: boolean) {
+		this.aiResultsVisibleKey.set(visible);
+	}
+
 	setTreeView(visible: boolean): void {
 		if (visible === this.isTreeLayoutViewVisible) {
 			return;
@@ -297,6 +316,21 @@ export class SearchView extends ViewPane {
 		this.isTreeLayoutViewVisible = visible;
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this.refreshTree();
+	}
+
+	async setAIResultsVisible(visible: boolean): Promise<void> {
+		if (visible === this.aiResultsVisible) {
+			return;
+		}
+		this.aiResultsVisible = visible;
+		if (visible) {
+			await this.model.addAIResults();
+		} else {
+			this.model.disableAIResults();
+			this.searchWidget.toggleReplace(false);
+		}
+		this.onSearchResultsChanged();
+		this.onSearchComplete(() => { }, undefined, undefined, { results: [], messages: [] });
 	}
 
 	private get state(): SearchUIState {
@@ -315,6 +349,16 @@ export class SearchView extends ViewPane {
 		return this.viewModel && this.viewModel.searchResult;
 	}
 
+	get model(): SearchModel {
+		return this.viewModel;
+	}
+
+	private refreshHasAISetting() {
+		const val = this.configurationService.getValue<boolean>('search.aiResults');
+		if (val) {
+			this.hasAISettingEnabledKey.set(!!val);
+		}
+	}
 	private onDidChangeWorkbenchState(): void {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageElement) {
 			dom.hide(this.searchWithoutFolderMessageElement);
@@ -333,16 +377,43 @@ export class SearchView extends ViewPane {
 		this.pauseSearching = false;
 	}
 
-	public async importSearchResult(searchModel: SearchModel): Promise<void> {
-		// experimental: used by the quick access search to overwrite a search result
-		searchModel.transferSearchResult(this.viewModel);
+	public async replaceSearchModel(searchModel: SearchModel, asyncResults: Promise<ISearchComplete>): Promise<void> {
+		let progressComplete: () => void;
+		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 0 }, _progress => {
+			return new Promise<void>(resolve => progressComplete = resolve);
+		});
+
+		const slowTimer = setTimeout(() => {
+			this.state = SearchUIState.SlowSearch;
+		}, 2000);
+
+		this._refreshResultsScheduler.schedule();
+
+		// remove old model and use the new searchModel
+		searchModel.location = SearchModelLocation.PANEL;
+		searchModel.replaceActive = this.viewModel.isReplaceActive();
+		searchModel.replaceString = this.searchWidget.getReplaceValue();
+		this._onSearchResultChangedDisposable?.dispose();
+		this._onSearchResultChangedDisposable = this._register(searchModel.onSearchResultChanged((event) => this.onSearchResultsChanged(event)));
+
+		// this call will also dispose of the old model
+		this.searchViewModelWorkbenchService.searchModel = searchModel;
+		this.viewModel = searchModel;
 
 		this.onSearchResultsChanged();
 		this.refreshInputs();
 
+		asyncResults.then((complete) => {
+			clearTimeout(slowTimer);
+			this.onSearchComplete(progressComplete, undefined, undefined, complete);
+		}, (e) => {
+			clearTimeout(slowTimer);
+			this.onSearchError(e, progressComplete, undefined, undefined);
+		});
+
 		const collapseResults = this.searchConfig.collapseResults;
-		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-			const onlyMatch = this.viewModel.searchResult.matches()[0];
+		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches(this.aiResultsVisible).length === 1) {
+			const onlyMatch = this.viewModel.searchResult.matches(this.aiResultsVisible)[0];
 			if (onlyMatch.count() < 50) {
 				this.tree.expand(onlyMatch);
 			}
@@ -372,7 +443,8 @@ export class SearchView extends ViewPane {
 
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
-			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
+			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
+		this._register(setupCustomHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -461,7 +533,7 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true, true);
 		}
 
-		this._register(this.viewModel.onSearchResultChanged((event) => this.onSearchResultsChanged(event)));
+		this._onSearchResultChangedDisposable = this._register(this.viewModel.onSearchResultChanged((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 
@@ -624,7 +696,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
-		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
+		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty(this.aiResultsVisible));
 		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, event?.clearingAll);
 		return this.refreshTree(event);
 	}
@@ -656,7 +728,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const folderMatches = this.searchResult.folderMatches()
+		const folderMatches = this.searchResult.folderMatches(this.aiResultsVisible)
 			.filter(fm => !fm.isEmpty())
 			.sort(searchMatchComparer);
 
@@ -691,7 +763,11 @@ export class SearchView extends ViewPane {
 	}
 
 	private createFileIterator(fileMatch: FileMatch): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const matches = fileMatch.matches().sort(searchMatchComparer);
+		let matches = fileMatch.matches().sort(searchMatchComparer);
+
+		if (!this.aiResultsVisible) {
+			matches = matches.filter(e => !e.aiContributed);
+		}
 		return Iterable.map(matches, r => (<ICompressedTreeElement<RenderableMatch>>{ element: r, incompressible: true }));
 	}
 
@@ -843,7 +919,7 @@ export class SearchView extends ViewPane {
 			[
 				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(FileMatchRenderer, this, this.treeLabels)),
-				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
+				this._register(this.instantiationService.createInstance(MatchRenderer, this)),
 			],
 			{
 				identityProvider,
@@ -867,8 +943,8 @@ export class SearchView extends ViewPane {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
 		updateHasSomeCollapsible();
-		this._register(this.viewModel.onSearchResultChanged(() => updateHasSomeCollapsible()));
 		this._register(this.tree.onDidChangeCollapseState(() => updateHasSomeCollapsible()));
+		this._register(this.tree.onDidChangeModel(() => updateHasSomeCollapsible()));
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, DEBOUNCE_DELAY, true)(options => {
 			if (options.element instanceof Match) {
@@ -1093,7 +1169,7 @@ export class SearchView extends ViewPane {
 
 	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }, editor?: IEditor): boolean {
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
-		if (!seedSearchStringFromSelection) {
+		if (!seedSearchStringFromSelection || seedSearchStringFromSelection === 'never') {
 			return false;
 		}
 
@@ -1229,7 +1305,7 @@ export class SearchView extends ViewPane {
 	}
 
 	hasSearchResults(): boolean {
-		return !this.viewModel.searchResult.isEmpty();
+		return !this.viewModel.searchResult.isEmpty(this.aiResultsVisible);
 	}
 
 	clearSearchResults(clearInput = true): void {
@@ -1247,7 +1323,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
-		this.audioCueService.playAudioCue(AudioCue.clear);
+		this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		this.reLayout();
 	}
 
@@ -1553,7 +1629,7 @@ export class SearchView extends ViewPane {
 		}
 		try {
 			// Search result tree update
-			const fileCount = this.viewModel.searchResult.fileCount();
+			const fileCount = this.viewModel.searchResult.fileCount(this.aiResultsVisible);
 			if (this._visibleMatches !== fileCount) {
 				this._visibleMatches = fileCount;
 				this.refreshAndUpdateCount();
@@ -1561,6 +1637,122 @@ export class SearchView extends ViewPane {
 		} finally {
 			// show frequent progress and results by scheduling updates 80 ms after the last one
 			this._refreshResultsScheduler.schedule();
+		}
+	}
+
+	private onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+
+		this.state = SearchUIState.Idle;
+
+		// Complete up to 100% as needed
+		progressComplete();
+
+		// Do final render, then expand if just 1 file with less than 50 matches
+		this.onSearchResultsChanged();
+
+		const collapseResults = this.searchConfig.collapseResults;
+		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches(this.aiResultsVisible).length === 1) {
+			const onlyMatch = this.viewModel.searchResult.matches(this.aiResultsVisible)[0];
+			if (onlyMatch.count() < 50) {
+				this.tree.expand(onlyMatch);
+			}
+		}
+
+		const hasResults = !this.viewModel.searchResult.isEmpty(this.aiResultsVisible);
+		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
+			return;
+		}
+
+		if (!hasResults) {
+			const hasExcludes = !!excludePatternText;
+			const hasIncludes = !!includePatternText;
+			let message: string;
+
+			if (!completed) {
+				message = SEARCH_CANCELLED_MESSAGE;
+			} else if (this.inputPatternIncludes.onlySearchInOpenEditors()) {
+				if (hasIncludes && hasExcludes) {
+					message = nls.localize('noOpenEditorResultsIncludesExcludes', "No results found in open editors matching '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
+				} else if (hasIncludes) {
+					message = nls.localize('noOpenEditorResultsIncludes', "No results found in open editors matching '{0}' - ", includePatternText);
+				} else if (hasExcludes) {
+					message = nls.localize('noOpenEditorResultsExcludes', "No results found in open editors excluding '{0}' - ", excludePatternText);
+				} else {
+					message = nls.localize('noOpenEditorResultsFound', "No results found in open editors. Review your settings for configured exclusions and check your gitignore files - ");
+				}
+			} else {
+				if (hasIncludes && hasExcludes) {
+					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
+				} else if (hasIncludes) {
+					message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
+				} else if (hasExcludes) {
+					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
+				} else {
+					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
+				}
+			}
+
+			// Indicate as status to ARIA
+			aria.status(message);
+
+			const messageEl = this.clearMessage();
+			dom.append(messageEl, message);
+
+			if (!completed) {
+				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
+					nls.localize('rerunSearch.message', "Search again"),
+					() => this.triggerQueryChange({ preserveFocus: false })));
+				dom.append(messageEl, searchAgainButton.element);
+			} else if (hasIncludes || hasExcludes) {
+				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
+				dom.append(messageEl, searchAgainButton.element);
+			} else {
+				const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
+				dom.append(messageEl, openSettingsButton.element);
+			}
+
+			if (completed) {
+				dom.append(messageEl, $('span', undefined, ' - '));
+
+				const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
+				dom.append(messageEl, learnMoreButton.element);
+			}
+
+			if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+				this.showSearchWithoutFolderMessage();
+			}
+			this.reLayout();
+		} else {
+			this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
+
+			// Indicate final search result count for ARIA
+			aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(this.aiResultsVisible), this.viewModel.searchResult.fileCount()));
+		}
+
+
+		if (completed && completed.limitHit) {
+			completed.messages.push({ type: TextSearchCompleteMessageType.Warning, text: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") });
+		}
+
+		if (completed && completed.messages) {
+			for (const message of completed.messages) {
+				this.addMessage(message);
+			}
+		}
+
+		this.reLayout();
+	}
+
+	private onSearchError(e: any, progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+		this.state = SearchUIState.Idle;
+		if (errors.isCancellationError(e)) {
+			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, completed);
+		} else {
+			progressComplete();
+			this.searchWidget.searchInput?.showMessage({ content: e.message, type: MessageType.ERROR });
+			this.viewModel.searchResult.clear();
+
+			return Promise.resolve();
 		}
 	}
 
@@ -1578,125 +1770,6 @@ export class SearchView extends ViewPane {
 			this.state = SearchUIState.SlowSearch;
 		}, 2000);
 
-		const onComplete = (completed?: ISearchComplete) => {
-			clearTimeout(slowTimer);
-			this.state = SearchUIState.Idle;
-
-			// Complete up to 100% as needed
-			progressComplete();
-
-			// Do final render, then expand if just 1 file with less than 50 matches
-			this.onSearchResultsChanged();
-
-			const collapseResults = this.searchConfig.collapseResults;
-			if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-				const onlyMatch = this.viewModel.searchResult.matches()[0];
-				if (onlyMatch.count() < 50) {
-					this.tree.expand(onlyMatch);
-				}
-			}
-
-			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-
-			const hasResults = !this.viewModel.searchResult.isEmpty();
-			if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
-				return;
-			}
-
-			if (!hasResults) {
-				const hasExcludes = !!excludePatternText;
-				const hasIncludes = !!includePatternText;
-				let message: string;
-
-				if (!completed) {
-					message = SEARCH_CANCELLED_MESSAGE;
-				} else if (this.inputPatternIncludes.onlySearchInOpenEditors()) {
-					if (hasIncludes && hasExcludes) {
-						message = nls.localize('noOpenEditorResultsIncludesExcludes', "No results found in open editors matching '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
-					} else if (hasIncludes) {
-						message = nls.localize('noOpenEditorResultsIncludes', "No results found in open editors matching '{0}' - ", includePatternText);
-					} else if (hasExcludes) {
-						message = nls.localize('noOpenEditorResultsExcludes', "No results found in open editors excluding '{0}' - ", excludePatternText);
-					} else {
-						message = nls.localize('noOpenEditorResultsFound', "No results found in open editors. Review your settings for configured exclusions and check your gitignore files - ");
-					}
-				} else {
-					if (hasIncludes && hasExcludes) {
-						message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
-					} else if (hasIncludes) {
-						message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
-					} else if (hasExcludes) {
-						message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
-					} else {
-						message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
-					}
-				}
-
-				// Indicate as status to ARIA
-				aria.status(message);
-
-				const messageEl = this.clearMessage();
-				dom.append(messageEl, message);
-
-				if (!completed) {
-					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
-						nls.localize('rerunSearch.message', "Search again"),
-						() => this.triggerQueryChange({ preserveFocus: false })));
-					dom.append(messageEl, searchAgainButton.element);
-				} else if (hasIncludes || hasExcludes) {
-					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
-					dom.append(messageEl, searchAgainButton.element);
-				} else {
-					const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
-					dom.append(messageEl, openSettingsButton.element);
-				}
-
-				if (completed) {
-					dom.append(messageEl, $('span', undefined, ' - '));
-
-					const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
-					dom.append(messageEl, learnMoreButton.element);
-				}
-
-				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					this.showSearchWithoutFolderMessage();
-				}
-				this.reLayout();
-			} else {
-				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
-
-				// Indicate final search result count for ARIA
-				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
-			}
-
-
-			if (completed && completed.limitHit) {
-				completed.messages.push({ type: TextSearchCompleteMessageType.Warning, text: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") });
-			}
-
-			if (completed && completed.messages) {
-				for (const message of completed.messages) {
-					this.addMessage(message);
-				}
-			}
-
-			this.reLayout();
-		};
-
-		const onError = (e: any) => {
-			clearTimeout(slowTimer);
-			this.state = SearchUIState.Idle;
-			if (errors.isCancellationError(e)) {
-				return onComplete(undefined);
-			} else {
-				progressComplete();
-				this.searchWidget.searchInput?.showMessage({ content: e.message, type: MessageType.ERROR });
-				this.viewModel.searchResult.clear();
-
-				return Promise.resolve();
-			}
-		};
-
 		this._visibleMatches = 0;
 
 		this._refreshResultsScheduler.schedule();
@@ -1705,8 +1778,16 @@ export class SearchView extends ViewPane {
 
 		this.tree.setSelection([]);
 		this.tree.setFocus([]);
+
+		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		const result = this.viewModel.search(query);
-		return result.asyncResults.then(onComplete, onError);
+		return result.asyncResults.then((complete) => {
+			clearTimeout(slowTimer);
+			this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
+		}, (e) => {
+			clearTimeout(slowTimer);
+			this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
+		});
 	}
 
 	private onOpenSettings(e: dom.EventLike): void {
@@ -1744,13 +1825,14 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean, clear: boolean = false): void {
-		const fileCount = this.viewModel.searchResult.fileCount();
+		const fileCount = this.viewModel.searchResult.fileCount(this.aiResultsVisible);
+		const resultCount = this.viewModel.searchResult.count(this.aiResultsVisible);
 		this.hasSearchResultsKey.set(fileCount > 0);
 
 		const msgWasHidden = this.messagesElement.style.display === 'none';
 
 		const messageEl = this.clearMessage();
-		const resultMsg = clear ? '' : this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
+		const resultMsg = clear ? '' : this.buildResultCountMessage(resultCount, fileCount);
 		this.tree.ariaLabel = resultMsg + nls.localize('forTerm', " - Search: {0}", this.searchResult.query?.contentPattern.pattern ?? '');
 		dom.append(messageEl, resultMsg);
 
@@ -1771,7 +1853,7 @@ export class SearchView extends ViewPane {
 
 			const openInEditorTooltip = appendKeyBindingLabel(
 				nls.localize('openInEditor.tooltip', "Copy current search results to an editor"),
-				this.keybindingService.lookupKeybinding(Constants.OpenInEditorCommandId));
+				this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.OpenInEditorCommandId));
 			const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
 				nls.localize('openInEditor.message', "Open in editor"),
 				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()),
@@ -1946,7 +2028,13 @@ export class SearchView extends ViewPane {
 		}
 
 		// remove search results from this resource as it got disposed
-		const matches = this.viewModel.searchResult.matches();
+		let matches = this.viewModel.searchResult.matches();
+		for (let i = 0, len = matches.length; i < len; i++) {
+			if (resource.toString() === matches[i].resource.toString()) {
+				this.viewModel.searchResult.remove(matches[i]);
+			}
+		}
+		matches = this.viewModel.searchResult.matches(true);
 		for (let i = 0, len = matches.length; i < len; i++) {
 			if (resource.toString() === matches[i].resource.toString()) {
 				this.viewModel.searchResult.remove(matches[i]);
@@ -2067,7 +2155,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private async retrieveFileStats(): Promise<void> {
-		const files = this.searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
+		const files = this.searchResult.matches(this.aiResultsVisible).filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
 		await Promise.all(files);
 	}
 
@@ -2078,6 +2166,9 @@ export class SearchView extends ViewPane {
 
 	private removeFileStats(): void {
 		for (const fileMatch of this.searchResult.matches()) {
+			fileMatch.fileStat = undefined;
+		}
+		for (const fileMatch of this.searchResult.matches(true)) {
 			fileMatch.fileStat = undefined;
 		}
 	}
@@ -2095,7 +2186,8 @@ class SearchLinkButton extends Disposable {
 
 	constructor(label: string, handler: (e: dom.EventLike) => unknown, tooltip?: string) {
 		super();
-		this.element = $('a.pointer', { tabindex: 0, title: tooltip }, label);
+		this.element = $('a.pointer', { tabindex: 0 }, label);
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
 		this.addEventHandlers(handler);
 	}
 

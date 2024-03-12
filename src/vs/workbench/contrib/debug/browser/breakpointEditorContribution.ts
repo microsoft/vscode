@@ -54,7 +54,7 @@ const breakpointHelperDecoration: IModelDecorationOptions = {
 	description: 'breakpoint-helper-decoration',
 	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
 	glyphMargin: { position: GlyphMarginLane.Right },
-	glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointHelper', "Click to add a breakpoint.")),
+	glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointHelper', "Click to add a breakpoint")),
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -457,7 +457,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			));
 			actions.push(new Action(
 				'addTriggeredBreakpoint',
-				nls.localize('addTriggeredBreakpoint', "Add Triggered Breakpoint.."),
+				nls.localize('addTriggeredBreakpoint', "Add Triggered Breakpoint..."),
 				undefined,
 				true,
 				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.TRIGGER_POINT))

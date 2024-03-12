@@ -14,13 +14,13 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -37,9 +37,9 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { ChatSubmitEditorAction, ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -64,7 +64,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatReplyFollowup; response: IChatResponseViewModel | undefined }>());
+	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
 	private inputEditorHeight = 0;
@@ -82,10 +82,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
-	private history: HistoryNavigator<string>;
-	private historyStates: Map<string, any> = new Map();
+	private history: HistoryNavigator<IChatHistoryEntry>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
+	private onHistoryEntry = false;
+	private inHistoryNavigation = false;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
@@ -133,11 +134,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	setState(providerId: string, inputValue: string | undefined): void {
 		this.providerId = providerId;
 		const history = this.historyService.getHistory(providerId);
-		this.historyStates = new Map(history.map(h => [h.text, h.state]));
-		const historyTexts: string[] = [];
-		this.historyStates.forEach((_, str) => historyTexts.push(str));
-
-		this.history = new HistoryNavigator(historyTexts, 50);
+		this.history = new HistoryNavigator(history, 50);
 
 		if (typeof inputValue === 'string') {
 			this.setValue(inputValue);
@@ -157,13 +154,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private navigateHistory(previous: boolean): void {
-		const historyInput = (previous ?
+		const historyEntry = (previous ?
 			(this.history.previous() ?? this.history.first()) : this.history.next())
-			?? '';
+			?? { text: '' };
 
-		aria.status(historyInput);
-		this.setValue(historyInput);
-		this._onDidLoadInputState.fire(this.historyStates.get(historyInput));
+		this.onHistoryEntry = previous || this.history.current() !== null;
+
+		aria.status(historyEntry.text);
+
+		this.inHistoryNavigation = true;
+		this.setValue(historyEntry.text);
+		this.inHistoryNavigation = false;
+
+		this._onDidLoadInputState.fire(historyEntry.state);
 		if (previous) {
 			this._inputEditor.setPosition({ lineNumber: 1, column: 1 });
 		} else {
@@ -196,8 +199,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	async acceptInput(userQuery?: string, inputState?: any): Promise<void> {
 		if (userQuery) {
-			this.history.add(userQuery);
-			this.historyStates.set(userQuery, inputState);
+			this.history.add({ text: userQuery, state: inputState });
 		}
 
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
@@ -251,6 +253,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			showSnippets: false,
 			showWords: true,
 			showStatusBar: false,
+			insertMode: 'replace',
 		};
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 
@@ -271,6 +274,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._inputEditor.getModel();
 			const inputHasText = !!model && model.getValueLength() > 0;
 			this.inputEditorHasText.set(inputHasText);
+
+			// If the user is typing on a history entry, then reset the onHistoryEntry flag so that history navigation can be disabled
+			if (!this.inHistoryNavigation) {
+				this.onHistoryEntry = false;
+			}
+
+			if (!this.onHistoryEntry) {
+				this.historyNavigationForewardsEnablement.set(!inputHasText);
+				this.historyNavigationBackwardsEnablement.set(!inputHasText);
+			}
 		}));
 		this._register(this._inputEditor.onDidFocusEditorText(() => {
 			this._onDidFocus.fire();
@@ -288,15 +301,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			const atTop = e.position.column === 1 && e.position.lineNumber === 1;
-			this.historyNavigationBackwardsEnablement.set(atTop);
 			this.chatCursorAtTop.set(atTop);
-			this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
+
+			if (this.onHistoryEntry) {
+				this.historyNavigationBackwardsEnablement.set(atTop);
+				this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
+			}
 		}));
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.ChatExecute, {
 			menuOptions: {
 				shouldForwardArgs: true
 			},
+			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			actionViewItemProvider: (action, options) => {
 				if (action.id === SubmitAction.ID) {
 					return this.instantiationService.createInstance(SubmitButtonActionViewItem, { widget } satisfies IChatExecuteActionContext, action, options);
@@ -333,7 +350,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	async renderFollowups(items: IChatReplyFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
+	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
 		if (!this.options.renderFollowups) {
 			return;
 		}
@@ -341,7 +358,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
-			this.followupsDisposables.add(new ChatFollowups(this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response }), this.contextKeyService));
+			this.followupsDisposables.add(this.instantiationService.createInstance<typeof ChatFollowups<IChatFollowup>, ChatFollowups<IChatFollowup>>(ChatFollowups, this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response })));
 		}
 	}
 
@@ -380,8 +397,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	saveState(): void {
 		const inputHistory = this.history.getHistory();
-		const historyEntries = inputHistory.map(entry => ({ text: entry, state: this.historyStates.get(entry) }));
-		this.historyService.saveHistory(this.providerId!, historyEntries);
+		this.historyService.saveHistory(this.providerId!, inputHistory);
 	}
 }
 

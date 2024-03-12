@@ -20,17 +20,17 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 
 const enum ContextMenuGroup {
 	Create = '1_create',
-	Edit = '2_edit',
-	Clear = '3_clear',
-	Kill = '4_kill',
-	Config = '5_config'
+	Edit = '3_edit',
+	Clear = '5_clear',
+	Kill = '7_kill',
+	Config = '9_config'
 }
 
 export const enum TerminalMenuBarGroup {
 	Create = '1_create',
-	Run = '2_run',
-	Manage = '3_manage',
-	Configure = '4_configure'
+	Run = '3_run',
+	Manage = '5_manage',
+	Configure = '7_configure'
 }
 
 export function setupTerminalMenus(): void {
@@ -426,29 +426,7 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
-						ContextKeyExpr.or(
-							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
-							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
-								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
-									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
-								)
-							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
-							),
-							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
-						)
-					)
+					when: TerminalContextKeys.shouldShowViewInlineActions
 				}
 			},
 			{
@@ -461,29 +439,7 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
-						ContextKeyExpr.or(
-							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
-							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
-								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
-									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
-								)
-							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
-							),
-							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
-						)
-					)
+					when: TerminalContextKeys.shouldShowViewInlineActions
 				}
 			},
 			{

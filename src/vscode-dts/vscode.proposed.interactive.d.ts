@@ -32,7 +32,12 @@ declare module 'vscode' {
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
+
+		/**
+		 * @deprecated, use previewDocument
+		 */
 		live: boolean;
+		previewDocument: TextDocument;
 		withIntentDetection: boolean;
 	}
 
@@ -83,6 +88,15 @@ declare module 'vscode' {
 		title?: string;
 	}
 
+	export interface InteractiveEditorCommandFollowup {
+		commandId: string;
+		args?: any[];
+		title: string;
+		when?: string;
+	}
+
+	export type InteractiveEditorFollowup = InteractiveEditorReplyFollowup | InteractiveEditorCommandFollowup;
+
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
 
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
@@ -90,45 +104,16 @@ declare module 'vscode' {
 
 		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<InteractiveEditorProgressItem>, token: CancellationToken): ProviderResult<R>;
 
-		provideFollowups?(session: S, response: R, token: CancellationToken): ProviderResult<InteractiveEditorReplyFollowup[]>;
+		provideFollowups?(session: S, response: R, token: CancellationToken): ProviderResult<InteractiveEditorFollowup[]>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
-	export interface InteractiveSessionParticipantInformation {
-		name: string;
-
-		/**
-		 * A full URI for the icon of the participant.
-		 */
-		icon?: Uri;
-	}
-
 	export interface InteractiveSession {
-		requester: InteractiveSessionParticipantInformation;
-		responder: InteractiveSessionParticipantInformation;
-		inputPlaceholder?: string;
 	}
-
-	export interface InteractiveResponseCommand {
-		commandId: string;
-		args?: any[];
-		title: string; // supports codicon strings
-		when?: string;
-	}
-
-	export interface InteractiveSessionReplyFollowup {
-		message: string;
-		tooltip?: string;
-		title?: string;
-	}
-
-	export type InteractiveWelcomeMessageContent = string | MarkdownString | InteractiveSessionReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
-		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<InteractiveSessionReplyFollowup[]>;
 		prepareSession(token: CancellationToken): ProviderResult<S>;
 	}
 
@@ -144,8 +129,6 @@ declare module 'vscode' {
 		export const _version: 1 | number;
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
-
-		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider, metadata?: InteractiveEditorSessionProviderMetadata): Disposable;
 

@@ -8,11 +8,18 @@ import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
 import { CoverageDetailsModel } from 'vs/workbench/contrib/testing/browser/codeCoverageDecorations';
 import { CoverageDetails, DetailType } from 'vs/workbench/contrib/testing/common/testTypes';
 
 suite('Code Coverage Decorations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const textModel = { getValueInRange: () => '' } as any as ITextModel;
+	const assertRanges = async (model: CoverageDetailsModel) => await assertSnapshot(model.ranges.map(r => ({
+		range: r.range.toString(),
+		count: r.metadata.detail.type === DetailType.Branch ? r.metadata.detail.detail.branches![r.metadata.detail.branch].count : r.metadata.detail.count,
+	})));
 
 	test('CoverageDetailsModel#1', async () => {
 		// Create some sample coverage details
@@ -23,13 +30,10 @@ suite('Code Coverage Decorations', () => {
 		];
 
 		// Create a new CoverageDetailsModel instance
-		const model = new CoverageDetailsModel(details);
+		const model = new CoverageDetailsModel(details, textModel);
 
 		// Verify that the ranges are generated correctly
-		await assertSnapshot(model.ranges.map(r => ({
-			range: r.range.toString(),
-			count: r.metadata.type === DetailType.Branch ? r.metadata.detail.branches![r.metadata.branch].count : r.metadata.count,
-		})));
+		await assertRanges(model);
 	});
 
 	test('CoverageDetailsModel#2', async () => {
@@ -41,13 +45,10 @@ suite('Code Coverage Decorations', () => {
 		];
 
 		// Create a new CoverageDetailsModel instance
-		const model = new CoverageDetailsModel(details);
+		const model = new CoverageDetailsModel(details, textModel);
 
 		// Verify that the ranges are generated correctly
-		await assertSnapshot(model.ranges.map(r => ({
-			range: r.range.toString(),
-			count: r.metadata.type === DetailType.Branch ? r.metadata.detail.branches![r.metadata.branch].count : r.metadata.count,
-		})));
+		await assertRanges(model);
 	});
 
 	test('CoverageDetailsModel#3', async () => {
@@ -59,13 +60,10 @@ suite('Code Coverage Decorations', () => {
 		];
 
 		// Create a new CoverageDetailsModel instance
-		const model = new CoverageDetailsModel(details);
+		const model = new CoverageDetailsModel(details, textModel);
 
 		// Verify that the ranges are generated correctly
-		await assertSnapshot(model.ranges.map(r => ({
-			range: r.range.toString(),
-			count: r.metadata.type === DetailType.Branch ? r.metadata.detail.branches![r.metadata.branch].count : r.metadata.count,
-		})));
+		await assertRanges(model);
 	});
 
 	test('CoverageDetailsModel#4', async () => {
@@ -78,12 +76,9 @@ suite('Code Coverage Decorations', () => {
 		];
 
 		// Create a new CoverageDetailsModel instance
-		const model = new CoverageDetailsModel(details);
+		const model = new CoverageDetailsModel(details, textModel);
 
 		// Verify that the ranges are generated correctly
-		await assertSnapshot(model.ranges.map(r => ({
-			range: r.range.toString(),
-			count: r.metadata.type === DetailType.Branch ? r.metadata.detail.branches![r.metadata.branch].count : r.metadata.count,
-		})));
+		await assertRanges(model);
 	});
 });

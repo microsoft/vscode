@@ -13,7 +13,6 @@ import { createSingleCallFunction } from 'vs/base/common/functional';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { deepFreeze } from 'vs/base/common/objects';
 import { isDefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -74,9 +73,11 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 						return controller?.collection.tree.get(targetTest)?.actual ?? toItemFromContext(arg);
 					}
 					case MarshalledId.TestMessageMenuArgs: {
-						const { extId, message } = arg as ITestMessageMenuArgs;
+						const { test, message } = arg as ITestMessageMenuArgs;
+						const extId = test.item.extId;
 						return {
-							test: this.controllers.get(TestId.root(extId))?.collection.tree.get(extId)?.actual,
+							test: this.controllers.get(TestId.root(extId))?.collection.tree.get(extId)?.actual
+								?? toItemFromContext({ $mid: MarshalledId.TestItemContext, tests: [test] }),
 							message: Convert.TestMessage.to(message as ITestErrorMessage.Serialized),
 						};
 					}
@@ -148,7 +149,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 					profileId++;
 				}
 
-				return new TestRunProfileImpl(this.proxy, profiles, extension, activeProfiles, this.defaultProfilesChangedEmitter.event, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
+				return new TestRunProfileImpl(this.proxy, profiles, activeProfiles, this.defaultProfilesChangedEmitter.event, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
 			},
 			createTestItem(id, label, uri) {
 				return new TestItemImpl(controllerId, id, label, uri);
@@ -294,7 +295,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	public $publishTestResults(results: ISerializedTestResults[]): void {
 		this.results = Object.freeze(
 			results
-				.map(r => deepFreeze(Convert.TestResults.to(r)))
+				.map(Convert.TestResults.to)
 				.concat(this.results)
 				.sort((a, b) => b.completedAt - a.completedAt)
 				.slice(0, 32),
@@ -1068,7 +1069,6 @@ const updateProfile = (impl: TestRunProfileImpl, proxy: MainThreadTestingShape, 
 
 export class TestRunProfileImpl implements vscode.TestRunProfile {
 	readonly #proxy: MainThreadTestingShape;
-	readonly #extension: IRelaxedExtensionDescription;
 	readonly #activeProfiles: Set<number>;
 	readonly #onDidChangeDefaultProfiles: Event<DefaultProfileChangeEvent>;
 	#initialPublish?: ITestRunProfile;
@@ -1140,7 +1140,6 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	}
 
 	public get onDidChangeDefault() {
-		checkProposedApiEnabled(this.#extension, 'testingActiveProfile');
 		return Event.chain(this.#onDidChangeDefaultProfiles, $ => $
 			.map(ev => ev.get(this.controllerId)?.get(this.profileId))
 			.filter(isDefined)
@@ -1150,7 +1149,6 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	constructor(
 		proxy: MainThreadTestingShape,
 		profiles: Map<number, vscode.TestRunProfile>,
-		extension: IRelaxedExtensionDescription,
 		activeProfiles: Set<number>,
 		onDidChangeActiveProfiles: Event<DefaultProfileChangeEvent>,
 		public readonly controllerId: string,
@@ -1164,7 +1162,6 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	) {
 		this.#proxy = proxy;
 		this.#profiles = profiles;
-		this.#extension = extension;
 		this.#activeProfiles = activeProfiles;
 		this.#onDidChangeDefaultProfiles = onDidChangeActiveProfiles;
 		profiles.set(profileId, this);

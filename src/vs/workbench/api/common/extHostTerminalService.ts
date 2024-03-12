@@ -63,6 +63,7 @@ interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableColle
 export interface ITerminalInternalOptions {
 	cwd?: string | URI;
 	isFeatureTerminal?: boolean;
+	forceShellIntegration?: boolean;
 	useShellEnvironment?: boolean;
 	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
 	/**
@@ -81,7 +82,10 @@ export class ExtHostTerminal {
 	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
-	private _state: vscode.TerminalState = { isInteractedWith: false };
+	private _state: Readonly<vscode.TerminalState> = {
+		isInteractedWith: false,
+		isShellIntegrationActivated: false,
+	};
 	private _selection: string | undefined;
 
 	public isOpen: boolean = false;
@@ -165,6 +169,7 @@ export class ExtHostTerminal {
 			initialText: options.message ?? undefined,
 			strictEnv: options.strictEnv ?? undefined,
 			hideFromUser: options.hideFromUser ?? undefined,
+			forceShellIntegration: internalOptions?.forceShellIntegration ?? undefined,
 			isFeatureTerminal: internalOptions?.isFeatureTerminal ?? undefined,
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: internalOptions?.useShellEnvironment ?? undefined,
@@ -238,7 +243,21 @@ export class ExtHostTerminal {
 
 	public setInteractedWith(): boolean {
 		if (!this._state.isInteractedWith) {
-			this._state = { isInteractedWith: true };
+			this._state = {
+				...this._state,
+				isInteractedWith: true,
+			};
+			return true;
+		}
+		return false;
+	}
+
+	public setShellIntegrationActivated(): boolean {
+		if (!this._state.isShellIntegrationActivated) {
+			this._state = {
+				...this._state,
+				isShellIntegrationActivated: true,
+			};
 			return true;
 		}
 		return false;
@@ -669,6 +688,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 	}
 
+	public $acceptTerminalShellIntegrationActivation(id: number): void {
+		const terminal = this._getTerminalById(id);
+		if (terminal?.setShellIntegrationActivated()) {
+			this._onDidChangeTerminalState.fire(terminal.value);
+		}
+	}
+
 	public $acceptTerminalSelection(id: number, selection: string | undefined): void {
 		this._getTerminalById(id)?.setSelection(selection);
 	}
@@ -934,7 +960,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			// following calls to createTerminal will be created with the new environment. It will
 			// result in more noise by sending multiple updates when called but collections are
 			// expected to be small.
-			this._syncEnvironmentVariableCollection(extensionIdentifier, collection!);
+			this._syncEnvironmentVariableCollection(extensionIdentifier, collection);
 		});
 	}
 }

@@ -21,6 +21,16 @@ export const enum TestResultState {
 	Errored = 6
 }
 
+export const testResultStateToContextValues: { [K in TestResultState]: string } = {
+	[TestResultState.Unset]: 'unset',
+	[TestResultState.Queued]: 'queued',
+	[TestResultState.Running]: 'running',
+	[TestResultState.Passed]: 'passed',
+	[TestResultState.Failed]: 'failed',
+	[TestResultState.Skipped]: 'skipped',
+	[TestResultState.Errored]: 'errored',
+};
+
 /** note: keep in sync with TestRunProfileKind in vscode.d.ts */
 export const enum ExtTestRunProfileKind {
 	Run = 1,
@@ -549,7 +559,7 @@ export interface IFileCoverage {
 	uri: URI;
 	statement: ICoveredCount;
 	branch?: ICoveredCount;
-	function?: ICoveredCount;
+	declaration?: ICoveredCount;
 	details?: CoverageDetails[];
 }
 
@@ -559,14 +569,14 @@ export namespace IFileCoverage {
 		uri: UriComponents;
 		statement: ICoveredCount;
 		branch?: ICoveredCount;
-		function?: ICoveredCount;
+		declaration?: ICoveredCount;
 		details?: CoverageDetails.Serialized[];
 	}
 
 	export const serialize = (original: Readonly<IFileCoverage>): Serialized => ({
 		statement: original.statement,
 		branch: original.branch,
-		function: original.function,
+		declaration: original.declaration,
 		details: original.details?.map(CoverageDetails.serialize),
 		uri: original.uri.toJSON(),
 	});
@@ -574,7 +584,7 @@ export namespace IFileCoverage {
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): IFileCoverage => ({
 		statement: serialized.statement,
 		branch: serialized.branch,
-		function: serialized.function,
+		declaration: serialized.declaration,
 		details: serialized.details?.map(CoverageDetails.deserialize),
 		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
 	});
@@ -596,31 +606,33 @@ function deserializeThingWithLocation<T extends { location?: IRange | IPosition 
 export const KEEP_N_LAST_COVERAGE_REPORTS = 3;
 
 export const enum DetailType {
-	Function,
+	Declaration,
 	Statement,
 	Branch,
 }
 
-export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
+export type CoverageDetails = IDeclarationCoverage | IStatementCoverage;
 
 export namespace CoverageDetails {
-	export type Serialized = IFunctionCoverage.Serialized | IStatementCoverage.Serialized;
+	export type Serialized = IDeclarationCoverage.Serialized | IStatementCoverage.Serialized;
 
 	export const serialize = (original: Readonly<CoverageDetails>): Serialized =>
-		original.type === DetailType.Function ? IFunctionCoverage.serialize(original) : IStatementCoverage.serialize(original);
+		original.type === DetailType.Declaration ? IDeclarationCoverage.serialize(original) : IStatementCoverage.serialize(original);
 
 	export const deserialize = (serialized: Serialized): CoverageDetails =>
-		serialized.type === DetailType.Function ? IFunctionCoverage.deserialize(serialized) : IStatementCoverage.deserialize(serialized);
+		serialized.type === DetailType.Declaration ? IDeclarationCoverage.deserialize(serialized) : IStatementCoverage.deserialize(serialized);
 }
 
 export interface IBranchCoverage {
-	count: number;
+	count: number | boolean;
+	label?: string;
 	location?: Range | Position;
 }
 
 export namespace IBranchCoverage {
 	export interface Serialized {
-		count: number;
+		count: number | boolean;
+		label?: string;
 		location?: IRange | IPosition;
 	}
 
@@ -628,28 +640,28 @@ export namespace IBranchCoverage {
 	export const deserialize: (original: Serialized) => IBranchCoverage = deserializeThingWithLocation;
 }
 
-export interface IFunctionCoverage {
-	type: DetailType.Function;
+export interface IDeclarationCoverage {
+	type: DetailType.Declaration;
 	name: string;
-	count: number;
+	count: number | boolean;
 	location: Range | Position;
 }
 
-export namespace IFunctionCoverage {
+export namespace IDeclarationCoverage {
 	export interface Serialized {
-		type: DetailType.Function;
+		type: DetailType.Declaration;
 		name: string;
-		count: number;
+		count: number | boolean;
 		location: IRange | IPosition;
 	}
 
-	export const serialize: (original: IFunctionCoverage) => Serialized = serializeThingWithLocation;
-	export const deserialize: (original: Serialized) => IFunctionCoverage = deserializeThingWithLocation;
+	export const serialize: (original: IDeclarationCoverage) => Serialized = serializeThingWithLocation;
+	export const deserialize: (original: Serialized) => IDeclarationCoverage = deserializeThingWithLocation;
 }
 
 export interface IStatementCoverage {
 	type: DetailType.Statement;
-	count: number;
+	count: number | boolean;
 	location: Range | Position;
 	branches?: IBranchCoverage[];
 }
@@ -657,7 +669,7 @@ export interface IStatementCoverage {
 export namespace IStatementCoverage {
 	export interface Serialized {
 		type: DetailType.Statement;
-		count: number;
+		count: number | boolean;
 		location: IRange | IPosition;
 		branches?: IBranchCoverage.Serialized[];
 	}
@@ -753,7 +765,7 @@ export interface ITestMessageMenuArgs {
 	/** Marshalling marker */
 	$mid: MarshalledId.TestMessageMenuArgs;
 	/** Tests ext ID */
-	extId: string;
+	test: InternalTestItem.Serialized;
 	/** Serialized test message */
 	message: ITestMessage.Serialized;
 }

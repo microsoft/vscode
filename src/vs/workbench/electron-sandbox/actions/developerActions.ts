@@ -16,6 +16,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { URI } from 'vs/base/common/uri';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 export class ToggleDevToolsAction extends Action2 {
 
@@ -42,7 +43,7 @@ export class ToggleDevToolsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 
-		return nativeHostService.toggleDevTools();
+		return nativeHostService.toggleDevTools({ targetWindowId: getActiveWindow().vscodeWindowId });
 	}
 }
 

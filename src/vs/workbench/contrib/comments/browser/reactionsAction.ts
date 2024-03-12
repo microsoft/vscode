@@ -48,7 +48,6 @@ export class ReactionActionViewItem extends ActionViewItem {
 			const reactionIcon = dom.append(this.label, dom.$('.reaction-icon'));
 			const uri = URI.revive(action.icon);
 			reactionIcon.style.backgroundImage = dom.asCSSUrl(uri);
-			reactionIcon.title = action.label;
 		}
 		if (action.count) {
 			const reactionCount = dom.append(this.label, dom.$('span.reaction-count'));

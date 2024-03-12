@@ -224,7 +224,7 @@ export class UserDataSyncDataViews extends Disposable {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.resolveResource`,
+					id: `workbench.actions.sync.${viewId}.resolveResource`,
 					title: localize('workbench.actions.sync.resolveResourceRef', "Show raw JSON sync data"),
 					menu: {
 						id: MenuId.ViewItemContext,
@@ -242,7 +242,7 @@ export class UserDataSyncDataViews extends Disposable {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.compareWithLocal`,
+					id: `workbench.actions.sync.${viewId}.compareWithLocal`,
 					title: localize('workbench.actions.sync.compareWithLocal', "Compare with Local"),
 					menu: {
 						id: MenuId.ViewItemContext,
@@ -267,7 +267,7 @@ export class UserDataSyncDataViews extends Disposable {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.replaceCurrent`,
+					id: `workbench.actions.sync.${viewId}.replaceCurrent`,
 					title: localize('workbench.actions.sync.replaceCurrent', "Restore"),
 					icon: Codicon.discard,
 					menu: {
