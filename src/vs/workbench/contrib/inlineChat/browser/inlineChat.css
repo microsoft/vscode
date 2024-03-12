@@ -92,8 +92,6 @@
 
 .monaco-workbench .inline-chat .progress {
 	position: relative;
-	width: calc(100% - 18px);
-	left: 19px;
 }
 
 /* UGLY - fighting against workbench styles */

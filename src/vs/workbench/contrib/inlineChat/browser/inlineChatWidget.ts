@@ -301,6 +301,7 @@ export class InlineChatWidget {
 	}
 
 	protected _doLayout(widgetDimension: Dimension, inputDimension: Dimension): void {
+		this._elements.progress.style.width = `${inputDimension.width}px`;
 		this._chatMessageContents.style.width = `${widgetDimension.width - 10}px`;
 		this._chatMessageContents.style.maxHeight = `270px`;
 
