@@ -146,7 +146,6 @@ export interface CodeActionTrigger {
 	readonly context?: {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
-		readonly needsDelay?: boolean;
 	};
 }
 

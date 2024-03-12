@@ -198,10 +198,10 @@ class SupportedCodeActionProvider {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async getFixableDiagnosticsForContext(context: vscode.CodeActionContext): Promise<DiagnosticsSet> {
+	public async getFixableDiagnosticsForContext(diagnostics: readonly vscode.Diagnostic[]): Promise<DiagnosticsSet> {
 		const fixableCodes = await this.fixableDiagnosticCodes;
 		return DiagnosticsSet.from(
-			context.diagnostics.filter(diagnostic => typeof diagnostic.code !== 'undefined' && fixableCodes.has(diagnostic.code + '')));
+			diagnostics.filter(diagnostic => typeof diagnostic.code !== 'undefined' && fixableCodes.has(diagnostic.code + '')));
 	}
 
 	@memoize
@@ -213,6 +213,8 @@ class SupportedCodeActionProvider {
 }
 
 class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCodeAction> {
+
+	private static readonly _maxCodeActionsPerFile: number = 1000;
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
 		providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
@@ -246,12 +248,25 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			return;
 		}
 
-		const fixableDiagnostics = await this.supportedCodeActionProvider.getFixableDiagnosticsForContext(context);
-		if (!fixableDiagnostics.size || token.isCancellationRequested) {
-			return;
+		let diagnostics = context.diagnostics;
+		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
+			await new Promise(resolve => setTimeout(resolve, 500)); // delay for 500ms
+			const allDiagnostics: vscode.Diagnostic[] = [];
+
+			// Match ranges again after getting new diagnostics
+			for (const diagnostic of this.diagnosticsManager.getDiagnostics(document.uri)) {
+				if (_range.intersection(diagnostic.range)) {
+					const newLen = allDiagnostics.push(diagnostic);
+					if (newLen > TypeScriptQuickFixProvider._maxCodeActionsPerFile) {
+						break;
+					}
+				}
+			}
+			diagnostics = allDiagnostics;
 		}
 
-		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
+		const fixableDiagnostics = await this.supportedCodeActionProvider.getFixableDiagnosticsForContext(diagnostics);
+		if (!fixableDiagnostics.size || token.isCancellationRequested) {
 			return;
 		}
 
