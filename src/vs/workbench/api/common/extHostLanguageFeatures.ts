@@ -258,14 +258,20 @@ class HoverAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.HoverProvider,
+		private readonly _metadata?: vscode.languages.HoverProviderMetadata,
 	) { }
 
-	async provideHover(resource: URI, request: IPosition | { position: IPosition; verbosityLevel: number }, token: CancellationToken): Promise<languages.Hover | undefined> {
-		const isRequestAPosition = 'position' in request;
+	async provideHover(resource: URI, position: IPosition, token: CancellationToken, hoverContext?: { verbosityLevel: number }): Promise<languages.Hover | undefined> {
+
 		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(isRequestAPosition ? request.position : request);
-		const req = isRequestAPosition ? { position: pos, verbosityLevel: request.verbosityLevel } : pos;
-		const value = await this._provider.provideHover(doc, req, token);
+		const pos = typeConvert.Position.to(position);
+
+		let value;
+		if (this._metadata?.canIncreaseVerbosity && hoverContext) {
+			value = await this._provider.provideHover(doc, pos, token, hoverContext);
+		} else {
+			value = await this._provider.provideHover(doc, pos, token);
+		}
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}
@@ -2227,14 +2233,14 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- extra info
 
-	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
-		const handle = this._addNewAdapter(new HoverAdapter(this._documents, provider), extension);
+	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, metadata?: vscode.languages.HoverProviderMetadata, extensionId?: ExtensionIdentifier): vscode.Disposable {
+		const handle = this._addNewAdapter(new HoverAdapter(this._documents, provider, metadata), extension);
 		this._proxy.$registerHoverProvider(handle, this._transformDocumentSelector(selector, extension));
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, request: IPosition | { position: IPosition; verbosityLevel: number }, token: CancellationToken): Promise<languages.Hover | undefined> {
-		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), request, token), undefined, token);
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken, hoverContext?: { verbosityLevel: number }): Promise<languages.Hover | undefined> {
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token, hoverContext), undefined, token);
 	}
 
 	// --- debug hover

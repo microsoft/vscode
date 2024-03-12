@@ -567,8 +567,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerTypeDefinitionProvider(extension, checkSelector(selector), provider);
 			},
-			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerHoverProvider(extension, checkSelector(selector), provider, extension.identifier);
+			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider, metadata?: vscode.languages.HoverProviderMetadata): vscode.Disposable {
+				return extHostLanguageFeatures.registerHoverProvider(extension, checkSelector(selector), provider, metadata, extension.identifier);
 			},
 			registerEvaluatableExpressionProvider(selector: vscode.DocumentSelector, provider: vscode.EvaluatableExpressionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerEvaluatableExpressionProvider(extension, checkSelector(selector), provider, extension.identifier);
@@ -1551,6 +1551,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineCompletionItem: extHostTypes.InlineSuggestion,
 			InlineCompletionList: extHostTypes.InlineSuggestionList,
 			Hover: extHostTypes.Hover,
+			VerboseHover: extHostTypes.VerboseHover,
 			IndentAction: languageConfiguration.IndentAction,
 			Location: extHostTypes.Location,
 			MarkdownString: extHostTypes.MarkdownString,

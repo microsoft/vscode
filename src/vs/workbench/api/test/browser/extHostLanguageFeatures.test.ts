@@ -431,7 +431,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), undefined, CancellationToken.None);
 		assert.strictEqual(hovers.length, 1);
 		const [entry] = hovers;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -447,7 +447,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), undefined, CancellationToken.None);
 		assert.strictEqual(hovers.length, 1);
 		const [entry] = hovers;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
@@ -469,7 +469,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), undefined, CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		const [first, second] = (value as languages.Hover[]);
 		assert.strictEqual(first.contents[0].value, 'registered second');
@@ -491,7 +491,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), undefined, CancellationToken.None);
 		assert.strictEqual(hovers.length, 1);
 	});
 

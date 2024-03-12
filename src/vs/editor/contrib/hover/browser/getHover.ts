@@ -21,9 +21,9 @@ export class HoverProviderResult {
 	) { }
 }
 
-async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult | undefined> {
+async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, context: { verbosityLevel: number } | undefined, token: CancellationToken): Promise<HoverProviderResult | undefined> {
 	try {
-		const result = await Promise.resolve(provider.provideHover(model, position, token));
+		const result = await Promise.resolve(provider.provideHover(model, position, token, context));
 		if (result && isValid(result)) {
 			return new HoverProviderResult(provider, result, ordinal);
 		}
@@ -33,19 +33,19 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 	return undefined;
 }
 
-export function getHover(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): AsyncIterableObject<HoverProviderResult> {
+export function getHover(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, context: { verbosityLevel: number } | undefined, token: CancellationToken): AsyncIterableObject<HoverProviderResult> {
 	const providers = registry.ordered(model);
-	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
+	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, context, token));
 	return AsyncIterableObject.fromPromises(promises).coalesce();
 }
 
-export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
-	return getHover(registry, model, position, token).map(item => item.hover).toPromise();
+export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, context: { verbosityLevel: number } | undefined, token: CancellationToken,): Promise<Hover[]> {
+	return getHover(registry, model, position, context, token).map(item => item.hover).toPromise();
 }
 
-registerModelAndPositionCommand('_executeHoverProvider', (accessor, model, position) => {
+registerModelAndPositionCommand('_executeHoverProvider', (accessor, model, position, context) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	return getHoverPromise(languageFeaturesService.hoverProvider, model, position, CancellationToken.None);
+	return getHoverPromise(languageFeaturesService.hoverProvider, model, position, context, CancellationToken.None);
 });
 
 function isValid(result: Hover) {

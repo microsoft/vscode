@@ -3058,32 +3058,12 @@ declare module 'vscode' {
 		range?: Range;
 
 		/**
-		 * Verbosity metadata
-		 */
-		verbosityMetadata?: HoverVerbosityMetadata;
-
-		/**
 		 * Creates a new hover object.
 		 *
 		 * @param contents The contents of the hover.
 		 * @param range The range to which the hover applies.
 		 */
 		constructor(contents: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>, range?: Range);
-	}
-
-	/**
-	 * Hover extension metadata
-	 */
-	export interface HoverVerbosityMetadata {
-		/**
-		 * Can increase the verbosity of the hover
-		 */
-		canIncreaseVerbosity?: boolean;
-
-		/**
-		 * Can decrease the verbosity of the hover
-		 */
-		canDecreaseVerbosity?: boolean;
 	}
 
 	/**
@@ -3103,32 +3083,7 @@ declare module 'vscode' {
 		 * @returns A hover or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideHover(document: TextDocument, request: Position | HoverVerbosityRequest, token: CancellationToken): ProviderResult<Hover>;
-	}
-
-	/**
-	 * Hover zoom request
-	 */
-	export interface HoverVerbosityRequest {
-		/**
-		 * Position of the request
-		 */
-		position: Position;
-		/**
-		 * The verbosity level of the hover request.
-		 */
-		verbosityLevel: number;
-	}
-
-	/**
-	 * Meta data concerning the hover provider
-	 */
-	export interface HoverProviderMetadata {
-
-		/**
-		 * Boolean which indicates whether the hover information is zoomable
-		 */
-		canZoom?: boolean;
+		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Hover>;
 	}
 
 	/**

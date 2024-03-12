@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { HoverVerbosityMetadata, HoverVerbosityRequest, HoverProvider } from 'vs/editor/common/languages';
+import { HoverVerbosityMetadata, HoverProvider } from 'vs/editor/common/languages';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -165,7 +165,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 
 		const position = new Position(anchor.range.startLineNumber, anchor.range.startColumn);
-		return getHover(this._languageFeaturesService.hoverProvider, model, position, token)
+		return getHover(this._languageFeaturesService.hoverProvider, model, position, undefined, token)
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
@@ -215,8 +215,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const verbosityLevel = currentVerbosityLevel + (extend ? 1 : -1);
 		this._verbosityLevels.set(this._focusMetadata.index, verbosityLevel);
 		const position = new Position(this._anchor.range.startLineNumber, this._anchor.range.startColumn);
-		const request: HoverVerbosityRequest = { position, verbosityLevel };
-		const hover = await Promise.resolve(provider.provideHover(model, request, CancellationToken.None));
+		const context = { verbosityLevel };
+		const hover = await Promise.resolve(provider.provideHover(model, position, CancellationToken.None, context));
 		if (!hover) {
 			return;
 		}

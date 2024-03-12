@@ -197,15 +197,10 @@ export interface HoverProvider {
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, request: Position | HoverVerbosityRequest, token: CancellationToken): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, request: Position, token: CancellationToken, context?: HoverContext): ProviderResult<Hover>;
 }
 
-export interface HoverVerbosityRequest {
-	/**
-	 * The position for which the hover is requested.
-	 */
-	position: Position;
-
+export interface HoverContext {
 	/**
 	 * The verbosity level request for the hover.
 	 */
