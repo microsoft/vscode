@@ -44,14 +44,14 @@
 	display: none;
 }
 
-.monaco-list-row .notebook-outline-element .action-label {
+.monaco-list-row .notebook-outline-element .action-menu {
 	display: none;
 }
 
-.monaco-list-row.focused.selected .notebook-outline-element .action-label {
+.monaco-list-row.focused.selected .notebook-outline-element .action-menu {
 	display: flex;
 }
 
-.monaco-list-row:hover .notebook-outline-element .action-label {
+.monaco-list-row:hover .notebook-outline-element .action-menu {
 	display: flex;
 }
