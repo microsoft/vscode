@@ -239,7 +239,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 
 	public async provideCodeActions(
 		document: vscode.TextDocument,
-		_range: vscode.Range,
+		range: vscode.Range,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<VsCodeCodeAction[] | undefined> {
@@ -250,12 +250,18 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 
 		let diagnostics = context.diagnostics;
 		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
-			await new Promise(resolve => setTimeout(resolve, 500)); // delay for 500ms
+			// Delay for 500ms when there are pending diagnostics before recomputing up-to-date diagnostics.
+			await new Promise((resolve) => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				setTimeout(resolve, 500);
+			});
 			const allDiagnostics: vscode.Diagnostic[] = [];
 
 			// Match ranges again after getting new diagnostics
 			for (const diagnostic of this.diagnosticsManager.getDiagnostics(document.uri)) {
-				if (_range.intersection(diagnostic.range)) {
+				if (range.intersection(diagnostic.range)) {
 					const newLen = allDiagnostics.push(diagnostic);
 					if (newLen > TypeScriptQuickFixProvider._maxCodeActionsPerFile) {
 						break;
