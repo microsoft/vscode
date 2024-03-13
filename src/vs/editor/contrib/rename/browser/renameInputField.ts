@@ -637,6 +637,7 @@ class RenameCandidateView {
 
 		this._domNode = document.createElement('div');
 		this._domNode.style.display = `flex`;
+		this._domNode.style.columnGap = `5px`;
 		this._domNode.style.alignItems = `center`;
 		this._domNode.style.height = `${fontInfo.lineHeight}px`;
 		this._domNode.style.padding = `${RenameCandidateView._PADDING}px`;
@@ -653,7 +654,6 @@ class RenameCandidateView {
 		iconContainer.appendChild(this._icon);
 
 		this._label = document.createElement('div');
-		this._label.style.marginLeft = '5px';
 		applyFontInfo(this._label, fontInfo);
 		this._domNode.appendChild(this._label);
 
