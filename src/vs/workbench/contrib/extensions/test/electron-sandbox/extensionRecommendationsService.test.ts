@@ -64,6 +64,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+
+const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -208,6 +212,12 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(ILifecycleService, disposableStore.add(new TestLifecycleService()));
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
+		instantiationService.stub(ILogService, NullLogService);
+		const fileService = new FileService(instantiationService.get(ILogService));
+		instantiationService.stub(IFileService, disposableStore.add(fileService));
+		const fileSystemProvider = disposableStore.add(new InMemoryFileSystemProvider());
+		disposableStore.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+		instantiationService.stub(IUriIdentityService, disposableStore.add(new UriIdentityService(instantiationService.get(IFileService))));
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IWorkbenchExtensionManagementService, {
@@ -311,12 +321,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	}
 
 	async function setUpFolder(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
-		const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
-		const logService = new NullLogService();
-		const fileService = disposableStore.add(new FileService(logService));
-		const fileSystemProvider = disposableStore.add(new InMemoryFileSystemProvider());
-		disposableStore.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
-
+		const fileService = instantiationService.get(IFileService);
 		const folderDir = joinPath(ROOT, folderName);
 		const workspaceSettingsDir = joinPath(folderDir, '.vscode');
 		await fileService.createFolder(workspaceSettingsDir);

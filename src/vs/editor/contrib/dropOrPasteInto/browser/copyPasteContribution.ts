@@ -16,7 +16,6 @@ import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 registerEditorContribution(CopyPasteController.ID, CopyPasteController, EditorContributionInstantiation.Eager); // eager because it listens to events on the container dom node of the editor
-
 registerEditorFeature(DefaultPasteProvidersFeature);
 
 registerEditorCommand(new class extends EditorCommand {
@@ -31,11 +30,27 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, _args: any) {
+	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor) {
 		return CopyPasteController.get(editor)?.changePasteType();
 	}
 });
 
+registerEditorCommand(new class extends EditorCommand {
+	constructor() {
+		super({
+			id: 'editor.hidePasteWidget',
+			precondition: pasteWidgetVisibleCtx,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyCode.Escape,
+			}
+		});
+	}
+
+	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor) {
+		CopyPasteController.get(editor)?.clearWidgets();
+	}
+});
 
 
 registerEditorAction(class PasteAsAction extends EditorAction {

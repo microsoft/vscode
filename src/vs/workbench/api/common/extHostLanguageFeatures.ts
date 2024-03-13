@@ -590,14 +590,11 @@ class DocumentPasteEditProvider {
 
 		const cacheId = this._cache.add(edits);
 
-		return edits.map((edit, i) => ({
+		return edits.map((edit, i): extHostProtocol.IPasteEditDto => ({
 			_cacheId: [cacheId, i],
 			title: edit.title ?? localize('defaultPasteLabel', "Paste using '{0}' extension", this._extension.displayName || this._extension.name),
 			kind: edit.kind,
-			detail: this._extension.displayName || this._extension.name,
-			yieldTo: edit.yieldTo?.map(yTo => {
-				return 'mimeType' in yTo ? yTo : { kind: yTo.kind.value };
-			}),
+			yieldTo: edit.yieldTo?.map(x => x.value),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		}));
@@ -1982,15 +1979,10 @@ class DocumentOnDropEditAdapter {
 			return undefined;
 		}
 
-		return asArray(edits).map(edit => ({
+		return asArray(edits).map((edit): extHostProtocol.IDocumentOnDropEditDto => ({
 			title: edit.title ?? localize('defaultDropLabel', "Drop using '{0}' extension", this._extension.displayName || this._extension.name),
 			kind: edit.kind?.value,
-			yieldTo: edit.yieldTo?.map(yTo => {
-				if ('mimeType' in yTo) {
-					return yTo;
-				}
-				return { kind: yTo.kind.value };
-			}),
+			yieldTo: edit.yieldTo?.map(x => x.value),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		}));
