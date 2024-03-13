@@ -5,10 +5,8 @@
 
 export * from 'vs/platform/theme/common/colorUtils';
 
-// ------ Make sure all color files are exported
-
+// Make sure all color files are exported
 export * from 'vs/platform/theme/common/colors/baseColors';
-export * from 'vs/platform/theme/common/colors/inputColors';
 export * from 'vs/platform/theme/common/colors/chartsColors';
 export * from 'vs/platform/theme/common/colors/editorColors';
 export * from 'vs/platform/theme/common/colors/inputColors';
