@@ -14,18 +14,27 @@ import { MicrotaskDelay } from 'vs/base/common/symbols';
 
 
 // -----------------------------------------------------------------------------------------------------------------------
+// Uncomment the next line to print warnings whenever a listener is GC'ed without having been disposed. This is a LEAK.
+// -----------------------------------------------------------------------------------------------------------------------
+const _enableListenerGCedWarning = false
+	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
+	;
+
+// -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever an emitter with listeners is disposed. That is a sign of code smell.
 // -----------------------------------------------------------------------------------------------------------------------
-const _enableDisposeWithListenerWarning = false;
-// _enableDisposeWithListenerWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
+const _enableDisposeWithListenerWarning = false
+	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
+	;
 
 
 // -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever a snapshotted event is used repeatedly without cleanup.
 // See https://github.com/microsoft/vscode/issues/142851
 // -----------------------------------------------------------------------------------------------------------------------
-const _enableSnapshotPotentialLeakWarning = false;
-// _enableSnapshotPotentialLeakWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
+const _enableSnapshotPotentialLeakWarning = false
+	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
+	;
 
 /**
  * An event with zero or one parameters that can be subscribed to. The event is a function itself.
@@ -912,18 +921,14 @@ const forEachListener = <T>(listeners: ListenerOrListeners<T>, fn: (c: ListenerC
 };
 
 
-const listenerTraces = new Map<number, string>();
-const listenerFinalizers = new FinalizationRegistry(heldValue => {
-
-	const stack = listenerTraces.get(heldValue as number);
-
-	if (stack) {
-		listenerTraces.delete(heldValue as number);
-		console.warn('GC\'ed listener that was NOT disposed');
-		console.warn(stack);
-	}
-
-});
+const _listenerFinalizers = _enableListenerGCedWarning
+	? new FinalizationRegistry(heldValue => {
+		if (typeof heldValue === 'string') {
+			console.warn('[LEAKING LISTENER] GC\'ed a listener that was NOT yet disposed. This is where is was created:');
+			console.warn(heldValue);
+		}
+	})
+	: undefined;
 
 /**
  * The Emitter can be used to expose an Event to the public
@@ -1068,11 +1073,9 @@ export class Emitter<T> {
 
 			this._size++;
 
-			const handle = Math.random();
 
 			const result = toDisposable(() => {
-				listenerTraces.delete(handle);
-				listenerFinalizers.unregister(result);
+				_listenerFinalizers?.unregister(result);
 				removeMonitor?.();
 				this._removeListener(contained);
 			});
@@ -1080,9 +1083,11 @@ export class Emitter<T> {
 				disposables.add(result);
 			} else if (Array.isArray(disposables)) {
 				disposables.push(result);
-			} else {
-				listenerTraces.set(handle, new Error().stack!.split('\n').slice(2).join('\n'));
-				listenerFinalizers.register(result, handle, result);
+			}
+
+			if (_listenerFinalizers) {
+				const stack = new Error().stack!.split('\n').slice(2).join('\n').trim();
+				_listenerFinalizers.register(result, stack, result);
 			}
 
 			return result;
