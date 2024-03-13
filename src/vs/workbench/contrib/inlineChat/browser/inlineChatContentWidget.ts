@@ -12,6 +12,7 @@ import { InlineChatInputWidget } from 'vs/workbench/contrib/inlineChat/browser/i
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { clamp } from 'vs/base/common/numbers';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -20,6 +21,8 @@ export class InlineChatContentWidget implements IContentWidget {
 
 	private readonly _store = new DisposableStore();
 	private readonly _domNode = document.createElement('div');
+	private readonly _inputContainer = document.createElement('div');
+	private readonly _messageContainer = document.createElement('div');
 
 	private _position?: IPosition;
 
@@ -36,16 +39,20 @@ export class InlineChatContentWidget implements IContentWidget {
 	) {
 		this._store.add(this._widget.onDidChangeHeight(() => _editor.layoutContentWidget(this)));
 
-		// this._store.add(dom.addStandardDisposableListener(this._domNode, 'click', _e => { this._widget.focus(); }));
-
 		this._domNode.tabIndex = -1;
 		this._domNode.className = 'inline-chat-content-widget';
-		this._domNode.appendChild(this._widget.domNode);
+
+		this._domNode.appendChild(this._inputContainer);
+
+		this._messageContainer.classList.add('hidden', 'message');
+		this._domNode.appendChild(this._messageContainer);
+
+		this._widget.moveTo(this._inputContainer);
 
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
 			if (this._visible) {
-				this._onDidBlur.fire();
+				// this._onDidBlur.fire();
 			}
 		}));
 		this._store.add(tracker);
@@ -100,7 +107,8 @@ export class InlineChatContentWidget implements IContentWidget {
 			this._visible = true;
 			this._focusNext = true;
 
-			this._widget.moveTo(this._domNode);
+
+			this._widget.moveTo(this._inputContainer);
 			this._widget.reset();
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
@@ -115,5 +123,12 @@ export class InlineChatContentWidget implements IContentWidget {
 			this._visible = false;
 			this._editor.removeContentWidget(this);
 		}
+	}
+
+	updateMessage(message: string) {
+		this._messageContainer.classList.toggle('hidden', !message);
+		const renderedMessage = renderLabelWithIcons(message);
+		dom.reset(this._messageContainer, ...renderedMessage);
+		this._editor.layoutContentWidget(this);
 	}
 }
