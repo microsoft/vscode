@@ -367,22 +367,25 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		const model = this._model.value;
 		const widget = await this._chatWidgetService.revealViewForProvider(providerInfo.id);
-		if (widget && widget.viewModel && model) {
-			for (const request of model.getRequests()) {
-				if (request.response?.response.value || request.response?.result) {
-					this._chatService.addCompleteRequest(widget.viewModel.sessionId,
-						request.message as IParsedChatRequest,
-						request.variableData,
-						{
-							message: request.response.response.value,
-							result: request.response.result,
-							followups: request.response.followups
-						});
+		if (widget) {
+			if (widget.viewModel && model) {
+				for (const request of model.getRequests()) {
+					if (request.response?.response.value || request.response?.result) {
+						this._chatService.addCompleteRequest(widget.viewModel.sessionId,
+							request.message as IParsedChatRequest,
+							request.variableData,
+							{
+								message: request.response.response.value,
+								result: request.response.result,
+								followups: request.response.followups
+							});
+					}
 				}
+				widget.focusLastMessage();
+			} else if (!model) {
+				widget.focusInput();
 			}
-			widget.focusLastMessage();
-		} else if (!model) {
-			widget?.focusInput();
+			this._chatWidget?.value.hide();
 		}
 	}
 
