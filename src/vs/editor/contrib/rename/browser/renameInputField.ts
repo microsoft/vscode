@@ -457,60 +457,23 @@ class RenameCandidateListView {
 		this._typicalHalfwidthCharacterWidth = opts.fontInfo.typicalHalfwidthCharacterWidth;
 
 		this._listContainer = document.createElement('div');
-		this._listContainer.style.fontFamily = opts.fontInfo.fontFamily;
-		this._listContainer.style.fontWeight = opts.fontInfo.fontWeight;
-		this._listContainer.style.fontSize = `${opts.fontInfo.fontSize}px`;
 		parent.appendChild(this._listContainer);
 
-		const that = this;
+		this._listWidget = RenameCandidateListView._createListWidget(this._listContainer, this._candidateViewHeight, opts.fontInfo);
 
-		const virtualDelegate = new class implements IListVirtualDelegate<NewSymbolName> {
-			getTemplateId(element: NewSymbolName): string {
-				return 'candidate';
-			}
-
-			getHeight(element: NewSymbolName): number {
-				return that._candidateViewHeight;
-			}
-		};
-
-		const renderer = new class implements IListRenderer<NewSymbolName, RenameCandidateView> {
-			readonly templateId = 'candidate';
-
-			renderTemplate(container: HTMLElement): RenameCandidateView {
-				return new RenameCandidateView(container, opts.fontInfo);
-			}
-
-			renderElement(candidate: NewSymbolName, index: number, templateData: RenameCandidateView): void {
-				templateData.populate = candidate;
-			}
-
-			disposeTemplate(templateData: RenameCandidateView): void {
-				templateData.dispose();
-			}
-		};
-
-		this._listWidget = new List(
-			'NewSymbolNameCandidates',
-			this._listContainer,
-			virtualDelegate,
-			[renderer],
-			{
-				keyboardSupport: false, // @ulugbekna: because we handle keyboard events through proper commands & keybinding service, see `rename.ts`
-				mouseSupport: true,
-				multipleSelectionSupport: false,
-			}
+		this._disposables.add(
+			this._listWidget.onDidChangeSelection(e => {
+				if (e.elements.length > 0) {
+					opts.onSelectionChange();
+				}
+			})
 		);
 
-		this._disposables.add(this._listWidget.onDidChangeSelection(e => {
-			if (e.elements.length > 0) {
-				opts.onSelectionChange();
-			}
-		}));
-
-		this._disposables.add(this._listWidget.onDidBlur(e => {
-			this._listWidget.setFocus([]);
-		}));
+		this._disposables.add(
+			this._listWidget.onDidBlur(e => { // @ulugbekna: because list widget otherwise remembers last focused element and returns it as focused element
+				this._listWidget.setFocus([]);
+			})
+		);
 
 		this._listWidget.style(defaultListStyles);
 	}
@@ -569,10 +532,6 @@ class RenameCandidateListView {
 		return;
 	}
 
-	public updateFont(fontInfo: FontInfo): void {
-		applyFontInfo(this._listContainer, fontInfo);
-	}
-
 	public focusNext(): void {
 		if (this._listWidget.length === 0) {
 			return;
@@ -623,6 +582,45 @@ class RenameCandidateListView {
 		return width;
 	}
 
+	private static _createListWidget(container: HTMLElement, candidateViewHeight: number, fontInfo: FontInfo) {
+		const virtualDelegate = new class implements IListVirtualDelegate<NewSymbolName> {
+			getTemplateId(element: NewSymbolName): string {
+				return 'candidate';
+			}
+
+			getHeight(element: NewSymbolName): number {
+				return candidateViewHeight;
+			}
+		};
+
+		const renderer = new class implements IListRenderer<NewSymbolName, RenameCandidateView> {
+			readonly templateId = 'candidate';
+
+			renderTemplate(container: HTMLElement): RenameCandidateView {
+				return new RenameCandidateView(container, fontInfo);
+			}
+
+			renderElement(candidate: NewSymbolName, index: number, templateData: RenameCandidateView): void {
+				templateData.populate = candidate;
+			}
+
+			disposeTemplate(templateData: RenameCandidateView): void {
+				templateData.dispose();
+			}
+		};
+
+		return new List(
+			'NewSymbolNameCandidates',
+			container,
+			virtualDelegate,
+			[renderer],
+			{
+				keyboardSupport: false, // @ulugbekna: because we handle keyboard events through proper commands & keybinding service, see `rename.ts`
+				mouseSupport: true,
+				multipleSelectionSupport: false,
+			}
+		);
+	}
 }
 
 class RenameCandidateView {
