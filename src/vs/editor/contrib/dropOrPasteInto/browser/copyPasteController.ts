@@ -55,7 +55,7 @@ type PasteEditWithProvider = DocumentPasteEdit & {
 };
 
 type PastePreference =
-	| { kind: HierarchicalKind }
+	| HierarchicalKind
 	| { providerId: string };
 
 export class CopyPasteController extends Disposable implements IEditorContribution {
@@ -113,10 +113,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._postPasteWidgetManager.tryShowSelector();
 	}
 
-	public pasteAs(preferred?: { kind: HierarchicalKind } | { providerId: string }) {
+	public pasteAs(preferred?: PastePreference) {
 		this._editor.focus();
 		try {
-			this._pasteAsActionContext = { preferred: preferred };
+			this._pasteAsActionContext = { preferred };
 			getActiveDocument().execCommand('paste');
 		} finally {
 			this._pasteAsActionContext = undefined;
@@ -266,7 +266,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				// Filter out providers that don't match the requested paste types
 				const preference = this._pasteAsActionContext?.preferred;
 				if (preference) {
-					if (provider.providedPasteEditKinds && !matchesPreference(provider, preference)) {
+					if (provider.providedPasteEditKinds && !this.providerMatchesPreference(provider, preference)) {
 						return false;
 					}
 				}
@@ -295,7 +295,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private showPasteAsNoEditMessage(selections: readonly Selection[], preference: PastePreference) {
-		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", 'kind' in preference ? preference.kind.value : preference.providerId), selections[0].getStartPosition());
+		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", preference instanceof HierarchicalKind ? preference.value : preference.providerId), selections[0].getStartPosition());
 	}
 
 	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined): void {
@@ -313,9 +313,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					return;
 				}
 
-				// Filter out any providers the don't match the full data transfer we will send them.
-				// TODO: also filter based on kinds
-				const supportedProviders = allProviders.filter(provider => isSupportedPasteProvider(provider, dataTransfer));
+				const supportedProviders = allProviders.filter(provider => this.isSupportedPasteProvider(provider, dataTransfer));
 				if (!supportedProviders.length
 					|| (supportedProviders.length === 1 && supportedProviders[0] instanceof DefaultTextPasteOrDropEditProvider) // Only our default text provider is active
 				) {
@@ -375,15 +373,15 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				// Filter out any providers the don't match the full data transfer we will send them.
-				let supportedProviders = allProviders.filter(provider => isSupportedPasteProvider(provider, dataTransfer));
+				let supportedProviders = allProviders.filter(provider => this.isSupportedPasteProvider(provider, dataTransfer, preference));
 				if (preference) {
 					// We are looking for a specific edit
-					supportedProviders = supportedProviders.filter(provider => matchesPreference(provider, preference));
+					supportedProviders = supportedProviders.filter(provider => this.providerMatchesPreference(provider, preference));
 				}
 
-				const context = {
+				const context: DocumentPasteContext = {
 					triggerKind: DocumentPasteTriggerKind.PasteAs,
-					only: preference && 'kind' in preference ? preference.kind : undefined,
+					only: preference && preference instanceof HierarchicalKind ? preference : undefined,
 				};
 				let providerEdits = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token);
 				if (tokenSource.token.isCancellationRequested) {
@@ -393,8 +391,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				// Filter out any edits that don't match the requested kind
 				if (preference) {
 					providerEdits = providerEdits.filter(edit => {
-						if ('kind' in preference) {
-							return preference.kind.contains(edit.kind);
+						if (preference instanceof HierarchicalKind) {
+							return preference.contains(edit.kind);
 						} else {
 							return preference.providerId === edit.provider.id;
 						}
@@ -403,7 +401,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				if (!providerEdits.length) {
 					if (context.only) {
-						this.showPasteAsNoEditMessage(selections, { kind: context.only });
+						this.showPasteAsNoEditMessage(selections, context.only);
 					}
 					return;
 				}
@@ -514,7 +512,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				return undefined;
 			})),
 			token);
-		const edits = coalesce(results ?? []).flat();
+		const edits = coalesce(results ?? []).flat().filter(edit => {
+			return !context.only || context.only.contains(edit.kind);
+		});
 		return sortEditsByYieldTo(edits);
 	}
 
@@ -537,19 +537,28 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		};
 		this._editor.trigger('keyboard', Handler.Paste, payload);
 	}
-}
 
-function isSupportedPasteProvider(provider: DocumentPasteEditProvider, dataTransfer: VSDataTransfer): boolean {
-	return Boolean(provider.pasteMimeTypes?.some(type => dataTransfer.matches(type)));
-}
-
-function matchesPreference(provider: DocumentPasteEditProvider, preference: PastePreference): boolean {
-	if ('kind' in preference) {
-		if (!provider.providedPasteEditKinds) {
-			return true;
+	/**
+	 * Filter out providers if they:
+	 * - Don't handle any of the data transfer types we have
+	 * - Don't match the preferred paste kind
+	 */
+	private isSupportedPasteProvider(provider: DocumentPasteEditProvider, dataTransfer: VSDataTransfer, preference?: PastePreference): boolean {
+		if (!provider.pasteMimeTypes?.some(type => dataTransfer.matches(type))) {
+			return false;
 		}
-		return provider.providedPasteEditKinds.some(providedKind => preference.kind.contains(providedKind));
-	} else {
-		return provider.id === preference.providerId;
+
+		return !preference || this.providerMatchesPreference(provider, preference);
+	}
+
+	private providerMatchesPreference(provider: DocumentPasteEditProvider, preference: PastePreference): boolean {
+		if (preference instanceof HierarchicalKind) {
+			if (!provider.providedPasteEditKinds) {
+				return true;
+			}
+			return provider.providedPasteEditKinds.some(providedKind => preference.contains(providedKind));
+		} else {
+			return provider.id === preference.providerId;
+		}
 	}
 }
