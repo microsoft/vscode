@@ -852,41 +852,42 @@ export class QuickInputTree extends Disposable {
 
 		// if we ever saw a separator item, we render "tree like"
 		if (currentSeparatorElement) {
-			const separatorElements = this._elements
-				.filter((e): e is QuickPickSeparatorElement => e instanceof QuickPickSeparatorElement)
-				.map(e => ({
-					element: e,
-					collapsible: false,
-					collapsed: false,
-				}));
-			this._tree.setChildren(null);
-			this._tree.setChildren(null, this._elements.map(e => ({
-				element: e,
-				collapsible: false,
-				collapsed: false,
-			})));
-			let visibleCount = separatorElements.length;
-			for (const element of separatorElements) {
-				visibleCount += element.element.children.length;
-				this._tree.setChildren(
-					element.element,
-					element.element.children.map(e => ({
-						element: e,
+			const elements = new Array<IObjectTreeElement<IQuickPickElement>>();
+			let visibleCount = 0;
+			for (const element of this._elements) {
+				if (element instanceof QuickPickSeparatorElement) {
+					elements.push({
+						element,
 						collapsible: false,
 						collapsed: false,
-					})
-					));
+						children: element.children.map(e => ({
+							element: e,
+							collapsible: false,
+							collapsed: false,
+						})),
+					});
+					visibleCount += element.children.length + 1; // +1 for the separator itself;
+				} else {
+					elements.push({
+						element,
+						collapsible: false,
+						collapsed: false,
+					});
+					visibleCount++;
+				}
 			}
+			this._tree.setChildren(null, elements);
 			this._onChangedVisibleCount.fire(visibleCount);
 		} else {
+			// All elements are items so we render "flat"
 			this._tree.setChildren(
 				null,
 				this._elements.map<IObjectTreeElement<IQuickPickElement>>(e => ({
 					element: e,
 					collapsible: false,
 					collapsed: false,
-				})
-				));
+				}))
+			);
 			this._onChangedVisibleCount.fire(this._elements.length);
 		}
 	}
@@ -1136,7 +1137,7 @@ export class QuickInputTree extends Disposable {
 		}
 
 		let currentSeparator: QuickPickSeparatorElement | undefined;
-		const elements = shownElements.reduce((result, element, index) => {
+		const finalElements = shownElements.reduce((result, element, index) => {
 			if (element instanceof QuickPickItemElement) {
 				if (currentSeparator) {
 					currentSeparator.children.push(element);
@@ -1153,41 +1154,38 @@ export class QuickInputTree extends Disposable {
 
 		// if we ever saw a separator item, we render "tree like"
 		if (currentSeparator) {
-			const separatorElements = this._elements
-				.filter((e): e is QuickPickSeparatorElement => e instanceof QuickPickSeparatorElement)
-				.map(e => ({
-					element: e,
-					collapsible: false,
-					collapsed: false,
-				}));
-			this._tree.setChildren(null, elements.map(e => ({
-				element: e,
-				collapsible: false,
-				collapsed: false,
-			})));
-			let visibleCount = separatorElements.length;
-			for (const element of separatorElements) {
-				visibleCount += element.element.children.length;
-				this._tree.setChildren(
-					element.element,
-					element.element.children.map(e => ({
-						element: e,
+			const elements = new Array<IObjectTreeElement<IQuickPickElement>>();
+			for (const element of finalElements) {
+				if (element instanceof QuickPickSeparatorElement) {
+					elements.push({
+						element,
 						collapsible: false,
 						collapsed: false,
-					}))
-				);
+						children: element.children.map(e => ({
+							element: e,
+							collapsible: false,
+							collapsed: false,
+						})),
+					});
+				} else {
+					elements.push({
+						element,
+						collapsible: false,
+						collapsed: false,
+					});
+				}
 			}
-			this._onChangedVisibleCount.fire(visibleCount);
+			this._tree.setChildren(null, elements);
 		} else {
+			// All elements are items so we render "flat"
 			this._tree.setChildren(
 				null,
-				elements.map<IObjectTreeElement<IQuickPickElement>>(e => ({
+				finalElements.map<IObjectTreeElement<IQuickPickElement>>(e => ({
 					element: e,
 					collapsible: false,
 					collapsed: false,
 				}))
 			);
-			this._onChangedVisibleCount.fire(this._elements.length);
 		}
 
 		this._tree.setFocus([]);
