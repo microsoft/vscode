@@ -396,7 +396,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	private async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
 		if ((navigator as any).keyboard) {
 			try {
-				return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
+				return await (navigator as any).keyboard.getLayoutMap().then((e: any) => {
 					const ret: IKeyboardMapping = {};
 					for (const key of e) {
 						ret[key[0]] = {

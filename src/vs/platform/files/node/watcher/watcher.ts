@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INonRecursiveWatchRequest, IRecursiveWatchRequest, IUniversalWatcher, IUniversalWatchRequest } from 'vs/platform/files/common/watcher';
+import { IUniversalWatcher, IUniversalWatchRequest } from 'vs/platform/files/common/watcher';
 import { Event } from 'vs/base/common/event';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
@@ -20,20 +20,9 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 	readonly onDidError = Event.any(this.recursiveWatcher.onDidError, this.nonRecursiveWatcher.onDidError);
 
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
-		const recursiveWatchRequests: IRecursiveWatchRequest[] = [];
-		const nonRecursiveWatchRequests: INonRecursiveWatchRequest[] = [];
-
-		for (const request of requests) {
-			if (request.recursive) {
-				recursiveWatchRequests.push(request);
-			} else {
-				nonRecursiveWatchRequests.push(request);
-			}
-		}
-
 		await Promises.settled([
-			this.recursiveWatcher.watch(recursiveWatchRequests),
-			this.nonRecursiveWatcher.watch(nonRecursiveWatchRequests)
+			this.recursiveWatcher.watch(requests.filter(request => request.recursive)),
+			this.nonRecursiveWatcher.watch(requests.filter(request => !request.recursive))
 		]);
 	}
 

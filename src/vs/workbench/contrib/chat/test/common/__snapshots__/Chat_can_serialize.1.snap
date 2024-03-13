@@ -6,34 +6,62 @@
   welcomeMessage: undefined,
   requests: [
     {
-      providerRequestId: undefined,
       message: {
         parts: [
           {
+            kind: "agent",
             range: {
               start: 0,
-              endExclusive: 12
+              endExclusive: 28
             },
             editorRange: {
               startLineNumber: 1,
               startColumn: 1,
               endLineNumber: 1,
-              endColumn: 13
+              endColumn: 29
             },
-            text: "test request",
+            agent: {
+              id: "ChatProviderWithUsedContext",
+              metadata: { description: undefined }
+            }
+          },
+          {
+            range: {
+              start: 28,
+              endExclusive: 41
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 29,
+              endLineNumber: 1,
+              endColumn: 42
+            },
+            text: " test request",
             kind: "text"
           }
         ],
-        text: "test request"
+        text: "@ChatProviderWithUsedContext test request"
       },
+      variableData: { variables: [  ] },
       response: [  ],
-      responseErrorDetails: undefined,
+      result: { metadata: { metadataKey: "value" } },
       followups: undefined,
       isCanceled: false,
       vote: undefined,
-      agent: undefined,
+      agent: {
+        id: "ChatProviderWithUsedContext",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        metadata: { description: undefined },
+        slashCommands: [  ],
+        locations: [ 1 ],
+        isDefault: undefined
+      },
       slashCommand: undefined,
-      usedContext: { documents: [
+      usedContext: {
+        documents: [
           {
             uri: {
               scheme: "file",
@@ -54,10 +82,11 @@
               }
             ]
           }
-        ] },
+        ],
+        kind: "usedContext"
+      },
       contentReferences: [  ]
     }
   ],
-  providerId: "ChatProviderWithUsedContext",
-  providerState: undefined
+  providerId: "testProvider"
 }

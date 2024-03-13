@@ -8,17 +8,16 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/languages';
-import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ResourceTree } from 'vs/base/common/resourceTree';
+import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
-export const SYNC_VIEW_PANE_ID = 'workbench.scm.sync';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -40,25 +39,34 @@ export interface ISCMResource {
 	readonly decorations: ISCMResourceDecorations;
 	readonly contextValue: string | undefined;
 	readonly command: Command | undefined;
+	readonly multiDiffEditorOriginalUri: URI | undefined;
+	readonly multiDiffEditorModifiedUri: URI | undefined;
 	open(preserveFocus: boolean): Promise<void>;
 }
 
-export interface ISCMResourceGroup extends ISequence<ISCMResource> {
-	readonly provider: ISCMProvider;
-	readonly label: string;
+export interface ISCMResourceGroup {
 	readonly id: string;
+	readonly provider: ISCMProvider;
+
+	readonly resources: readonly ISCMResource[];
+	readonly resourceTree: ResourceTree<ISCMResource, ISCMResourceGroup>;
+	readonly onDidChangeResources: Event<void>;
+
+	readonly label: string;
 	readonly hideWhenEmpty: boolean;
 	readonly onDidChange: Event<void>;
+
+	readonly multiDiffEditorEnableViewChanges: boolean;
 }
 
 export interface ISCMProvider extends IDisposable {
-	readonly label: string;
 	readonly id: string;
+	readonly label: string;
 	readonly contextValue: string;
+	readonly name: string;
 
-	readonly groups: ISequence<ISCMResourceGroup>;
-
-	// TODO@Joao: remove
+	readonly groups: readonly ISCMResourceGroup[];
+	readonly onDidChangeResourceGroups: Event<void>;
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
@@ -75,6 +83,11 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
+}
+
+export interface ISCMInputValueProviderContext {
+	readonly resourceGroupId: string;
+	readonly resources: readonly URI[];
 }
 
 export const enum InputValidationType {
@@ -100,12 +113,6 @@ export enum SCMInputChangeReason {
 export interface ISCMInputChangeEvent {
 	readonly value: string;
 	readonly reason?: SCMInputChangeReason;
-}
-
-export interface ISCMInputActionButtonDescriptor {
-	command: Command;
-	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	enabled: boolean;
 }
 
 export interface ISCMActionButtonDescriptor {
@@ -139,9 +146,6 @@ export interface ISCMInput {
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
-
-	actionButton: ISCMInputActionButtonDescriptor | undefined;
-	readonly onDidChangeActionButton: Event<void>;
 
 	setFocus(): void;
 	readonly onDidChangeFocus: Event<void>;
@@ -180,7 +184,9 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
+	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
+	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
@@ -223,3 +229,7 @@ export interface ISCMViewService {
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
 	focus(repository: ISCMRepository): void;
 }
+
+export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';
+
+export interface ISCMChangesEditor { }

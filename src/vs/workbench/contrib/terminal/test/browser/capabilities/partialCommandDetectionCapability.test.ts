@@ -5,7 +5,7 @@
 
 import { deepStrictEqual } from 'assert';
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
-import type { IMarker, Terminal } from 'xterm';
+import type { IMarker, Terminal } from '@xterm/xterm';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { importAMDNodeModule } from 'vs/amdX';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
@@ -26,7 +26,7 @@ suite('PartialCommandDetectionCapability', () => {
 	}
 
 	setup(async () => {
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 }) as TestTerminal;
 		capability = new PartialCommandDetectionCapability(xterm);

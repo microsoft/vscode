@@ -200,6 +200,9 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 	target?: ConfigurationTarget;
 	folderUri?: URI;
 	query?: string;
+	/**
+	 * Only works when opening the json settings file. Use `query` for settings editor.
+	 */
 	revealSetting?: {
 		key: string;
 		edit?: boolean;

@@ -98,6 +98,9 @@ flakySuite('RawSearchService', () => {
 
 		let results = 0;
 		const cb: (p: ISerializedSearchProgressItem) => void = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (!Array.isArray(value)) {
 				assert.deepStrictEqual(value, match);
 				results++;
@@ -117,6 +120,9 @@ flakySuite('RawSearchService', () => {
 
 		const results: number[] = [];
 		const cb: (p: ISerializedSearchProgressItem) => void = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (Array.isArray(value)) {
 				value.forEach(m => {
 					assert.deepStrictEqual(m, match);
@@ -227,6 +233,9 @@ flakySuite('RawSearchService', () => {
 
 		const results: any[] = [];
 		const cb: IProgressCallback = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (Array.isArray(value)) {
 				results.push(...value.map(v => v.path));
 			} else {
@@ -252,6 +261,9 @@ flakySuite('RawSearchService', () => {
 
 		const results: number[] = [];
 		const cb: IProgressCallback = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (Array.isArray(value)) {
 				value.forEach(m => {
 					assert.deepStrictEqual(m, match);
@@ -285,6 +297,9 @@ flakySuite('RawSearchService', () => {
 
 		const results: any[] = [];
 		const cb: IProgressCallback = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (Array.isArray(value)) {
 				results.push(...value.map(v => v.path));
 			} else {
@@ -331,6 +346,9 @@ flakySuite('RawSearchService', () => {
 			});
 			const results: any[] = [];
 			const cb: IProgressCallback = value => {
+				if (!!(<IProgressMessage>value).message) {
+					return;
+				}
 				if (Array.isArray(value)) {
 					results.push(...value.map(v => v.path));
 				} else {

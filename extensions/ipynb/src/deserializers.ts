@@ -139,6 +139,8 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 			}
 		} else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
 			return NotebookCellOutputItem.text(JSON.stringify(value), mime);
+		} else if (mime === 'application/json') {
+			return NotebookCellOutputItem.json(value, mime);
 		} else {
 			// For everything else, treat the data as strings (or multi-line strings).
 			value = Array.isArray(value) ? concatMultilineString(value) : value;

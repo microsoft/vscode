@@ -202,7 +202,14 @@ export class NotebookCellOutlineProvider {
 					}
 				}
 			};
-			if (this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
+			const problem = this._configurationService.getValue('problems.visibility');
+			if (problem === undefined) {
+				return;
+			}
+
+			const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
+
+			if (problem && config) {
 				markerServiceListener.value = this._markerService.onMarkerChanged(e => {
 					if (notebookEditorWidget.isDisposed) {
 						console.error('notebook editor is disposed');
@@ -222,7 +229,7 @@ export class NotebookCellOutlineProvider {
 		};
 		updateMarkerUpdater();
 		this._entriesDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
+			if (e.affectsConfiguration('problems.visibility') || e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
 				updateMarkerUpdater();
 				this._onDidChange.fire({});
 			}

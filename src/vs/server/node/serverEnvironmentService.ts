@@ -19,6 +19,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'host': { type: 'string', cat: 'o', args: 'ip-address', description: nls.localize('host', "The host name or IP address the server should listen to. If not set, defaults to 'localhost'.") },
 	'port': { type: 'string', cat: 'o', args: 'port | port range', description: nls.localize('port', "The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range (end inclusive) is selected.") },
 	'socket-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('socket-path', "The path to a socket file for the server to listen to.") },
+	'server-base-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('server-base-path', "The path under which the web UI and the code server is provided. Defaults to '/'.`") },
 	'connection-token': { type: 'string', cat: 'o', args: 'token', deprecates: ['connectionToken'], description: nls.localize('connection-token', "A secret that must be included with all requests.") },
 	'connection-token-file': { type: 'string', cat: 'o', args: 'path', deprecates: ['connection-secret', 'connectionTokenFile'], description: nls.localize('connection-token-file', "Path to a file that contains the connection token.") },
 	'without-connection-token': { type: 'boolean', cat: 'o', description: nls.localize('without-connection-token', "Run without a connection token. Only use this if the connection is secured by other means.") },
@@ -59,6 +60,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'builtin-extensions-dir': OPTIONS['builtin-extensions-dir'],
 	'install-extension': OPTIONS['install-extension'],
 	'install-builtin-extension': OPTIONS['install-builtin-extension'],
+	'update-extensions': OPTIONS['update-extensions'],
 	'uninstall-extension': OPTIONS['uninstall-extension'],
 	'list-extensions': OPTIONS['list-extensions'],
 	'locate-extension': OPTIONS['locate-extension'],
@@ -100,6 +102,12 @@ export interface ServerParsedArgs {
 	 */
 	port?: string;
 	'socket-path'?: string;
+
+	/**
+	 * The path under which the web UI and the code server is provided.
+	 * By defaults it is '/'.`
+	 */
+	'server-base-path'?: string;
 
 	/**
 	 * A secret token that must be provided by the web client with all requests.
@@ -160,9 +168,9 @@ export interface ServerParsedArgs {
 	'default-workspace'?: string;
 	'default-folder'?: string;
 
-	/** @deprecated, use default-workspace instead */
+	/** @deprecated use default-workspace instead */
 	workspace: string;
-	/** @deprecated, use default-folder instead */
+	/** @deprecated use default-folder instead */
 	folder: string;
 
 
@@ -177,6 +185,7 @@ export interface ServerParsedArgs {
 	'builtin-extensions-dir'?: string;
 	'install-extension'?: string[];
 	'install-builtin-extension'?: string[];
+	'update-extensions'?: boolean;
 	'uninstall-extension'?: string[];
 	'list-extensions'?: boolean;
 	'locate-extension'?: string[];

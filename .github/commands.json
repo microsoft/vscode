@@ -35,7 +35,7 @@
 		"name": "*dev-question",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We have a great extension developer community over on [GitHub discussions](https://github.com/microsoft/vscode-discussions/discussions) and [Slack](https://aka.ms/vscode-dev-community) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
+		"comment": "We have a great extension developer community over on [GitHub discussions](https://github.com/microsoft/vscode-discussions/discussions) and [Slack](https://vscode-dev-community.slack.com/) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -57,6 +57,13 @@
 		"action": "close",
 		"reason": "not_planned",
 		"comment": "We closed this issue because we [don't plan to address it](https://aka.ms/vscode-out-of-scope) in the foreseeable future. If you disagree and feel that this issue is crucial: we are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nThanks for your understanding, and happy coding!"
+	},
+	{
+		"type": "label",
+		"name": "wont-fix",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "We closed this issue because we [don't plan to address it](https://github.com/microsoft/vscode/wiki/Issue-Grooming#wont-fix-bugs).\n\nThanks for your understanding, and happy coding!"
 	},
 	{
 		"type": "comment",

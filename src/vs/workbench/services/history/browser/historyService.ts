@@ -24,16 +24,31 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, remove } from 'vs/base/common/arrays';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, WindowIdleValue } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IdleValue } from 'vs/base/common/async';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { mainWindow } from 'vs/base/browser/window';
+
+interface ISerializedEditorHistoryEntry {
+	readonly editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
+}
+
+interface IRecentlyClosedEditor {
+	readonly editorId: string | undefined;
+	readonly editor: IUntypedEditorInput;
+
+	readonly resource: URI | undefined;
+	readonly associatedResources: URI[];
+
+	readonly index: number;
+	readonly sticky: boolean;
+}
 
 export class HistoryService extends Disposable implements IHistoryService {
 
@@ -57,7 +72,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -111,16 +127,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 			mouseBackForwardSupportListener.clear();
 
 			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
+				this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+					const eventDisposables = disposables.add(new DisposableStore());
+					eventDisposables.add(addDisposableListener(container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
+					eventDisposables.add(addDisposableListener(container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
 
-				this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, container => {
-					const disposables = new DisposableStore();
-					disposables.add(addDisposableListener(container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
-					disposables.add(addDisposableListener(container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
-
-					this._register(Event.filter(this.layoutService.onDidRemoveContainer, removed => removed === container, this._store)(() => disposables.dispose()));
-
-					mouseBackForwardSupportListener.add(disposables);
-				}, this.layoutService.container));
+					mouseBackForwardSupportListener.add(eventDisposables);
+				}, { container: this.layoutService.mainContainer, disposables: this._store }));
 			}
 		};
 
@@ -169,18 +182,27 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeEditorPane?.input && activeEditorPane.group ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
+		this.lastActiveEditor = activeEditorPane?.input ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
 
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
 
-		// Handle editor change
-		this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
+		// Handle editor change unless the editor is transient
+		if (!activeEditorPane?.group.isTransient(activeEditorPane.input)) {
+			this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
+		} else {
+			this.logService.trace(`[History]: ignoring transient editor change (editor: ${activeEditorPane.input?.resource?.toString()}})`);
+		}
 
-		// Listen to selection changes if the editor pane
-		// is having a selection concept.
+		// Listen to selection changes unless the editor is transient
 		if (isEditorPaneWithSelection(activeEditorPane)) {
-			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e)));
+			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => {
+				if (!activeEditorPane.group.isTransient(activeEditorPane.input)) {
+					this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e);
+				} else {
+					this.logService.trace(`[History]: ignoring transient editor selection change (editor: ${activeEditorPane.input?.resource?.toString()}})`);
+				}
+			}));
 		}
 
 		// Context keys
@@ -752,7 +774,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private readonly editorHistoryListeners = new Map<EditorInput, DisposableStore>();
 
-	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
+	private readonly resourceExcludeMatcher = this._register(new WindowIdleValue(mainWindow, () => {
 		const matcher = this._register(this.instantiationService.createInstance(
 			ResourceGlobMatcher,
 			root => getExcludes(root ? this.configurationService.getValue<ISearchConfiguration>({ resource: root }) : this.configurationService.getValue<ISearchConfiguration>()) || Object.create(null),
@@ -942,11 +964,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// We want to seed history from opened editors
 			// too as well as previous stored state, so we
 			// need to wait for the editor groups being ready
-			if (this.editorGroupService.mainPart.isReady) {
+			if (this.editorGroupService.isReady) {
 				this.loadHistory();
 			} else {
 				(async () => {
-					await this.editorGroupService.mainPart.whenReady;
+					await this.editorGroupService.whenReady;
 
 					this.loadHistory();
 				})();
@@ -1060,7 +1082,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#region Last Active Workspace/File
 
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI | undefined {
+	getLastActiveWorkspaceRoot(schemeFilter?: string, authorityFilter?: string): URI | undefined {
 
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
@@ -1071,7 +1093,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Single Folder: return early
 		if (folders.length === 1) {
 			const resource = folders[0].uri;
-			if (!schemeFilter || resource.scheme === schemeFilter) {
+			if ((!schemeFilter || resource.scheme === schemeFilter) && (!authorityFilter || resource.authority === authorityFilter)) {
 				return resource;
 			}
 
@@ -1088,6 +1110,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 				continue;
 			}
 
+			if (authorityFilter && input.resource.authority !== authorityFilter) {
+				continue;
+			}
+
 			const resourceWorkspace = this.contextService.getWorkspaceFolder(input.resource);
 			if (resourceWorkspace) {
 				return resourceWorkspace.uri;
@@ -1097,7 +1123,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Fallback to first workspace matching scheme filter if any
 		for (const folder of folders) {
 			const resource = folder.uri;
-			if (!schemeFilter || resource.scheme === schemeFilter) {
+			if ((!schemeFilter || resource.scheme === schemeFilter) && (!authorityFilter || resource.authority === authorityFilter)) {
 				return resource;
 			}
 		}
@@ -1105,7 +1131,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return undefined;
 	}
 
-	getLastActiveFile(filterByScheme: string): URI | undefined {
+	getLastActiveFile(filterByScheme: string, filterByAuthority?: string): URI | undefined {
 		for (const input of this.getHistory()) {
 			let resource: URI | undefined;
 			if (isEditorInput(input)) {
@@ -1114,7 +1140,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 				resource = input.resource;
 			}
 
-			if (resource?.scheme === filterByScheme) {
+			if (resource && resource.scheme === filterByScheme && (!filterByAuthority || resource.authority === filterByAuthority)) {
 				return resource;
 			}
 		}
@@ -1496,7 +1522,7 @@ ${entryLabels.join('\n')}
 		this.trace('notifyNavigation()', editorPane?.input, event);
 
 		const isSelectionAwareEditorPane = isEditorPaneWithSelection(editorPane);
-		const hasValidEditor = editorPane?.group && editorPane.input && !editorPane.input.isDisposed();
+		const hasValidEditor = editorPane?.input && !editorPane.input.isDisposed();
 
 		// Treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
@@ -1691,6 +1717,7 @@ ${entryLabels.join('\n')}
 	}
 
 	remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent | GroupIdentifier): void {
+		const previousStackSize = this.stack.length;
 
 		// Remove all stack entries that match `arg1`
 		this.stack = this.stack.filter(entry => {
@@ -1703,6 +1730,10 @@ ${entryLabels.join('\n')}
 
 			return !matches;
 		});
+
+		if (previousStackSize === this.stack.length) {
+			return; // nothing removed
+		}
 
 		// Given we just removed entries, we need to make sure
 		// to remove entries that are now identical and next
@@ -1862,7 +1893,7 @@ ${entryLabels.join('\n')}
 			return false; // we need an active editor pane with selection support
 		}
 
-		if (pane.group?.id !== this.current.groupId) {
+		if (pane.group.id !== this.current.groupId) {
 			return false; // we need matching groups
 		}
 
@@ -2063,19 +2094,4 @@ class EditorHelper {
 			mapEditorToDispose.delete(editor);
 		}
 	}
-}
-
-interface ISerializedEditorHistoryEntry {
-	editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
-}
-
-interface IRecentlyClosedEditor {
-	editorId: string | undefined;
-	editor: IUntypedEditorInput;
-
-	resource: URI | undefined;
-	associatedResources: URI[];
-
-	index: number;
-	sticky: boolean;
 }

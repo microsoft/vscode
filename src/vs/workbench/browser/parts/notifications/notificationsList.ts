@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/notificationsList';
 import { localize } from 'vs/nls';
-import { isAncestorOfActiveElement, trackFocus } from 'vs/base/browser/dom';
+import { getWindow, isAncestorOfActiveElement, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListAccessibilityProvider, IListOptions } from 'vs/base/browser/ui/list/listWidget';
@@ -111,7 +111,7 @@ export class NotificationsList extends Disposable {
 		// This ensures that when the focus comes back, the notification is still focused
 		const listFocusTracker = this._register(trackFocus(list.getHTMLElement()));
 		this._register(listFocusTracker.onDidBlur(() => {
-			if (document.hasFocus()) {
+			if (getWindow(this.listContainer).document.hasFocus()) {
 				list.setFocus([]);
 			}
 		}));

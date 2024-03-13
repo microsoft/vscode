@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
+import { DeepRequiredNonNullable, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -74,7 +74,7 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 	/**
 	 * Instantiates the editor pane using the provided services.
 	 */
-	instantiate(instantiationService: IInstantiationService): T;
+	instantiate(instantiationService: IInstantiationService, group: IEditorGroup): T;
 
 	/**
 	 * Whether the descriptor is for the provided editor pane.
@@ -119,7 +119,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	readonly group: IEditorGroup | undefined;
+	readonly group: IEditorGroup;
 
 	/**
 	 * The minimum width of this editor.
@@ -327,7 +327,6 @@ export function findViewStateForEditor(input: EditorInput, group: GroupIdentifie
  */
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: EditorInput;
-	readonly group: IEditorGroup;
 }
 
 /**
@@ -489,6 +488,29 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+/**
+ * A resource list diff editor input compares multiple resources side by side
+ * highlighting the differences.
+ */
+export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
+	/**
+	 * A unique identifier of this multi diff editor input.
+	 * If a second multi diff editor with the same uri is opened, the existing one is revealed instead (even if the resources list is different!).
+	 */
+	readonly multiDiffSource?: URI;
+
+	/**
+	 * The list of resources to compare.
+	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
+	 */
+	readonly resources?: IResourceDiffEditorInput[];
+
+	/**
+	 * Whether the editor should be serialized and stored for subsequent sessions.
+	 */
+	readonly isTransient?: boolean;
+}
+
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
 
 /**
@@ -539,6 +561,22 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 	const candidate = editor as IResourceDiffEditorInput | undefined;
 
 	return candidate?.original !== undefined && candidate.modified !== undefined;
+}
+
+export function isResourceMultiDiffEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceMultiDiffEditorInput | undefined;
+	if (!candidate) {
+		return false;
+	}
+	if (candidate.resources && !Array.isArray(candidate.resources)) {
+		return false;
+	}
+
+	return !!candidate.resources || !!candidate.multiDiffSource;
 }
 
 export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {
@@ -760,7 +798,7 @@ export const enum EditorInputCapabilities {
 	AuxWindowUnsupported = 1 << 10
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
 
 export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
@@ -907,7 +945,7 @@ export interface IFileEditorInput extends EditorInput, IEncodingSupport, ILangua
 	isResolved(): boolean;
 }
 
-export interface IFileEditorInputOptions extends ITextEditorOptions {
+export interface IFileLimitedEditorInputOptions extends IEditorOptions {
 
 	/**
 	 * If provided, the size of the file will be checked against the limits
@@ -915,6 +953,8 @@ export interface IFileEditorInputOptions extends ITextEditorOptions {
 	 */
 	readonly limits?: IFileReadLimits;
 }
+
+export interface IFileEditorInputOptions extends ITextEditorOptions, IFileLimitedEditorInputOptions { }
 
 export function createTooLargeFileError(group: IEditorGroup, input: EditorInput, options: IEditorOptions | undefined, message: string, preferencesService: IPreferencesService): Error {
 	return createEditorOpenError(message, [
@@ -1066,6 +1106,14 @@ export interface IEditorWillMoveEvent extends IEditorIdentifier {
 
 export interface IEditorWillOpenEvent extends IEditorIdentifier { }
 
+export interface IWillInstantiateEditorPaneEvent {
+
+	/**
+	 * @see {@link IEditorDescriptor.typeId}
+	 */
+	readonly typeId: string;
+}
+
 export type GroupIdentifier = number;
 
 export const enum GroupModelChangeKind {
@@ -1084,6 +1132,7 @@ export const enum GroupModelChangeKind {
 	EDITOR_LABEL,
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
+	EDITOR_TRANSIENT,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
 	EDITOR_WILL_DISPOSE
@@ -1096,24 +1145,30 @@ export interface IWorkbenchEditorConfiguration {
 	};
 }
 
-export interface IEditorPartLimitConfiguration {
+interface IEditorPartLimitConfiguration {
 	enabled?: boolean;
 	excludeDirty?: boolean;
 	value?: number;
 	perEditorGroup?: boolean;
 }
 
-export interface IEditorPartDecorationsConfiguration {
+export interface IEditorPartLimitOptions extends Required<IEditorPartLimitConfiguration> { }
+
+interface IEditorPartDecorationsConfiguration {
 	badges?: boolean;
 	colors?: boolean;
 }
+
+export interface IEditorPartDecorationOptions extends Required<IEditorPartDecorationsConfiguration> { }
 
 interface IEditorPartConfiguration {
 	showTabs?: 'multiple' | 'single' | 'none';
 	wrapTabs?: boolean;
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
-	tabCloseButton?: 'left' | 'right' | 'off';
+	tabActionLocation?: 'left' | 'right';
+	tabActionCloseVisibility?: boolean;
+	tabActionUnpinVisibility?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
@@ -1139,14 +1194,16 @@ interface IEditorPartConfiguration {
 	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'auto' | 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
+	dragToOpenWindow?: boolean;
 	centeredLayoutFixedWidth?: boolean;
 	doubleClickTabToToggleEditorGroupSizes?: 'maximize' | 'expand' | 'off';
+	editorActionsLocation?: 'default' | 'titleBar' | 'hidden';
 	limit?: IEditorPartLimitConfiguration;
 	decorations?: IEditorPartDecorationsConfiguration;
 }
 
-export interface IEditorPartOptions extends IEditorPartConfiguration {
-	hasIcons?: boolean;
+export interface IEditorPartOptions extends DeepRequiredNonNullable<IEditorPartConfiguration> {
+	hasIcons: boolean;
 }
 
 export interface IEditorPartOptionsChangeEvent {
@@ -1253,7 +1310,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1322,7 +1379,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1580,4 +1637,9 @@ export function createEditorOpenError(messageOrError: string | Error, actions: I
 	error.allowDialog = options?.allowDialog;
 
 	return error;
+}
+
+export interface IToolbarActions {
+	readonly primary: IAction[];
+	readonly secondary: IAction[];
 }

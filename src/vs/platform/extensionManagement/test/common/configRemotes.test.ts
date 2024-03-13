@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { getDomainsOfRemotes, getRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
 
 suite('Config Remotes', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const allowedDomains = [
 		'github.com',
@@ -127,4 +130,5 @@ suite('Config Remotes', () => {
 	fetch = +refs/heads/*:refs/remotes/origin/*
 `;
 	}
+
 });

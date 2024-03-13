@@ -621,6 +621,7 @@ declare namespace monaco {
 		 * Test if `obj` is an `IPosition`.
 		 */
 		static isIPosition(obj: any): obj is IPosition;
+		toJSON(): IPosition;
 	}
 
 	/**
@@ -974,6 +975,8 @@ declare namespace monaco.editor {
 	 */
 	export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
+	export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices): any;
+
 	/**
 	 * Description of a command contribution
 	 */
@@ -1315,7 +1318,7 @@ declare namespace monaco.editor {
 		 * Controls whether completions should be computed based on words in the document.
 		 * Defaults to true.
 		 */
-		wordBasedSuggestions?: boolean;
+		wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 		/**
 		 * Controls whether word based completions should be included from opened documents of the same language or any language.
 		 */
@@ -1433,6 +1436,13 @@ declare namespace monaco.editor {
 	}
 	export interface ICommandHandler {
 		(...args: any[]): void;
+	}
+	export interface ILocalizedString {
+		original: string;
+		value: string;
+	}
+	export interface ICommandMetadata {
+		readonly description: ILocalizedString | string;
 	}
 
 	export interface IContextKey<T extends ContextKeyValue = ContextKeyValue> {
@@ -1570,7 +1580,29 @@ declare namespace monaco.editor {
 	 */
 	export enum GlyphMarginLane {
 		Left = 1,
-		Right = 2
+		Center = 2,
+		Right = 3
+	}
+
+	export interface IGlyphMarginLanesModel {
+		/**
+		 * The number of lanes that should be rendered in the editor.
+		 */
+		readonly requiredLanes: number;
+		/**
+		 * Gets the lanes that should be rendered starting at a given line number.
+		 */
+		getLanesAtLine(lineNumber: number): GlyphMarginLane[];
+		/**
+		 * Resets the model and ensures it can contain at least `maxLine` lines.
+		 */
+		reset(maxLine: number): void;
+		/**
+		 * Registers that a lane should be visible at the Range in the model.
+		 * @param persist - if true, notes that the lane should always be visible,
+		 * even on lines where there's no specific request for that lane.
+		 */
+		push(lane: GlyphMarginLane, range: Range, persist?: boolean): void;
 	}
 
 	/**
@@ -1599,6 +1631,11 @@ declare namespace monaco.editor {
 		 * The position in the glyph margin.
 		 */
 		position: GlyphMarginLane;
+		/**
+		 * Whether the glyph margin lane in {@link position} should be rendered even
+		 * outside of this decoration's range.
+		 */
+		persistLane?: boolean;
 	}
 
 	/**
@@ -1655,6 +1692,10 @@ declare namespace monaco.editor {
 		 */
 		hoverMessage?: IMarkdownString | IMarkdownString[] | null;
 		/**
+		 * Array of MarkdownString to render as the line number message.
+		 */
+		lineNumberHoverMessage?: IMarkdownString | IMarkdownString[] | null;
+		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
 		isWholeLine?: boolean;
@@ -1689,6 +1730,14 @@ declare namespace monaco.editor {
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
 		linesDecorationsClassName?: string | null;
+		/**
+		 * Controls the tooltip text of the line decoration.
+		 */
+		linesDecorationsTooltip?: string | null;
+		/**
+		 * If set, the decoration will be rendered on the line number.
+		 */
+		lineNumberClassName?: string | null;
 		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
 		 */
@@ -2434,7 +2483,7 @@ declare namespace monaco.editor {
 		modified: ITextModel;
 	}
 
-	export interface IDiffEditorViewModel {
+	export interface IDiffEditorViewModel extends IDisposable {
 		readonly model: IDiffEditorModel;
 		waitForDiff(): Promise<void>;
 	}
@@ -2469,6 +2518,7 @@ declare namespace monaco.editor {
 		readonly id: string;
 		readonly label: string;
 		readonly alias: string;
+		readonly metadata: ICommandMetadata | undefined;
 		isSupported(): boolean;
 		run(args?: unknown): Promise<void>;
 	}
@@ -2558,8 +2608,11 @@ declare namespace monaco.editor {
 		 * be called when the container of the editor gets resized.
 		 *
 		 * If a dimension is passed in, the passed in value will be used.
+		 *
+		 * By default, this will also render the editor immediately.
+		 * If you prefer to delay rendering to the next animation frame, use postponeRendering == true.
 		 */
-		layout(dimension?: IDimension): void;
+		layout(dimension?: IDimension, postponeRendering?: boolean): void;
 		/**
 		 * Brings browser focus to the editor text
 		 */
@@ -2768,6 +2821,10 @@ declare namespace monaco.editor {
 		 */
 		set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 		/**
+		 * Append `newDecorations` to this collection.
+		 */
+		append(newDecorations: readonly IModelDeltaDecoration[]): string[];
+		/**
 		 * Remove all previous decorations.
 		 */
 		clear(): void;
@@ -2881,6 +2938,7 @@ declare namespace monaco.editor {
 		readonly affectsMinimap: boolean;
 		readonly affectsOverviewRuler: boolean;
 		readonly affectsGlyphMargin: boolean;
+		readonly affectsLineNumber: boolean;
 	}
 
 	export interface IModelOptionsChangedEvent {
@@ -3397,6 +3455,7 @@ declare namespace monaco.editor {
 		 */
 		suggest?: ISuggestOptions;
 		inlineSuggest?: IInlineSuggestOptions;
+		experimentalInlineEdit?: IInlineEditOptions;
 		/**
 		 * Smart select options.
 		 */
@@ -3528,14 +3587,12 @@ declare namespace monaco.editor {
 		selectionHighlight?: boolean;
 		/**
 		 * Enable semantic occurrences highlight.
-		 * Defaults to true.
+		 * Defaults to 'singleFile'.
+		 * 'off' disables occurrence highlighting
+		 * 'singleFile' triggers occurrence highlighting in the current document
+		 * 'multiFile'  triggers occurrence highlighting across valid open documents
 		 */
-		occurrencesHighlight?: boolean;
-		/**
-		 * Enable semantic occurrences highlight.
-		 * Defaults to true.
-		 */
-		multiDocumentOccurrencesHighlight?: boolean;
+		occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 		/**
 		 * Show code lens
 		 * Defaults to true.
@@ -4115,15 +4172,24 @@ declare namespace monaco.editor {
 		readonly minimapCanvasOuterHeight: number;
 	}
 
+	export enum ShowLightbulbIconMode {
+		Off = 'off',
+		OnCode = 'onCode',
+		On = 'on'
+	}
+
 	/**
 	 * Configuration options for editor lightbulb
 	 */
 	export interface IEditorLightbulbOptions {
 		/**
 		 * Enable the lightbulb code action.
-		 * Defaults to true.
+		 * The three possible values are `off`, `on` and `onCode` and the default is `onCode`.
+		 * `off` disables the code action menu.
+		 * `on` shows the code action menu on code and on empty lines.
+		 * `onCode` shows the code action menu on code only.
 		 */
-		enabled?: boolean;
+		enabled?: ShowLightbulbIconMode;
 	}
 
 	export interface IEditorStickyScrollOptions {
@@ -4431,12 +4497,33 @@ declare namespace monaco.editor {
 		 * Defaults to `prefix`.
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
-		showToolbar?: 'always' | 'onHover';
+		showToolbar?: 'always' | 'onHover' | 'never';
 		suppressSuggestions?: boolean;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
 		keepOnBlur?: boolean;
+		/**
+		 * Font family for inline suggestions.
+		 */
+		fontFamily?: string | 'default';
+	}
+
+	export interface IInlineEditOptions {
+		/**
+		 * Enable or disable the rendering of automatic inline edit.
+		*/
+		enabled?: boolean;
+		showToolbar?: 'always' | 'onHover' | 'never';
+		/**
+		 * Font family for inline suggestions.
+		 */
+		fontFamily?: string | 'default';
+		/**
+		 * Does not clear active inline suggestions when the editor loses focus.
+		 */
+		keepOnBlur?: boolean;
+		backgroundColoring?: boolean;
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -4774,24 +4861,24 @@ declare namespace monaco.editor {
 		hover = 60,
 		inDiffEditor = 61,
 		inlineSuggest = 62,
-		letterSpacing = 63,
-		lightbulb = 64,
-		lineDecorationsWidth = 65,
-		lineHeight = 66,
-		lineNumbers = 67,
-		lineNumbersMinChars = 68,
-		linkedEditing = 69,
-		links = 70,
-		matchBrackets = 71,
-		minimap = 72,
-		mouseStyle = 73,
-		mouseWheelScrollSensitivity = 74,
-		mouseWheelZoom = 75,
-		multiCursorMergeOverlapping = 76,
-		multiCursorModifier = 77,
-		multiCursorPaste = 78,
-		multiCursorLimit = 79,
-		multiDocumentOccurrencesHighlight = 80,
+		inlineEdit = 63,
+		letterSpacing = 64,
+		lightbulb = 65,
+		lineDecorationsWidth = 66,
+		lineHeight = 67,
+		lineNumbers = 68,
+		lineNumbersMinChars = 69,
+		linkedEditing = 70,
+		links = 71,
+		matchBrackets = 72,
+		minimap = 73,
+		mouseStyle = 74,
+		mouseWheelScrollSensitivity = 75,
+		mouseWheelZoom = 76,
+		multiCursorMergeOverlapping = 77,
+		multiCursorModifier = 78,
+		multiCursorPaste = 79,
+		multiCursorLimit = 80,
 		occurrencesHighlight = 81,
 		overviewRulerBorder = 82,
 		overviewRulerLanes = 83,
@@ -4945,8 +5032,7 @@ declare namespace monaco.editor {
 		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, 'altKey' | 'metaKey' | 'ctrlKey'>;
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
 		multiCursorLimit: IEditorOption<EditorOption.multiCursorLimit, number>;
-		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
-		multiDocumentOccurrencesHighlight: IEditorOption<EditorOption.multiDocumentOccurrencesHighlight, boolean>;
+		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, 'off' | 'singleFile' | 'multiFile'>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		padding: IEditorOption<EditorOption.padding, Readonly<Required<IEditorPaddingOptions>>>;
@@ -4985,6 +5071,7 @@ declare namespace monaco.editor {
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
+		inlineEdit: IEditorOption<EditorOption.inlineEdit, Readonly<Required<IInlineEditOptions>>>;
 		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
@@ -5238,19 +5325,37 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Represents editor-relative coordinates of an overlay widget.
+	 */
+	export interface IOverlayWidgetPositionCoordinates {
+		/**
+		 * The top position for the overlay widget, relative to the editor.
+		 */
+		top: number;
+		/**
+		 * The left position for the overlay widget, relative to the editor.
+		 */
+		left: number;
+	}
+
+	/**
 	 * A position for rendering overlay widgets.
 	 */
 	export interface IOverlayWidgetPosition {
 		/**
 		 * The position preference for the overlay widget.
 		 */
-		preference: OverlayWidgetPositionPreference | null;
+		preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
 	}
 
 	/**
 	 * An overlay widgets renders on top of the text.
 	 */
 	export interface IOverlayWidget {
+		/**
+		 * Render this overlay widget in a location where it could overflow the editor's view dom node.
+		 */
+		allowEditorOverflow?: boolean;
 		/**
 		 * Get a unique identifier of the overlay widget.
 		 */
@@ -5402,6 +5507,7 @@ declare namespace monaco.editor {
 		readonly isAfterLines: boolean;
 		readonly glyphMarginLeft: number;
 		readonly glyphMarginWidth: number;
+		readonly glyphMarginLane?: GlyphMarginLane;
 		readonly lineNumbersWidth: number;
 		readonly offsetX: number;
 	}
@@ -5562,6 +5668,11 @@ declare namespace monaco.editor {
 		 * @event
 		 */
 		readonly onDidChangeCursorSelection: IEvent<ICursorSelectionChangedEvent>;
+		/**
+		 * An event emitted when the model of this editor is about to change (e.g. from `editor.setModel()`).
+		 * @event
+		 */
+		readonly onWillChangeModel: IEvent<IModelChangedEvent>;
 		/**
 		 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 		 * @event
@@ -5989,8 +6100,18 @@ declare namespace monaco.editor {
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
+		/**
+		 * Jumps to the next or previous diff.
+		 */
+		goToDiff(target: 'next' | 'previous'): void;
+		/**
+		 * Scrolls to the first diff.
+		 * (Waits until the diff computation finished.)
+		 */
+		revealFirstDiff(): unknown;
 		accessibleDiffViewerNext(): void;
 		accessibleDiffViewerPrev(): void;
+		handleInitialized(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {
@@ -6231,6 +6352,11 @@ declare namespace monaco.languages {
 	export function registerRenameProvider(languageSelector: LanguageSelector, provider: RenameProvider): IDisposable;
 
 	/**
+	 * Register a new symbol-name provider (e.g., when a symbol is being renamed, show new possible symbol-names)
+	 */
+	export function registerNewSymbolNameProvider(languageSelector: LanguageSelector, provider: NewSymbolNamesProvider): IDisposable;
+
+	/**
 	 * Register a signature help provider (used by e.g. parameter hints).
 	 */
 	export function registerSignatureHelpProvider(languageSelector: LanguageSelector, provider: SignatureHelpProvider): IDisposable;
@@ -6347,6 +6473,8 @@ declare namespace monaco.languages {
 	 * Register an inline completions provider.
 	 */
 	export function registerInlineCompletionsProvider(languageSelector: LanguageSelector, provider: InlineCompletionsProvider): IDisposable;
+
+	export function registerInlineEditProvider(languageSelector: LanguageSelector, provider: InlineEditProvider): IDisposable;
 
 	/**
 	 * Register an inlay hints provider.
@@ -6829,6 +6957,22 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	 * Info provided on partial acceptance.
+	 */
+	export interface PartialAcceptInfo {
+		kind: PartialAcceptTriggerKind;
+	}
+
+	/**
+	 * How a partial acceptance was triggered.
+	 */
+	export enum PartialAcceptTriggerKind {
+		Word = 0,
+		Line = 1,
+		Suggest = 2
+	}
+
+	/**
 	 * How a suggest provider was triggered.
 	 */
 	export enum CompletionTriggerKind {
@@ -6974,7 +7118,7 @@ declare namespace monaco.languages {
 		/**
 		 * Will be called when an item is partially accepted.
 		 */
-		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
@@ -7001,6 +7145,7 @@ declare namespace monaco.languages {
 		isPreferred?: boolean;
 		isAI?: boolean;
 		disabled?: string;
+		ranges?: IRange[];
 	}
 
 	export enum CodeActionTriggerType {
@@ -7142,6 +7287,20 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	 * Represents a set of document highlights for a specific Uri.
+	 */
+	export interface MultiDocumentHighlight {
+		/**
+		 * The Uri of the document that the highlights belong to.
+		 */
+		uri: Uri;
+		/**
+		 * The set of highlights for the document.
+		 */
+		highlights: DocumentHighlight[];
+	}
+
+	/**
 	 * The document highlight provider interface defines the contract between extensions and
 	 * the word-highlight-feature.
 	 */
@@ -7153,13 +7312,23 @@ declare namespace monaco.languages {
 		provideDocumentHighlights(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
 	}
 
+	/**
+	 * A provider that can provide document highlights across multiple documents.
+	 */
 	export interface MultiDocumentHighlightProvider {
+		selector: LanguageFilter;
 		/**
 		 * Provide a Map of Uri --> document highlights, like all occurrences of a variable or
 		 * all exit-points of a function.
 		 *
 		 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
 		 * with shared symbols.
+		 *
+		 * @param primaryModel The primary text model.
+		 * @param position The position at which to provide document highlights.
+		 * @param otherModels The other text models to search for document highlights.
+		 * @param token A cancellation token.
+		 * @returns A map of Uri to document highlights.
 		 */
 		provideMultiDocumentHighlights(primaryModel: editor.ITextModel, position: Position, otherModels: editor.ITextModel[], token: CancellationToken): ProviderResult<Map<Uri, DocumentHighlight[]>>;
 	}
@@ -7640,6 +7809,19 @@ declare namespace monaco.languages {
 		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 	}
 
+	export enum NewSymbolNameTag {
+		AIGenerated = 1
+	}
+
+	export interface NewSymbolName {
+		readonly newSymbolName: string;
+		readonly tags?: readonly NewSymbolNameTag[];
+	}
+
+	export interface NewSymbolNamesProvider {
+		provideNewSymbolNames(model: editor.ITextModel, range: IRange, token: CancellationToken): ProviderResult<NewSymbolName[]>;
+	}
+
 	export interface Command {
 		id: string;
 		title: string;
@@ -7647,11 +7829,16 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
+	export interface CommentAuthorInformation {
+		name: string;
+		iconPath?: UriComponents;
+	}
+
 	export interface PendingCommentThread {
 		body: string;
-		range: IRange;
+		range: IRange | undefined;
 		uri: Uri;
-		owner: string;
+		uniqueOwner: string;
 		isReply: boolean;
 	}
 
@@ -7762,6 +7949,27 @@ declare namespace monaco.languages {
 		 * @returns A provider result of text edits.
 		 */
 		provideMappedEdits(document: editor.ITextModel, codeBlocks: string[], context: MappedEditsContext, token: CancellationToken): Promise<WorkspaceEdit | null>;
+	}
+
+	export interface IInlineEdit {
+		text: string;
+		range: IRange;
+		accepted?: Command;
+		rejected?: Command;
+	}
+
+	export interface IInlineEditContext {
+		triggerKind: InlineEditTriggerKind;
+	}
+
+	export enum InlineEditTriggerKind {
+		Invoke = 0,
+		Automatic = 1
+	}
+
+	export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+		provideInlineEdit(model: editor.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
+		freeInlineEdit(edit: T): void;
 	}
 
 	export interface ILanguageExtensionPoint {

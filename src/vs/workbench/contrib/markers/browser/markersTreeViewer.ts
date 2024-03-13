@@ -51,6 +51,8 @@ import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/marker
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import Severity from 'vs/base/common/severity';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 interface IResourceMarkersTemplateData {
 	readonly resourceLabel: IResourceLabel;
@@ -150,7 +152,7 @@ export type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedI
 
 export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, ResourceMarkersFilterData, IResourceMarkersTemplateData> {
 
-	private renderedNodes = new Map<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, IResourceMarkersTemplateData>();
+	private renderedNodes = new Map<ResourceMarkers, IResourceMarkersTemplateData[]>();
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -185,11 +187,23 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		}
 
 		this.updateCount(node, templateData);
-		this.renderedNodes.set(node, templateData);
+		const nodeRenders = this.renderedNodes.get(resourceMarkers) ?? [];
+		this.renderedNodes.set(resourceMarkers, [...nodeRenders, templateData]);
 	}
 
-	disposeElement(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
-		this.renderedNodes.delete(node);
+	disposeElement(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, index: number, templateData: IResourceMarkersTemplateData): void {
+		const nodeRenders = this.renderedNodes.get(node.element) ?? [];
+		const nodeRenderIndex = nodeRenders.findIndex(nodeRender => templateData === nodeRender);
+
+		if (nodeRenderIndex < 0) {
+			throw new Error('Disposing unknown resource marker');
+		}
+
+		if (nodeRenders.length === 1) {
+			this.renderedNodes.delete(node.element);
+		} else {
+			nodeRenders.splice(nodeRenderIndex, 1);
+		}
 	}
 
 	disposeTemplate(templateData: IResourceMarkersTemplateData): void {
@@ -197,13 +211,13 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	}
 
 	private onDidChangeRenderNodeCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
-		const templateData = this.renderedNodes.get(node);
+		const nodeRenders = this.renderedNodes.get(node.element);
 
-		if (!templateData) {
+		if (!nodeRenders) {
 			return;
 		}
 
-		this.updateCount(node, templateData);
+		nodeRenders.forEach(nodeRender => this.updateCount(node, nodeRender));
 	}
 
 	private updateCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, templateData: IResourceMarkersTemplateData): void {
@@ -273,6 +287,7 @@ class MarkerWidget extends Disposable {
 	private readonly icon: HTMLElement;
 	private readonly iconContainer: HTMLElement;
 	private readonly messageAndDetailsContainer: HTMLElement;
+	private readonly messageAndDetailsContainerHover: ICustomHover;
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
@@ -283,7 +298,7 @@ class MarkerWidget extends Disposable {
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
+			actionViewItemProvider: (action: IAction, options) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action, options) : undefined
 		}));
 
 		// wrap the icon in a container that get the icon color as foreground color. That way, if the
@@ -292,6 +307,7 @@ class MarkerWidget extends Disposable {
 		this.iconContainer = dom.append(parent, dom.$(''));
 		this.icon = dom.append(this.iconContainer, dom.$(''));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
+		this.messageAndDetailsContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.messageAndDetailsContainer, ''));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
@@ -330,9 +346,9 @@ class MarkerWidget extends Disposable {
 
 	private renderMultilineActionbar(marker: Marker, parent: HTMLElement): void {
 		const multilineActionbar = this.disposables.add(new ActionBar(dom.append(parent, dom.$('.multiline-actions')), {
-			actionViewItemProvider: (action) => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === toggleMultilineAction) {
-					return new ToggleMultilineActionViewItem(undefined, action, { icon: true });
+					return new ToggleMultilineActionViewItem(undefined, action, { ...options, icon: true });
 				}
 				return undefined;
 			}
@@ -354,13 +370,13 @@ class MarkerWidget extends Disposable {
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
 		const lineMatches = filterData && filterData.lineMatches || [];
-		this.messageAndDetailsContainer.title = element.marker.message;
+		this.messageAndDetailsContainerHover.update(element.marker.message);
 
 		const lineElements: HTMLElement[] = [];
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
 			const lineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
 			const messageElement = dom.append(lineElement, dom.$('.marker-message'));
-			const highlightedLabel = new HighlightedLabel(messageElement);
+			const highlightedLabel = this.disposables.add(new HighlightedLabel(messageElement));
 			highlightedLabel.set(lines[index].length > 1000 ? `${lines[index].substring(0, 1000)}...` : lines[index], lineMatches[index]);
 			if (lines[index] === '') {
 				lineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
@@ -375,18 +391,18 @@ class MarkerWidget extends Disposable {
 		parent.classList.add('details-container');
 
 		if (marker.source || marker.code) {
-			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')));
+			const source = this.disposables.add(new HighlightedLabel(dom.append(parent, dom.$('.marker-source'))));
 			const sourceMatches = filterData && filterData.sourceMatches || [];
 			source.set(marker.source, sourceMatches);
 
 			if (marker.code) {
 				if (typeof marker.code === 'string') {
-					const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')));
+					const code = this.disposables.add(new HighlightedLabel(dom.append(parent, dom.$('.marker-code'))));
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code, codeMatches);
 				} else {
 					const container = dom.$('.marker-code');
-					const code = new HighlightedLabel(container);
+					const code = this.disposables.add(new HighlightedLabel(container));
 					const link = marker.code.target.toString(true);
 					this.disposables.add(new Link(parent, { href: link, label: container, title: link }, undefined, this._openerService));
 					const codeMatches = filterData && filterData.codeMatches || [];
@@ -431,15 +447,15 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 		const messageMatches = node.filterData && node.filterData.messageMatches || [];
 
-		templateData.resourceLabel.set(basename(relatedInformation.resource), uriMatches);
-		templateData.resourceLabel.element.title = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
+		const resourceLabelTitle = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
+		templateData.resourceLabel.set(basename(relatedInformation.resource), uriMatches, resourceLabelTitle);
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
-		templateData.description.set(relatedInformation.message, messageMatches);
-		templateData.description.element.title = relatedInformation.message;
+		templateData.description.set(relatedInformation.message, messageMatches, relatedInformation.message);
 	}
 
 	disposeTemplate(templateData: IRelatedInformationTemplateData): void {
-		// noop
+		templateData.resourceLabel.dispose();
+		templateData.description.dispose();
 	}
 }
 

@@ -80,6 +80,7 @@ steps:
       set -e
       export npm_config_arch=$(VSCODE_ARCH)
       npm i -g node-gyp@9.4.0
+      python3 -m pip install setuptools
 
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break

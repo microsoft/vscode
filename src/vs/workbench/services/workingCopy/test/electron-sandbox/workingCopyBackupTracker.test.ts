@@ -28,14 +28,14 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService, TestTextResourceConfigurationService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestWorkspace, Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestMarkerService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -147,6 +147,8 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const configurationService = new TestConfigurationService();
 		if (autoSaveEnabled) {
 			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
+		} else {
+			configurationService.setUserConfiguration('files', { autoSave: 'off', autoSaveDelay: 1 });
 		}
 		instantiationService.stub(IConfigurationService, configurationService);
 
@@ -156,7 +158,9 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			new TestContextService(TestWorkspace),
 			TestEnvironmentService,
 			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
-			disposables.add(new TestFileService())
+			disposables.add(new TestFileService()),
+			new TestMarkerService(),
+			new TestTextResourceConfigurationService(configurationService)
 		)));
 
 		const part = await createEditorPart(instantiationService, disposables);

@@ -77,7 +77,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
-		if (this.groupsView.partOptions.showTabs !== 'multiple') {
+		if (this.groupsView.partOptions.showTabs === 'single') {
 			return undefined; // Single tabs have breadcrumbs inlined. No tabs have no breadcrumbs.
 		}
 
@@ -175,7 +175,7 @@ export class EditorTitleControl extends Themable {
 		// Update editor tabs control if options changed
 		if (
 			oldOptions.showTabs !== newOptions.showTabs ||
-			(newOptions.showTabs === 'multiple' && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
+			(newOptions.showTabs !== 'single' && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
 		) {
 			// Clear old
 			this.editorTabsControlDisposable.clear();

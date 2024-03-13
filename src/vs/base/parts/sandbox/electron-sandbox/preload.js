@@ -56,24 +56,23 @@
 		}
 
 		try {
-			if (validateIPC(windowConfigIpcChannel)) {
+			validateIPC(windowConfigIpcChannel);
 
-				// Resolve configuration from electron-main
-				configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+			// Resolve configuration from electron-main
+			const resolvedConfiguration = configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
 
-				// Apply `userEnv` directly
-				Object.assign(process.env, configuration.userEnv);
+			// Apply `userEnv` directly
+			Object.assign(process.env, resolvedConfiguration.userEnv);
 
-				// Apply zoom level early before even building the
-				// window DOM elements to avoid UI flicker. We always
-				// have to set the zoom level from within the window
-				// because Chrome has it's own way of remembering zoom
-				// settings per origin (if vscode-file:// is used) and
-				// we want to ensure that the user configuration wins.
-				webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
+			// Apply zoom level early before even building the
+			// window DOM elements to avoid UI flicker. We always
+			// have to set the zoom level from within the window
+			// because Chrome has it's own way of remembering zoom
+			// settings per origin (if vscode-file:// is used) and
+			// we want to ensure that the user configuration wins.
+			webFrame.setZoomLevel(resolvedConfiguration.zoomLevel ?? 0);
 
-				return configuration;
-			}
+			return resolvedConfiguration;
 		} catch (error) {
 			throw new Error(`Preload: unable to fetch vscode-window-config: ${error}`);
 		}
@@ -145,51 +144,51 @@
 			/**
 			 * @param {string} channel
 			 * @param {any[]} args
-			 * @returns {Promise<any> | never}
+			 * @returns {Promise<any>}
 			 */
 			invoke(channel, ...args) {
-				if (validateIPC(channel)) {
-					return ipcRenderer.invoke(channel, ...args);
-				}
+				validateIPC(channel);
+
+				return ipcRenderer.invoke(channel, ...args);
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer | never}
+			 * @returns {IpcRenderer}
 			 */
 			on(channel, listener) {
-				if (validateIPC(channel)) {
-					ipcRenderer.on(channel, listener);
+				validateIPC(channel);
 
-					return this;
-				}
+				ipcRenderer.on(channel, listener);
+
+				return this;
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer | never}
+			 * @returns {IpcRenderer}
 			 */
 			once(channel, listener) {
-				if (validateIPC(channel)) {
-					ipcRenderer.once(channel, listener);
+				validateIPC(channel);
 
-					return this;
-				}
+				ipcRenderer.once(channel, listener);
+
+				return this;
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer | never}
+			 * @returns {IpcRenderer}
 			 */
 			removeListener(channel, listener) {
-				if (validateIPC(channel)) {
-					ipcRenderer.removeListener(channel, listener);
+				validateIPC(channel);
 
-					return this;
-				}
+				ipcRenderer.removeListener(channel, listener);
+
+				return this;
 			}
 		},
 

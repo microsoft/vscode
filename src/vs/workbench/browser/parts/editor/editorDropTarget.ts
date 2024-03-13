@@ -144,7 +144,6 @@ class DropOverlay extends Themable {
 
 	private registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
-			onDragEnter: e => undefined,
 			onDragOver: e => {
 				if (this.enableDropIntoEditor && isDragIntoEditorEvent(e)) {
 					this.dispose();
@@ -373,7 +372,7 @@ class DropOverlay extends Themable {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: !isWeb || isTemporaryWorkspace(this.contextService.getWorkspace()) });
-			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => targetGroup?.focus());
+			dropHandler.handleDrop(event, getWindow(this.groupView.element), () => ensureTargetGroup(), targetGroup => targetGroup?.focus());
 		}
 	}
 

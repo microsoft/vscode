@@ -10,7 +10,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from 'xterm';
+import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -28,7 +28,7 @@ suite('DecorationAddon', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		class TestTerminal extends TerminalCtor {
 			override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
 				if (decorationOptions.marker.isDisposed) {

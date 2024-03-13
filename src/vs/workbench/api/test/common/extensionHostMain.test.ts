@@ -9,6 +9,7 @@ import { isFirefox, isSafari } from 'vs/base/common/platform';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -68,6 +69,8 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 
 	let existingErrorHandler: (e: any) => void;
 	let findSubstrCount = 0;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(async function () {
 		existingErrorHandler = errorHandler.getUnexpectedErrorHandler();

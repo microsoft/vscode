@@ -10,7 +10,7 @@ import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -22,15 +22,22 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ImplicitActivationAwareReader } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-// eslint-disable-next-line local/code-import-patterns
+import { mainWindow } from 'vs/base/browser/window';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
 	private readonly _providers = new Map<string, IIssueDataProvider>();
+	private readonly _activationEventReader = new ImplicitActivationAwareReader();
+	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 
 	constructor(
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
@@ -43,6 +50,10 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILogService private readonly logService: ILogService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		ipcRenderer.on('vscode:triggerIssueUriRequestHandler', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
 			const result = await this.getIssueReporterUri(request.extensionId, CancellationToken.None);
@@ -55,6 +66,51 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		ipcRenderer.on('vscode:triggerIssueDataTemplate', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
 			const result = await this.getIssueTemplate(request.extensionId, CancellationToken.None);
 			ipcRenderer.send(request.replyChannel, result);
+		});
+		ipcRenderer.on('vscode:triggerReporterStatus', async (event, arg) => {
+			const extensionId = arg.extensionId;
+			const extension = await this.extensionService.getExtension(extensionId);
+			if (extension) {
+				const activationEvents = this._activationEventReader.readActivationEvents(extension);
+				for (const activationEvent of activationEvents) {
+					if (activationEvent === 'onIssueReporterOpened') {
+						const eventName = `onIssueReporterOpened:${ExtensionIdentifier.toKey(extension.identifier)}`;
+						try {
+							await this.extensionService.activateById(extension.identifier, { startup: false, extensionId: extension.identifier, activationEvent: eventName });
+						} catch (e) {
+							this.logService.error(`Error activating extension ${extensionId}: ${e}`);
+						}
+						break;
+					}
+				}
+			}
+			const result = [this._providers.has(extensionId.toLowerCase()), this._handlers.has(extensionId.toLowerCase())];
+			ipcRenderer.send(`vscode:triggerReporterStatusResponse`, result);
+		});
+		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
+			const extensionId = arg.extensionId;
+
+			// creates menu from contributed
+			const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+
+			// render menu and dispose
+			const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+			actions.forEach(async action => {
+				try {
+					if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
+						this.extensionIdentifierSet.add(extensionId);
+						await action.run();
+					}
+				} catch (error) {
+					console.error(error);
+				}
+			});
+
+			if (!this.extensionIdentifierSet.has(extensionId)) {
+				// send undefined to indicate no action was taken
+				ipcRenderer.send(`vscode:triggerReporterMenuResponse:${extensionId}`, undefined);
+			}
+			menu.dispose();
 		});
 	}
 
@@ -78,6 +134,8 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					hasIssueDataProviders: this._providers.has(extension.identifier.id.toLowerCase()),
 					displayName: manifest.displayName,
 					id: extension.identifier.id,
+					data: dataOverrides.data,
+					uri: dataOverrides.uri,
 					isTheme,
 					isBuiltin,
 					extensionData: 'Extensions data loading',
@@ -119,13 +177,25 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		const theme = this.themeService.getColorTheme();
 		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
-			zoomLevel: getZoomLevel(),
+			zoomLevel: getZoomLevel(mainWindow),
 			enabledExtensions: extensionData,
 			experiments: experiments?.join('\n'),
 			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
 			isUnsupported,
 			githubAccessToken
 		}, dataOverrides);
+
+		if (issueReporterData.extensionId) {
+			const extensionExists = extensionData.some(extension => extension.id === issueReporterData.extensionId);
+			if (!extensionExists) {
+				console.error(`Extension with ID ${issueReporterData.extensionId} does not exist.`);
+			}
+		}
+
+		if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
+			ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
+			this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
+		}
 		return this.issueMainService.openReporter(issueReporterData);
 	}
 
@@ -133,7 +203,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		const theme = this.themeService.getColorTheme();
 		const data: ProcessExplorerData = {
 			pid: this.environmentService.mainPid,
-			zoomLevel: getZoomLevel(),
+			zoomLevel: getZoomLevel(mainWindow),
 			styles: {
 				backgroundColor: getColor(theme, editorBackground),
 				color: getColor(theme, editorForeground),

@@ -53,7 +53,7 @@ class SelectToBracketAction extends EditorAction {
 			alias: 'Select to Bracket',
 			precondition: undefined,
 			metadata: {
-				description: `Select to Bracket`,
+				description: nls.localize2('smartSelect.selectToBracketDescription', "Select the text inside and including the brackets or curly braces"),
 				args: [{
 					name: 'args',
 					schema: {

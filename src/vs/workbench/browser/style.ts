@@ -10,6 +10,7 @@ import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
 import { isSafari, isStandalone } from 'vs/base/browser/browser';
 import { selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { mainWindow } from 'vs/base/browser/window';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -28,7 +29,7 @@ registerThemingParticipant((theme, collector) => {
 		const titleBackground = theme.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
 		if (titleBackground) {
 			const metaElementId = 'monaco-workbench-meta-theme-color';
-			let metaElement = document.getElementById(metaElementId) as HTMLMetaElement | null;
+			let metaElement = mainWindow.document.getElementById(metaElementId) as HTMLMetaElement | null;
 			if (!metaElement) {
 				metaElement = createMetaElement();
 				metaElement.name = 'theme-color';

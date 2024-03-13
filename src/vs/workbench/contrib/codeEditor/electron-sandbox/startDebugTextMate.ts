@@ -29,7 +29,7 @@ class StartDebugTextMate extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.startDebugTextMate',
-			title: { value: nls.localize('startDebugTextMate', "Start Text Mate Syntax Grammar Logging"), original: 'Start Text Mate Syntax Grammar Logging' },
+			title: nls.localize2('startDebugTextMate', "Start Text Mate Syntax Grammar Logging"),
 			category: Categories.Developer,
 			f1: true
 		});

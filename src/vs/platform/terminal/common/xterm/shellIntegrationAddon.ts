@@ -18,7 +18,7 @@ import { Emitter } from 'vs/base/common/event';
 import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { ITerminalAddon, Terminal } from 'xterm-headless';
+import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from 'vs/base/common/uri';
 import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 

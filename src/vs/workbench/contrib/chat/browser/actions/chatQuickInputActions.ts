@@ -5,14 +5,16 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Selection } from 'vs/editor/common/core/selection';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IQuickChatService, IQuickChatOpenOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
 export function registerQuickChatActions() {
@@ -22,10 +24,7 @@ export function registerQuickChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.quickchat.openInChatView',
-				title: {
-					value: localize('chat.openInChatView.label', "Open in Chat View"),
-					original: 'Open in Chat View'
-				},
+				title: localize2('chat.openInChatView.label', "Open in Chat View"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.commentDiscussion,
@@ -47,10 +46,7 @@ export function registerQuickChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.quickchat.close',
-				title: {
-					value: localize('chat.closeQuickChat.label', "Close Quick Chat"),
-					original: 'Close Quick Chat'
-				},
+				title: localize2('chat.closeQuickChat.label', "Close Quick Chat"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.close,
@@ -67,13 +63,44 @@ export function registerQuickChatActions() {
 			quickChatService.close();
 		}
 	});
+
+	registerAction2(class LaunchInlineChatFromQuickChatAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.quickchat.launchInlineChat',
+				title: localize2('chat.launchInlineChat.label', "Launch Inline Chat"),
+				f1: false,
+				category: CHAT_CATEGORY
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const quickChatService = accessor.get(IQuickChatService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+			if (quickChatService.focused) {
+				quickChatService.close();
+			}
+			const codeEditor = codeEditorService.getActiveCodeEditor();
+			if (!codeEditor) {
+				return;
+			}
+
+			const controller = InlineChatController.get(codeEditor);
+			if (!controller) {
+				return;
+			}
+
+			await controller.run();
+			controller.focus();
+		}
+	});
 }
 
 class QuickChatGlobalAction extends Action2 {
 	constructor() {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
-			title: { value: localize('quickChat', "Quick Chat"), original: 'Quick Chat' },
+			title: localize2('quickChat', 'Quick Chat'),
 			precondition: CONTEXT_PROVIDER_EXISTS,
 			icon: Codicon.commentDiscussion,
 			f1: false,
@@ -144,7 +171,7 @@ export function getQuickChatActionForProvider(id: string, label: string) {
 			super({
 				id: `workbench.action.openQuickChat.${id}`,
 				category: CHAT_CATEGORY,
-				title: { value: localize('interactiveSession.open', "Open Quick Chat ({0})", label), original: `Open Quick Chat (${label})` },
+				title: localize2('interactiveSession.open', "Open Quick Chat ({0})", label),
 				f1: true
 			});
 		}

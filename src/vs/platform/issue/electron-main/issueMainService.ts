@@ -5,7 +5,7 @@
 
 import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
 import { arch, release, type } from 'os';
-import { Promises, timeout } from 'vs/base/common/async';
+import { Promises, raceTimeout, timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -179,7 +179,6 @@ export class IssueMainService implements IIssueMainService {
 
 				this.issueReporterWindow.on('close', () => {
 					this.issueReporterWindow = null;
-
 					issueReporterDisposables.dispose();
 				});
 
@@ -187,14 +186,13 @@ export class IssueMainService implements IIssueMainService {
 					if (this.issueReporterWindow) {
 						this.issueReporterWindow.close();
 						this.issueReporterWindow = null;
-
 						issueReporterDisposables.dispose();
 					}
 				});
 			}
 		}
 
-		if (this.issueReporterWindow) {
+		else if (this.issueReporterWindow) {
 			this.focusWindow(this.issueReporterWindow);
 		}
 	}
@@ -442,6 +440,32 @@ export class IssueMainService implements IIssueMainService {
 		});
 	}
 
+	async $getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
+		const defaultResult = [false, false];
+		const window = this.issueReporterWindowCheck();
+		const replyChannel = `vscode:triggerReporterStatus`;
+		const cts = new CancellationTokenSource();
+		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once('vscode:triggerReporterStatusResponse', (_: unknown, data: boolean[]) => resolve(data))), 2000, () => {
+			this.logService.error('Error: Extension timed out waiting for reporter status');
+			cts.cancel();
+		});
+		return (result ?? defaultResult) as boolean[];
+	}
+
+
+	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+		const window = this.issueReporterWindowCheck();
+		const replyChannel = `vscode:triggerReporterMenu`;
+		const cts = new CancellationTokenSource();
+		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once(`vscode:triggerReporterMenuResponse:${extensionId}`, (_: unknown, data: IssueReporterData | undefined) => resolve(data))), 5000, () => {
+			this.logService.error(`Error: Extension ${extensionId} timed out waiting for menu response`);
+			cts.cancel();
+		});
+		return result as IssueReporterData | undefined;
+	}
+
 	async $closeReporter(): Promise<void> {
 		this.issueReporterWindow?.close();
 	}
@@ -554,11 +578,11 @@ export class IssueMainService implements IIssueMainService {
 				state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
 			}
 
-			if (state.width! > displayBounds.width) {
+			if (state.width > displayBounds.width) {
 				state.width = displayBounds.width; // prevent window from exceeding display bounds width
 			}
 
-			if (state.height! > displayBounds.height) {
+			if (state.height > displayBounds.height) {
 				state.height = displayBounds.height; // prevent window from exceeding display bounds height
 			}
 		}

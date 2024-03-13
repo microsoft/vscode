@@ -51,6 +51,14 @@ export class ImplicitActivationEventsImpl {
 		}
 
 		const activationEvents: string[] = (Array.isArray(desc.activationEvents) ? desc.activationEvents.slice(0) : []);
+
+		for (let i = 0; i < activationEvents.length; i++) {
+			// TODO@joao: there's no easy way to contribute this
+			if (activationEvents[i] === 'onUri') {
+				activationEvents[i] = `onUri:${ExtensionIdentifier.toKey(desc.identifier)}`;
+			}
+		}
+
 		if (!desc.contributes) {
 			// no implicit activation events
 			return activationEvents;

@@ -17,8 +17,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
-import { getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
-import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isString } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isNative } from 'vs/base/common/platform';
@@ -88,7 +87,6 @@ export class PaneCompositeBar extends Disposable {
 
 	private readonly viewContainerDisposables = this._register(new DisposableMap<string, IDisposable>());
 	private readonly location: ViewContainerLocation;
-	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
 
 	private readonly compositeBar: CompositeBar;
 	readonly dndHandler: ICompositeDragAndDrop;
@@ -113,7 +111,7 @@ export class PaneCompositeBar extends Disposable {
 			? ViewContainerLocation.Panel : paneCompositePart.partId === Parts.AUXILIARYBAR_PART
 				? ViewContainerLocation.AuxiliaryBar : ViewContainerLocation.Sidebar;
 
-		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, this.location,
+		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, this.location, this.options.orientation,
 			async (id: string, focus?: boolean) => { return await this.paneCompositePart.openPaneComposite(id, focus) ?? null; },
 			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, this.options.orientation === ActionsOrientation.VERTICAL ? before?.verticallyBefore : before?.horizontallyBefore),
 			() => this.compositeBar.getCompositeBarItems(),
@@ -209,12 +207,6 @@ export class PaneCompositeBar extends Disposable {
 
 		if (to === this.location) {
 			this.onDidRegisterViewContainers([container]);
-
-			// Open view container if part is visible and there is no other view container opened
-			const visibleComposites = this.compositeBar.getVisibleComposites();
-			if (!this.paneCompositePart.getActivePaneComposite() && this.layoutService.isVisible(this.paneCompositePart.partId) && visibleComposites.length) {
-				this.paneCompositePart.openPaneComposite(visibleComposites[0].id);
-			}
 		}
 	}
 
@@ -378,16 +370,9 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private showOrHideViewContainer(viewContainer: ViewContainer): void {
-		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
-		if (!contextKey) {
-			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
-			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
-		}
 		if (this.shouldBeHidden(viewContainer)) {
-			contextKey.set(false);
 			this.hideComposite(viewContainer.id);
 		} else {
-			contextKey.set(true);
 			this.addComposite(viewContainer);
 		}
 	}
@@ -407,7 +392,7 @@ export class PaneCompositeBar extends Disposable {
 		}
 
 		// Check cache only if extensions are not yet registered and current window is not native (desktop) remote connection window
-		if (this.options.icon && !this.hasExtensionsRegistered && !(this.environmentService.remoteAuthority && isNative)) {
+		if (!this.hasExtensionsRegistered && !(this.part === Parts.SIDEBAR_PART && this.environmentService.remoteAuthority && isNative)) {
 			cachedViewContainer = cachedViewContainer || this.cachedViewContainers.find(({ id }) => id === viewContainerId);
 
 			// Show builtin ViewContainer if not registered yet
@@ -499,7 +484,7 @@ export class PaneCompositeBar extends Disposable {
 					name: cachedViewContainer.name,
 					order: cachedViewContainer.order,
 					pinned: cachedViewContainer.pinned,
-					visible: cachedViewContainer.visible,
+					visible: cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id),
 				});
 			}
 

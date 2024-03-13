@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, registerTestFileEditor, registerTestResourceEditor, createEditorPart, TestEnvironmentService, TestFileService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, registerTestFileEditor, registerTestResourceEditor, createEditorPart, TestEnvironmentService, TestFileService, workbenchTeardown, TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IResolvedTextFileEditorModel, snapshotToString, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -27,7 +27,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 suite('Files - TextFileEditorTracker', () => {
@@ -53,23 +53,27 @@ suite('Files - TextFileEditorTracker', () => {
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor; cleanup: () => Promise<void> }> {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
+		const configurationService = new TestConfigurationService();
 		if (autoSaveEnabled) {
-			const configurationService = new TestConfigurationService();
 			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
-
-			instantiationService.stub(IConfigurationService, configurationService);
-
-			const fileService = disposables.add(new TestFileService());
-
-			instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
-				<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-				configurationService,
-				new TestContextService(TestWorkspace),
-				TestEnvironmentService,
-				disposables.add(new UriIdentityService(fileService)),
-				fileService
-			)));
+		} else {
+			configurationService.setUserConfiguration('files', { autoSave: 'off', autoSaveDelay: 1 });
 		}
+
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		const fileService = disposables.add(new TestFileService());
+
+		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
+			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
+			configurationService,
+			new TestContextService(TestWorkspace),
+			TestEnvironmentService,
+			disposables.add(new UriIdentityService(fileService)),
+			fileService,
+			new TestMarkerService(),
+			new TestTextResourceConfigurationService(configurationService)
+		)));
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);

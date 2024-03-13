@@ -5,78 +5,101 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BaseAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { getGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { AuxiliaryWindow, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { DeferredPromise } from 'vs/base/common/async';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { CodeWindow } from 'vs/base/browser/window';
+import { mark } from 'vs/base/common/performance';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Barrier } from 'vs/base/common/async';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { getZoomLevel } from 'vs/base/browser/browser';
 import { getActiveWindow } from 'vs/base/browser/dom';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-type AuxiliaryWindow = BaseAuxiliaryWindow & {
-	readonly vscodeWindowId: Promise<number>;
+type NativeCodeWindow = CodeWindow & {
+	readonly vscode: ISandboxGlobals;
 };
 
-export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
-	const candidate = obj as AuxiliaryWindow | undefined;
+export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 
-	return candidate?.vscodeWindowId instanceof Promise;
+	private skipUnloadConfirmation = false;
+
+	constructor(
+		window: CodeWindow,
+		container: HTMLElement,
+		stylesHaveLoaded: Barrier,
+		@IConfigurationService configurationService: IConfigurationService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+	) {
+		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService);
+	}
+
+	protected override async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {
+		if (this.skipUnloadConfirmation) {
+			return;
+		}
+
+		e.preventDefault();
+		e.returnValue = true;
+
+		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeAuxiliaryWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
+		if (confirmed) {
+			this.skipUnloadConfirmation = true;
+			this.nativeHostService.closeWindow({ targetWindowId: this.window.vscodeWindowId });
+		}
+	}
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IDialogService dialogService: IDialogService
+		@IDialogService dialogService: IDialogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(layoutService, dialogService);
+		super(layoutService, dialogService, configurationService, telemetryService, hostService, environmentService);
 	}
 
-	protected override create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
+	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {
+		mark('code/auxiliaryWindow/willResolveWindowId');
+		const windowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
+		mark('code/auxiliaryWindow/didResolveWindowId');
 
-		// Zoom level
-		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
-		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
-		getGlobals(auxiliaryWindow)?.webFrame?.setZoomLevel(windowZoomLevel);
-
-		return super.create(auxiliaryWindow, disposables);
+		return windowId;
 	}
 
-	protected override patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
-		super.patchMethods(auxiliaryWindow);
+	protected override createContainer(auxiliaryWindow: NativeCodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions) {
 
-		// Obtain window identifier
-		const windowId = new DeferredPromise<number>();
-		(async () => {
-			windowId.complete(await getGlobals(auxiliaryWindow)?.ipcRenderer.invoke('vscode:getWindowId'));
-		})();
+		// Zoom level (either explicitly provided or inherited from main window)
+		let windowZoomLevel: number;
+		if (typeof options?.zoomLevel === 'number') {
+			windowZoomLevel = options.zoomLevel;
+		} else {
+			windowZoomLevel = getZoomLevel(getActiveWindow());
+		}
 
-		// Add a `windowId` property
-		Object.defineProperty(auxiliaryWindow, 'vscodeWindowId', {
-			value: windowId.p,
-			writable: false,
-			enumerable: false,
-			configurable: false
-		});
+		applyZoom(windowZoomLevel, auxiliaryWindow);
 
-		// Enable `window.focus()` to work in Electron by
-		// asking the main process to focus the window.
-		// https://github.com/electron/electron/issues/25578
-		const that = this;
-		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
-		auxiliaryWindow.focus = async function () {
-			if (getActiveWindow() === auxiliaryWindow) {
-				return;
-			}
+		return super.createContainer(auxiliaryWindow, disposables);
+	}
 
-			originalWindowFocus();
-
-			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
-		};
+	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier,): AuxiliaryWindow {
+		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService);
 	}
 }
 

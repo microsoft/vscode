@@ -19,11 +19,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IdleValue } from 'vs/base/common/async';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { mainWindow } from 'vs/base/browser/window';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -66,6 +66,10 @@ class DocumentSymbolGroupTemplate {
 		readonly labelContainer: HTMLElement,
 		readonly label: HighlightedLabel,
 	) { }
+
+	dispose() {
+		this.label.dispose();
+	}
 }
 
 class DocumentSymbolTemplate {
@@ -107,7 +111,7 @@ export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, 
 	}
 
 	disposeTemplate(_template: DocumentSymbolGroupTemplate): void {
-		// nothing
+		_template.dispose();
 	}
 }
 
@@ -117,6 +121,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 	constructor(
 		private _renderMarker: boolean,
+		target: OutlineTarget,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
@@ -169,16 +174,23 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
-		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
-			template.container.style.setProperty('--outline-element-color', cssColor);
-		} else {
+		const problem = this._configurationService.getValue('problems.visibility');
+		const configProblems = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
+
+		if (!problem || !configProblems) {
 			template.container.style.removeProperty('--outline-element-color');
+		} else {
+			template.container.style.setProperty('--outline-element-color', cssColor);
 		}
 
 		// badge with color/rollup
-		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
-			dom.hide(template.decoration);
+		if (problem === undefined) {
+			return;
+		}
 
+		const configBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
+		if (!configBadges || !problem) {
+			dom.hide(template.decoration);
 		} else if (count > 0) {
 			dom.show(template.decoration);
 			template.decoration.classList.remove('bubble');
@@ -194,8 +206,6 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
 	}
-
-
 
 	disposeTemplate(_template: DocumentSymbolTemplate): void {
 		_template.iconLabel.dispose();
@@ -251,7 +261,7 @@ export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
 
 export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymbolItem> {
 
-	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = new dom.WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
 
 	compareByPosition(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {

@@ -74,6 +74,12 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 
 	open(providerId?: string, options?: IQuickChatOpenOptions): void {
 		if (this._input) {
+			if (this._currentChat && options?.query) {
+				this._currentChat.setValue(options.query, options.selection);
+				if (!options.isPartialQuery) {
+					this._currentChat.acceptInput();
+				}
+			}
 			return this.focus();
 		}
 
@@ -236,11 +242,11 @@ class QuickChat extends Disposable {
 	}
 
 	private get maxHeight(): number {
-		return this.layoutService.dimension.height - QuickChat.DEFAULT_HEIGHT_OFFSET;
+		return this.layoutService.mainContainerDimension.height - QuickChat.DEFAULT_HEIGHT_OFFSET;
 	}
 
 	private registerListeners(parent: HTMLElement): void {
-		this._register(this.layoutService.onDidLayout(() => {
+		this._register(this.layoutService.onDidLayoutMainContainer(() => {
 			if (this.widget.visible) {
 				this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
 			} else {
@@ -283,12 +289,13 @@ class QuickChat extends Disposable {
 		}
 
 		for (const request of this.model.getRequests()) {
-			if (request.response?.response.value || request.response?.errorDetails) {
+			if (request.response?.response.value || request.response?.result) {
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
 					request.message as IParsedChatRequest,
+					request.variableData,
 					{
 						message: request.response.response.value,
-						errorDetails: request.response.errorDetails,
+						result: request.response.result,
 						followups: request.response.followups
 					});
 			} else if (request.message) {

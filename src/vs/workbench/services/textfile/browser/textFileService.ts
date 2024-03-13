@@ -560,7 +560,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// save model
-		return targetModel.save(options);
+		return targetModel.save({
+			...options,
+			from: source
+		});
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {

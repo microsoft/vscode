@@ -236,24 +236,24 @@ export enum EditorOption {
 	hover = 60,
 	inDiffEditor = 61,
 	inlineSuggest = 62,
-	letterSpacing = 63,
-	lightbulb = 64,
-	lineDecorationsWidth = 65,
-	lineHeight = 66,
-	lineNumbers = 67,
-	lineNumbersMinChars = 68,
-	linkedEditing = 69,
-	links = 70,
-	matchBrackets = 71,
-	minimap = 72,
-	mouseStyle = 73,
-	mouseWheelScrollSensitivity = 74,
-	mouseWheelZoom = 75,
-	multiCursorMergeOverlapping = 76,
-	multiCursorModifier = 77,
-	multiCursorPaste = 78,
-	multiCursorLimit = 79,
-	multiDocumentOccurrencesHighlight = 80,
+	inlineEdit = 63,
+	letterSpacing = 64,
+	lightbulb = 65,
+	lineDecorationsWidth = 66,
+	lineHeight = 67,
+	lineNumbers = 68,
+	lineNumbersMinChars = 69,
+	linkedEditing = 70,
+	links = 71,
+	matchBrackets = 72,
+	minimap = 73,
+	mouseStyle = 74,
+	mouseWheelScrollSensitivity = 75,
+	mouseWheelZoom = 76,
+	multiCursorMergeOverlapping = 77,
+	multiCursorModifier = 78,
+	multiCursorPaste = 79,
+	multiCursorLimit = 80,
 	occurrencesHighlight = 81,
 	overviewRulerBorder = 82,
 	overviewRulerLanes = 83,
@@ -361,7 +361,8 @@ export enum EndOfLineSequence {
  */
 export enum GlyphMarginLane {
 	Left = 1,
-	Right = 2
+	Center = 2,
+	Right = 3
 }
 
 /**
@@ -414,6 +415,11 @@ export enum InlineCompletionTriggerKind {
 	 * Return multiple completion items to enable cycling through them.
 	 */
 	Explicit = 1
+}
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1
 }
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -702,6 +708,10 @@ export enum MouseTargetType {
 	OUTSIDE_EDITOR = 13
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
 /**
  * A positioning preference for rendering overlay widgets.
  */
@@ -728,6 +738,15 @@ export enum OverviewRulerLane {
 	Center = 2,
 	Right = 4,
 	Full = 7
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2
 }
 
 export enum PositionAffinity {
@@ -790,6 +809,12 @@ export enum SelectionDirection {
 	 * The selection starts below where it ends.
 	 */
 	RTL = 1
+}
+
+export enum ShowLightbulbIconMode {
+	Off = 'off',
+	OnCode = 'onCode',
+	On = 'on'
 }
 
 export enum SignatureHelpTriggerKind {

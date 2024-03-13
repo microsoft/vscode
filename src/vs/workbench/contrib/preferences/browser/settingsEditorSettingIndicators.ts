@@ -21,7 +21,8 @@ import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
+import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 const $ = DOM.$;
 
@@ -95,10 +96,14 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
-		hoverPosition: HoverPosition.BELOW,
-		showPointer: true,
-		compact: false,
-		trapFocus: true
+		trapFocus: true,
+		position: {
+			hoverPosition: HoverPosition.BELOW,
+		},
+		appearance: {
+			showPointer: true,
+			compact: false,
+		}
 	};
 
 	private addHoverDisposables(disposables: DisposableStore, element: HTMLElement, showHover: (focus: boolean) => IHoverWidget | undefined) {
@@ -130,12 +135,12 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private createWorkspaceTrustIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
 		const workspaceTrustElement = $('span.setting-indicator.setting-item-workspace-trust');
-		const workspaceTrustLabel = new SimpleIconLabel(workspaceTrustElement);
+		const workspaceTrustLabel = disposables.add(new SimpleIconLabel(workspaceTrustElement));
 		workspaceTrustLabel.text = '$(warning) ' + localize('workspaceUntrustedLabel', "Setting value not applied");
 
 		const content = localize('trustLabel', "The setting value can only be applied in a trusted workspace.");
-		const disposables = new DisposableStore();
 		const showHover = (focus: boolean) => {
 			return this.hoverService.showHover({
 				...this.defaultHoverOptions,
@@ -159,23 +164,24 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private createScopeOverridesIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
 		// Don't add .setting-indicator class here, because it gets conditionally added later.
 		const otherOverridesElement = $('span.setting-item-overrides');
-		const otherOverridesLabel = new SimpleIconLabel(otherOverridesElement);
+		const otherOverridesLabel = disposables.add(new SimpleIconLabel(otherOverridesElement));
 		return {
 			element: otherOverridesElement,
 			label: otherOverridesLabel,
-			disposables: new DisposableStore()
+			disposables
 		};
 	}
 
 	private createSyncIgnoredIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
 		const syncIgnoredElement = $('span.setting-indicator.setting-item-ignored');
-		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
+		const syncIgnoredLabel = disposables.add(new SimpleIconLabel(syncIgnoredElement));
 		syncIgnoredLabel.text = localize('extensionSyncIgnoredLabel', 'Not synced');
 
 		const syncIgnoredHoverContent = localize('syncIgnoredTitle', "This setting is ignored during sync");
-		const disposables = new DisposableStore();
 		const showHover = (focus: boolean) => {
 			return this.hoverService.showHover({
 				...this.defaultHoverOptions,
@@ -188,19 +194,20 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		return {
 			element: syncIgnoredElement,
 			label: syncIgnoredLabel,
-			disposables: new DisposableStore()
+			disposables
 		};
 	}
 
 	private createDefaultOverrideIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
 		const defaultOverrideIndicator = $('span.setting-indicator.setting-item-default-overridden');
-		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
+		const defaultOverrideLabel = disposables.add(new SimpleIconLabel(defaultOverrideIndicator));
 		defaultOverrideLabel.text = localize('defaultOverriddenLabel', "Default value changed");
 
 		return {
 			element: defaultOverrideIndicator,
 			label: defaultOverrideLabel,
-			disposables: new DisposableStore()
+			disposables
 		};
 	}
 
@@ -451,9 +458,13 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				return this.hoverService.showHover({
 					content: defaultOverrideHoverContent,
 					target: this.defaultOverrideIndicator.element,
-					hoverPosition: HoverPosition.BELOW,
-					showPointer: true,
-					compact: false
+					position: {
+						hoverPosition: HoverPosition.BELOW,
+					},
+					appearance: {
+						showPointer: true,
+						compact: false
+					}
 				}, focus);
 			};
 			this.addHoverDisposables(this.defaultOverrideIndicator.disposables, this.defaultOverrideIndicator.element, showHover);

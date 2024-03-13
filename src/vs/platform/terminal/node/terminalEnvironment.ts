@@ -117,7 +117,7 @@ export function getShellIntegrationInjection(
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
 	const useWinpty = isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309);
-	if (!options.shellIntegration.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration || useWinpty) {
+	if (!options.shellIntegration.enabled || !shellLaunchConfig.executable || (shellLaunchConfig.isFeatureTerminal && !shellLaunchConfig.forceShellIntegration) || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration || useWinpty) {
 		return undefined;
 	}
 
@@ -146,10 +146,9 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
-			// TODO: Uncomment when suggestEnabled is ready for use
-			// if (options.shellIntegration.suggestEnabled) {
-			// 	envMixin['VSCODE_SUGGEST'] = '1';
-			// }
+			if (options.shellIntegration.suggestEnabled) {
+				envMixin['VSCODE_SUGGEST'] = '1';
+			}
 			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
@@ -191,10 +190,9 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
-			// TODO: Uncomment when suggestEnabled is ready for use
-			// if (options.shellIntegration.suggestEnabled) {
-			// 	envMixin['VSCODE_SUGGEST'] = '1';
-			// }
+			if (options.shellIntegration.suggestEnabled) {
+				envMixin['VSCODE_SUGGEST'] = '1';
+			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			return { newArgs, envMixin };

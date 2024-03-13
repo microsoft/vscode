@@ -120,7 +120,8 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 		linux: {
 			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
 			secondary: [KeyMod.Alt | KeyCode.F1]
-		}
+		},
+		kbExpr: accessibilityHelpIsShown.toNegated()
 	},
 	menuOpts: [{
 		menuId: MenuId.CommandPalette,

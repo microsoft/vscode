@@ -428,6 +428,7 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	inlineSuggest?: IInlineSuggestOptions;
+	experimentalInlineEdit?: IInlineEditOptions;
 	/**
 	 * Smart select options.
 	 */
@@ -559,14 +560,12 @@ export interface IEditorOptions {
 	selectionHighlight?: boolean;
 	/**
 	 * Enable semantic occurrences highlight.
-	 * Defaults to true.
+	 * Defaults to 'singleFile'.
+	 * 'off' disables occurrence highlighting
+	 * 'singleFile' triggers occurrence highlighting in the current document
+	 * 'multiFile'  triggers occurrence highlighting across valid open documents
 	 */
-	occurrencesHighlight?: boolean;
-	/**
-	 * Enable semantic occurrences highlight.
-	 * Defaults to true.
-	 */
-	multiDocumentOccurrencesHighlight?: boolean;
+	occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -1716,7 +1715,7 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 			return this.defaultValue;
 		}
 		if (typeof input === 'string') {
-			if (input === 'false') {
+			if (input === 'false' || input.length === 0) {
 				return EditorFontLigatures.OFF;
 			}
 			if (input === 'true') {
@@ -2005,7 +2004,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 		}
 		const input = _input as IGotoLocationOptions;
 		return {
-			multiple: stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple!, ['peek', 'gotoAndPeek', 'goto']),
+			multiple: stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple, ['peek', 'gotoAndPeek', 'goto']),
 			multipleDefinitions: input.multipleDefinitions ?? stringSet<GoToLocationValues>(input.multipleDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleTypeDefinitions: input.multipleTypeDefinitions ?? stringSet<GoToLocationValues>(input.multipleTypeDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleDeclarations: input.multipleDeclarations ?? stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
@@ -2722,15 +2721,24 @@ class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, '
 
 //#region lightbulb
 
+export enum ShowLightbulbIconMode {
+	Off = 'off',
+	OnCode = 'onCode',
+	On = 'on'
+}
+
 /**
  * Configuration options for editor lightbulb
  */
 export interface IEditorLightbulbOptions {
 	/**
 	 * Enable the lightbulb code action.
-	 * Defaults to true.
+	 * The three possible values are `off`, `on` and `onCode` and the default is `onCode`.
+	 * `off` disables the code action menu.
+	 * `on` shows the code action menu on code and on empty lines.
+	 * `onCode` shows the code action menu on code only.
 	 */
-	enabled?: boolean;
+	enabled?: ShowLightbulbIconMode;
 }
 
 /**
@@ -2741,15 +2749,22 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true };
+		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.OnCode };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
 				'editor.lightbulb.enabled': {
-					type: 'boolean',
+					type: 'string',
+					tags: ['experimental'],
+					enum: [ShowLightbulbIconMode.Off, ShowLightbulbIconMode.OnCode, ShowLightbulbIconMode.On],
 					default: defaults.enabled,
-					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
-				},
+					enumDescriptions: [
+						nls.localize('editor.lightbulb.enabled.off', 'Disable the code action menu.'),
+						nls.localize('editor.lightbulb.enabled.onCode', 'Show the code action menu when the cursor is on lines with code.'),
+						nls.localize('editor.lightbulb.enabled.on', 'Show the code action menu when the cursor is on lines with code or on empty lines.'),
+					],
+					description: nls.localize('enabled', "Enables the Code Action lightbulb in the editor.")
+				}
 			}
 		);
 	}
@@ -2760,7 +2775,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		}
 		const input = _input as IEditorLightbulbOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			enabled: stringSet(input.enabled, this.defaultValue.enabled, [ShowLightbulbIconMode.Off, ShowLightbulbIconMode.OnCode, ShowLightbulbIconMode.On])
 		};
 	}
 }
@@ -2796,20 +2811,21 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
+		const defaults: EditorStickyScrollOptions = { enabled: true, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor."),
+					tags: ['experimental']
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',
 					default: defaults.maxLineCount,
 					minimum: 1,
-					maximum: 10,
+					maximum: 20,
 					description: nls.localize('editor.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show.")
 				},
 				'editor.stickyScroll.defaultModel': {
@@ -2834,7 +2850,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 		const input = _input as IEditorStickyScrollOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
+			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 20),
 			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
 			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor)
 		};
@@ -3972,7 +3988,7 @@ export interface IInlineSuggestOptions {
 	*/
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
 
-	showToolbar?: 'always' | 'onHover';
+	showToolbar?: 'always' | 'onHover' | 'never';
 
 	suppressSuggestions?: boolean;
 
@@ -3980,6 +3996,11 @@ export interface IInlineSuggestOptions {
 	 * Does not clear active inline suggestions when the editor loses focus.
 	 */
 	keepOnBlur?: boolean;
+
+	/**
+	 * Font family for inline suggestions.
+	 */
+	fontFamily?: string | 'default';
 }
 
 /**
@@ -3998,6 +4019,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showToolbar: 'onHover',
 			suppressSuggestions: false,
 			keepOnBlur: false,
+			fontFamily: 'default'
 		};
 
 		super(
@@ -4011,10 +4033,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.showToolbar': {
 					type: 'string',
 					default: defaults.showToolbar,
-					enum: ['always', 'onHover'],
+					enum: ['always', 'onHover', 'never'],
 					enumDescriptions: [
 						nls.localize('inlineSuggest.showToolbar.always', "Show the inline suggestion toolbar whenever an inline suggestion is shown."),
 						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over an inline suggestion."),
+						nls.localize('inlineSuggest.showToolbar.never', "Never show the inline suggestion toolbar."),
 					],
 					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
 				},
@@ -4022,6 +4045,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.suppressSuggestions,
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
+				},
+				'editor.inlineSuggest.fontFamily': {
+					type: 'string',
+					default: defaults.fontFamily,
+					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
 			}
 		);
@@ -4035,14 +4063,99 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
-			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
 		};
 	}
 }
 
 //#endregion
+
+//#region inlineEdit
+
+export interface IInlineEditOptions {
+	/**
+	 * Enable or disable the rendering of automatic inline edit.
+	*/
+	enabled?: boolean;
+	showToolbar?: 'always' | 'onHover' | 'never';
+	/**
+	 * Font family for inline suggestions.
+	 */
+	fontFamily?: string | 'default';
+
+	/**
+	 * Does not clear active inline suggestions when the editor loses focus.
+	 */
+	keepOnBlur?: boolean;
+
+	backgroundColoring?: boolean;
+}
+
+/**
+ * @internal
+ */
+export type InternalInlineEditOptions = Readonly<Required<IInlineEditOptions>>;
+
+class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInlineEditOptions, InternalInlineEditOptions> {
+	constructor() {
+		const defaults: InternalInlineEditOptions = {
+			enabled: false,
+			showToolbar: 'onHover',
+			fontFamily: 'default',
+			keepOnBlur: false,
+			backgroundColoring: false,
+		};
+
+		super(
+			EditorOption.inlineEdit, 'experimentalInlineEdit', defaults,
+			{
+				'editor.experimentalInlineEdit.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('inlineEdit.enabled', "Controls whether to show inline edits in the editor.")
+				},
+				'editor.experimentalInlineEdit.showToolbar': {
+					type: 'string',
+					default: defaults.showToolbar,
+					enum: ['always', 'onHover', 'never'],
+					enumDescriptions: [
+						nls.localize('inlineEdit.showToolbar.always', "Show the inline edit toolbar whenever an inline suggestion is shown."),
+						nls.localize('inlineEdit.showToolbar.onHover', "Show the inline edit toolbar when hovering over an inline suggestion."),
+						nls.localize('inlineEdit.showToolbar.never', "Never show the inline edit toolbar."),
+					],
+					description: nls.localize('inlineEdit.showToolbar', "Controls when to show the inline edit toolbar."),
+				},
+				'editor.experimentalInlineEdit.fontFamily': {
+					type: 'string',
+					default: defaults.fontFamily,
+					description: nls.localize('inlineEdit.fontFamily', "Controls the font family of the inline edit.")
+				},
+				'editor.experimentalInlineEdit.backgroundColoring': {
+					type: 'boolean',
+					default: defaults.backgroundColoring,
+					description: nls.localize('inlineEdit.backgroundColoring', "Controls whether to color the background of inline edits.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): InternalInlineEditOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IInlineEditOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
+			backgroundColoring: boolean(input.backgroundColoring, this.defaultValue.backgroundColoring)
+		};
+	}
+}
 
 //#region bracketPairColorization
 
@@ -4911,7 +5024,7 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 				'editor.dropIntoEditor.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down the `Shift` key (instead of opening the file in an editor)."),
 				},
 				'editor.dropIntoEditor.showDropSelector': {
 					type: 'string',
@@ -5104,6 +5217,7 @@ export const enum EditorOption {
 	hover,
 	inDiffEditor,
 	inlineSuggest,
+	inlineEdit,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -5121,7 +5235,6 @@ export const enum EditorOption {
 	multiCursorModifier,
 	multiCursorPaste,
 	multiCursorLimit,
-	multiDocumentOccurrencesHighlight,
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
@@ -5575,7 +5688,11 @@ export const EditorOptions = {
 	)),
 	mouseWheelZoom: register(new EditorBooleanOption(
 		EditorOption.mouseWheelZoom, 'mouseWheelZoom', false,
-		{ markdownDescription: nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.") }
+		{
+			markdownDescription: platform.isMacintosh
+				? nls.localize('mouseWheelZoom.mac', "Zoom the font of the editor when using mouse wheel and holding `Cmd`.")
+				: nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.")
+		}
 	)),
 	multiCursorMergeOverlapping: register(new EditorBooleanOption(
 		EditorOption.multiCursorMergeOverlapping, 'multiCursorMergeOverlapping', true,
@@ -5618,13 +5735,18 @@ export const EditorOptions = {
 			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of cursors that can be in an active editor at once.")
 		}
 	)),
-	occurrencesHighlight: register(new EditorBooleanOption(
-		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
-		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
-	)),
-	multiDocumentOccurrencesHighlight: register(new EditorBooleanOption(
-		EditorOption.multiDocumentOccurrencesHighlight, 'multiDocumentOccurrencesHighlight', false,
-		{ description: nls.localize('multiDocumentOccurrencesHighlight', "Experimental: Controls whether the editor should highlight word occurrences accross multiple open editors.") }
+	occurrencesHighlight: register(new EditorStringEnumOption(
+		EditorOption.occurrencesHighlight, 'occurrencesHighlight',
+		'singleFile' as 'off' | 'singleFile' | 'multiFile',
+		['off', 'singleFile', 'multiFile'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('occurrencesHighlight.off', "Does not highlight occurrences."),
+				nls.localize('occurrencesHighlight.singleFile', "Highlights occurrences only in the current file."),
+				nls.localize('occurrencesHighlight.multiFile', "Experimental: Highlights occurrences across all valid open files.")
+			],
+			markdownDescription: nls.localize('occurrencesHighlight', "Controls whether occurrences should be highlighted across open files.")
+		}
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,
@@ -5799,6 +5921,7 @@ export const EditorOptions = {
 	)),
 	suggest: register(new EditorSuggest()),
 	inlineSuggest: register(new InlineEditorSuggest()),
+	inlineEdit: register(new InlineEditorEdit()),
 	inlineCompletionsAccessibilityVerbose: register(new EditorBooleanOption(EditorOption.inlineCompletionsAccessibilityVerbose, 'inlineCompletionsAccessibilityVerbose', false,
 		{ description: nls.localize('inlineCompletionsAccessibilityVerbose', "Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.") })),
 	suggestFontSize: register(new EditorIntOption(
@@ -5864,7 +5987,7 @@ export const EditorOptions = {
 	)),
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
-		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.") }
+		{ description: nls.localize('useTabStops', "Spaces and tabs are inserted and deleted in alignment with tab stops.") }
 	)),
 	wordBreak: register(new EditorStringEnumOption(
 		EditorOption.wordBreak, 'wordBreak',

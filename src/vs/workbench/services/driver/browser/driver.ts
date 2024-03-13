@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -11,6 +12,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import localizedStrings from 'vs/platform/languagePacks/common/localizedStrings';
 import { ILogFile, getLogs } from 'vs/platform/log/browser/log';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWindowDriver, IElement, ILocaleInfo, ILocalizedStrings } from 'vs/workbench/services/driver/common/driver';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
@@ -20,6 +24,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -27,12 +32,16 @@ export class BrowserWindowDriver implements IWindowDriver {
 		return getLogs(this.fileService, this.environmentService);
 	}
 
-	whenWorkbenchRestored(): Promise<void> {
-		return this.lifecycleService.when(LifecyclePhase.Restored);
+	async whenWorkbenchRestored(): Promise<void> {
+		this.logService.info('[driver] Waiting for restored lifecycle phase...');
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+		this.logService.info('[driver] Restored lifecycle phase reached. Waiting for contributions...');
+		await Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored;
+		this.logService.info('[driver] Workbench contributions created.');
 	}
 
 	async setValue(selector: string, text: string): Promise<void> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			return Promise.reject(new Error(`Element not found: ${selector}`));
@@ -46,11 +55,11 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async isActiveElement(selector: string): Promise<boolean> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
-		if (element !== document.activeElement) {
+		if (element !== mainWindow.document.activeElement) {
 			const chain: string[] = [];
-			let el = document.activeElement;
+			let el = mainWindow.document.activeElement;
 
 			while (el) {
 				const tagName = el.tagName;
@@ -68,7 +77,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async getElements(selector: string, recursive: boolean): Promise<IElement[]> {
-		const query = document.querySelectorAll(selector);
+		const query = mainWindow.document.querySelectorAll(selector);
 		const result: IElement[] = [];
 		for (let i = 0; i < query.length; i++) {
 			const element = query.item(i);
@@ -118,7 +127,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async typeInEditor(selector: string, text: string): Promise<void> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			throw new Error(`Editor not found: ${selector}`);
@@ -138,7 +147,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async getTerminalBuffer(selector: string): Promise<string[]> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			throw new Error(`Terminal not found: ${selector}`);
@@ -159,7 +168,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async writeInTerminal(selector: string, text: string): Promise<void> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			throw new Error(`Element not found: ${selector}`);
@@ -190,7 +199,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	protected async _getElementXY(selector: string, offset?: { x: number; y: number }): Promise<{ x: number; y: number }> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			return Promise.reject(new Error(`Element not found: ${selector}`));
@@ -221,5 +230,5 @@ export class BrowserWindowDriver implements IWindowDriver {
 }
 
 export function registerWindowDriver(instantiationService: IInstantiationService): void {
-	Object.assign(window, { driver: instantiationService.createInstance(BrowserWindowDriver) });
+	Object.assign(mainWindow, { driver: instantiationService.createInstance(BrowserWindowDriver) });
 }

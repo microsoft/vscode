@@ -1,16 +1,16 @@
 [
 	{
 		"c": "using",
-		"t": "source.cs keyword.other.using.cs",
+		"t": "source.cs keyword.other.directive.using.cs",
 		"r": {
-			"dark_plus": "keyword.other.using: #C586C0",
-			"light_plus": "keyword.other.using: #AF00DB",
+			"dark_plus": "keyword.other.directive.using: #C586C0",
+			"light_plus": "keyword.other.directive.using: #AF00DB",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword.other.using: #C586C0",
-			"dark_modern": "keyword.other.using: #C586C0",
-			"hc_light": "keyword.other.using: #B5200D",
-			"light_modern": "keyword.other.using: #AF00DB"
+			"hc_black": "keyword.other.directive.using: #C586C0",
+			"dark_modern": "keyword.other.directive.using: #C586C0",
+			"hc_light": "keyword.other.directive.using: #B5200D",
+			"light_modern": "keyword.other.directive.using: #AF00DB"
 		}
 	},
 	{
@@ -57,16 +57,16 @@
 	},
 	{
 		"c": "namespace",
-		"t": "source.cs keyword.other.namespace.cs",
+		"t": "source.cs storage.type.namespace.cs",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6",
-			"dark_modern": "keyword: #569CD6",
-			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"dark_modern": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_modern": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -127,16 +127,16 @@
 	},
 	{
 		"c": "class",
-		"t": "source.cs keyword.other.class.cs",
+		"t": "source.cs storage.type.class.cs",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6",
-			"dark_modern": "keyword: #569CD6",
-			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"dark_modern": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_modern": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -211,7 +211,7 @@
 	},
 	{
 		"c": "static",
-		"t": "source.cs storage.modifier.cs",
+		"t": "source.cs storage.modifier.static.cs",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -239,7 +239,7 @@
 	},
 	{
 		"c": "void",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.void.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -295,7 +295,7 @@
 	},
 	{
 		"c": "string",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.string.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -925,7 +925,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.int.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1303,7 +1303,7 @@
 	},
 	{
 		"c": "const",
-		"t": "source.cs storage.modifier.cs",
+		"t": "source.cs storage.modifier.const.cs",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -1331,7 +1331,7 @@
 	},
 	{
 		"c": "double",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.double.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1527,7 +1527,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.int.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1681,7 +1681,7 @@
 	},
 	{
 		"c": "double",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.double.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1933,16 +1933,16 @@
 	},
 	{
 		"c": "                ",
-		"t": "source.cs punctuation.whitespace.comment.leading.cs",
+		"t": "source.cs comment.line.double-slash.cs punctuation.whitespace.comment.leading.cs",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"dark_modern": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -2255,7 +2255,7 @@
 	},
 	{
 		"c": "public",
-		"t": "source.cs storage.modifier.cs",
+		"t": "source.cs storage.modifier.public.cs",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -2283,7 +2283,7 @@
 	},
 	{
 		"c": "void",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.void.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -2451,16 +2451,16 @@
 	},
 	{
 		"c": "new",
-		"t": "source.cs keyword.other.new.cs",
+		"t": "source.cs keyword.operator.expression.new.cs",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6",
-			"dark_modern": "keyword: #569CD6",
-			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"dark_plus": "keyword.operator.expression: #569CD6",
+			"light_plus": "keyword.operator.expression: #0000FF",
+			"dark_vs": "keyword.operator.expression: #569CD6",
+			"light_vs": "keyword.operator.expression: #0000FF",
+			"hc_black": "keyword.operator.expression: #569CD6",
+			"dark_modern": "keyword.operator.expression: #569CD6",
+			"hc_light": "keyword.operator.expression: #0F4A85",
+			"light_modern": "keyword.operator.expression: #0000FF"
 		}
 	},
 	{
@@ -2507,7 +2507,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.int.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -2619,7 +2619,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.int.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -2759,16 +2759,16 @@
 	},
 	{
 		"c": "new",
-		"t": "source.cs keyword.other.new.cs",
+		"t": "source.cs keyword.operator.expression.new.cs",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6",
-			"dark_modern": "keyword: #569CD6",
-			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"dark_plus": "keyword.operator.expression: #569CD6",
+			"light_plus": "keyword.operator.expression: #0000FF",
+			"dark_vs": "keyword.operator.expression: #569CD6",
+			"light_vs": "keyword.operator.expression: #0000FF",
+			"hc_black": "keyword.operator.expression: #569CD6",
+			"dark_modern": "keyword.operator.expression: #569CD6",
+			"hc_light": "keyword.operator.expression: #0F4A85",
+			"light_modern": "keyword.operator.expression: #0000FF"
 		}
 	},
 	{
@@ -2815,7 +2815,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.int.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -2927,7 +2927,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.int.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -3025,16 +3025,16 @@
 	},
 	{
 		"c": "new",
-		"t": "source.cs keyword.other.new.cs",
+		"t": "source.cs keyword.operator.expression.new.cs",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6",
-			"dark_modern": "keyword: #569CD6",
-			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"dark_plus": "keyword.operator.expression: #569CD6",
+			"light_plus": "keyword.operator.expression: #0000FF",
+			"dark_vs": "keyword.operator.expression: #569CD6",
+			"light_vs": "keyword.operator.expression: #0000FF",
+			"hc_black": "keyword.operator.expression: #569CD6",
+			"dark_modern": "keyword.operator.expression: #569CD6",
+			"hc_light": "keyword.operator.expression: #0F4A85",
+			"light_modern": "keyword.operator.expression: #0000FF"
 		}
 	},
 	{
@@ -3081,7 +3081,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cs keyword.type.cs",
+		"t": "source.cs keyword.type.int.cs",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",

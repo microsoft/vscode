@@ -44,11 +44,12 @@
 	margin: 16px 0;
 }
 
-.interactive-result-code-block .interactive-result-editor .monaco-editor {
+.interactive-result-code-block {
 	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
-.interactive-result-code-block .interactive-result-editor .monaco-editor.focused {
+.interactive-result-code-block:has(.monaco-editor.focused) {
 	border-color: var(--vscode-focusBorder, transparent);
 }
 
@@ -56,4 +57,57 @@
 .interactive-result-code-block .monaco-editor,
 .interactive-result-code-block .monaco-editor .overflow-guard {
 	border-radius: 4px;
+}
+
+.interactive-result-code-block .interactive-result-vulns {
+	font-size: 0.9em;
+	padding: 0px 8px 2px 8px;
+}
+
+.interactive-result-code-block .interactive-result-vulns-header {
+	display: flex;
+	height: 22px;
+}
+
+.interactive-result-code-block .interactive-result-vulns-header,
+.interactive-result-code-block .interactive-result-vulns-list {
+	opacity: 0.8;
+}
+
+.interactive-result-code-block .interactive-result-vulns-list {
+	margin: 0px;
+	padding-bottom: 3px;
+	padding-left: 16px !important; /* Override markdown styles */
+}
+
+.interactive-result-code-block.chat-vulnerabilities-collapsed .interactive-result-vulns-list {
+	display: none;
+}
+
+.interactive-result-code-block .interactive-result-vulns-list .chat-vuln-title {
+	font-weight: bold;
+}
+
+.interactive-result-code-block.no-vulns .interactive-result-vulns {
+	display: none;
+}
+
+.interactive-result-code-block .interactive-result-vulns-header .monaco-button {
+	/* unset Button styles */
+	display: inline-flex;
+	width: 100%;
+	border: none;
+	padding: 0;
+	text-align: initial;
+	justify-content: initial;
+	color: var(--vscode-foreground) !important; /* This is inside .rendered-markdown */
+	user-select: none;
+}
+
+.interactive-result-code-block .interactive-result-vulns-header .monaco-text-button:focus {
+	outline: none;
+}
+
+.interactive-result-code-block .interactive-result-vulns-header .monaco-text-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
 }

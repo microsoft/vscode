@@ -228,14 +228,18 @@ export type Mutable<T> = {
  */
 export type SingleOrMany<T> = T | T[];
 
-export type OptionalBooleanKey<T> = {
-	[K in keyof T]: T[K] extends boolean | undefined ? K : never;
-}[keyof T];
 
-export type OptionalNumberKey<T> = {
-	[K in keyof T]: T[K] extends number | undefined ? K : never;
-}[keyof T];
+/**
+ * A type that recursively makes all properties of `T` required
+ */
+export type DeepRequiredNonNullable<T> = {
+	[P in keyof T]-?: T[P] extends object ? DeepRequiredNonNullable<T[P]> : Required<NonNullable<T[P]>>;
+};
 
-export type OptionalStringKey<T> = {
-	[K in keyof T]: T[K] extends string | undefined ? K : never;
-}[keyof T];
+
+/**
+ * Represents a type that is a partial version of a given type `T`, where all properties are optional and can be deeply nested.
+ */
+export type DeepPartial<T> = {
+	[P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : Partial<T[P]>;
+};

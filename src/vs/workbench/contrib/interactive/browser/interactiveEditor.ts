@@ -8,9 +8,9 @@ import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { ICodeEditorViewState, IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -48,7 +48,7 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/con
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -107,7 +107,7 @@ export class InteractiveEditor extends EditorPane {
 	private _editorOptions: IEditorOptions;
 	private _notebookOptions: NotebookOptions;
 	private _editorMemento: IEditorMemento<InteractiveEditorViewState>;
-	private _groupListener = this._register(new DisposableStore());
+	private _groupListener = this._register(new MutableDisposable());
 	private _runbuttonToolbar: ToolBar | undefined;
 
 	private _onDidFocusWidget = this._register(new Emitter<void>());
@@ -116,6 +116,7 @@ export class InteractiveEditor extends EditorPane {
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -136,6 +137,7 @@ export class InteractiveEditor extends EditorPane {
 	) {
 		super(
 			INTERACTIVE_WINDOW_EDITOR_ID,
+			group,
 			telemetryService,
 			themeService,
 			storageService
@@ -159,7 +161,7 @@ export class InteractiveEditor extends EditorPane {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScroll: false, dragAndDropEnabled: false });
+		this._notebookOptions = new NotebookOptions(this.window, configurationService, notebookExecutionStateService, codeEditorService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
@@ -200,8 +202,8 @@ export class InteractiveEditor extends EditorPane {
 		const menu = this._register(this._menuService.createMenu(MenuId.InteractiveInputExecute, this._contextKeyService));
 		this._runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this._contextMenuService, {
 			getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: action => {
-				return createActionViewItem(this._instantiationService, action);
+			actionViewItemProvider: (action, options) => {
+				return createActionViewItem(this._instantiationService, action, options);
 			},
 			renderDropdownAsChildElement: true
 		}));
@@ -219,11 +221,13 @@ export class InteractiveEditor extends EditorPane {
 		const styleSheets: string[] = [];
 
 		const {
-			focusIndicator,
 			codeCellLeftMargin,
 			cellRunGutter
 		} = this._notebookOptions.getLayoutConfiguration();
-		const leftMargin = codeCellLeftMargin + cellRunGutter;
+		const {
+			focusIndicator
+		} = this._notebookOptions.getDisplayOptions();
+		const leftMargin = this._notebookOptions.getCellEditorContainerLeftMargin();
 
 		styleSheets.push(`
 			.interactive-editor .input-cell-container {
@@ -310,7 +314,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
-		if (this.group && this._notebookWidget.value && input instanceof InteractiveEditorInput) {
+		if (this._notebookWidget.value && input instanceof InteractiveEditorInput) {
 			if (this._notebookWidget.value.isDisposed) {
 				return;
 			}
@@ -325,10 +329,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	private _loadNotebookEditorViewState(input: InteractiveEditorInput): InteractiveEditorViewState | undefined {
-		let result: InteractiveEditorViewState | undefined;
-		if (this.group) {
-			result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
-		}
+		const result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
 		if (result) {
 			return result;
 		}
@@ -348,7 +349,6 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	override async setInput(input: InteractiveEditorInput, options: InteractiveEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const group = this.group!;
 		const notebookInput = input.notebookEditorInput;
 
 		// there currently is a widget which we still own so
@@ -359,7 +359,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this._widgetDisposableStore.clear();
 
-		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, notebookInput, {
+		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
@@ -379,11 +379,12 @@ export class InteractiveEditor extends EditorPane {
 			cellEditorContributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
-				ModesHoverController.ID,
+				HoverController.ID,
 				MarkerController.ID
 			]),
-			options: this._notebookOptions
-		});
+			options: this._notebookOptions,
+			codeWindow: this.window
+		}, undefined, this.window);
 
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
 			...{
@@ -396,7 +397,7 @@ export class InteractiveEditor extends EditorPane {
 					ParameterHintsController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
-					ModesHoverController.ID,
+					HoverController.ID,
 					MarkerController.ID
 				])
 			}
@@ -405,11 +406,7 @@ export class InteractiveEditor extends EditorPane {
 		if (this._lastLayoutDimensions) {
 			this._notebookEditorContainer.style.height = `${this._lastLayoutDimensions.dimension.height - this.inputCellContainerHeight}px`;
 			this._notebookWidget.value!.layout(new DOM.Dimension(this._lastLayoutDimensions.dimension.width, this._lastLayoutDimensions.dimension.height - this.inputCellContainerHeight), this._notebookEditorContainer);
-			const {
-				codeCellLeftMargin,
-				cellRunGutter
-			} = this._notebookOptions.getLayoutConfiguration();
-			const leftMargin = codeCellLeftMargin + cellRunGutter;
+			const leftMargin = this._notebookOptions.getCellEditorContainerLeftMargin();
 			const maxHeight = Math.min(this._lastLayoutDimensions.dimension.height / 2, this.inputCellEditorHeight);
 			this._codeEditorWidget.layout(this._validateDimension(this._lastLayoutDimensions.dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
 			this._inputFocusIndicator.style.height = `${this.inputCellEditorHeight}px`;
@@ -527,7 +524,7 @@ export class InteractiveEditor extends EditorPane {
 		}));
 
 		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
-			const value = editorModel!.getValue();
+			const value = editorModel.getValue();
 			if (this.input?.resource && value !== '') {
 				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
 			}
@@ -615,11 +612,7 @@ export class InteractiveEditor extends EditorPane {
 	private _layoutWidgets(dimension: DOM.Dimension, position: DOM.IDomPosition) {
 		const contentHeight = this._codeEditorWidget.hasModel() ? this._codeEditorWidget.getContentHeight() : this.inputCellEditorHeight;
 		const maxHeight = Math.min(dimension.height / 2, contentHeight);
-		const {
-			codeCellLeftMargin,
-			cellRunGutter
-		} = this._notebookOptions.getLayoutConfiguration();
-		const leftMargin = codeCellLeftMargin + cellRunGutter;
+		const leftMargin = this._notebookOptions.getCellEditorContainerLeftMargin();
 
 		const inputCellContainerHeight = maxHeight + INPUT_CELL_VERTICAL_PADDING * 2;
 		this._notebookEditorContainer.style.height = `${dimension.height - inputCellContainerHeight}px`;
@@ -683,12 +676,9 @@ export class InteractiveEditor extends EditorPane {
 		this._notebookWidget.value!.focus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-		if (group) {
-			this._groupListener.clear();
-			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
-		}
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		this._groupListener.value = this.group.onWillCloseEditor(e => this._saveEditorViewState(e.editor));
 
 		if (!visible) {
 			this._saveEditorViewState(this.input);

@@ -22,6 +22,8 @@ suite('TerminalCapabilityStore', () => {
 		removeEvents = [];
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	teardown(() => store.dispose());
 
 	test('should fire events when capabilities are added', () => {
