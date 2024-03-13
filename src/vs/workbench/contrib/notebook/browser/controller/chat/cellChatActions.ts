@@ -353,14 +353,14 @@ registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
-				id: 'notebook.cell.insertCodeCellWithChat',
+				id: 'notebook.cell.chat.start',
 				title: {
 					value: '$(sparkle) ' + localize('notebookActions.menu.insertCodeCellWithChat', "Generate"),
 					original: '$(sparkle) Generate',
 				},
-				tooltip: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Generate Code Cell with Chat"),
+				tooltip: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Start Chat to Generate Code"),
 				metadata: {
-					description: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Generate Code Cell with Chat"),
+					description: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Start Chat to Generate Code"),
 					args: [
 						{
 							name: 'args',
@@ -449,12 +449,12 @@ registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
-				id: 'notebook.cell.insertCodeCellWithChatAtTop',
+				id: 'notebook.cell.chat.startAtTop',
 				title: {
 					value: '$(sparkle) ' + localize('notebookActions.menu.insertCodeCellWithChat', "Generate"),
 					original: '$(sparkle) Generate',
 				},
-				tooltip: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Generate Code Cell with Chat"),
+				tooltip: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Start Chat to Generate Code"),
 				f1: false,
 				menu: [
 					{
@@ -479,10 +479,10 @@ registerAction2(class extends NotebookAction {
 
 MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	command: {
-		id: 'notebook.cell.insertCodeCellWithChat',
+		id: 'notebook.cell.chat.start',
 		icon: Codicon.sparkle,
 		title: localize('notebookActions.menu.insertCode.ontoolbar', "Generate"),
-		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Generate Code Cell with Chat")
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Start Chat to Generate Code")
 	},
 	order: -10,
 	group: 'navigation/add',
