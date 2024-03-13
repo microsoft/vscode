@@ -12,9 +12,10 @@ import * as arrays from 'vs/base/common/arrays';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertType, isDefined } from 'vs/base/common/types';
 import 'vs/css!./renameInputField';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -54,7 +55,20 @@ export interface RenameInputFieldResult {
 	nRenameSuggestions: number;
 }
 
-export class RenameInputField implements IContentWidget {
+interface IRenameInputField {
+	/**
+	 * @returns a `boolean` standing for `shouldFocusEditor`, if user didn't pick a new name, or a {@link RenameInputFieldResult}
+	 */
+	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean>;
+
+	acceptInput(wantsPreview: boolean): void;
+	cancelInput(focusEditor: boolean, caller: string): void;
+
+	focusNextRenameSuggestion(): void;
+	focusPreviousRenameSuggestion(): void;
+}
+
+export class RenameInputField implements IRenameInputField, IContentWidget, IDisposable {
 
 	private _position?: Position;
 	private _domNode?: HTMLElement;
@@ -151,17 +165,12 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	private _updateFont(): void {
-		if (!this._input || !this._label || !this._renameCandidateListView) {
+		if (this._domNode === undefined) {
 			return;
 		}
-
+		this._editor.applyFontInfo(this._domNode);
 		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
-		this._input.style.fontFamily = fontInfo.fontFamily;
-		this._input.style.fontWeight = fontInfo.fontWeight;
-		this._input.style.fontSize = `${fontInfo.fontSize}px`;
-
-		this._renameCandidateListView.updateFont(fontInfo);
-
+		assertType(this._label !== undefined, 'RenameInputField#_updateFont: _label must not be undefined given _domNode is defined');
 		this._label.style.fontSize = `${this._computeLabelFontSize(fontInfo.fontSize)}px`;
 	}
 
@@ -269,9 +278,6 @@ export class RenameInputField implements IContentWidget {
 		}
 	}
 
-	/**
-	 * @returns a `boolean` standing for `shouldFocusEditor`, if user didn't pick a new name, or a {@link RenameInputFieldResult}
-	 */
 	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean> {
 
 		this._domNode!.classList.toggle('preview', supportPreview);
@@ -472,7 +478,7 @@ class RenameCandidateListView {
 			readonly templateId = 'candidate';
 
 			renderTemplate(container: HTMLElement): RenameCandidateView {
-				return new RenameCandidateView(container, { lineHeight: that._lineHeight });
+				return new RenameCandidateView(container, opts.fontInfo);
 			}
 
 			renderElement(candidate: NewSymbolName, index: number, templateData: RenameCandidateView): void {
@@ -564,13 +570,7 @@ class RenameCandidateListView {
 	}
 
 	public updateFont(fontInfo: FontInfo): void {
-		this._listContainer.style.fontFamily = fontInfo.fontFamily;
-		this._listContainer.style.fontWeight = fontInfo.fontWeight;
-		this._listContainer.style.fontSize = `${fontInfo.fontSize}px`;
-
-		this._lineHeight = fontInfo.lineHeight;
-
-		this._listWidget.rerender();
+		applyFontInfo(this._listContainer, fontInfo);
 	}
 
 	public focusNext(): void {
@@ -633,24 +633,25 @@ class RenameCandidateView {
 	private readonly _icon: HTMLElement;
 	private readonly _label: HTMLElement;
 
-	constructor(parent: HTMLElement, { lineHeight }: { lineHeight: number }) {
+	constructor(parent: HTMLElement, fontInfo: FontInfo) {
 
 		this.domNode = document.createElement('div');
 		this.domNode.style.display = `flex`;
 		this.domNode.style.alignItems = `center`;
-		this.domNode.style.height = `${lineHeight}px`;
+		this.domNode.style.height = `${fontInfo.lineHeight}px`;
 		this.domNode.style.padding = `${RenameCandidateView._PADDING}px`;
 
 		this._icon = document.createElement('div');
 		this._icon.style.display = `flex`;
 		this._icon.style.alignItems = `center`;
-		this._icon.style.width = this._icon.style.height = `${lineHeight * 0.8}px`;
+		this._icon.style.width = this._icon.style.height = `${fontInfo.lineHeight * 0.8}px`;
 		this.domNode.appendChild(this._icon);
 
 		this._label = document.createElement('div');
 		this._icon.style.display = `flex`;
 		this._icon.style.alignItems = `center`;
 		this._label.style.marginLeft = '5px';
+		applyFontInfo(this._label, fontInfo);
 		this.domNode.appendChild(this._label);
 
 		parent.appendChild(this.domNode);
