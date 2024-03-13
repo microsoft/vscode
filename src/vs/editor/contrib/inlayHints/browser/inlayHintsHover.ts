@@ -24,6 +24,7 @@ import { localize } from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(
@@ -44,11 +45,12 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		editor: ICodeEditor,
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly _resolverService: ITextModelService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(editor, languageService, openerService, configurationService, languageFeaturesService);
+		super(editor, languageService, openerService, configurationService, languageFeaturesService, keybindingService);
 	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
