@@ -6,26 +6,31 @@
 import * as assert from 'assert';
 import * as arrays from 'vs/base/common/arrays';
 import * as arraysFind from 'vs/base/common/arraysFind';
+import * as fs from 'fs';
+import * as path from 'path';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getReindentEditOperations } from 'vs/editor/contrib/indentation/common/indentation';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/common/languageConfigurationExtensionPoint';
+import { FileAccess } from 'vs/base/common/network';
 
 suite('Manual Auto Indentation Evaluation', () => {
-	const languageId = 'ts-my-test-language';
+	const languageId = 'ts-test';
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageConfigurationService: ILanguageConfigurationService;
+	let input: string;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		// TODO: read the language-configuration.json file
-		const config = LanguageConfigurationFileHandler.extractValidConfig(languageId, JSON.parse("{}"));
+		const fsPath = FileAccess.asFileUri('extensions/typescript-basics/language-configuration.json').fsPath;
+		input = fs.readFileSync(fsPath).toString();
+		const config = LanguageConfigurationFileHandler.extractValidConfig(languageId, JSON.parse(input));
 		disposables.add(languageConfigurationService.register(languageId, config));
 	});
 
@@ -34,6 +39,10 @@ suite('Manual Auto Indentation Evaluation', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Test', () => {
+		console.log('input : ', input);
+	});
 
 	test.skip('TypeScript', () => {
 		// TODO: use fs to read a test file
