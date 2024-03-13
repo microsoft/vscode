@@ -14,6 +14,9 @@ import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inline
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
+const widgetHeightMargin = 100;
+const widgetWidthMargin = 40;
+
 export class TerminalChatWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
@@ -68,12 +71,15 @@ export class TerminalChatWidget extends Disposable {
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
-		this.layoutVertically();
+		this.updateHeight();
 		this._updateWidth();
-		this._register(this._instance.onDimensionsChanged(() => this._updateWidth()));
+		this._register(this._instance.onDimensionsChanged(() => {
+			this.updateHeight();
+			this._updateWidth();
+		}));
 	}
 
-	layoutVertically(): void {
+	private _updateVerticalPosition(): void {
 		const font = this._instance.xterm?.getFont();
 		if (!font?.charHeight) {
 			return;
@@ -82,16 +88,38 @@ export class TerminalChatWidget extends Disposable {
 		const height = font.charHeight * font.lineHeight;
 		const top = cursorY * height + 12;
 		this._container.style.top = `${top}px`;
-		const terminalHeight = this._instance.domElement.clientHeight;
-		if (terminalHeight && top > terminalHeight - this._inlineChatWidget.getHeight()) {
+		const widgetHeight = this._inlineChatWidget.getHeight();
+		const terminalHeight = this._getTerminalHeight();
+		if (!terminalHeight) {
+			return;
+		}
+		if (top > terminalHeight - widgetHeight) {
 			this._container.style.top = '';
 		}
+	}
+
+	private _getTerminalHeight(): number | undefined {
+		const font = this._instance.xterm?.getFont();
+		if (!font?.charHeight) {
+			return;
+		}
+		return font.charHeight * font.lineHeight * this._instance.rows;
+
+	}
+
+	updateHeight() {
+		const terminalHeight = this._getTerminalHeight();
+		if (!terminalHeight || terminalHeight < widgetHeightMargin) {
+			return;
+		}
+		this._inlineChatWidget.layout(new Dimension(this._inlineChatWidget.domNode.clientWidth, terminalHeight - widgetHeightMargin));
+		this._updateVerticalPosition();
 	}
 
 	private _updateWidth() {
 		const terminalWidth = this._instance.domElement.clientWidth;
 		if (terminalWidth && terminalWidth < 640) {
-			this._inlineChatWidget.layout(new Dimension(terminalWidth - 40, this._inlineChatWidget.getHeight()));
+			this._inlineChatWidget.layout(new Dimension(terminalWidth - widgetWidthMargin, this._inlineChatWidget.getHeight()));
 		}
 	}
 

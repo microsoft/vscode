@@ -312,8 +312,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
 				const containsCode = responseContent.includes('```');
 				this._chatWidget?.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: this._currentRequest.id, providerId: 'terminal' }, false, containsCode);
-				// the message grows in height, be sure to update top position so it doesn't go below the terminal
-				this._chatWidget?.value.layoutVertically();
+				this._chatWidget?.value.updateHeight();
 				this._responseContainsCodeBlockContextKey.set(containsCode);
 				this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 				this._messages.fire(Message.ACCEPT_INPUT);
