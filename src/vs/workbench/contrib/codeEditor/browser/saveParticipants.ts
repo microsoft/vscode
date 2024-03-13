@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -322,7 +323,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			? []
 			: Object.keys(setting)
 				.filter(x => setting[x] === 'never' || false)
-				.map(x => new CodeActionKind(x));
+				.map(x => new HierarchicalKind(x));
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
 
@@ -331,8 +332,8 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		await this.applyOnSaveActions(textEditorModel, filteredSaveList, excludedActions, progress, token);
 	}
 
-	private createCodeActionsOnSave(settingItems: readonly string[]): CodeActionKind[] {
-		const kinds = settingItems.map(x => new CodeActionKind(x));
+	private createCodeActionsOnSave(settingItems: readonly string[]): HierarchicalKind[] {
+		const kinds = settingItems.map(x => new HierarchicalKind(x));
 
 		// Remove subsets
 		return kinds.filter(kind => {
@@ -340,7 +341,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		});
 	}
 
-	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly HierarchicalKind[], excludes: readonly HierarchicalKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		const getActionProgress = new class implements IProgress<CodeActionProvider> {
 			private _names = new Set<string>();
@@ -385,7 +386,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		}
 	}
 
-	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
+	private getActionsToRun(model: ITextModel, codeActionKind: HierarchicalKind, excludes: readonly HierarchicalKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
 		return getCodeActions(this.languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Auto,
 			triggerAction: CodeActionTriggerSource.OnSave,

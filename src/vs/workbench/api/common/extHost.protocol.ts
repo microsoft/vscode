@@ -2080,7 +2080,7 @@ export interface IPasteEditDto {
 	kind: { value: string } | undefined;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
-	yieldTo?: readonly languages.DropYieldTo[];
+	yieldTo?: readonly string[];
 }
 
 export interface IDocumentDropEditProviderMetadata {
@@ -2092,7 +2092,7 @@ export interface IDocumentOnDropEditDto {
 	kind: string | undefined;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
-	yieldTo?: readonly languages.DropYieldTo[];
+	yieldTo?: readonly string[];
 }
 
 export interface ExtHostLanguageFeaturesShape {
@@ -2238,7 +2238,6 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalInteraction(id: number): void;
-	$acceptTerminalShellIntegrationActivation(id: number): void;
 	$acceptTerminalSelection(id: number, selection: string | undefined): void;
 	$startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined>;
 	$acceptProcessAckDataEvent(id: number, charCount: number): void;

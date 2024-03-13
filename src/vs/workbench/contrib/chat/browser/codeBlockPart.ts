@@ -189,7 +189,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 
 		const vulnsContainer = dom.append(this.element, $('.interactive-result-vulns'));
 		const vulnsHeaderElement = dom.append(vulnsContainer, $('.interactive-result-vulns-header', undefined));
-		this.vulnsButton = new Button(vulnsHeaderElement, {
+		this.vulnsButton = this._register(new Button(vulnsHeaderElement, {
 			buttonBackground: undefined,
 			buttonBorder: undefined,
 			buttonForeground: undefined,
@@ -199,18 +199,18 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 			buttonSecondaryHoverBackground: undefined,
 			buttonSeparator: undefined,
 			supportIcons: true
-		});
+		}));
 
 		this.vulnsListElement = dom.append(vulnsContainer, $('ul.interactive-result-vulns-list'));
 
-		this.vulnsButton.onDidClick(() => {
+		this._register(this.vulnsButton.onDidClick(() => {
 			const element = this.currentCodeBlockData!.element as IChatResponseViewModel;
 			element.vulnerabilitiesListExpanded = !element.vulnerabilitiesListExpanded;
 			this.vulnsButton.label = this.getVulnerabilitiesLabel();
 			this.element.classList.toggle('chat-vulnerabilities-collapsed', !element.vulnerabilitiesListExpanded);
 			this._onDidChangeContentHeight.fire();
 			// this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
-		});
+		}));
 
 		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
 			toolbarElement.classList.toggle('force-visibility', e);

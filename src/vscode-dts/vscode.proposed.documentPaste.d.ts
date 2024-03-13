@@ -17,7 +17,7 @@ declare module 'vscode' {
 		Automatic = 0,
 
 		/**
-		 * Pasting was requested by the user with the 'paste as' command.
+		 * Pasting was requested by the user with the `paste as` command.
 		 */
 		PasteAs = 1,
 	}
@@ -27,6 +27,9 @@ declare module 'vscode' {
 	 */
 
 	export interface DocumentPasteEditContext {
+		/**
+		 * Requested kind of paste edits to return.
+		 */
 		readonly only: DocumentPasteEditKind | undefined;
 
 		/**
@@ -36,19 +39,22 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Provider invoked when the user copies and pastes code.
+	 * Provider invoked when the user copies or pastes in a {@linkcode TextDocument}.
 	 */
 	interface DocumentPasteEditProvider<T extends DocumentPasteEdit = DocumentPasteEdit> {
 
 		/**
 		 * Optional method invoked after the user copies text in a file.
 		 *
-		 * During {@link prepareDocumentPaste}, an extension can compute metadata that is attached to
-		 * a {@link DataTransfer} and is passed back to the provider in {@link provideDocumentPasteEdits}.
+		 * This allows the provider to attach copy metadata to the {@link DataTransfer}
+		 * which is then passed back to providers in {@linkcode provideDocumentPasteEdits}.
+		 *
+		 * Note that currently any changes to the {@linkcode DataTransfer} are isolated to the current editor session.
+		 * This means that added metadata cannot be seen by other applications.
 		 *
 		 * @param document Document where the copy took place.
-		 * @param ranges Ranges being copied in `document`.
-		 * @param dataTransfer The data transfer associated with the copy. You can store additional values on this for later use in  {@link provideDocumentPasteEdits}.
+		 * @param ranges Ranges being copied in {@linkcode document}.
+		 * @param dataTransfer The data transfer associated with the copy. You can store additional values on this for later use in  {@linkcode provideDocumentPasteEdits}.
 		 * This object is only valid for the duration of this method.
 		 * @param token A cancellation token.
 		 *
@@ -62,8 +68,8 @@ declare module 'vscode' {
 		 * Returned edits can replace the standard pasting behavior.
 		 *
 		 * @param document Document being pasted into
-		 * @param ranges Currently selected ranges in the document.
-		 * @param dataTransfer The data transfer associated with the paste.
+		 * @param ranges Range in the {@linkcode document} to paste into.
+		 * @param dataTransfer The {@link DataTransfer data transfer} associated with the paste. This object is only valid for the duration of the paste operation.
 		 * @param context Additional context for the paste.
 		 * @param token A cancellation token.
 		 *
@@ -74,19 +80,20 @@ declare module 'vscode' {
 		/**
 		 * Optional method which fills in the {@linkcode DocumentPasteEdit.additionalEdit} before the edit is applied.
 		 *
-		 * This should be used if generating the `additionalEdit` may take a long time.
+		 * This is called once per edit and should be used if generating the complete edit may take a long time.
+		 * Resolve can only be used to change {@link DocumentPasteEdit.additionalEdit}.
 		 *
 		 * @param pasteEdit The {@linkcode DocumentPasteEdit} to resolve.
 		 * @param token A cancellation token.
 		 *
 		 * @returns The resolved paste edit or a thenable that resolves to such. It is OK to return the given
-		 * `item`. When no result is returned, the given `item` will be used.
+		 * `pasteEdit`. If no result is returned, the given `pasteEdit` is used.
 		 */
 		resolveDocumentPasteEdit?(pasteEdit: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**
-	 * An edit applied on paste
+	 * An edit applied on paste.
 	 */
 	class DocumentPasteEdit {
 
@@ -113,16 +120,11 @@ declare module 'vscode' {
 		additionalEdit?: WorkspaceEdit;
 
 		/**
-		 * List of mime types that this edit handles.
-		 */
-		handledMimeTypes?: readonly string[];
-
-		/**
 		 * Controls the ordering of paste edits provided by multiple providers.
 		 *
 		 * If this edit yields to another, it will be shown lower in the list of paste edit.
 		 */
-		yieldTo?: ReadonlyArray<{ readonly kind: DocumentPasteEditKind } | { readonly mimeType: string }>;
+		yieldTo?: readonly DocumentPasteEditKind[];
 
 		/**
 		 * Create a new paste edit.
@@ -140,6 +142,9 @@ declare module 'vscode' {
 	 */
 	class DocumentPasteEditKind {
 		static readonly Empty: DocumentPasteEditKind;
+
+		// TODO: Add `Text` any others?
+
 		private constructor(value: string);
 
 		readonly value: string;
@@ -150,8 +155,12 @@ declare module 'vscode' {
 	}
 
 	interface DocumentPasteProviderMetadata {
-		// TODO
-		readonly providedPasteEditKinds?: readonly DocumentPasteEditKind[];
+		/**
+		 * List of {@link DocumentPasteEditKind kinds} that the provider may return in {@linkcode DocumentPasteEditProvider.provideDocumentPasteEdits provideDocumentPasteEdits}.
+		 *
+		 * The provider will only be invoked when one of these kinds is being requested. For normal pasting, all providers will be invoked.
+		 */
+		readonly providedPasteEditKinds: readonly DocumentPasteEditKind[];
 
 		/**
 		 * Mime types that {@linkcode DocumentPasteEditProvider.prepareDocumentPaste prepareDocumentPaste} may add on copy.
@@ -173,6 +182,15 @@ declare module 'vscode' {
 	}
 
 	namespace languages {
+		/**
+		 * Registers a new {@linkcode DocumentPasteEditProvider}.
+		 *
+		 * @param selector A selector that defines the documents this provider applies to.
+		 * @param provider A paste editor provider.
+		 * @param metadata Additional metadata about the provider.
+		 *
+		 * @returns A {@link Disposable} that unregisters this provider when disposed of.
+		 */
 		export function registerDocumentPasteEditProvider(selector: DocumentSelector, provider: DocumentPasteEditProvider, metadata: DocumentPasteProviderMetadata): Disposable;
 	}
 }

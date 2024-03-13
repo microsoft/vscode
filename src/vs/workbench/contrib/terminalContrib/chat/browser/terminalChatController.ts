@@ -353,6 +353,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	reveal(): void {
 		this._chatWidget?.value.reveal();
+		this._history.clearCandidate();
 	}
 
 	async viewInChat(): Promise<void> {
