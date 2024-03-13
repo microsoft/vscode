@@ -319,13 +319,8 @@ export class CodeActionModel extends Disposable {
 				});
 
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
-					if (trigger.trigger.context?.needsDelay) {
-						await this._progressService?.showWhile(actions, 250);
-					} else {
-						this._progressService?.showWhile(actions, 250);
-					}
+					this._progressService?.showWhile(actions, 250);
 				}
-
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
@@ -343,9 +338,16 @@ export class CodeActionModel extends Disposable {
 			return;
 		}
 
-		// Cancel old request
 		if (this._state.type === CodeActionsState.Type.Triggered) {
-			this._state.cancel();
+			// Check if the current state is manual and the new state is automatic
+			const isManualToAutoTransition = this._state.trigger.type === CodeActionTriggerType.Invoke &&
+				newState.type === CodeActionsState.Type.Triggered &&
+				newState.trigger.type === CodeActionTriggerType.Auto;
+
+			// Cancel the current state unless it's transitioning from manual to auto
+			if (!isManualToAutoTransition) {
+				this._state.cancel();
+			}
 		}
 
 		this._state = newState;
