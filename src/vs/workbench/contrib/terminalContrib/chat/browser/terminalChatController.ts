@@ -8,24 +8,23 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IChatAccessibilityService, IChatWidgetService, IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentService, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatService, IChatProgress, InteractiveSessionVoteDirection, ChatUserAction } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatUserAction, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
-import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { InlineChatHistory } from 'vs/workbench/contrib/inlineChat/browser/inlineChatHistory';
+import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 const enum Message {
 	NONE = 0,
@@ -295,7 +294,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._chatWidget?.value.inlineChatWidget.updateChatMessage(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateProgress(true);
-			this._chatWidget?.value.inlineChatWidget.updateInfo(localize('thinking', "Thinking\u2026"));
+			this._chatWidget?.value.inlineChatWidget.updateInfo(GeneratingPhrase + '\u2026');
 			await task;
 		} catch (e) {
 
