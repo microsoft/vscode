@@ -19,11 +19,6 @@ import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chat
 
 export interface IChat {
 	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
-	requesterUsername: string;
-	requesterAvatarIconUri?: URI;
-	responderUsername: string;
-	responderAvatarIconUri?: URI;
-	inputPlaceholder?: string;
 	dispose?(): void;
 }
 
@@ -177,7 +172,7 @@ export interface IChatVoteAction {
 	reportIssue?: boolean;
 }
 
-export enum ChatAgentCopyKind {
+export enum ChatCopyKind {
 	// Keyboard shortcut or context menu
 	Action = 1,
 	Toolbar = 2
@@ -186,7 +181,7 @@ export enum ChatAgentCopyKind {
 export interface IChatCopyAction {
 	kind: 'copy';
 	codeBlockIndex: number;
-	copyKind: ChatAgentCopyKind;
+	copyKind: ChatCopyKind;
 	copiedCharacters: number;
 	totalCharacters: number;
 	copiedText: string;
@@ -262,13 +257,18 @@ export interface IChatTransferredSessionData {
 	inputValue: string;
 }
 
+export interface IChatSendRequestData {
+	responseCompletePromise: Promise<void>;
+	agent: IChatAgentData;
+	slashCommand?: IChatAgentCommand;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand: IChatAgentCommand; sessionId: string }>;
 	onDidRegisterProvider: Event<{ providerId: string }>;
 	onDidUnregisterProvider: Event<{ providerId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
@@ -283,12 +283,11 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
+	sendRequest(sessionId: string, message: string): Promise<IChatSendRequestData | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): void;
-	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;

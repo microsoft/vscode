@@ -455,15 +455,30 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
-	function scrollWillGoToParent(event: WheelEvent) {
+	let scrollTimeout: any /* NodeJS.Timeout */ | undefined;
+	let scrolledElement: Element | undefined;
+	function flagRecentlyScrolled(node: Element) {
+		scrolledElement = node;
+		node.setAttribute('recentlyScrolled', 'true');
+		clearTimeout(scrollTimeout);
+		scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+	}
+
+	function eventTargetShouldHandleScroll(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
 			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('cell_container') || node.classList.contains('markup') || node.classList.contains('output_container')) {
 				return false;
 			}
 
+			if (node.hasAttribute('recentlyScrolled') && scrolledElement === node) {
+				flagRecentlyScrolled(node);
+				return true;
+			}
+
 			// scroll up
 			if (event.deltaY < 0 && node.scrollTop > 0) {
 				// there is still some content to scroll
+				flagRecentlyScrolled(node);
 				return true;
 			}
 
@@ -481,6 +496,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					continue;
 				}
 
+				flagRecentlyScrolled(node);
 				return true;
 			}
 		}
@@ -489,7 +505,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	const handleWheel = (event: WheelEvent & { wheelDeltaX?: number; wheelDeltaY?: number; wheelDelta?: number }) => {
-		if (event.defaultPrevented || scrollWillGoToParent(event)) {
+		if (event.defaultPrevented || eventTargetShouldHandleScroll(event)) {
 			return;
 		}
 		postNotebookMessage<webviewMessages.IWheelMessage>('did-scroll-wheel', {

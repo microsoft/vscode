@@ -1,0 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .inline-chat-content-widget {
+	padding: 6px;
+	border-radius: 4px;
+	background-color: var(--vscode-inlineChat-background);
+	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
+}

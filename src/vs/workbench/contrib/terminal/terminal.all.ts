@@ -17,6 +17,7 @@ import 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminal.acce
 import 'vs/workbench/contrib/terminalContrib/developer/browser/terminal.developer.contribution';
 import 'vs/workbench/contrib/terminalContrib/environmentChanges/browser/terminal.environmentChanges.contribution';
 import 'vs/workbench/contrib/terminalContrib/find/browser/terminal.find.contribution';
+import 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.chat.contribution';
 import 'vs/workbench/contrib/terminalContrib/highlight/browser/terminal.highlight.contribution';
 import 'vs/workbench/contrib/terminalContrib/links/browser/terminal.links.contribution';
 import 'vs/workbench/contrib/terminalContrib/zoom/browser/terminal.zoom.contribution';

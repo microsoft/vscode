@@ -11,14 +11,20 @@ import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { hasSiblingPromiseFn, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
 	toCanonicalName: (encoding: string) => string;
 }
+interface IAITextQueryProviderPair {
+	query: IAITextQuery; provider: AITextSearchProvider;
+}
 
+interface ITextQueryProviderPair {
+	query: ITextQuery; provider: TextSearchProvider;
+}
 export class TextSearchManager {
 
 	private collector: TextSearchResultsCollector | null = null;
@@ -26,7 +32,13 @@ export class TextSearchManager {
 	private isLimitHit = false;
 	private resultCount = 0;
 
-	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils, private processType: ITextSearchStats['type']) { }
+	constructor(private queryProviderPair: IAITextQueryProviderPair | ITextQueryProviderPair,
+		private fileUtils: IFileUtils,
+		private processType: ITextSearchStats['type']) { }
+
+	private get query() {
+		return this.queryProviderPair.query;
+	}
 
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
@@ -146,7 +158,14 @@ export class TextSearchManager {
 		};
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-		const result = await this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token);
+
+
+		let result;
+		if (this.queryProviderPair.query.type === QueryType.aiText) {
+			result = await (this.queryProviderPair as IAITextQueryProviderPair).provider.provideAITextSearchResults(this.queryProviderPair.query.contentPattern, searchOptions, progress, token);
+		} else {
+			result = await (this.queryProviderPair as ITextQueryProviderPair).provider.provideTextSearchResults(patternInfoToQuery(this.queryProviderPair.query.contentPattern), searchOptions, progress, token);
+		}
 		if (testingPs.length) {
 			await Promise.all(testingPs);
 		}
@@ -196,7 +215,9 @@ export class TextSearchManager {
 			afterContext: this.query.afterContext,
 			beforeContext: this.query.beforeContext
 		};
-		(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
+		if ('usePCRE2' in this.query) {
+			(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
+		}
 		return options;
 	}
 }

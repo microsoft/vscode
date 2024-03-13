@@ -201,6 +201,9 @@ pub struct ServeWebArgs {
 	/// A secret that must be included with all requests.
 	#[clap(long)]
 	pub connection_token: Option<String>,
+	/// A file containing a secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token_file: Option<String>,
 	/// Run without a connection token. Only use this if the connection is secured by other means.
 	#[clap(long)]
 	pub without_connection_token: bool,

@@ -237,7 +237,7 @@ async function goToBottomOfCallStack(debugService: IDebugService) {
 		if (callStack.length > 0) {
 			const nextVisibleFrame = findNextVisibleFrame(false, callStack, 0); // must consider the next frame up first, which will be the last frame
 			if (nextVisibleFrame) {
-				debugService.focusStackFrame(nextVisibleFrame);
+				debugService.focusStackFrame(nextVisibleFrame, undefined, undefined, { preserveFocus: false });
 			}
 		}
 	}
@@ -247,7 +247,7 @@ function goToTopOfCallStack(debugService: IDebugService) {
 	const thread = debugService.getViewModel().focusedThread;
 
 	if (thread) {
-		debugService.focusStackFrame(thread.getTopStackFrame());
+		debugService.focusStackFrame(thread.getTopStackFrame(), undefined, undefined, { preserveFocus: false });
 	}
 }
 

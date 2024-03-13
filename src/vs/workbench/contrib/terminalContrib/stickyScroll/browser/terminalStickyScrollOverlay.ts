@@ -8,7 +8,7 @@ import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXte
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { debounce, memoize, throttle } from 'vs/base/common/decorators';
+import { memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
@@ -95,6 +95,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Eagerly create the overlay
 		xtermCtor.then(ctor => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			this._stickyScrollOverlay = this._register(new ctor({
 				rows: 1,
 				cols: this._xterm.raw.cols,
@@ -108,6 +111,10 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}));
 			this._register(this._themeService.onDidColorThemeChange(() => {
 				this._syncOptions();
+			}));
+			this._register(this._xterm.raw.onResize(() => {
+				this._syncOptions();
+				this._throttledRefresh();
 			}));
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
@@ -147,7 +154,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					this._xterm.raw.onLineFeed,
 					// Rarely an update may be required after just a cursor move, like when
 					// scrolling horizontally in a pager
-					this._xterm.raw.onCursorMove
+					this._xterm.raw.onCursorMove,
 				)(() => this._refresh()),
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
@@ -190,17 +197,18 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (command && this._currentStickyCommand !== command) {
 			this._throttledRefresh();
 		} else {
-			this._debouncedRefresh();
+			// If it's the same command, do not throttle as the sticky scroll overlay height may
+			// need to be adjusted. This would cause a flicker if throttled.
+			this._refreshNow();
 		}
-	}
-
-	@debounce(20)
-	private _debouncedRefresh(): void {
-		this._throttledRefresh();
 	}
 
 	@throttle(0)
 	private _throttledRefresh(): void {
+		this._refreshNow();
+	}
+
+	private _refreshNow(): void {
 		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY);
 
 		// The command from viewportY + 1 is used because this one will not be obscured by sticky
@@ -242,6 +250,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
+		// Hide sticky scroll if the prompt has been trimmed from the buffer
+		if (command.promptStartMarker?.line === -1) {
+			this._setVisible(false);
+			return;
+		}
+
 		// Determine sticky scroll line count
 		const buffer = xterm.buffer.active;
 		const promptRowCount = command.getPromptRowCount();
@@ -278,7 +292,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}
 		}
 
-		// Clear attrs, reset cursor position, clear right
+		// Get the line content of the command from the terminal
 		const content = this._serializeAddon.serialize({
 			range: {
 				start: stickyScrollLineStart + rowOffset,
@@ -294,8 +308,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 
 		// Write content if it differs
-		if (content && this._currentContent !== content) {
+		if (
+			content && this._currentContent !== content ||
+			this._stickyScrollOverlay.cols !== xterm.cols ||
+			this._stickyScrollOverlay.rows !== stickyScrollLineCount
+		) {
 			this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
+			// Clear attrs, reset cursor position, clear right
 			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2J');
 			this._stickyScrollOverlay.write(content);
 			this._currentContent = content;
@@ -314,7 +333,18 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				const termBox = xterm.element.getBoundingClientRect();
 				const rowHeight = termBox.height / xterm.rows;
 				const overlayHeight = stickyScrollLineCount * rowHeight;
-				this._element.style.bottom = `${termBox.height - overlayHeight + 1}px`;
+
+				// Adjust sticky scroll content if it would below the end of the command, obscuring the
+				// following command.
+				let endMarkerOffset = 0;
+				if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
+					if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
+						const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
+						endMarkerOffset = diff * rowHeight;
+					}
+				}
+
+				this._element.style.bottom = `${termBox.height - overlayHeight + 1 + endMarkerOffset}px`;
 			}
 		} else {
 			this._setVisible(false);
@@ -367,11 +397,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Scroll to the command on click
 		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
-			if (this._xterm && this._currentStickyCommand && 'getOutput' in this._currentStickyCommand) {
+			if (this._xterm && this._currentStickyCommand) {
 				this._xterm.markTracker.revealCommand(this._currentStickyCommand);
 				this._instance.focus();
 			}
 		}));
+
+		// Forward mouse events to the terminal
+		this._register(addStandardDisposableListener(hoverOverlay, 'wheel', e => this._xterm?.raw.element?.dispatchEvent(new WheelEvent(e.type, e))));
 
 		// Context menu - stop propagation on mousedown because rightClickBehavior listens on
 		// mousedown, not contextmenu

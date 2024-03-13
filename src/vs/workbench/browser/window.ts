@@ -30,6 +30,7 @@ import { registerWindowDriver } from 'vs/workbench/services/driver/browser/drive
 import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export abstract class BaseWindow extends Disposable {
 
@@ -39,7 +40,8 @@ export abstract class BaseWindow extends Disposable {
 	constructor(
 		targetWindow: CodeWindow,
 		dom = { getWindowsCount, getWindows }, /* for testing */
-		@IHostService protected readonly hostService: IHostService
+		@IHostService protected readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -52,31 +54,54 @@ export abstract class BaseWindow extends Disposable {
 	//#region focus handling in multi-window applications
 
 	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
-		const originalFocus = HTMLElement.prototype.focus;
+		const originalFocus = targetWindow.HTMLElement.prototype.focus;
 
+		const that = this;
 		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
 
-			// If the active focused window is not the same as the
-			// window of the element to focus, make sure to focus
-			// that window first before focusing the element.
-			const activeWindow = getActiveWindow();
-			if (activeWindow.document.hasFocus()) {
-				const elementWindow = getWindow(this);
-				if (activeWindow !== elementWindow) {
-					elementWindow.focus();
-				}
-			}
+			// Ensure the window the element belongs to is focused
+			// in scenarios where auxiliary windows are present
+			that.onElementFocus(getWindow(this));
 
 			// Pass to original focus() method
 			originalFocus.apply(this, [options]);
 		};
 	}
 
+	private onElementFocus(targetWindow: CodeWindow): void {
+		const activeWindow = getActiveWindow();
+		if (activeWindow !== targetWindow && activeWindow.document.hasFocus()) {
+
+			// Call original focus()
+			targetWindow.focus();
+
+			// In Electron, `window.focus()` fails to bring the window
+			// to the front if multiple windows exist in the same process
+			// group (floating windows). As such, we ask the host service
+			// to focus the window which can take care of bringin the
+			// window to the front.
+			//
+			// To minimise disruption by bringing windows to the front
+			// by accident, we only do this if the window is not already
+			// focused and the active window is not the target window
+			// but has focus. This is an indication that multiple windows
+			// are opened in the same process group while the target window
+			// is not focused.
+
+			if (
+				!this.environmentService.extensionTestsLocationURI &&
+				!targetWindow.document.hasFocus()
+			) {
+				this.hostService.focus(targetWindow);
+			}
+		}
+	}
+
 	//#endregion
 
 	//#region timeout handling in multi-window applications
 
-	private enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
+	protected enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
 
 		// Override `setTimeout` and `clearTimeout` on the provided window to make
 		// sure timeouts are dispatched to all opened windows. Some browsers may decide
@@ -186,12 +211,12 @@ export class BrowserWindow extends BaseWindow {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly browserEnvironmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHostService hostService: IHostService
 	) {
-		super(mainWindow, undefined, hostService);
+		super(mainWindow, undefined, hostService, browserEnvironmentService);
 
 		this.registerListeners();
 		this.create();
@@ -288,8 +313,8 @@ export class BrowserWindow extends BaseWindow {
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
 				let isAllowedOpener = false;
-				if (this.environmentService.options?.openerAllowedExternalUrlPrefixes) {
-					for (const trustedPopupPrefix of this.environmentService.options.openerAllowedExternalUrlPrefixes) {
+				if (this.browserEnvironmentService.options?.openerAllowedExternalUrlPrefixes) {
+					for (const trustedPopupPrefix of this.browserEnvironmentService.options.openerAllowedExternalUrlPrefixes) {
 						if (href.startsWith(trustedPopupPrefix)) {
 							isAllowedOpener = true;
 							break;

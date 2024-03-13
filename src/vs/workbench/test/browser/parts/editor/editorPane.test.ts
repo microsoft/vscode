@@ -23,7 +23,7 @@ import { TestStorageService, TestWorkspaceTrustManagementService } from 'vs/work
 import { extUri } from 'vs/base/common/resources';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -36,9 +36,9 @@ const editorInputRegistry: IEditorFactoryRegistry = Registry.as(EditorExtensions
 
 class TestEditor extends EditorPane {
 
-	constructor() {
+	constructor(group: IEditorGroup,) {
 		const disposables = new DisposableStore();
-		super('TestEditor', NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
+		super('TestEditor', group, NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
 
 		this._register(disposables);
 	}
@@ -50,9 +50,9 @@ class TestEditor extends EditorPane {
 
 class OtherTestEditor extends EditorPane {
 
-	constructor() {
+	constructor(group: IEditorGroup,) {
 		const disposables = new DisposableStore();
-		super('testOtherEditor', NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
+		super('testOtherEditor', group, NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
 
 		this._register(disposables);
 	}
@@ -118,7 +118,9 @@ suite('EditorPane', () => {
 	});
 
 	test('EditorPane API', async () => {
-		const editor = new TestEditor();
+		const group = new TestEditorGroupView(1);
+		const editor = new TestEditor(group);
+		assert.ok(editor.group);
 		const input = disposables.add(new OtherTestInput());
 		const options = {};
 
@@ -127,13 +129,11 @@ suite('EditorPane', () => {
 
 		await editor.setInput(input, options, Object.create(null), CancellationToken.None);
 		assert.strictEqual(<any>input, editor.input);
-		const group = new TestEditorGroupView(1);
-		editor.setVisible(true, group);
+		editor.setVisible(true);
 		assert(editor.isVisible());
-		assert.strictEqual(editor.group, group);
 		editor.dispose();
 		editor.clearInput();
-		editor.setVisible(false, group);
+		editor.setVisible(false);
 		assert(!editor.isVisible());
 		assert(!editor.input);
 		assert(!editor.getControl());
@@ -174,18 +174,22 @@ suite('EditorPane', () => {
 
 		const inst = workbenchInstantiationService(undefined, disposables);
 
-		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
+		const group = new TestEditorGroupView(1);
+
+		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst, group));
 		assert.strictEqual(editor.getId(), 'testEditor');
 
-		const otherEditor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
+		const otherEditor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst, group));
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 	});
 
 	test('Editor Pane Lookup favors specific class over superclass (match on super class)', function () {
 		const inst = workbenchInstantiationService(undefined, disposables);
 
+		const group = new TestEditorGroupView(1);
+
 		disposables.add(registerTestResourceEditor());
-		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
+		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst, group));
 
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
 	});
@@ -453,8 +457,8 @@ suite('EditorPane', () => {
 	test('WorkspaceTrustRequiredEditor', async function () {
 
 		class TrustRequiredTestEditor extends EditorPane {
-			constructor(@ITelemetryService telemetryService: ITelemetryService) {
-				super('TestEditor', NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
+			constructor(group: IEditorGroup, @ITelemetryService telemetryService: ITelemetryService) {
+				super('TestEditor', group, NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
 			}
 
 			override getId(): string { return 'trustRequiredTestEditor'; }

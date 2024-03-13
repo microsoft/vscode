@@ -115,7 +115,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 
-export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState?: IWindowState, overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
+export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -129,10 +129,14 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		minHeight: WindowMinimumSize.HEIGHT,
 		title: productService.nameLong,
 		...overrides,
+		x: windowState.x,
+		y: windowState.y,
+		width: windowState.width,
+		height: windowState.height,
 		webPreferences: {
 			enableWebSQL: false,
 			spellcheck: false,
-			zoomFactor: zoomLevelToZoomFactor(windowState?.zoomLevel ?? windowSettings?.zoomLevel),
+			zoomFactor: zoomLevelToZoomFactor(windowState.zoomLevel ?? windowSettings?.zoomLevel),
 			autoplayPolicy: 'user-gesture-required',
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098
@@ -142,13 +146,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		},
 		experimentalDarkMode: true
 	};
-
-	if (windowState) {
-		options.x = windowState.x;
-		options.y = windowState.y;
-		options.width = windowState.width;
-		options.height = windowState.height;
-	}
 
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
@@ -246,8 +243,9 @@ export namespace WindowStateValidator {
 		//          some pixels (128) visible on the screen for the user to drag it back.
 		if (displays.length === 1) {
 			const displayWorkingArea = getWorkingArea(displays[0]);
+			logService.trace('window#validateWindowState: single monitor working area', displayWorkingArea);
+
 			if (displayWorkingArea) {
-				logService.trace('window#validateWindowState: 1 monitor working area', displayWorkingArea);
 
 				function ensureStateInDisplayWorkingArea(): void {
 					if (!state || typeof state.x !== 'number' || typeof state.y !== 'number' || !displayWorkingArea) {
@@ -320,10 +318,13 @@ export namespace WindowStateValidator {
 		try {
 			display = screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
 			displayWorkingArea = getWorkingArea(display);
+
+			logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
 		} catch (error) {
 			// Electron has weird conditions under which it throws errors
 			// e.g. https://github.com/microsoft/vscode/issues/100334 when
 			// large numbers are passed in
+			logService.error('window#validateWindowState: error finding display for window state', error);
 		}
 
 		if (
@@ -334,10 +335,10 @@ export namespace WindowStateValidator {
 			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
 			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
 		) {
-			logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
-
 			return state;
 		}
+
+		logService.trace('window#validateWindowState: state is outside of the multi-monitor working area');
 
 		return undefined;
 	}

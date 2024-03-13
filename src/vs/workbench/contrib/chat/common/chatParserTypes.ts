@@ -6,7 +6,7 @@
 import { revive } from 'vs/base/common/marshalling';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChatAgent, IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatSlashData } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
@@ -26,8 +26,11 @@ export interface IParsedChatRequestPart {
 	readonly promptText: string;
 }
 
-export function getPromptText(request: ReadonlyArray<IParsedChatRequestPart>): string {
-	return request.map(r => r.promptText).join('');
+export function getPromptText(request: IParsedChatRequest): { message: string; diff: number } {
+	const message = request.parts.map(r => r.promptText).join('').trimStart();
+	const diff = request.text.length - message.length;
+
+	return { message, diff };
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {
@@ -69,7 +72,7 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	static readonly Kind = 'agent';
 	readonly kind = ChatRequestAgentPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgent) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
 
 	get text(): string {
 		return `${chatAgentLeader}${this.agent.id}`;
@@ -138,12 +141,11 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue[]) { }
 
 	get referenceText(): string {
-		return this.text;
+		return this.text.replace(chatVariableLeader, '');
 	}
 
 	get promptText(): string {
-		// This needs to be dynamically generated for de-duping
-		return ``;
+		return this.text;
 	}
 }
 

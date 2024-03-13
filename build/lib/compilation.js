@@ -4,7 +4,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = exports.transpileTask = void 0;
+exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = void 0;
+exports.transpileTask = transpileTask;
+exports.compileTask = compileTask;
+exports.watchTask = watchTask;
 const es = require("event-stream");
 const fs = require("fs");
 const gulp = require("gulp");
@@ -96,10 +99,9 @@ function transpileTask(src, out, swc) {
     task.taskName = `transpile-${path.basename(src)}`;
     return task;
 }
-exports.transpileTask = transpileTask;
 function compileTask(src, out, build, options = {}) {
     const task = () => {
-        if (os.totalmem() < 4000000000) {
+        if (os.totalmem() < 4_000_000_000) {
             throw new Error('compilation requires 4GB of RAM');
         }
         const compile = createCompile(src, build, true, false);
@@ -137,7 +139,6 @@ function compileTask(src, out, build, options = {}) {
     task.taskName = `compile-${path.basename(src)}`;
     return task;
 }
-exports.compileTask = compileTask;
 function watchTask(out, build) {
     const task = () => {
         const compile = createCompile('src', build, false, false);
@@ -153,7 +154,6 @@ function watchTask(out, build) {
     task.taskName = `watch-${path.basename(out)}`;
     return task;
 }
-exports.watchTask = watchTask;
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
 class MonacoGenerator {
     _isWatch;
