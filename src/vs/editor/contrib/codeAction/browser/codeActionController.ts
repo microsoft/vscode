@@ -67,8 +67,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	private _disposed = false;
 
-	private recentlyChanged = false;
-
 	constructor(
 		editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
