@@ -30,7 +30,7 @@ export interface IVoiceChatService {
 	 * if the user says "at workspace slash fix this problem", the result
 	 * will be "@workspace /fix this problem".
 	 */
-	createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): IVoiceChatSession;
+	createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): Promise<IVoiceChatSession>;
 }
 
 export interface IVoiceChatTextEvent extends ISpeechToTextEvent {
@@ -87,19 +87,16 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 	private createPhrases(model?: IChatModel): Map<string, IPhraseValue> {
 		const phrases = new Map<string, IPhraseValue>();
 
-		for (const agent of this.chatAgentService.getAgents()) {
+		for (const agent of this.chatAgentService.getActivatedAgents()) {
 			const agentPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.AGENT_PREFIX]} ${VoiceChatService.CHAT_AGENT_ALIAS.get(agent.id) ?? agent.id}`.toLowerCase();
 			phrases.set(agentPhrase, { agent: agent.id });
 
-			const commands = model && agent.getLastSlashCommands(model);
-			if (commands) {
-				for (const slashCommand of commands) {
-					const slashCommandPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.COMMAND_PREFIX]} ${slashCommand.name}`.toLowerCase();
-					phrases.set(slashCommandPhrase, { agent: agent.id, command: slashCommand.name });
+			for (const slashCommand of agent.slashCommands) {
+				const slashCommandPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.COMMAND_PREFIX]} ${slashCommand.name}`.toLowerCase();
+				phrases.set(slashCommandPhrase, { agent: agent.id, command: slashCommand.name });
 
-					const agentSlashCommandPhrase = `${agentPhrase} ${slashCommandPhrase}`.toLowerCase();
-					phrases.set(agentSlashCommandPhrase, { agent: agent.id, command: slashCommand.name });
-				}
+				const agentSlashCommandPhrase = `${agentPhrase} ${slashCommandPhrase}`.toLowerCase();
+				phrases.set(agentSlashCommandPhrase, { agent: agent.id, command: slashCommand.name });
 			}
 		}
 
@@ -117,7 +114,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		}
 	}
 
-	createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): IVoiceChatSession {
+	async createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): Promise<IVoiceChatSession> {
 		const disposables = new DisposableStore();
 		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
@@ -125,7 +122,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		let detectedSlashCommand = false;
 
 		const emitter = disposables.add(new Emitter<IVoiceChatTextEvent>());
-		const session = this.speechService.createSpeechToTextSession(token, 'chat');
+		const session = await this.speechService.createSpeechToTextSession(token, 'chat');
 
 		const phrases = this.createPhrases(options.model);
 		disposables.add(session.onDidChange(e => {

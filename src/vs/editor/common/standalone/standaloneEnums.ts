@@ -740,6 +740,15 @@ export enum OverviewRulerLane {
 	Full = 7
 }
 
+/**
+ * How a partial acceptance was triggered.
+ */
+export enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2
+}
+
 export enum PositionAffinity {
 	/**
 	 * Prefers the left most position.

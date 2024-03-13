@@ -253,6 +253,9 @@ class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements
 	}
 }
 
+/**
+ * @deprecated Use `debouncedObservable2` instead.
+ */
 export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
 	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
 
@@ -274,6 +277,48 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 	}));
 
 	return debouncedObservable;
+}
+
+/**
+ * Creates an observable that debounces the input observable.
+ */
+export function debouncedObservable2<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
+	let hasValue = false;
+	let lastValue: T | undefined;
+
+	let timeout: any = undefined;
+
+	return observableFromEvent<T, void>(cb => {
+		const d = autorun(reader => {
+			const value = observable.read(reader);
+
+			if (!hasValue) {
+				hasValue = true;
+				lastValue = value;
+			} else {
+				if (timeout) {
+					clearTimeout(timeout);
+				}
+				timeout = setTimeout(() => {
+					lastValue = value;
+					cb();
+				}, debounceMs);
+			}
+		});
+		return {
+			dispose() {
+				d.dispose();
+				hasValue = false;
+				lastValue = undefined;
+			},
+		};
+	}, () => {
+		if (hasValue) {
+			return lastValue!;
+		} else {
+			return observable.get();
+		}
+	});
 }
 
 export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, disposableStore: DisposableStore): IObservable<boolean> {

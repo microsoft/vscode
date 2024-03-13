@@ -71,7 +71,7 @@ export function isRecursiveWatchRequest(request: IWatchRequest): request is IRec
 
 export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
-interface IWatcher {
+export interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events

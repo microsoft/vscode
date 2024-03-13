@@ -20,6 +20,7 @@ import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { MarshalledCommentThread } from 'vs/workbench/common/comments';
 
 type ProviderHandle = number;
 
@@ -53,16 +54,17 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 						return commentController.value;
 					} else if (arg && arg.$mid === MarshalledId.CommentThread) {
-						const commentController = this._commentControllers.get(arg.commentControlHandle);
+						const marshalledCommentThread: MarshalledCommentThread = arg;
+						const commentController = this._commentControllers.get(marshalledCommentThread.commentControlHandle);
 
 						if (!commentController) {
-							return arg;
+							return marshalledCommentThread;
 						}
 
-						const commentThread = commentController.getCommentThread(arg.commentThreadHandle);
+						const commentThread = commentController.getCommentThread(marshalledCommentThread.commentThreadHandle);
 
 						if (!commentThread) {
-							return arg;
+							return marshalledCommentThread;
 						}
 
 						return commentThread.value;
@@ -194,16 +196,16 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			commentController?.$deleteCommentThread(commentThreadHandle);
 		}
 
-		$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined> {
+		async $provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined> {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
 			if (!commentController || !commentController.commentingRangeProvider) {
 				return Promise.resolve(undefined);
 			}
 
-			const document = documents.getDocument(URI.revive(uriComponents));
+			const document = await documents.ensureDocumentData(URI.revive(uriComponents));
 			return asPromise(async () => {
-				const rangesResult = await (commentController.commentingRangeProvider as vscode.CommentingRangeProvider2).provideCommentingRanges(document, token);
+				const rangesResult = await (commentController.commentingRangeProvider as vscode.CommentingRangeProvider2).provideCommentingRanges(document.document, token);
 				let ranges: { ranges: vscode.Range[]; fileComments: boolean } | undefined;
 				if (Array.isArray(rangesResult)) {
 					ranges = {
@@ -565,7 +567,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		set commentingRangeProvider(provider: vscode.CommentingRangeProvider | undefined) {
 			this._commentingRangeProvider = provider;
-			proxy.$updateCommentingRanges(this.handle);
+			if (provider?.resourceHints) {
+				checkProposedApiEnabled(this._extension, 'commentingRangeHint');
+			}
+			proxy.$updateCommentingRanges(this.handle, provider?.resourceHints);
 		}
 
 		private _reactionHandler?: ReactionHandler;

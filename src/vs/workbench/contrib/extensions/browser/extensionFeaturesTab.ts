@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $, append, clearNode } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -447,16 +447,18 @@ class ExtensionFeatureView extends Disposable {
 
 	private renderTableData(container: HTMLElement, renderer: IExtensionFeatureTableRenderer): void {
 		const tableData = this._register(renderer.render(this.manifest));
+		const tableDisposable = this._register(new MutableDisposable());
 		if (tableData.onDidChange) {
 			this._register(tableData.onDidChange(data => {
 				clearNode(container);
-				this.renderTable(data, container);
+				tableDisposable.value = this.renderTable(data, container);
 			}));
 		}
-		this.renderTable(tableData.data, container);
+		tableDisposable.value = this.renderTable(tableData.data, container);
 	}
 
-	private renderTable(tableData: ITableData, container: HTMLElement): void {
+	private renderTable(tableData: ITableData, container: HTMLElement): IDisposable {
+		const disposables = new DisposableStore();
 		append(container,
 			$('table', undefined,
 				$('tr', undefined,
@@ -478,7 +480,7 @@ class ExtensionFeatureView extends Disposable {
 										result.push(element);
 									} else if (item instanceof ResolvedKeybinding) {
 										const element = $('');
-										const kbl = new KeybindingLabel(element, OS, defaultKeybindingLabelStyles);
+										const kbl = disposables.add(new KeybindingLabel(element, OS, defaultKeybindingLabelStyles));
 										kbl.set(item);
 										result.push(element);
 									} else if (item instanceof Color) {
@@ -490,6 +492,7 @@ class ExtensionFeatureView extends Disposable {
 							})
 						);
 					})));
+		return disposables;
 	}
 
 	private renderMarkdownData(container: HTMLElement, renderer: IExtensionFeatureMarkdownRenderer): void {
