@@ -478,7 +478,8 @@ export interface IReturnOutputItemMessage {
 
 export interface ISelectOutputItemMessage {
 	readonly type: 'select-output-contents';
-	readonly cellId: string;
+	readonly cellOrOutputId: string;
+	readonly alternateId?: string;
 }
 
 export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
