@@ -75,7 +75,7 @@ import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, QueryType, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from 'vs/workbench/services/search/common/search';
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -323,14 +323,17 @@ export class SearchView extends ViewPane {
 			return;
 		}
 		this.aiResultsVisible = visible;
+		if (this.viewModel.searchResult.isEmpty()) {
+			return;
+		}
+
 		if (visible) {
 			await this.model.addAIResults();
 		} else {
-			this.model.disableAIResults();
 			this.searchWidget.toggleReplace(false);
 		}
 		this.onSearchResultsChanged();
-		this.onSearchComplete(() => { }, undefined, undefined, { results: [], messages: [] });
+		this.onSearchComplete(() => { }, undefined, undefined, this.viewModel.searchResult.getCachedSearchComplete(visible));
 	}
 
 	private get state(): SearchUIState {
@@ -1781,6 +1784,20 @@ export class SearchView extends ViewPane {
 
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		const result = this.viewModel.search(query);
+		if (this.aiResultsVisible) {
+			const aiResult = this.viewModel.aiSearch({ ...query, contentPattern: query.contentPattern.pattern, type: QueryType.aiText });
+			return result.asyncResults.then(
+				() => aiResult.then(
+					(complete) => {
+						clearTimeout(slowTimer);
+						this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
+					}, (e) => {
+						clearTimeout(slowTimer);
+						this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
+					}
+				)
+			);
+		}
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
 			this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
