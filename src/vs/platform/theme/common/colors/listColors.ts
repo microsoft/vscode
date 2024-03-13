@@ -12,7 +12,6 @@ import { registerColor, darken, lighten, ifDefinedThenElse, transparent } from '
 // Import the colors we need
 import { foreground, contrastBorder, activeContrastBorder, focusBorder, iconForeground } from 'vs/platform/theme/common/colors/baseColors';
 import { editorWidgetBackground, editorFindMatchHighlightBorder, editorFindMatchHighlight, widgetShadow } from 'vs/platform/theme/common/colors/editorColors';
-import { buttonBackground } from 'vs/platform/theme/common/colors/inputColors';
 
 
 export const listFocusBackground = registerColor('list.focusBackground',
@@ -32,7 +31,7 @@ export const listFocusAndSelectionOutline = registerColor('list.focusAndSelectio
 	nls.localize('listFocusAndSelectionOutline', "List/Tree outline color for the focused item when the list/tree is active and selected. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listActiveSelectionBackground = registerColor('list.activeSelectionBackground',
-	{ dark: buttonBackground, light: '#0060C0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) },
+	{ dark: '#04395E', light: '#0060C0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) },
 	nls.localize('listActiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listActiveSelectionForeground = registerColor('list.activeSelectionForeground',
