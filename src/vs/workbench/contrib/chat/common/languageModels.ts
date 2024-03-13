@@ -28,6 +28,7 @@ export interface IChatResponseFragment {
 
 export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
+	readonly identifier: string;
 	readonly model: string;
 	readonly description?: string;
 	readonly auth?: {
@@ -47,7 +48,7 @@ export interface ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;
 
-	onDidChangeLanguageModels: Event<{ added?: string[]; removed?: string[] }>;
+	onDidChangeLanguageModels: Event<{ added?: ILanguageModelChatMetadata[]; removed?: string[] }>;
 
 	getLanguageModelIds(): string[];
 
@@ -63,8 +64,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	private readonly _providers: Map<string, ILanguageModelChat> = new Map();
 
-	private readonly _onDidChangeProviders = new Emitter<{ added?: string[]; removed?: string[] }>();
-	readonly onDidChangeLanguageModels: Event<{ added?: string[]; removed?: string[] }> = this._onDidChangeProviders.event;
+	private readonly _onDidChangeProviders = new Emitter<{ added?: ILanguageModelChatMetadata[]; removed?: string[] }>();
+	readonly onDidChangeLanguageModels: Event<{ added?: ILanguageModelChatMetadata[]; removed?: string[] }> = this._onDidChangeProviders.event;
 
 	dispose() {
 		this._onDidChangeProviders.dispose();
@@ -84,7 +85,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Chat response provider with identifier ${identifier} is already registered.`);
 		}
 		this._providers.set(identifier, provider);
-		this._onDidChangeProviders.fire({ added: [identifier] });
+		this._onDidChangeProviders.fire({ added: [provider.metadata] });
 		return toDisposable(() => {
 			if (this._providers.delete(identifier)) {
 				this._onDidChangeProviders.fire({ removed: [identifier] });

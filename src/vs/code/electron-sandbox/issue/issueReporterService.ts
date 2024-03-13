@@ -74,10 +74,18 @@ export class IssueReporter extends Disposable {
 			selectedExtension: targetExtension
 		});
 
+		const fileOnMarketplace = configuration.data.issueSource === IssueSource.Marketplace;
+		const fileOnProduct = configuration.data.issueSource === IssueSource.VSCode;
+		this.issueReporterModel.update({ fileOnMarketplace, fileOnProduct });
+
 		//TODO: Handle case where extension is not activated
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
+			const issueRepoName = document.createElement('a');
+			issueReporterElement.appendChild(issueRepoName);
+			issueRepoName.id = 'show-repo-name';
+			issueRepoName.classList.add('hidden');
 			this.updatePreviewButtonState();
 		}
 
@@ -501,6 +509,31 @@ export class IssueReporter extends Disposable {
 			this.previewButton.enabled = false;
 			this.previewButton.label = localize('loadingData', "Loading data...");
 		}
+
+		const issueRepoName = this.getElementById('show-repo-name')! as HTMLAnchorElement;
+		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
+		if (selectedExtension && selectedExtension.uri) {
+			const urlString = URI.revive(selectedExtension.uri).toString();
+			issueRepoName.href = urlString;
+			issueRepoName.addEventListener('click', (e) => this.openLink(e));
+			issueRepoName.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
+			const gitHubInfo = this.parseGitHubUrl(urlString);
+			issueRepoName.textContent = gitHubInfo ? gitHubInfo.owner + '/' + gitHubInfo.repositoryName : urlString;
+			Object.assign(issueRepoName.style, {
+				alignSelf: 'flex-end',
+				display: 'block',
+				fontSize: '13px',
+				marginBottom: '10px',
+				padding: '4px 0px',
+				textDecoration: 'none',
+				width: 'auto'
+			});
+			show(issueRepoName);
+		} else {
+			// clear styles
+			issueRepoName.removeAttribute('style');
+			hide(issueRepoName);
+		}
 	}
 
 	private isPreviewEnabled() {
@@ -743,12 +776,16 @@ export class IssueReporter extends Disposable {
 
 	private setSourceOptions(): void {
 		const sourceSelect = this.getElementById('issue-source')! as HTMLSelectElement;
-		const { issueType, fileOnExtension, selectedExtension } = this.issueReporterModel.getData();
+		const { issueType, fileOnExtension, selectedExtension, fileOnMarketplace, fileOnProduct } = this.issueReporterModel.getData();
 		let selected = sourceSelect.selectedIndex;
 		if (selected === -1) {
 			if (fileOnExtension !== undefined) {
 				selected = fileOnExtension ? 2 : 1;
 			} else if (selectedExtension?.isBuiltin) {
+				selected = 1;
+			} else if (fileOnMarketplace) {
+				selected = 3;
+			} else if (fileOnProduct) {
 				selected = 1;
 			}
 		}

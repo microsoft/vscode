@@ -630,6 +630,11 @@ export interface INotebookEditor {
 	revealInCenterIfOutsideViewport(cell: ICellViewModel): Promise<void>;
 
 	/**
+	 * Reveal the first line of the cell into the view if the cell is outside of the viewport.
+	 */
+	revealFirstLineIfOutsideViewport(cell: ICellViewModel): Promise<void>;
+
+	/**
 	 * Reveal a line in notebook cell into viewport with minimal scrolling.
 	 */
 	revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void>;

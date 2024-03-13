@@ -194,6 +194,9 @@ function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOpti
 
 class HoverContextViewDelegate implements IDelegate {
 
+	// Render over all other context views
+	public readonly layer = 1;
+
 	get anchorPosition() {
 		return this._hover.anchor;
 	}

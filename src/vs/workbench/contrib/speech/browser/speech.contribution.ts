@@ -7,4 +7,4 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
 import { SpeechService } from 'vs/workbench/contrib/speech/browser/speechService';
 
-registerSingleton(ISpeechService, SpeechService, InstantiationType.Delayed);
+registerSingleton(ISpeechService, SpeechService, InstantiationType.Eager /* Reads Extension Points */);

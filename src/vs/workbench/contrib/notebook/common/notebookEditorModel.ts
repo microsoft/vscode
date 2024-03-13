@@ -52,11 +52,12 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
+		scratchpad: boolean,
 		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
-		this.scratchPad = viewType === 'interactive';
+		this.scratchPad = scratchpad;
 	}
 
 	override dispose(): void {

@@ -1051,6 +1051,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			isChecked: false,
+			hoverDelegate: hoverDelegate,
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),

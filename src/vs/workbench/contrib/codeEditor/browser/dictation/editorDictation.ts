@@ -193,7 +193,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		super();
 	}
 
-	start() {
+	async start(): Promise<void> {
 		const disposables = new DisposableStore();
 		this.sessionDisposables.value = disposables;
 
@@ -205,6 +205,8 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 
 		const collection = this.editor.createDecorationsCollection();
 		disposables.add(toDisposable(() => collection.clear()));
+
+		disposables.add(this.editor.onDidChangeCursorPosition(() => this.widget.layout()));
 
 		let previewStart: Position | undefined = undefined;
 
@@ -242,13 +244,12 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 			}
 
 			this.editor.revealPositionInCenterIfOutsideViewport(endPosition);
-			this.widget.layout();
 		};
 
 		const cts = new CancellationTokenSource();
 		disposables.add(toDisposable(() => cts.dispose(true)));
 
-		const session = this.speechService.createSpeechToTextSession(cts.token);
+		const session = await this.speechService.createSpeechToTextSession(cts.token);
 		disposables.add(session.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;

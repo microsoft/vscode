@@ -351,7 +351,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	focusCommentEditor() {
-		this._commentReply?.focusCommentEditor();
+		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
 	}
 
 	focus() {

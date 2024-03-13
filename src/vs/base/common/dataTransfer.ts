@@ -50,6 +50,7 @@ export interface IReadonlyVSDataTransfer extends Iterable<readonly [string, IDat
 	 * This uses exact matching and does not support wildcards.
 	 */
 	has(mimeType: string): boolean;
+
 	/**
 	 * Check if this data transfer contains data matching `pattern`.
 	 *

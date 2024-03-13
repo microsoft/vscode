@@ -475,6 +475,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				name: result.variable.name,
 				value: result.variable.value,
 				type: result.variable.type,
+				language: result.variable.language,
+				expression: result.variable.expression,
 				hasNamedChildren: result.hasNamedChildren,
 				indexedChildrenCount: result.indexedChildrenCount,
 				extensionId: obj.extensionId.value,
@@ -700,7 +702,7 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			end(success: boolean | undefined, endTime?: number): void {
+			end(success: boolean | undefined, endTime?: number, executionError?: vscode.CellExecutionError): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved) {
 					throw new Error('Cannot call resolve twice');
 				}
@@ -712,9 +714,22 @@ class NotebookCellExecutionTask extends Disposable {
 				// so we use updateSoon and immediately flush.
 				that._collector.flush();
 
+				const error = executionError ? {
+					message: executionError.message,
+					stack: executionError.stack,
+					location: executionError?.location ? {
+						startLineNumber: executionError.location.start.line,
+						startColumn: executionError.location.start.character,
+						endLineNumber: executionError.location.end.line,
+						endColumn: executionError.location.end.character
+					} : undefined,
+					uri: executionError.uri
+				} : undefined;
+
 				that._proxy.$completeExecution(that._handle, new SerializableObjectWithBuffers({
 					runEndTime: endTime,
-					lastRunSuccess: success
+					lastRunSuccess: success,
+					error
 				}));
 			},
 

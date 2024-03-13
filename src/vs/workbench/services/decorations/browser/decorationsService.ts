@@ -87,7 +87,7 @@ class DecorationRule {
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement): void {
 		// label
-		const { color } = data[0];
+		const { color } = data.find(d => !!d.color) ?? data[0];
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
 
 		// badge or icon
