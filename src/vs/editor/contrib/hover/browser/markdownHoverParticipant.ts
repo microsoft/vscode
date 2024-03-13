@@ -28,6 +28,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { registerActionOnClickOrAcceptKeydown } from 'vs/base/browser/ui/hover/hoverWidget';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.chevronUp, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -93,6 +96,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService protected readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
@@ -291,6 +295,17 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _renderHoverExpansionAction(container: HTMLElement, verbosityMetadata: { increase: boolean; activated: boolean }, store: DisposableStore): void {
 		const element = dom.append(container, $(ThemeIcon.asCSSSelector(verbosityMetadata.increase ? increaseHoverVerbosityIcon : decreaseHoverVerbosityIcon)));
 		element.tabIndex = 0;
+		if (verbosityMetadata.increase) {
+			const kb = this._keybindingService.lookupKeybinding('editor.action.increaseHoverVerbosityLevel');
+			store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), element, kb ?
+				nls.localize('increaseVerbosityWithKb', "Increase Verbosity ({0})", kb.getLabel()) :
+				nls.localize('increaseVerbosity', "Increase Verbosity")));
+		} else {
+			const kb = this._keybindingService.lookupKeybinding('editor.action.decreaseHoverVerbosityLevel');
+			store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), element, kb ?
+				nls.localize('decreaseVerbosityWithKb', "Decrease Verbosity ({0})", kb.getLabel()) :
+				nls.localize('decreaseVerbosity', "Decrease Verbosity")));
+		}
 		if (!verbosityMetadata.activated) {
 			element.classList.add('disabled');
 			return;
