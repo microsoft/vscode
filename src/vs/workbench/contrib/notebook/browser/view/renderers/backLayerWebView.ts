@@ -1681,18 +1681,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview?.focus();
 	}
 
-	selectOutputContents(cellId: string) {
+	selectOutputContents(cell: ICellViewModel) {
 		if (this._disposed) {
 			return;
 		}
-		const cell = this.notebookEditor.getCellById(cellId);
-		if (!cell || !cell.outputIsFocused) {
-			return;
-		}
-
 		this._sendMessageToWebview({
 			type: 'select-output-contents',
-			cellOrOutputId: (cell as ICellViewModel).focusedOutputId || cellId,
+			cellOrOutputId: (cell as ICellViewModel).focusedOutputId || cell.id,
 			alternateId: cell.outputsViewModels.length ? cell.outputsViewModels[0].model.outputId : undefined
 		});
 	}

@@ -1986,7 +1986,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	selectOutputContent(cell: ICellViewModel) {
-		this._webview?.selectOutputContents(cell.id);
+		this._webview?.selectOutputContents(cell);
 	}
 
 	onWillHide() {
