@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getClientArea, getDomNodePagePosition, getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -124,8 +124,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 			this._input.className = 'rename-input';
 			this._input.type = 'text';
 			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
-			this._disposables.add(addDisposableListener(this._input, 'focus', () => { this._focusedContextKey.set(true); }));
-			this._disposables.add(addDisposableListener(this._input, 'blur', () => { this._focusedContextKey.reset(); }));
+			this._disposables.add(dom.addDisposableListener(this._input, 'focus', () => { this._focusedContextKey.set(true); }));
+			this._disposables.add(dom.addDisposableListener(this._input, 'blur', () => { this._focusedContextKey.reset(); }));
 			this._domNode.appendChild(this._input);
 
 			this._renameCandidateListView = this._disposables.add(
@@ -189,8 +189,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 			return null;
 		}
 
-		const bodyBox = getClientArea(this.getDomNode().ownerDocument.body);
-		const editorBox = getDomNodePagePosition(this._editor.getDomNode());
+		const bodyBox = dom.getClientArea(this.getDomNode().ownerDocument.body);
+		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
 
 		const cursorBoxTop = this._getTopForPosition();
 
@@ -237,9 +237,9 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		assertType(this._nPxAvailableAbove !== undefined);
 		assertType(this._nPxAvailableBelow !== undefined);
 
-		const inputBoxHeight = getTotalHeight(this._input!);
+		const inputBoxHeight = dom.getTotalHeight(this._input!);
 
-		const labelHeight = getTotalHeight(this._label!);
+		const labelHeight = dom.getTotalHeight(this._label!);
 
 		let totalHeightAvailable: number;
 		if (position === ContentWidgetPositionPreference.BELOW) {
@@ -250,7 +250,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 
 		this._renameCandidateListView!.layout({
 			height: totalHeightAvailable - labelHeight - inputBoxHeight,
-			width: getTotalWidth(this._input!),
+			width: dom.getTotalWidth(this._input!),
 		});
 	}
 
