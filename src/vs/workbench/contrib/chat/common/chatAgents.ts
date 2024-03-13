@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
+import { isNonEmptyArray, distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -15,7 +15,7 @@ import { ProviderResult } from 'vs/editor/common/languages';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatContributionService, IRawChatCommandContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { IChatContributionService, IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatProgressResponseContent, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -27,6 +27,24 @@ export interface IChatAgentHistoryEntry {
 	result: IChatAgentResult;
 }
 
+export enum ChatAgentLocation {
+	Panel = 1,
+	Terminal = 2,
+	Notebook = 3,
+	// Editor = 4
+}
+
+export namespace ChatAgentLocation {
+	export function fromRaw(value: RawChatParticipantLocation | string): ChatAgentLocation {
+		switch (value) {
+			case 'panel': return ChatAgentLocation.Panel;
+			case 'terminal': return ChatAgentLocation.Terminal;
+			case 'notebook': return ChatAgentLocation.Notebook;
+		}
+		return ChatAgentLocation.Panel;
+	}
+}
+
 export interface IChatAgentData {
 	id: string;
 	extensionId: ExtensionIdentifier;
@@ -35,6 +53,7 @@ export interface IChatAgentData {
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	defaultImplicitVariables?: string[];
+	locations: ChatAgentLocation[];
 }
 
 export interface IChatAgentImplementation {
@@ -84,6 +103,7 @@ export interface IChatAgentRequest {
 	command?: string;
 	message: string;
 	variables: IChatRequestVariableData;
+	location: ChatAgentLocation;
 }
 
 export interface IChatAgentResult {
@@ -201,6 +221,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 				metadata: { description: p.description },
 				isDefault: p.isDefault,
 				defaultImplicitVariables: p.defaultImplicitVariables,
+				locations: isNonEmptyArray(p.locations) ? p.locations.map(ChatAgentLocation.fromRaw) : [ChatAgentLocation.Panel],
 				get slashCommands() {
 					const commands = p.commands ?? [];
 					return commands.filter(c => !c.when || that.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(c.when)));
@@ -267,6 +288,7 @@ export class MergedChatAgent implements IChatAgent {
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
 	get defaultImplicitVariables(): string[] | undefined { return this.data.defaultImplicitVariables; }
+	get locations(): ChatAgentLocation[] { return this.data.locations; }
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 		return this.impl.invoke(request, progress, history, token);

@@ -41,12 +41,15 @@ export interface IRawChatCommandContribution {
 	defaultImplicitVariables?: string[];
 }
 
+export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook';
+
 export interface IRawChatParticipantContribution {
 	name: string;
 	description?: string;
 	isDefault?: boolean;
 	commands?: IRawChatCommandContribution[];
 	defaultImplicitVariables?: string[];
+	locations?: RawChatParticipantLocation[];
 }
 
 export interface IChatParticipantContribution extends IRawChatParticipantContribution {

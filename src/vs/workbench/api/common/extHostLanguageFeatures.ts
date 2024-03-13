@@ -600,7 +600,6 @@ class DocumentPasteEditProvider {
 		}));
 	}
 
-
 	async resolvePasteEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
 		const [sessionId, itemId] = id;
 		const item = this._cache.get(sessionId, itemId);

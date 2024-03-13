@@ -1554,10 +1554,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			type GalleryServiceUpdatesCheckClassification = {
 				owner: 'sandy081';
 				comment: 'Report when a request is made to check for updates of extensions';
-				readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions to check update' };
+				count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions to check update'; isMeasurement: true };
 			};
 			type GalleryServiceUpdatesCheckEvent = {
-				readonly count: number;
+				count: number;
 			};
 			this.telemetryService.publicLog2<GalleryServiceUpdatesCheckEvent, GalleryServiceUpdatesCheckClassification>('galleryService:checkingForUpdates', {
 				count: infos.length,
@@ -1689,8 +1689,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			case StateType.AvailableForDownload:
 			case StateType.Downloaded:
 			case StateType.Updating:
-			case StateType.Ready:
-				return { version: this.updateService.state.update.version, date: this.updateService.state.update.timestamp ? new Date(this.updateService.state.update.timestamp).toISOString() : undefined };
+			case StateType.Ready: {
+				const version = this.updateService.state.update.productVersion;
+				if (semver.valid(version)) {
+					return { version, date: this.updateService.state.update.timestamp ? new Date(this.updateService.state.update.timestamp).toISOString() : undefined };
+				}
+			}
 		}
 		return undefined;
 	}

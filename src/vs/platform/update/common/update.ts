@@ -7,7 +7,9 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IUpdate {
+	// Commit HASH in Windows | Linux. In MacOS, it is the version string.
 	version: string;
+	// Can be invalid version string
 	productVersion: string;
 	timestamp?: number;
 	url?: string;

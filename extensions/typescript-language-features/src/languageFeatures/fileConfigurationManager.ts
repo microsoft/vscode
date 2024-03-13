@@ -215,12 +215,16 @@ export default class FileConfigurationManager extends Disposable {
 	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
 		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
 			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
-			const slashNormalized = p.replace(/\\/g, '/');
-			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
+			const isRelative = /^\.\.?($|[\/\\])/.test(p);
+			// In TypeScript < 5.3, the first path component cannot be a wildcard, so we need to prefix
+			// it with a path root (e.g. `/` or `c:\`)
+			const wildcardPrefix = this.client.apiVersion.gte(API.v540)
+				? ''
+				: path.parse(this.client.toTsFilePath(workspaceFolder)!).root;
 			return path.isAbsolute(p) ? p :
-				p.startsWith('*') ? '/' + slashNormalized :
-					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
-						'/**/' + slashNormalized;
+				p.startsWith('*') ? wildcardPrefix + p :
+					isRelative ? this.client.toTsFilePath(vscode.Uri.joinPath(workspaceFolder, p))! :
+						wildcardPrefix + '**' + path.sep + p;
 		});
 	}
 }

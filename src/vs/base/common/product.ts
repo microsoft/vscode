@@ -308,5 +308,4 @@ export interface IChatWelcomeView {
 	welcomeViewId: string;
 	welcomeViewTitle: string;
 	welcomeViewContent: string;
-	when: string;
 }

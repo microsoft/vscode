@@ -33,6 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { SaveReason } from 'vs/workbench/common/editor';
+import { GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
 import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -633,7 +634,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			this._widget?.inlineChatWidget.updateChatMessage(undefined);
 			this._widget?.inlineChatWidget.updateFollowUps(undefined);
 			this._widget?.inlineChatWidget.updateProgress(true);
-			this._widget?.inlineChatWidget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
+			this._widget?.inlineChatWidget.updateInfo(!this._activeSession.lastExchange ? GeneratingPhrase + '\u2026' : '');
 			this._ctxHasActiveRequest.set(true);
 
 			const reply = await raceCancellationError(Promise.resolve(task), this._activeRequestCts.token);
