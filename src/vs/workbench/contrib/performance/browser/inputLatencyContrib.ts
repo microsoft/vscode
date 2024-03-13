@@ -30,7 +30,12 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 			this._setupListener();
 		}, 60000));
 
-		this._setupListener();
+
+		// Only log 1% of users selected randomly to reduce the volume of data
+		if (Math.random() <= 0.01) {
+			this._setupListener();
+		}
+
 	}
 
 	private _setupListener(): void {
