@@ -653,8 +653,6 @@ class RenameCandidateView {
 		iconContainer.appendChild(this._icon);
 
 		this._label = document.createElement('div');
-		this._icon.style.display = `flex`;
-		this._icon.style.alignItems = `center`;
 		this._label.style.marginLeft = '5px';
 		applyFontInfo(this._label, fontInfo);
 		this._domNode.appendChild(this._label);
