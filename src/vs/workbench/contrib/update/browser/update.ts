@@ -468,7 +468,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					return;
 				}
 
-				const version = this.updateService.state.update.version;
+				const version = this.updateService.state.update.productVersion;
 				this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, version));
 			});
 			MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
