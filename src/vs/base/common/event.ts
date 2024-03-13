@@ -1081,7 +1081,7 @@ export class Emitter<T> {
 			} else if (Array.isArray(disposables)) {
 				disposables.push(result);
 			} else {
-				listenerTraces.set(handle, new Error().stack!);
+				listenerTraces.set(handle, new Error().stack!.split('\n').slice(2).join('\n'));
 				listenerFinalizers.register(result, handle, result);
 			}
 
