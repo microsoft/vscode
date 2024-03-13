@@ -113,6 +113,16 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 							},
 						}
 					}
+				},
+				locations: {
+					markdownDescription: localize('chatLocationsDescription', "Locations in which this Chat Participant is available."),
+					type: 'array',
+					default: ['panel'],
+					items: {
+						type: 'string',
+						enum: ['panel', 'terminal', 'notebook']
+					}
+
 				}
 			}
 		}
