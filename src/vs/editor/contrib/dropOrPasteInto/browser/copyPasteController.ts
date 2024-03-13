@@ -8,6 +8,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { UriList, VSDataTransfer, createStringDataTransferItem, matchesMimeType } from 'vs/base/common/dataTransfer';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
@@ -23,9 +24,11 @@ import { Handler, IEditorContribution, PastePayload } from 'vs/editor/common/edi
 import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteTriggerKind } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { DefaultTextPasteOrDropEditProvider } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
 import { createCombinedWorkspaceEdit, sortEditsByYieldTo } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -33,8 +36,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { PostEditWidgetManager } from './postEditWidget';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 
@@ -316,13 +317,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				// TODO: also filter based on kinds
 				const supportedProviders = allProviders.filter(provider => isSupportedPasteProvider(provider, dataTransfer));
 				if (!supportedProviders.length
-					|| (supportedProviders.length === 1 && supportedProviders[0].id === 'text') // Only our default text provider is active
+					|| (supportedProviders.length === 1 && supportedProviders[0] instanceof DefaultTextPasteOrDropEditProvider) // Only our default text provider is active
 				) {
-					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
-					return;
+					return this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
 				}
 
-				const context = {
+				const context: DocumentPasteContext = {
 					triggerKind: DocumentPasteTriggerKind.Automatic,
 				};
 				const providerEdits = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token);
@@ -330,10 +330,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					return;
 				}
 
-				// If the only edit returned is a text edit, use the default paste handler
-				if (providerEdits.length === 1 && providerEdits[0].kind.value === 'text') {
-					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
-					return;
+				// If the only edit returned is our default text edit, use the default paste handler
+				if (providerEdits.length === 1 && providerEdits[0].provider instanceof DefaultTextPasteOrDropEditProvider) {
+					return this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
 				}
 
 				if (providerEdits.length) {
