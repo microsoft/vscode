@@ -22,7 +22,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { RedoCommand, SelectAllCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -41,7 +41,7 @@ function _log(loggerService: ILogService, str: string) {
 	}
 }
 
-function getFocusedWebviewDelegate(accessor: ServicesAccessor): IWebview | undefined {
+function getFocusedEditor(accessor: ServicesAccessor) {
 	const loggerService = accessor.get(ILogService);
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -65,8 +65,15 @@ function getFocusedWebviewDelegate(accessor: ServicesAccessor): IWebview | undef
 		return;
 	}
 
-	const webview = editor.getInnerWebview();
-	_log(loggerService, '[Revive Webview] Notebook editor backlayer webview is focused');
+	return { editor, loggerService };
+}
+function getFocusedWebviewDelegate(accessor: ServicesAccessor): IWebview | undefined {
+	const result = getFocusedEditor(accessor);
+	if (!result) {
+		return;
+	}
+	const webview = result.editor.getInnerWebview();
+	_log(result.loggerService, '[Revive Webview] Notebook editor backlayer webview is focused');
 	return webview;
 }
 
@@ -77,6 +84,11 @@ function withWebview(accessor: ServicesAccessor, f: (webviewe: IWebview) => void
 		return true;
 	}
 	return false;
+}
+
+function withEditor(accessor: ServicesAccessor, f: (editor: INotebookEditor) => boolean) {
+	const result = getFocusedEditor(accessor);
+	return result ? f(result.editor) : false;
 }
 
 const PRIORITY = 105;
@@ -99,6 +111,25 @@ PasteAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 
 CutAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.cut());
+});
+
+SelectAllCommand.addImplementation(PRIORITY, 'notebook-webview', accessor => {
+	return withEditor(accessor, editor => {
+		if (!editor.hasEditorFocus()) {
+			return false;
+		}
+		// From here on, always return true, else generic webview handler
+		// code will select all outputs in all cells.
+		if (editor.hasEditorFocus() && !editor.hasWebviewFocus()) {
+			return true;
+		}
+		const cell = editor.getActiveCell();
+		if (!cell || !cell.outputIsFocused || !editor.hasWebviewFocus()) {
+			return true;
+		}
+		editor.selectOutputContent(cell);
+		return true;
+	});
 });
 
 

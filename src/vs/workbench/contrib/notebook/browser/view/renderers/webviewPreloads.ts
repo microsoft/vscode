@@ -270,6 +270,39 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
 		}
 	};
+	const selectOutputContents = (cellId: string) => {
+		console.error('id for selection', cellId);
+		if (!lastFocusedOutput) {
+			return;
+		}
+		const selection = window.getSelection();
+		const ele = window.document.getElementById(lastFocusedOutput.id);
+		if (!selection || !ele) {
+			return;
+		}
+		selection.removeAllRanges();
+		const range = document.createRange();
+		range.selectNode(ele);
+		selection.addRange(range);
+
+	};
+	// function focusFocusedContainerInCellOutput(cellOrOutputId: string, alternateId?: string) {
+	// 	const cellOutputContainer = window.document.getElementById(cellOrOutputId) ??
+	// 		(alternateId ? window.document.getElementById(alternateId) : undefined);
+	// 	if (cellOutputContainer) {
+	// 		if (cellOutputContainer.contains(window.document.activeElement)) {
+	// 			return;
+	// 		}
+
+	// 		let focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
+	// 		if (!focusableElement) {
+	// 			focusableElement = cellOutputContainer;
+	// 			focusableElement.tabIndex = -1;
+	// 		}
+
+	// 		focusableElement.focus();
+	// 	}
+	// }
 
 	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
 		postNotebookMessage<webviewMessages.IClickedDataUrlMessage>('clicked-data-url', {
@@ -1608,6 +1641,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'focus-output':
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
+				break;
+			case 'select-output-contents':
+				selectOutputContents(event.data.cellId);
 				break;
 			case 'decorations': {
 				let outputContainer = window.document.getElementById(event.data.cellId);

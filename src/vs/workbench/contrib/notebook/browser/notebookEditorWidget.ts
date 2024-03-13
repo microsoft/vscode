@@ -103,6 +103,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { WEBVIEW_NESTED_IN_LIST_VIEW_FOCUSED } from 'vs/platform/webview/common/webviewContextKeys';
 
 const $ = DOM.$;
 
@@ -216,6 +217,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly _editorEditable: IContextKey<boolean>;
 	private readonly _cursorNavMode: IContextKey<boolean>;
 	private readonly _outputInputFocus: IContextKey<boolean>;
+	private readonly _webviewHasFocus: IContextKey<boolean>;
 	protected readonly _contributions = new Map<string, INotebookEditorContribution>();
 	private _scrollBeyondLastLine: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
@@ -421,6 +423,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._outputInputFocus = NOTEBOOK_OUPTUT_INPUT_FOCUSED.bindTo(this.scopedContextKeyService);
+		this._webviewHasFocus = WEBVIEW_NESTED_IN_LIST_VIEW_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.scopedContextKeyService);
 		this._cursorNavMode = NOTEBOOK_CURSOR_NAVIGATION_MODE.bindTo(this.scopedContextKeyService);
 
@@ -1386,6 +1389,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._localStore.add(this._webview.webview.onDidBlur(() => {
 				this._outputFocus.set(false);
 				this._webviewFocused = false;
+				this._webviewHasFocus.set(false);
 
 				this.updateEditorFocus();
 				this.updateCellFocusMode();
@@ -1393,6 +1397,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			this._localStore.add(this._webview.webview.onDidFocus(() => {
 				this._outputFocus.set(true);
+				this._webviewHasFocus.set(true);
 				this.updateEditorFocus();
 				this._webviewFocused = true;
 			}));
@@ -1978,6 +1983,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		} else {
 			this._list.focusContainer(clearSelection);
 		}
+	}
+
+	selectOutputContent(cell: ICellViewModel) {
+		this._webview?.selectOutputContents(cell.id);
 	}
 
 	onWillHide() {

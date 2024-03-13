@@ -476,6 +476,11 @@ export interface IReturnOutputItemMessage {
 	readonly output: OutputItemEntry | undefined;
 }
 
+export interface ISelectOutputItemMessage {
+	readonly type: 'select-output-contents';
+	readonly cellId: string;
+}
+
 export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
 	readonly type: 'logRendererDebugMessage';
 	readonly message: string;
@@ -555,7 +560,8 @@ export type ToWebviewMessage = IClearMessage |
 	IFindHighlightCurrentMessage |
 	IFindUnHighlightCurrentMessage |
 	IFindStopMessage |
-	IReturnOutputItemMessage;
+	IReturnOutputItemMessage |
+	ISelectOutputItemMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

@@ -1681,6 +1681,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview?.focus();
 	}
 
+	selectOutputContents(cellId: string) {
+		if (this._disposed) {
+			return;
+		}
+		const cell = this.notebookEditor.getCellById(cellId);
+		if (!cell || !cell.outputIsFocused) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'select-output-contents',
+			cellId
+		});
+	}
+
 	focusOutput(cellOrOutputId: string, alternateId: string | undefined, viewFocused: boolean) {
 		if (this._disposed) {
 			return;
