@@ -1188,7 +1188,6 @@ export class QuickInputTree extends Disposable {
 			);
 		}
 
-		this._tree.setFocus([]);
 		this._tree.layout();
 
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
