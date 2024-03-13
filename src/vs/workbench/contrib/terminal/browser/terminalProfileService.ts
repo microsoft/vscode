@@ -89,7 +89,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private async _setupConfigListener(): Promise<void> {
 		const platformKey = await this.getPlatformKey();
 
-		this._configurationService.onDidChangeConfiguration(async e => {
+		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingPrefix.AutomationProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
@@ -103,7 +103,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 					this._platformConfigJustRefreshed = true;
 				}
 			}
-		});
+		}));
 	}
 
 	getDefaultProfileName(): string | undefined {

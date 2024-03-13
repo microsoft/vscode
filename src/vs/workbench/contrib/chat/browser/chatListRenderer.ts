@@ -48,7 +48,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer, IMarkdownVulnerability, annotateSpecialMarkdownContent, extractVulnerabilitiesFromText } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
@@ -369,7 +369,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				progressMsg = localize('usingAgent', "using {0}", usingMsg);
 			}
 		} else if (!element.isComplete) {
-			progressMsg = localize('thinking', "Thinking");
+			progressMsg = GeneratingPhrase;
 		}
 
 		templateData.detail.textContent = progressMsg;
@@ -738,7 +738,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 		const buttonElement = $('.chat-used-context-label', undefined);
 
-		const collapseButton = new Button(buttonElement, {
+		const collapseButton = listDisposables.add(new Button(buttonElement, {
 			buttonBackground: undefined,
 			buttonBorder: undefined,
 			buttonForeground: undefined,
@@ -747,7 +747,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			buttonSecondaryForeground: undefined,
 			buttonSecondaryHoverBackground: undefined,
 			buttonSeparator: undefined
-		});
+		}));
 		const container = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 		collapseButton.element.append(iconElement);

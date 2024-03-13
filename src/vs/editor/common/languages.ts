@@ -2132,7 +2132,7 @@ export enum ExternalUriOpenerPriority {
 /**
  * @internal
  */
-export type DropYieldTo = { readonly kind: string } | { readonly mimeType: string };
+export type DropYieldTo = { readonly kind: HierarchicalKind } | { readonly mimeType: string };
 
 /**
  * @internal

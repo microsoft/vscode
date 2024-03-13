@@ -71,7 +71,7 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 		pasteEdit.additionalEdit = workspaceEdit;
 
 		if (!(await shouldInsertMarkdownLinkByDefault(this._parser, document, pasteUrlSetting, ranges, token))) {
-			pasteEdit.yieldTo = [{ mimeType: Mime.textPlain }];
+			pasteEdit.yieldTo = [vscode.DocumentPasteEditKind.Empty.append('text')];
 		}
 
 		return [pasteEdit];

@@ -223,7 +223,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.description.textContent = extension.description;
 
 		const updatePublisher = () => {
-			data.publisherDisplayName.textContent = extension.publisherDisplayName;
+			data.publisherDisplayName.textContent = !extension.resourceExtension && extension.local?.source !== 'resource' ? extension.publisherDisplayName : '';
 		};
 		updatePublisher();
 		Event.filter(this.extensionsWorkbenchService.onChange, e => !!e && areSameExtensions(e.identifier, extension.identifier))(() => updatePublisher(), this, data.extensionDisposables);

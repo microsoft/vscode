@@ -33,7 +33,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -49,6 +48,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StashedSession } from './inlineChatSession';
 import { IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
+import { InlineChatHistory } from 'vs/workbench/contrib/inlineChat/browser/inlineChatHistory';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -107,11 +107,7 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(INLINE_CHAT_ID);
 	}
 
-	private static _storageKey = 'inline-chat-history';
-	private static _promptHistory: string[] = [];
-	private _historyOffset: number = -1;
-	private _historyCandidate: string = '';
-	private _historyUpdate: (prompt: string) => void;
+	private readonly _history: InlineChatHistory;
 
 	private _isDisposed: boolean = false;
 	private readonly _store = new DisposableStore();
@@ -152,7 +148,6 @@ export class InlineChatController implements IEditorContribution {
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
@@ -199,17 +194,7 @@ export class InlineChatController implements IEditorContribution {
 
 		this._log('NEW controller');
 
-		InlineChatController._promptHistory = JSON.parse(_storageService.get(InlineChatController._storageKey, StorageScope.PROFILE, '[]'));
-		this._historyUpdate = (prompt: string) => {
-			const idx = InlineChatController._promptHistory.indexOf(prompt);
-			if (idx >= 0) {
-				InlineChatController._promptHistory.splice(idx, 1);
-			}
-			InlineChatController._promptHistory.unshift(prompt);
-			this._historyOffset = -1;
-			this._historyCandidate = '';
-			this._storageService.store(InlineChatController._storageKey, JSON.stringify(InlineChatController._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
-		};
+		this._history = _instaService.createInstance(InlineChatHistory, 'inline-chat-history');
 	}
 
 	dispose(): void {
@@ -259,8 +244,7 @@ export class InlineChatController implements IEditorContribution {
 			if (options.initialSelection) {
 				this._editor.setSelection(options.initialSelection);
 			}
-			this._historyOffset = -1;
-			this._historyCandidate = '';
+			this._history.clearCandidate();
 			this._stashedSession.clear();
 			this._onWillStartSession.fire();
 			this._currentRun = this._nextState(State.CREATE_SESSION, options);
@@ -517,8 +501,7 @@ export class InlineChatController implements IEditorContribution {
 
 		const input = this.getInput();
 
-
-		this._historyUpdate(input);
+		this._history.update(input);
 
 		const refer = this._session.session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
 		if (refer) {
@@ -1066,33 +1049,11 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	populateHistory(up: boolean) {
-		const len = InlineChatController._promptHistory.length;
-		if (len === 0) {
-			return;
+		const entry = this._history.populateHistory(this._zone.value.widget.value, up);
+		if (entry) {
+			this._zone.value.widget.value = entry;
+			this._zone.value.widget.selectAll();
 		}
-
-		if (this._historyOffset === -1) {
-			// remember the current value
-			this._historyCandidate = this._zone.value.widget.value;
-		}
-
-		const newIdx = this._historyOffset + (up ? 1 : -1);
-		if (newIdx >= len) {
-			// reached the end
-			return;
-		}
-
-		let entry: string;
-		if (newIdx < 0) {
-			entry = this._historyCandidate;
-			this._historyOffset = -1;
-		} else {
-			entry = InlineChatController._promptHistory[newIdx];
-			this._historyOffset = newIdx;
-		}
-
-		this._zone.value.widget.value = entry;
-		this._zone.value.widget.selectAll();
 	}
 
 	viewInChat() {

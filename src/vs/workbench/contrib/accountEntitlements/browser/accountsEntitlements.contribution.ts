@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -27,24 +26,28 @@ import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { isWeb } from 'vs/base/common/platform';
+import { isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 
-const configurationKey = 'workbench.accounts.experimental.showEntitlements';
+const accountsBadgeConfigKey = 'workbench.accounts.experimental.showEntitlements';
+const chatWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
 
 type EntitlementEnablementClassification = {
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if the account entitlement is enabled' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if the entitlement is enabled' };
 	owner: 'bhavyaus';
-	comment: 'Reporting when the account entitlement is shown';
+	comment: 'Reporting when the entitlement is shown';
 };
 
 type EntitlementActionClassification = {
 	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed by the entitlement action' };
 	owner: 'bhavyaus';
-	comment: 'Reporting the account entitlement action';
+	comment: 'Reporting the entitlement action';
 };
 
-class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
+class EntitlementsContribution extends Disposable implements IWorkbenchContribution {
+
 	private isInitialized = false;
-	private contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(this.contextService);
+	private showAccountsBadgeContextKey = new RawContextKey<boolean>(accountsBadgeConfigKey, false).bindTo(this.contextService);
+	private showChatWelcomeViewContextKey = new RawContextKey<boolean>(chatWelcomeViewConfigKey, false).bindTo(this.contextService);
 
 	constructor(
 		@IContextKeyService readonly contextService: IContextKeyService,
@@ -57,32 +60,17 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		@IActivityService readonly activityService: IActivityService,
 		@IExtensionService readonly extensionService: IExtensionService,
 		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IRequestService readonly requestService: IRequestService,
-	) {
+		@IRequestService readonly requestService: IRequestService) {
 		super();
 
 		if (!this.productService.gitHubEntitlement || isWeb) {
 			return;
 		}
 
-		// if previously shown, do not show again.
-		const showEntitlements = this.storageService.getBoolean(configurationKey, StorageScope.APPLICATION, true);
-		if (!showEntitlements) {
-			return;
-		}
-
-		const setting = this.configurationService.inspect<boolean>(configurationKey);
-		if (!setting.value) {
-			return;
-		}
-
-		this.extensionManagementService.getInstalled().then(exts => {
+		this.extensionManagementService.getInstalled().then(async exts => {
 			const installed = exts.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement!.extensionId));
 			if (installed) {
-				this.storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-				this.contextKey.set(false);
-				return;
+				this.disableEntitlements();
 			} else {
 				this.registerListeners();
 			}
@@ -90,35 +78,37 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerListeners() {
+
 		this._register(this.extensionService.onDidChangeExtensions(async (result) => {
 			for (const ext of result.added) {
 				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, ext.identifier)) {
-					this.storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-					this.contextKey.set(false);
+					this.disableEntitlements();
 					return;
 				}
 			}
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async (e) => {
-			if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.added?.length && !this.isInitialized) {
-				this.onSessionChange(e.event.added[0]);
+			if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.added?.length) {
+				await this.enableEntitlements(e.event.added[0]);
 			} else if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.removed?.length) {
-				this.contextKey.set(false);
+				this.showAccountsBadgeContextKey.set(false);
+				this.showChatWelcomeViewContextKey.set(false);
 			}
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
-			if (e.id === this.productService.gitHubEntitlement!.providerId && !this.isInitialized) {
-				const session = await this.authenticationService.getSessions(e.id);
-				this.onSessionChange(session[0]);
+			if (e.id === this.productService.gitHubEntitlement!.providerId) {
+				await this.enableEntitlements((await this.authenticationService.getSessions(e.id))[0]);
 			}
 		}));
 	}
 
-	private async onSessionChange(session: AuthenticationSession) {
+	private async getEntitlementsInfo(session: AuthenticationSession): Promise<[enabled: boolean, org: string | undefined]> {
 
-		this.isInitialized = true;
+		if (this.isInitialized) {
+			return [false, ''];
+		}
 
 		const context = await this.requestService.request({
 			type: 'GET',
@@ -129,11 +119,11 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		}, CancellationToken.None);
 
 		if (context.res.statusCode && context.res.statusCode !== 200) {
-			return;
+			return [false, ''];
 		}
 		const result = await asText(context);
 		if (!result) {
-			return;
+			return [false, ''];
 		}
 
 		let parsedResult: any;
@@ -142,23 +132,51 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		}
 		catch (err) {
 			//ignore
-			return;
+			return [false, ''];
 		}
 
 		if (!(this.productService.gitHubEntitlement!.enablementKey in parsedResult) || !parsedResult[this.productService.gitHubEntitlement!.enablementKey]) {
-			return;
+			this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>('entitlements.enabled', { enabled: false });
+			return [false, ''];
 		}
-
-		this.contextKey.set(true);
-		this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(configurationKey, { enabled: true });
-
+		this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>('entitlements.enabled', { enabled: true });
+		this.isInitialized = true;
 		const orgs = parsedResult['organization_login_list'] as any[];
-		const menuTitle = orgs ? this.productService.gitHubEntitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1]) : this.productService.gitHubEntitlement!.command.titleWithoutPlaceHolder;
+		return [true, orgs ? orgs[orgs.length - 1] : undefined];
+	}
+
+	private async enableEntitlements(session: AuthenticationSession) {
+		const isInternal = isInternalTelemetry(this.productService, this.configurationService) ?? true;
+		const showAccountsBadge = this.configurationService.inspect<boolean>(accountsBadgeConfigKey).value ?? false;
+		const showWelcomeView = this.configurationService.inspect<boolean>(chatWelcomeViewConfigKey).value ?? false;
+
+		const [enabled, org] = await this.getEntitlementsInfo(session);
+		if (enabled) {
+			if (isInternal && showWelcomeView) {
+				this.showChatWelcomeViewContextKey.set(true);
+				this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(chatWelcomeViewConfigKey, { enabled: true });
+			} else if (!isInternal && showAccountsBadge) {
+				this.createAccountsBadge(org);
+				this.showAccountsBadgeContextKey.set(showAccountsBadge);
+				this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(accountsBadgeConfigKey, { enabled: true });
+			}
+		}
+	}
+
+	private disableEntitlements() {
+		this.storageService.store(accountsBadgeConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.storageService.store(chatWelcomeViewConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.showAccountsBadgeContextKey.set(false);
+		this.showChatWelcomeViewContextKey.set(false);
+	}
+
+	private async createAccountsBadge(org: string | undefined) {
+
+		const menuTitle = org ? this.productService.gitHubEntitlement!.command.title.replace('{{org}}', org) : this.productService.gitHubEntitlement!.command.titleWithoutPlaceHolder;
 
 		const badge = new NumberBadge(1, () => menuTitle);
 		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
-
 
 		registerAction2(class extends Action2 {
 			constructor() {
@@ -169,7 +187,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 					menu: {
 						id: MenuId.AccountsContext,
 						group: '5_AccountsEntitlements',
-						when: ContextKeyExpr.equals(configurationKey, true),
+						when: ContextKeyExpr.equals(accountsBadgeConfigKey, true),
 					}
 				});
 			}
@@ -202,17 +220,13 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 				}
 
 				accountsMenuBadgeDisposable.clear();
-				const contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(contextKeyService);
+				const contextKey = new RawContextKey<boolean>(accountsBadgeConfigKey, true).bindTo(contextKeyService);
 				contextKey.set(false);
-				storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				storageService.store(accountsBadgeConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
 		});
 	}
 }
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(AccountsEntitlement, LifecyclePhase.Eventually);
-
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -227,3 +241,18 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+configurationRegistry.registerConfiguration({
+	...applicationConfigurationNodeBase,
+	properties: {
+		'workbench.chat.experimental.showWelcomeView': {
+			scope: ConfigurationScope.MACHINE,
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			description: localize('workbench.chat.showWelcomeView', "When enabled, the chat panel welcome view will be shown.")
+		}
+	}
+});
+
+registerWorkbenchContribution2('workbench.contrib.entitlements', EntitlementsContribution, WorkbenchPhase.BlockRestore);
