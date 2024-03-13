@@ -231,7 +231,6 @@ class RenameController implements IEditorContribution {
 
 		const renameCandidatesCts = new CancellationTokenSource(cts2.token);
 		const newSymbolNamesProviders = this._languageFeaturesService.newSymbolNamesProvider.all(model);
-		// TODO@ulugbekna: providers should get timeout token (use createTimeoutCancellation(x))
 		const newSymbolNameProvidersResults = newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, renameCandidatesCts.token));
 		trace(`requested new symbol names from ${newSymbolNamesProviders.length} providers`);
 
