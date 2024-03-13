@@ -569,9 +569,7 @@ export class QuickInputTree extends Disposable {
 	get onDidChangeFocus() {
 		return Event.map(
 			this._tree.onDidChangeFocus,
-			e => e.elements
-				.filter((e): e is IQuickPickElement => !!e)
-				.map(e => e.item)
+			e => e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement).map(e => e.item)
 		);
 	}
 
@@ -580,9 +578,7 @@ export class QuickInputTree extends Disposable {
 		return Event.map(
 			this._tree.onDidChangeSelection,
 			e => ({
-				items: e.elements
-					.filter((e): e is IQuickPickElement => !!e)
-					.map(e => e.item),
+				items: e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement).map(e => e.item),
 				event: e.browserEvent
 			}));
 	}
