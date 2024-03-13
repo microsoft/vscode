@@ -31,7 +31,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 	class TestParcelWatcher extends ParcelWatcher {
 
-		protected override readonly suspendedWatchRequestPollingInterval: number = 100;
+		protected override readonly suspendedWatchRequestPollingInterval = 100;
 
 		private readonly _onDidWatch = this._register(new Emitter<void>());
 		readonly onDidWatch = this._onDidWatch.event;
