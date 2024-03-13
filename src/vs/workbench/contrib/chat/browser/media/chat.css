@@ -338,7 +338,6 @@
 	display: flex;
 	box-sizing: border-box;
 	cursor: text;
-	margin: 0px 20px;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
@@ -417,9 +416,17 @@
 }
 
 .interactive-session .interactive-input-part {
+	margin: 0px 20px;
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
+}
+
+.interactive-session .chat-implicit-context {
+	padding: 8px 8px 13px;
+	margin-bottom: -5px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
+	border-radius: 6px 6px 0px 0px;
 }
 
 .interactive-session-followups {
@@ -441,10 +448,6 @@
 
 .interactive-item-container .interactive-response-followups .monaco-button {
 	padding: 4px 8px;
-}
-
-.interactive-session .interactive-input-part .interactive-input-followups {
-	margin: 0px 20px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {

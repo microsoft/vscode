@@ -21,8 +21,18 @@ import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedCha
 import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export interface IChatRequestVariableData {
+export interface IChatPromptVariableData {
 	variables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[];
+}
+
+export interface IChatRequestVariableEntry {
+	name: string;
+	range?: IOffsetRange;
+	values: IChatRequestVariableValue[];
+}
+
+export interface IChatRequestVariableData {
+	variables: IChatRequestVariableEntry[];
 }
 
 export interface IChatRequestModel {
@@ -884,7 +894,7 @@ export function updateRanges(variableData: IChatRequestVariableData, diff: numbe
 	return {
 		variables: variableData.variables.map(v => ({
 			...v,
-			range: {
+			range: v.range && {
 				start: v.range.start - diff,
 				endExclusive: v.range.endExclusive - diff
 			}
