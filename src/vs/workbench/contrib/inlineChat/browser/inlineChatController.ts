@@ -372,7 +372,9 @@ export class InlineChatController implements IEditorContribution {
 
 		this._zone.value.widget.updateSlashCommands(this._session.session.slashCommands ?? []);
 		this._updatePlaceholder();
-		this._zone.value.widget.updateInfo(this._session.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
+		const message = this._session.session.message ?? localize('welcome.1', "AI-generated code may be incorrect");
+		this._input.value.updateMessage(message);
+		this._zone.value.widget.updateInfo(message);
 		this._zone.value.widget.value = this._session.session.input ?? this._session.lastInput?.value ?? this._zone.value.widget.value;
 		if (this._session.session.input) {
 			this._zone.value.widget.selectAll();
