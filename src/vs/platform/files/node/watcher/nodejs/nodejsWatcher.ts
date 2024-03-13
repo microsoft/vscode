@@ -111,6 +111,8 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	}
 
 	private stopWatching(watcher: INodeJSWatcherInstance): void {
+		this.trace(`stopping file watcher`, watcher);
+
 		this.watchers.delete(watcher);
 
 		watcher.instance.dispose();
@@ -143,9 +145,9 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		}
 	}
 
-	protected trace(message: string): void {
+	protected trace(message: string, watcher?: INodeJSWatcherInstance): void {
 		if (this.verboseLogging) {
-			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message) });
+			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message, watcher) });
 		}
 	}
 
@@ -153,7 +155,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message) });
 	}
 
-	private toMessage(message: string): string {
-		return `[File Watcher (node.js)] ${message}`;
+	private toMessage(message: string, watcher?: INodeJSWatcherInstance): string {
+		return watcher ? `[File Watcher (node.js)] ${message} (path: ${watcher.request.path})` : `[File Watcher (node.js)] ${message}`;
 	}
 }
