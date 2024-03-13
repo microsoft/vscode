@@ -193,10 +193,10 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 	private async _createEditForMediaFiles(
 		document: vscode.TextDocument,
 		dataTransfer: vscode.DataTransfer,
-		copyIntoWorkspace: 'mediaFiles' | 'never',
+		copyIntoWorkspace: CopyFilesSettings,
 		token: vscode.CancellationToken,
 	): Promise<DropOrPasteEdit | undefined> {
-		if (copyIntoWorkspace !== 'mediaFiles' || getParentDocumentUri(document.uri).scheme === Schemes.untitled) {
+		if (copyIntoWorkspace !== CopyFilesSettings.MediaFiles || getParentDocumentUri(document.uri).scheme === Schemes.untitled) {
 			return;
 		}
 
