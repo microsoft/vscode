@@ -383,6 +383,7 @@ export class InlineChatWidget {
 	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined {
 
 		this._chatMessageDisposables.clear();
+		this._codeBlockModelCollection.clear();
 		this._responseViewModel = undefined;
 		this._chatMessage = message ? new MarkdownString(message.message.value) : undefined;
 		const hasMessage = message?.message.value;
@@ -516,7 +517,6 @@ export class InlineChatWidget {
 		this.updateInfo('');
 
 		this._elements.accessibleViewer.classList.toggle('hidden', true);
-		this._codeBlockModelCollection.clear();
 		this._onDidChangeHeight.fire();
 	}
 
