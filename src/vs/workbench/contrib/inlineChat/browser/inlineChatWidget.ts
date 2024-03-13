@@ -516,7 +516,6 @@ export class InlineChatWidget {
 
 		this._elements.accessibleViewer.classList.toggle('hidden', true);
 		this._codeBlockModelCollection.clear();
-		this._responseViewModel = undefined;
 		this._onDidChangeHeight.fire();
 	}
 
