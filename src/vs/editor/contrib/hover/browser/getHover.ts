@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { Hover, HoverProvider } from 'vs/editor/common/languages';
+import { Hover, HoverContext, HoverProvider } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -19,11 +19,6 @@ export class HoverProviderResult {
 		public readonly hover: Hover,
 		public readonly ordinal: number
 	) { }
-}
-
-interface HoverContext {
-	/** Verbosity level of the hover request */
-	verbosityLevel: number;
 }
 
 async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, context: HoverContext | undefined, token: CancellationToken): Promise<HoverProviderResult | undefined> {
