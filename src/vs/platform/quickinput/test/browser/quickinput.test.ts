@@ -8,6 +8,7 @@ import { unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
+import { Event } from 'vs/base/common/event';
 import { raceTimeout } from 'vs/base/common/async';
 import { unthemedCountStyles } from 'vs/base/browser/ui/countBadge/countBadge';
 import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -15,7 +16,7 @@ import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progr
 import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { mainWindow } from 'vs/base/browser/window';
 import { QuickPick } from 'vs/platform/quickinput/browser/quickInput';
 import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -24,6 +25,12 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IListService, ListService } from 'vs/platform/list/browser/listService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { NoMatchingKb } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -50,9 +57,19 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		store.add(toDisposable(() => mainWindow.document.body.removeChild(fixture)));
 
 		const instantiationService = new TestInstantiationService();
+
+		// Stub the services the quick input controller needs to function
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(ILayoutService, { activeContainer: fixture } as any);
+		instantiationService.stub(IListService, store.add(new ListService()));
+		instantiationService.stub(ILayoutService, { activeContainer: fixture, onDidLayoutContainer: Event.None } as any);
+		instantiationService.stub(IContextViewService, { showContextView() { return Disposable.None; } } as any);
+		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
+		instantiationService.stub(IKeybindingService, {
+			mightProducePrintableCharacter() { return false; },
+			softDispatch() { return NoMatchingKb; },
+		});
+
 		controller = store.add(instantiationService.createInstance(
 			QuickInputController,
 			{

@@ -474,8 +474,8 @@ class QuickInputListRenderer implements ITreeRenderer<IQuickPickElement, void, I
 		data.actionBar.clear();
 	}
 	disposeTemplate(data: IQuickInputItemTemplateData): void {
-		data.toDisposeElement.clear();
-		data.toDisposeTemplate.clear();
+		data.toDisposeElement.dispose();
+		data.toDisposeTemplate.dispose();
 	}
 }
 
