@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, ShowAiIconMode } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -86,24 +86,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				return;
 			}
 
-			const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-			if (
-				(option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode)
-				&& this.state.actions.allAIFixes
-				&& this.state.actions.validActions.length === 1
-			) {
-				const action = this.state.actions.validActions[0].action;
-				const id = action.command?.id;
-				if (id) {
-					let args = action.command?.arguments;
-					if (id === 'inlineChat.start' && args && args.length === 1) {
-						args = [{ ...args[0], autoSend: false }];
-					}
-					commandService.executeCommand(id, ...(args || []));
-					e.preventDefault();
-					return;
-				}
-			}
 			// Make sure that focus / cursor location is not lost when clicking widget icon
 			this._editor.focus();
 			e.preventDefault();
@@ -135,15 +117,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			this.hide();
 		}));
 
-		this._register(this._editor.onDidChangeConfiguration(e => {
-			// hide when told to do so
-			if (e.hasChanged(EditorOption.lightbulb)) {
-				if (!this._editor.getOption(EditorOption.lightbulb).enabled) {
-					this.hide();
-				}
-				this._updateLightBulbTitleAndIcon();
-			}
-		}));
 
 		this._register(Event.runAndSubscribe(this._keybindingService.onDidUpdateKeybindings, () => {
 			this._preferredKbLabel = this._keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined;
@@ -180,11 +153,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return this.hide();
 		}
 
-		const onlyAIActions = actions.allAIFixes;
-		const showAiIcon = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-		if (onlyAIActions && showAiIcon === ShowAiIconMode.Off) {
-			return this.hide();
-		}
 
 		const model = this._editor.getModel();
 		if (!model) {
@@ -194,7 +162,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const { lineNumber, column } = model.validatePosition(atPosition);
 
 		const tabSize = model.getOptions().tabSize;
-		const fontInfo = options.get(EditorOption.fontInfo);
+		const fontInfo = this._editor.getOptions().get(EditorOption.fontInfo);
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = fontInfo.spaceWidth * indent > 22;
@@ -248,30 +216,21 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 		let icon: ThemeIcon;
 		let autoRun = false;
-		const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-		if (option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode) {
-			if (option === ShowAiIconMode.On && this.state.actions.allAIFixes) {
-				icon = Codicon.sparkleFilled;
-				if (this.state.actions.validActions.length === 1) {
-					autoRun = true;
-				}
-			} else if (this.state.actions.hasAutoFix) {
-				if (this.state.actions.hasAIFix) {
-					icon = Codicon.lightbulbSparkleAutofix;
-				} else {
-					icon = Codicon.lightbulbAutofix;
-				}
-			} else if (this.state.actions.hasAIFix) {
-				icon = Codicon.lightbulbSparkle;
-			} else {
-				icon = Codicon.lightBulb;
+		if (this.state.actions.allAIFixes) {
+			icon = Codicon.sparkleFilled;
+			if (this.state.actions.validActions.length === 1) {
+				autoRun = true;
 			}
-		} else {
-			if (this.state.actions.hasAutoFix) {
+		} else if (this.state.actions.hasAutoFix) {
+			if (this.state.actions.hasAIFix) {
+				icon = Codicon.lightbulbSparkleAutofix;
+			} else {
 				icon = Codicon.lightbulbAutofix;
-			} else {
-				icon = Codicon.lightBulb;
 			}
+		} else if (this.state.actions.hasAIFix) {
+			icon = Codicon.lightbulbSparkle;
+		} else {
+			icon = Codicon.lightBulb;
 		}
 		this._updateLightbulbTitle(this.state.actions.hasAutoFix, autoRun);
 		this._iconClasses = ThemeIcon.asClassNameArray(icon);

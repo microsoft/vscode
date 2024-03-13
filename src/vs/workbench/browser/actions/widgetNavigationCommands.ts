@@ -9,9 +9,7 @@ import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/co
 import { WorkbenchListFocusContextKey, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from 'vs/platform/list/browser/listService';
 import { Event } from 'vs/base/common/event';
 import { combinedDisposable, toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 
 /** INavigableContainer represents a logical container composed of widgets that can
 	be navigated back and forth with key shortcuts */
@@ -57,6 +55,9 @@ function handleFocusEventsGroup(group: readonly IFocusNotifier[], handler: (isFo
 const NavigableContainerFocusedContextKey = new RawContextKey<boolean>('navigableContainerFocused', false);
 
 class NavigableContainerManager implements IDisposable {
+
+	static readonly ID = 'workbench.contrib.navigableContainerManager';
+
 	private static INSTANCE: NavigableContainerManager | undefined;
 
 	private readonly containers = new Set<INavigableContainer>();
@@ -111,8 +112,7 @@ export function registerNavigableContainer(container: INavigableContainer): IDis
 	return NavigableContainerManager.register(container);
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(NavigableContainerManager, LifecyclePhase.Starting);
+registerWorkbenchContribution2(NavigableContainerManager.ID, NavigableContainerManager, WorkbenchPhase.BlockStartup);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'widgetNavigation.focusPrevious',

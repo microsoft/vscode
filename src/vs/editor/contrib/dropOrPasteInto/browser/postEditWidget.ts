@@ -11,23 +11,20 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./postEditWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditResult, IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
-import { WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentOnDropEdit, DocumentPasteEdit } from 'vs/editor/common/languages';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { createCombinedWorkspaceEdit } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 
-interface EditSet {
+interface EditSet<Edit extends DocumentPasteEdit | DocumentOnDropEdit> {
 	readonly activeEditIndex: number;
-	readonly allEdits: ReadonlyArray<{
-		readonly label: string;
-		readonly insertText: string | { readonly snippet: string };
-		readonly additionalEdit?: WorkspaceEdit;
-	}>;
+	readonly allEdits: ReadonlyArray<Edit>;
 }
 
 interface ShowCommand {
@@ -35,7 +32,7 @@ interface ShowCommand {
 	readonly label: string;
 }
 
-class PostEditWidget extends Disposable implements IContentWidget {
+class PostEditWidget<T extends DocumentPasteEdit | DocumentOnDropEdit> extends Disposable implements IContentWidget {
 	private static readonly baseId = 'editor.widget.postEditWidget';
 
 	readonly allowEditorOverflow = true;
@@ -52,7 +49,7 @@ class PostEditWidget extends Disposable implements IContentWidget {
 		visibleContext: RawContextKey<boolean>,
 		private readonly showCommand: ShowCommand,
 		private readonly range: Range,
-		private readonly edits: EditSet,
+		private readonly edits: EditSet<T>,
 		private readonly onSelectNewEdit: (editIndex: number) => void,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -122,7 +119,7 @@ class PostEditWidget extends Disposable implements IContentWidget {
 			getActions: () => {
 				return this.edits.allEdits.map((edit, i) => toAction({
 					id: '',
-					label: edit.label,
+					label: edit.title,
 					checked: i === this.edits.activeEditIndex,
 					run: () => {
 						if (i !== this.edits.activeEditIndex) {
@@ -135,9 +132,9 @@ class PostEditWidget extends Disposable implements IContentWidget {
 	}
 }
 
-export class PostEditWidgetManager extends Disposable {
+export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentOnDropEdit> extends Disposable {
 
-	private readonly _currentWidget = this._register(new MutableDisposable<PostEditWidget>());
+	private readonly _currentWidget = this._register(new MutableDisposable<PostEditWidget<T>>());
 
 	constructor(
 		private readonly _id: string,
@@ -155,36 +152,20 @@ export class PostEditWidgetManager extends Disposable {
 		)(() => this.clear()));
 	}
 
-	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet, canShowWidget: boolean, token: CancellationToken) {
+	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet<T>, canShowWidget: boolean, resolve: (edit: T, token: CancellationToken) => Promise<T>, token: CancellationToken) {
 		const model = this._editor.getModel();
 		if (!model || !ranges.length) {
 			return;
 		}
 
-		const edit = edits.allEdits[edits.activeEditIndex];
+		const edit = edits.allEdits.at(edits.activeEditIndex);
 		if (!edit) {
 			return;
 		}
 
-		let insertTextEdit: ResourceTextEdit[] = [];
-		if (typeof edit.insertText === 'string' ? edit.insertText === '' : edit.insertText.snippet === '') {
-			insertTextEdit = [];
-		} else {
-			insertTextEdit = ranges.map(range => new ResourceTextEdit(model.uri,
-				typeof edit.insertText === 'string'
-					? { range, text: edit.insertText, insertAsSnippet: false }
-					: { range, text: edit.insertText.snippet, insertAsSnippet: true }
-			));
-		}
+		const resolvedEdit = await resolve(edit, token);
 
-		const allEdits = [
-			...insertTextEdit,
-			...(edit.additionalEdit?.edits ?? [])
-		];
-
-		const combinedWorkspaceEdit: WorkspaceEdit = {
-			edits: allEdits
-		};
+		const combinedWorkspaceEdit = createCombinedWorkspaceEdit(model.uri, ranges, resolvedEdit);
 
 		// Use a decoration to track edits around the trigger range
 		const primaryRange = ranges[0];
@@ -210,16 +191,16 @@ export class PostEditWidgetManager extends Disposable {
 				}
 
 				await model.undo();
-				this.applyEditAndShowIfNeeded(ranges, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, token);
+				this.applyEditAndShowIfNeeded(ranges, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, resolve, token);
 			});
 		}
 	}
 
-	public show(range: Range, edits: EditSet, onDidSelectEdit: (newIndex: number) => void) {
+	public show(range: Range, edits: EditSet<T>, onDidSelectEdit: (newIndex: number) => void) {
 		this.clear();
 
 		if (this._editor.hasModel()) {
-			this._currentWidget.value = this._instantiationService.createInstance(PostEditWidget, this._id, this._editor, this._visibleContext, this._showCommand, range, edits, onDidSelectEdit);
+			this._currentWidget.value = this._instantiationService.createInstance(PostEditWidget<T>, this._id, this._editor, this._visibleContext, this._showCommand, range, edits, onDidSelectEdit);
 		}
 	}
 

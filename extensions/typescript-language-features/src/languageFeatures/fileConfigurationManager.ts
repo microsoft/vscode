@@ -192,7 +192,7 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
 			// @ts-expect-error until 5.3 #56090
-			preferTypeOnlyAutoImports: config.get<boolean>('preferTypeOnlyAutoImports', false),
+			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,

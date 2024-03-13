@@ -12,6 +12,7 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/ini.tmbundle Syntaxes/Ini.plist ./syntaxes/ini.tmLanguage.json"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {

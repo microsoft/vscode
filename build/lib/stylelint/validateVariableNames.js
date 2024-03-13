@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getVariableNameValidator = void 0;
+exports.getVariableNameValidator = getVariableNameValidator;
 const fs_1 = require("fs");
 const path = require("path");
 const RE_VAR_PROP = /var\(\s*(--([\w\-\.]+))/g;
@@ -30,5 +30,4 @@ function getVariableNameValidator() {
         }
     };
 }
-exports.getVariableNameValidator = getVariableNameValidator;
 //# sourceMappingURL=validateVariableNames.js.map

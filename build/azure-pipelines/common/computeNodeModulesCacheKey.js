@@ -9,7 +9,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { dirs } = require('../../npm/dirs');
 const ROOT = path.join(__dirname, '../../../');
-const shasum = crypto.createHash('sha1');
+const shasum = crypto.createHash('sha256');
 shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
 shasum.update(fs.readFileSync(path.join(ROOT, '.yarnrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'remote/.yarnrc')));

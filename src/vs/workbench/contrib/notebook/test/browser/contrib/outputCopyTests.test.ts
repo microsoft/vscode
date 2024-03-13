@@ -11,8 +11,10 @@ import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { copyCellOutput } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Cell Output Clipboard Tests', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	class ClipboardService {
 		private _clipboardContent = '';

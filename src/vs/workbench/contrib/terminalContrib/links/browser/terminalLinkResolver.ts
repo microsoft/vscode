@@ -15,8 +15,6 @@ import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
 import { mainWindow } from 'vs/base/browser/window';
 
 export class TerminalLinkResolver implements ITerminalLinkResolver {
-	declare _serviceBrand: undefined;
-
 	// Link cache could be shared across all terminals, but that could lead to weird results when
 	// both local and remote terminals are present
 	private readonly _resolvedLinkCaches: Map<string, LinkCache> = new Map();

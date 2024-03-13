@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { cloneAndChange, safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
-import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -79,33 +77,6 @@ export interface URIDescriptor {
 	scheme?: string;
 	ext?: string;
 	path?: string;
-}
-
-export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
-	// Debounce the event by 1000 ms and merge all affected keys into one event
-	const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
-		const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
-		return { ...cur, affectedKeys: newAffectedKeys };
-	}, 1000, true);
-
-	return debouncedConfigService(event => {
-		if (event.source !== ConfigurationTarget.DEFAULT) {
-			type UpdateConfigurationClassification = {
-				owner: 'lramos15, sbatten';
-				comment: 'Event which fires when user updates settings';
-				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
-				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
-			};
-			type UpdateConfigurationEvent = {
-				configurationSource: string;
-				configurationKeys: string[];
-			};
-			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
-				configurationSource: ConfigurationTargetToString(event.source),
-				configurationKeys: Array.from(event.affectedKeys)
-			});
-		}
-	});
 }
 
 /**

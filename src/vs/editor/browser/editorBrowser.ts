@@ -225,6 +225,22 @@ export const enum OverlayWidgetPositionPreference {
 	 */
 	TOP_CENTER
 }
+
+
+/**
+ * Represents editor-relative coordinates of an overlay widget.
+ */
+export interface IOverlayWidgetPositionCoordinates {
+	/**
+	 * The top position for the overlay widget, relative to the editor.
+	 */
+	top: number;
+	/**
+	 * The left position for the overlay widget, relative to the editor.
+	 */
+	left: number;
+}
+
 /**
  * A position for rendering overlay widgets.
  */
@@ -232,12 +248,16 @@ export interface IOverlayWidgetPosition {
 	/**
 	 * The position preference for the overlay widget.
 	 */
-	preference: OverlayWidgetPositionPreference | null;
+	preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
 }
 /**
  * An overlay widgets renders on top of the text.
  */
 export interface IOverlayWidget {
+	/**
+	 * Render this overlay widget in a location where it could overflow the editor's view dom node.
+	 */
+	allowEditorOverflow?: boolean;
 	/**
 	 * Get a unique identifier of the overlay widget.
 	 */
@@ -385,6 +405,7 @@ export interface IMouseTargetMarginData {
 	readonly isAfterLines: boolean;
 	readonly glyphMarginLeft: number;
 	readonly glyphMarginWidth: number;
+	readonly glyphMarginLane?: GlyphMarginLane;
 	readonly lineNumbersWidth: number;
 	readonly offsetX: number;
 }
@@ -578,6 +599,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent>;
+	/**
+	 * An event emitted when the model of this editor is about to change (e.g. from `editor.setModel()`).
+	 * @event
+	 */
+	readonly onWillChangeModel: Event<editorCommon.IModelChangedEvent>;
 	/**
 	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 	 * @event

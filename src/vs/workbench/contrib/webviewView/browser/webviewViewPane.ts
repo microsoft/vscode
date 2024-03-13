@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, EventType, findParentWithClass } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, EventType, findParentWithClass, getWindow } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -22,7 +22,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane, ViewPaneShowActions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IViewBadge, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewBadge, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
@@ -56,7 +57,7 @@ export class WebviewViewPane extends ViewPane {
 	private setTitle: string | undefined;
 
 	private badge: IViewBadge | undefined;
-	private activity: IDisposable | undefined;
+	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly memento: Memento;
 	private readonly viewState: MementoObject;
@@ -159,7 +160,7 @@ export class WebviewViewPane extends ViewPane {
 	private updateTreeVisibility() {
 		if (this.isBodyVisible()) {
 			this.activate();
-			this._webview.value?.claim(this, undefined);
+			this._webview.value?.claim(this, getWindow(this.element), undefined);
 		} else {
 			this._webview.value?.release(this);
 		}
@@ -198,14 +199,14 @@ export class WebviewViewPane extends ViewPane {
 
 		// Re-dispatch all drag events back to the drop target to support view drag drop
 		for (const event of [EventType.DRAG, EventType.DRAG_END, EventType.DRAG_ENTER, EventType.DRAG_LEAVE, EventType.DRAG_START]) {
-			this._webviewDisposables.add(addDisposableListener(this._webview.value.container!, event, e => {
+			this._webviewDisposables.add(addDisposableListener(this._webview.value.container, event, e => {
 				e.preventDefault();
 				e.stopImmediatePropagation();
 				this.dropTargetElement.dispatchEvent(new DragEvent(e.type, e));
 			}));
 		}
 
-		this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
+		this._webviewDisposables.add(new WebviewWindowDragMonitor(getWindow(this.element), () => this._webview.value));
 
 		const source = this._webviewDisposables.add(new CancellationTokenSource());
 
@@ -255,18 +256,13 @@ export class WebviewViewPane extends ViewPane {
 			return;
 		}
 
-		if (this.activity) {
-			this.activity.dispose();
-			this.activity = undefined;
-		}
-
 		this.badge = badge;
 		if (badge) {
 			const activity = {
 				badge: new NumberBadge(badge.value, () => badge.tooltip),
 				priority: 150
 			};
-			this.activityService.showViewActivity(this.id, activity);
+			this.activity.value = this.activityService.showViewActivity(this.id, activity);
 		}
 	}
 

@@ -22,7 +22,6 @@ function filterOk(filter: IIconFilter, word: string, target: IParsedLabelWithIco
 }
 
 suite('Icon Labels', () => {
-
 	test('Can get proper aria labels', () => {
 		// note, the spaces in the results are important
 		const testCases = new Map<string, string>([

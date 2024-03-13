@@ -23,8 +23,7 @@ import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestContextService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 suite('EditorAutoSave', () => {
 
@@ -44,7 +43,10 @@ suite('EditorAutoSave', () => {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('files', autoSaveConfig);
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IAccessibleNotificationService, disposables.add(new TestAccessibleNotificationService()));
+		instantiationService.stub(IAccessibilitySignalService, {
+			playSignal: async () => { },
+			isSoundEnabled(signal: unknown) { return false; },
+		} as any);
 		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
@@ -102,7 +104,7 @@ suite('EditorAutoSave', () => {
 
 		assert.strictEqual(model.isDirty(), false);
 
-		await editorPane?.group?.closeAllEditors();
+		await editorPane?.group.closeAllEditors();
 	});
 
 	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {

@@ -136,6 +136,10 @@ export class OffsetRange implements IOffsetRange {
 		return arr.slice(this.start, this.endExclusive);
 	}
 
+	public substring(str: string): string {
+		return str.substring(this.start, this.endExclusive);
+	}
+
 	/**
 	 * Returns the given value if it is contained in this instance, otherwise the closest value that is contained.
 	 * The range must not be empty.

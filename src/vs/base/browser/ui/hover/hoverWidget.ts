@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./hover';
+import 'vs/css!./hoverWidget';
 import { localize } from 'vs/nls';
 
 const $ = dom.$;

@@ -6,7 +6,7 @@
 import { addDisposableListener, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { distinct, flatten } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
@@ -15,7 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { visit } from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
 import * as env from 'vs/base/common/platform';
@@ -125,7 +125,7 @@ function replaceWsWithNoBreakWs(str: string): string {
 	return str.replace(/[ \t]/g, strings.noBreakWhitespace);
 }
 
-function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, range: Range, model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IModelDeltaDecoration[] {
+function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, ranges: Range[], model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IModelDeltaDecoration[] {
 	const nameValueMap = new Map<string, string>();
 	for (const expr of expressions) {
 		nameValueMap.set(expr.name, expr.value);
@@ -142,7 +142,7 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 		const lineNumbers = wordToLineNumbersMap.get(name);
 		if (lineNumbers) {
 			for (const lineNumber of lineNumbers) {
-				if (range.containsPosition(new Position(lineNumber, 0))) {
+				if (ranges.some(r => lineNumber >= r.startLineNumber && lineNumber <= r.endLineNumber)) {
 					if (!lineToNamesMap.has(lineNumber)) {
 						lineToNamesMap.set(lineNumber, []);
 					}
@@ -168,49 +168,39 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 	return decorations;
 }
 
-function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]> {
-	const result = new Map<string, number[]>();
-	if (!model) {
-		return result;
+function getWordToLineNumbersMap(model: ITextModel, lineNumber: number, result: Map<string, number[]>) {
+	const lineLength = model.getLineLength(lineNumber);
+	// If line is too long then skip the line
+	if (lineLength > MAX_TOKENIZATION_LINE_LEN) {
+		return;
 	}
 
-	// For every word in every line, map its ranges for fast lookup
-	for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
-		const lineLength = model.getLineLength(lineNumber);
-		// If line is too long then skip the line
-		if (lineLength > MAX_TOKENIZATION_LINE_LEN) {
-			continue;
-		}
+	const lineContent = model.getLineContent(lineNumber);
+	model.tokenization.forceTokenization(lineNumber);
+	const lineTokens = model.tokenization.getLineTokens(lineNumber);
+	for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+		const tokenType = lineTokens.getStandardTokenType(tokenIndex);
 
-		const lineContent = model.getLineContent(lineNumber);
-		model.tokenization.forceTokenization(lineNumber);
-		const lineTokens = model.tokenization.getLineTokens(lineNumber);
-		for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
-			const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+		// Token is a word and not a comment
+		if (tokenType === StandardTokenType.Other) {
+			DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
 
-			// Token is a word and not a comment
-			if (tokenType === StandardTokenType.Other) {
-				DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+			const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
+			const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+			const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
+			const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
 
-				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
-				const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
-				const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
+			if (wordMatch) {
 
-				if (wordMatch) {
-
-					const word = wordMatch[0];
-					if (!result.has(word)) {
-						result.set(word, []);
-					}
-
-					result.get(word)!.push(lineNumber);
+				const word = wordMatch[0];
+				if (!result.has(word)) {
+					result.set(word, []);
 				}
+
+				result.get(word)!.push(lineNumber);
 			}
 		}
 	}
-
-	return result;
 }
 
 export class DebugEditorContribution implements IDebugEditorContribution {
@@ -227,6 +217,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private altListener = new MutableDisposable();
 	private altPressed = false;
 	private oldDecorations = this.editor.createDecorationsCollection();
+	private displayedStore = new DisposableStore();
 	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
 
@@ -247,7 +238,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	) {
 		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
-		this.toDispose = [this.defaultHoverLockout, this.altListener];
+		this.toDispose = [this.defaultHoverLockout, this.altListener, this.displayedStore];
 		this.registerListeners();
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
@@ -310,13 +301,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.updateHoverConfiguration();
 	}
 
-	private _wordToLineNumbersMap: Map<string, number[]> | undefined = undefined;
-	private get wordToLineNumbersMap(): Map<string, number[]> {
-		if (!this._wordToLineNumbersMap) {
-			this._wordToLineNumbersMap = getWordToLineNumbersMap(this.editor.getModel());
-		}
-		return this._wordToLineNumbersMap;
-	}
+	private _wordToLineNumbersMap: WordsToLineNumbersCache | undefined;
 
 	private updateHoverConfiguration(): void {
 		const model = this.editor.getModel();
@@ -465,6 +450,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.hoverWidget.hide();
 		}
 		this.showHoverScheduler.cancel();
+		this.defaultHoverLockout.clear();
 	}
 
 	// hover business
@@ -654,7 +640,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get removeInlineValuesScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(
 			() => {
-				this.oldDecorations.clear();
+				this.displayedStore.clear();
 			},
 			100
 		);
@@ -685,8 +671,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		this.removeInlineValuesScheduler.cancel();
+		this.displayedStore.clear();
 
+		const viewRanges = this.editor.getVisibleRangesPlusViewportAboveBelow();
 		let allDecorations: IModelDeltaDecoration[];
+
+		const cts = new CancellationTokenSource();
+		this.displayedStore.add(toDisposable(() => cts.dispose(true)));
 
 		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
 
@@ -707,15 +698,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				frameId: stackFrame.frameId,
 				stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1)
 			};
-			const token = new CancellationTokenSource().token;
 
-			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
 			const providers = this.languageFeaturesService.inlineValuesProvider.ordered(model).reverse();
 
 			allDecorations = [];
 			const lineDecorations = new Map<number, InlineSegment[]>();
 
-			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
+			const promises = providers.flatMap(provider => viewRanges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, cts.token)).then(async (result) => {
 				if (result) {
 					for (const iv of result) {
 
@@ -768,7 +757,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 			}, err => {
 				onUnexpectedExternalError(err);
-			}))));
+			})));
 
 			const startTime = Date.now();
 
@@ -795,20 +784,29 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			const decorationsPerScope = await Promise.all(scopes.map(async scope => {
 				const variables = await scope.getChildren();
 
-				let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
+				let scopeRange = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
 				if (scope.range) {
-					range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
+					scopeRange = scopeRange.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
 				}
 
-				return createInlineValueDecorationsInsideRange(variables, range, model, this.wordToLineNumbersMap);
+				const ownRanges = viewRanges.map(r => r.intersectRanges(scopeRange)).filter(isDefined);
+				this._wordToLineNumbersMap ??= new WordsToLineNumbersCache(model);
+				for (const range of ownRanges) {
+					this._wordToLineNumbersMap.ensureRangePopulated(range);
+				}
+
+				return createInlineValueDecorationsInsideRange(variables, ownRanges, model, this._wordToLineNumbersMap.value);
 			}));
 
-			allDecorations = distinct(decorationsPerScope.reduce((previous, current) => previous.concat(current), []),
+			allDecorations = distinct(decorationsPerScope.flat(),
 				// Deduplicate decorations since same variable can appear in multiple scopes, leading to duplicated decorations #129770
 				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
 		}
 
-		this.oldDecorations.set(allDecorations);
+		if (!cts.token.isCancellationRequested) {
+			this.oldDecorations.set(allDecorations);
+			this.displayedStore.add(toDisposable(() => this.oldDecorations.clear()));
+		}
 	}
 
 	dispose(): void {
@@ -819,8 +817,28 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.configurationWidget.dispose();
 		}
 		this.toDispose = dispose(this.toDispose);
+	}
+}
 
-		this.oldDecorations.clear();
+class WordsToLineNumbersCache {
+	// we use this as an array of bits where each 1 bit is a line number that's been parsed
+	private readonly intervals: Uint8Array;
+	public readonly value = new Map<string, number[]>();
+
+	constructor(private readonly model: ITextModel) {
+		this.intervals = new Uint8Array(Math.ceil(model.getLineCount() / 8));
+	}
+
+	/** Ensures that variables names in the given range have been identified. */
+	public ensureRangePopulated(range: Range) {
+		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+			const bin = lineNumber >> 3;  /* Math.floor(i / 8) */
+			const bit = 1 << (lineNumber & 0b111); /* 1 << (i % 8) */
+			if (!(this.intervals[bin] & bit)) {
+				getWordToLineNumbersMap(this.model, lineNumber, this.value);
+				this.intervals[bin] |= bit;
+			}
+		}
 	}
 }
 

@@ -85,6 +85,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(this._stickyLineCandidateProvider);
 
 		this._widgetState = new StickyScrollWidgetState([], [], 0);
+		this._onDidResize();
 		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
@@ -394,7 +395,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (!this._foldingModel || line === null) {
 			return;
 		}
-		const stickyLine = this._stickyScrollWidget.getStickyLineForLine(line);
+		const stickyLine = this._stickyScrollWidget.getRenderedStickyLine(line);
 		const foldingIcon = stickyLine?.foldingIcon;
 		if (!foldingIcon) {
 			return;
@@ -438,7 +439,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => {
 				this._showEndForLine = null;
-				this._renderStickyScroll(-1);
+				this._renderStickyScroll(0);
 			}));
 		}
 	}
@@ -457,8 +458,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _onTokensChange(event: IModelTokensChangedEvent) {
 		if (this._needsUpdate(event)) {
-			// Rebuilding the whole widget from line -1
-			this._renderStickyScroll(-1);
+			// Rebuilding the whole widget from line 0
+			this._renderStickyScroll(0);
 		}
 	}
 
@@ -469,11 +470,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
 	}
 
-	private async _renderStickyScroll(rebuildFromLine: number = Infinity) {
+	private async _renderStickyScroll(rebuildFromLine?: number) {
 		const model = this._editor.getModel();
 		if (!model || model.isTooLargeForTokenization()) {
 			this._foldingModel = null;
-			this._stickyScrollWidget.setState(undefined, null, rebuildFromLine);
+			this._stickyScrollWidget.setState(undefined, null);
 			return;
 		}
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
