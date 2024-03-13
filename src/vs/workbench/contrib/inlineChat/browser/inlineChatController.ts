@@ -49,6 +49,7 @@ import { StashedSession } from './inlineChatSession';
 import { IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 import { InlineChatHistory } from 'vs/workbench/contrib/inlineChat/browser/inlineChatHistory';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -286,7 +287,7 @@ export class InlineChatController implements IEditorContribution {
 			delete options.position;
 		}
 
-		this._showWidget(true, initPosition);
+		const widgetPosition = this._showWidget(true, initPosition);
 
 		this._updatePlaceholder();
 
@@ -325,7 +326,8 @@ export class InlineChatController implements IEditorContribution {
 		delete options.existingSession;
 
 		if (!session) {
-			this._dialogService.info(localize('create.fail', "Failed to start editor chat"), localize('create.fail.detail', "Please consult the error log and try again later."));
+			MessageController.get(this._editor)?.showMessage(localize('create.fail', "Failed to start editor chat"), widgetPosition);
+			this._log('Failed to start editor chat');
 			return State.CANCEL;
 		}
 
@@ -917,8 +919,9 @@ export class InlineChatController implements IEditorContribution {
 
 		if (!this._zone.value.position) {
 			if (initialRender) {
+				widgetPosition = this._editor.getSelection().getStartPosition();
 				// this._zone.value.hide();
-				this._input.value.show(this._editor.getSelection().getStartPosition());
+				this._input.value.show(widgetPosition);
 			} else {
 				this._input.value.hide();
 				this._zone.value.show(widgetPosition);
@@ -927,6 +930,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.updatePositionAndHeight(widgetPosition);
 		}
 		this._ctxVisible.set(true);
+		return widgetPosition;
 	}
 
 	private _resetWidget() {

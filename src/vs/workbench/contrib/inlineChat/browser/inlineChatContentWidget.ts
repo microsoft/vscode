@@ -52,7 +52,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
 			if (this._visible) {
-				// this._onDidBlur.fire();
+				this._onDidBlur.fire();
 			}
 		}));
 		this._store.add(tracker);
