@@ -81,7 +81,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			if (error.code !== 'ENOENT') {
 				this.error(error);
 			} else {
-				this.trace(error);
+				this.trace(`ignoring a path for watching who's stat info failed to resolve: ${this.request.path} (error: ${error})`);
 			}
 
 			this.onDidWatchFail?.();
