@@ -39,6 +39,7 @@ export interface ISelectBoxOptions {
 	ariaDescription?: string;
 	minBottomMargin?: number;
 	optionsAsChildren?: boolean;
+	title?: string;
 }
 
 // Utilize optionItem interface to capture all option parameters
