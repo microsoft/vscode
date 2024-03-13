@@ -32,10 +32,12 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 	private _resultSelectionState: ISelectionState | undefined = undefined;
 	private _beginAlternativeVersionId: string;
 	private _resultAlternativeVersionId: string;
+	public get label() {
+		return this._operations.length === 1 ? this._operations[0].label : 'edit';
+	}
 
 	constructor(
 		readonly textModel: NotebookTextModel,
-		readonly label: string,
 		readonly undoRedoGroup: UndoRedoGroup | undefined,
 		private _pauseableEmitter: PauseableEmitter<NotebookTextModelChangedEvent>,
 		private _postUndoRedo: (alternativeVersionId: string) => void,
@@ -124,7 +126,7 @@ class NotebookOperationManager {
 		this._pendingStackOperation = null;
 	}
 	private _getOrCreateEditStackElement(beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, alternativeVersionId: string) {
-		return this._pendingStackOperation ??= new StackOperation(this._textModel, 'edit', undoRedoGroup, this._pauseableEmitter, this._postUndoRedo, beginSelectionState, alternativeVersionId || '');
+		return this._pendingStackOperation ??= new StackOperation(this._textModel, undoRedoGroup, this._pauseableEmitter, this._postUndoRedo, beginSelectionState, alternativeVersionId || '');
 	}
 
 	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined, alternativeVersionId: string, undoRedoGroup: UndoRedoGroup | undefined) {
