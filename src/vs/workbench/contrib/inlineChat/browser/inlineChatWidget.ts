@@ -383,6 +383,7 @@ export class InlineChatWidget {
 	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined {
 
 		this._chatMessageDisposables.clear();
+		this._responseViewModel = undefined;
 		this._chatMessage = message ? new MarkdownString(message.message.value) : undefined;
 		const hasMessage = message?.message.value;
 		this._elements.chatMessage.classList.toggle('hidden', !hasMessage);
