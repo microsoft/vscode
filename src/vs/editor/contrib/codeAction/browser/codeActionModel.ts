@@ -317,9 +317,15 @@ export class CodeActionModel extends Disposable {
 					// temporarilly hiding here as this is enabled/disabled behind a setting.
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
+
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
-					await this._progressService?.showWhile(actions, 250);
+					if (trigger.trigger.context?.needsDelay) {
+						await this._progressService?.showWhile(actions, 250);
+					} else {
+						this._progressService?.showWhile(actions, 250);
+					}
 				}
+
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });

@@ -67,6 +67,8 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	private _disposed = false;
 
+	private recentlyChanged = false;
+
 	constructor(
 		editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
@@ -96,6 +98,8 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		this._resolver = instantiationService.createInstance(CodeActionKeybindingResolver);
 
 		this._register(this._editor.onDidLayoutChange(() => this._actionWidgetService.hide()));
+		this._register(this._editor.onDidChangeModelContent(async () => { this.recentlyChanged = true; }));
+
 	}
 
 	override dispose() {
@@ -138,7 +142,8 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		MessageController.get(this._editor)?.closeMessage();
 		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
+		this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition, needsDelay: this.recentlyChanged } });
+		this.recentlyChanged = false;
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
