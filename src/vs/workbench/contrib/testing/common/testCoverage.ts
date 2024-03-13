@@ -5,6 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResourceMap } from 'vs/base/common/map';
+import { deepClone } from 'vs/base/common/objects';
 import { ITransaction, observableSignal } from 'vs/base/common/observable';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
@@ -59,7 +60,7 @@ export class TestCoverage {
 				node.value = coverage;
 			} else if (!node.value) {
 				// clone because later intersertions can modify the counts:
-				const intermediate = structuredClone(rawCoverage);
+				const intermediate = deepClone(rawCoverage);
 				intermediate.id = String(incId++);
 				intermediate.uri = this.treePathToUri(canonical.slice(0, chain.length));
 				node.value = new ComputedFileCoverage(intermediate);
