@@ -136,9 +136,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	}
 
 	protected warn(message: string): void {
-		if (this.verboseLogging) {
-			this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message) });
-		}
+		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message) });
 	}
 
 	private toMessage(message: string): string {

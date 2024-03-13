@@ -24,7 +24,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	private allWatchRequests = new Set<IUniversalWatchRequest>();
 	private readonly suspendedWatchRequests = this._register(new DisposableMap<IUniversalWatchRequest>());
 
-	protected readonly suspendedWatchRequestPollingInterval: number | undefined;
+	protected readonly suspendedWatchRequestPollingInterval: number = 5007; // node.js default
 
 	constructor() {
 		super();
