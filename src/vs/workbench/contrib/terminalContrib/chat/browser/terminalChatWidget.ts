@@ -68,12 +68,15 @@ export class TerminalChatWidget extends Disposable {
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
-		this.layoutVertically();
+		this.updateHeight();
 		this._updateWidth();
-		this._register(this._instance.onDimensionsChanged(() => this._updateWidth()));
+		this._register(this._instance.onDimensionsChanged(() => {
+			this.updateHeight();
+			this._updateWidth();
+		}));
 	}
 
-	layoutVertically(): void {
+	private _updateVerticalPosition(): void {
 		const font = this._instance.xterm?.getFont();
 		if (!font?.charHeight) {
 			return;
@@ -82,10 +85,25 @@ export class TerminalChatWidget extends Disposable {
 		const height = font.charHeight * font.lineHeight;
 		const top = cursorY * height + 12;
 		this._container.style.top = `${top}px`;
-		const terminalHeight = this._instance.domElement.clientHeight;
-		if (terminalHeight && top > terminalHeight - this._inlineChatWidget.getHeight()) {
+		this._container.style.bottom = '';
+		const widgetHeight = this._inlineChatWidget.getHeight();
+		const terminalHeight = height * this._instance.rows;
+		const widgetExceedsTerminalHeight = widgetHeight > terminalHeight;
+		const anchorWidgetAtBottom = top > terminalHeight - widgetHeight;
+		if (anchorWidgetAtBottom && !widgetExceedsTerminalHeight) {
 			this._container.style.top = '';
 		}
+	}
+
+	updateHeight() {
+		const font = this._instance.xterm?.getFont();
+		if (!font?.charHeight) {
+			return;
+		}
+		const terminalHeight = font.charHeight * font.lineHeight * this._instance.rows;
+		const updatedHeight = terminalHeight - 100;
+		this._inlineChatWidget.layout(new Dimension(this._inlineChatWidget.domNode.clientWidth, updatedHeight));
+		this._updateVerticalPosition();
 	}
 
 	private _updateWidth() {
