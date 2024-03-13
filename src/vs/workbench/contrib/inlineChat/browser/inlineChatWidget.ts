@@ -171,7 +171,6 @@ export class InlineChatWidget {
 	private _chatMessage: MarkdownString | undefined;
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 	private _responseViewModel: IChatResponseViewModel | undefined;
-	private _sessionId: string | undefined;
 
 	constructor(
 		options: IInlineChatWidgetConstructionOptions,
@@ -302,11 +301,11 @@ export class InlineChatWidget {
 		}
 	}
 
-	getCodeBlockInfo(): Promise<IReference<IResolvedTextEditorModel>> | undefined {
-		if (!this._responseViewModel || !this._sessionId) {
+	getCodeBlockInfo(codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> | undefined {
+		if (!this._responseViewModel) {
 			return;
 		}
-		return this._codeBlockModelCollection.get(this._sessionId, this._responseViewModel, 0);
+		return this._codeBlockModelCollection.get(this._responseViewModel.sessionId, this._responseViewModel, codeBlockIndex);
 	}
 
 
@@ -391,7 +390,6 @@ export class InlineChatWidget {
 		let resultingAppender: IInlineChatMessageAppender | undefined;
 		if (hasMessage) {
 			const sessionModel = this._chatMessageDisposables.add(new ChatModel(message.providerId, undefined, this._logService, this._chatAgentService, this._instantiationService));
-			this._sessionId = sessionModel.sessionId;
 			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, undefined, message.requestId, !isIncomplete, false, undefined));
 			this._responseViewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
 			const chatViewModel = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatViewModel, sessionModel, this._codeBlockModelCollection));
@@ -519,7 +517,6 @@ export class InlineChatWidget {
 		this._elements.accessibleViewer.classList.toggle('hidden', true);
 		this._codeBlockModelCollection.clear();
 		this._responseViewModel = undefined;
-		this._sessionId = undefined;
 		this._onDidChangeHeight.fire();
 	}
 

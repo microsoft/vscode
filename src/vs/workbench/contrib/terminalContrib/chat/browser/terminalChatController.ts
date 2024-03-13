@@ -348,7 +348,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	async acceptCommand(shouldExecute: boolean): Promise<void> {
-		const code = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo();
+		const code = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(0);
 		if (!code) {
 			return;
 		}
