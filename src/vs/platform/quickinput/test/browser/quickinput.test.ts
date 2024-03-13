@@ -16,7 +16,7 @@ import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progr
 import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable } from 'vs/base/common/lifecycle';
 import { mainWindow } from 'vs/base/browser/window';
 import { QuickPick } from 'vs/platform/quickinput/browser/quickInput';
 import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -31,6 +31,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { NoMatchingKb } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -63,7 +64,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IListService, store.add(new ListService()));
 		instantiationService.stub(ILayoutService, { activeContainer: fixture, onDidLayoutContainer: Event.None } as any);
-		instantiationService.stub(IContextViewService, { showContextView() { return Disposable.None; } } as any);
+		instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
 		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 		instantiationService.stub(IKeybindingService, {
 			mightProducePrintableCharacter() { return false; },
