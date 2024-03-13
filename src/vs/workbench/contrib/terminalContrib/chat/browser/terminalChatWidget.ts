@@ -6,7 +6,6 @@
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/terminalChatWidget';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,8 +30,7 @@ export class TerminalChatWidget extends Disposable {
 		terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -127,19 +125,11 @@ export class TerminalChatWidget extends Disposable {
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 	}
-	acceptCommand(shouldExecute: boolean): void {
-		const editor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
-		if (!editor) {
-			return;
-		}
-		const model = editor.getModel();
-		if (!model) {
-			return;
-		}
-		const code = editor.getValue();
+	acceptCommand(code: string, shouldExecute: boolean): void {
 		this._instance.runCommand(code, shouldExecute);
 		this.hide();
 	}
+
 	updateProgress(progress?: IChatProgress): void {
 		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
 	}
