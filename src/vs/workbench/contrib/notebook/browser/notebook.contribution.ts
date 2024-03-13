@@ -1091,7 +1091,7 @@ configurationRegistry.registerConfiguration({
 			default: 'auto'
 		},
 		[NotebookSetting.cellChat]: {
-			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental cell chat for notebooks."),
+			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental floating chat widget in notebooks."),
 			type: 'boolean',
 			default: false
 		},
