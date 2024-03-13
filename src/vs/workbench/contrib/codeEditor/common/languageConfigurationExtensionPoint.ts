@@ -47,7 +47,7 @@ interface IOnEnterRule {
 /**
  * Serialized form of a language configuration
  */
-interface ILanguageConfiguration {
+export interface ILanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
 	autoClosingPairs?: Array<CharacterPair | IAutoClosingPairConditional>;
