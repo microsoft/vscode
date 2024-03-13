@@ -155,7 +155,8 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 			if (isInternal && showWelcomeView) {
 				this.showChatWelcomeViewContextKey.set(true);
 				this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(chatWelcomeViewConfigKey, { enabled: true });
-			} else if (!isInternal && showAccountsBadge) {
+			}
+			if (showAccountsBadge) {
 				this.createAccountsBadge(org);
 				this.showAccountsBadgeContextKey.set(showAccountsBadge);
 				this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(accountsBadgeConfigKey, { enabled: true });
