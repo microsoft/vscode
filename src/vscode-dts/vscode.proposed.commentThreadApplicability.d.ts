@@ -7,12 +7,13 @@ declare module 'vscode' {
 
 	// @alexr00 https://github.com/microsoft/vscode/issues/207402
 
-	export enum CommentThreadRelevance {
+	export enum CommentThreadApplicability {
 		Current = 0,
 		Outdated = 1
 	}
 
 	export interface CommentThread2 {
-		relevance?: CommentThreadRelevance;
+		state?: CommentThreadState | { resolved?: CommentThreadState; applicability?: CommentThreadApplicability };
+
 	}
 }

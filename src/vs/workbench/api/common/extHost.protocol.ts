@@ -135,7 +135,7 @@ export type CommentThreadChanges<T = IRange> = Partial<{
 	collapseState: languages.CommentThreadCollapsibleState;
 	canReply: boolean;
 	state: languages.CommentThreadState;
-	relevance: languages.CommentThreadRelevance;
+	applicability: languages.CommentThreadApplicability;
 	isTemplate: boolean;
 }>;
 

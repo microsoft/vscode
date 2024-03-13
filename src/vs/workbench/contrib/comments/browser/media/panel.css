@@ -62,10 +62,10 @@
 	border-radius: 2px;
 	background-color: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
-	padding: 0px 4px;
+	padding: 0px 4px 1px 4px;
 	font-size: 0.9em;
 	margin-right: 4px;
-	margin-top: 3px;
+	margin-top: 4px;
 	margin-bottom: 3px;
 	line-height: 14px;
 }

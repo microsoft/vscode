@@ -22,7 +22,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from 'vs/workbench/contrib/comments/browser/commentColors';
-import { CommentThreadRelevance, CommentThreadState } from 'vs/editor/common/languages';
+import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
 import { Color } from 'vs/base/common/color';
 import { IMatch } from 'vs/base/common/filters';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
@@ -268,7 +268,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		templateData.actionBar.clear();
 
 		const commentCount = node.element.replies.length + 1;
-		if (node.element.threadRelevance === CommentThreadRelevance.Outdated) {
+		if (node.element.threadRelevance === CommentThreadApplicability.Outdated) {
 			templateData.threadMetadata.relevance.style.display = '';
 			templateData.threadMetadata.relevance.innerText = nls.localize('outdated', "Outdated");
 			templateData.threadMetadata.separator.style.display = 'none';

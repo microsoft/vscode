@@ -3272,7 +3272,7 @@ export enum CommentThreadState {
 	Resolved = 1
 }
 
-export enum CommentThreadRelevance {
+export enum CommentThreadApplicability {
 	Current = 0,
 	Outdated = 1
 }

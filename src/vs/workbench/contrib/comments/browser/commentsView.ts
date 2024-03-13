@@ -28,7 +28,7 @@ import { CommentsFilters, CommentsFiltersChangeEvent } from 'vs/workbench/contri
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
-import { CommentThreadRelevance, CommentThreadState } from 'vs/editor/common/languages';
+import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
@@ -262,7 +262,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 
 	private getAriaForNode(element: CommentNode) {
 		if (element.range) {
-			if (element.threadRelevance === CommentThreadRelevance.Outdated) {
+			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return nls.localize('resourceWithCommentLabelOutdated',
 					"Outdated from ${0} at line {1} column {2} in {3}, source: {4}",
 					element.comment.userName,
@@ -282,7 +282,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				);
 			}
 		} else {
-			if (element.threadRelevance === CommentThreadRelevance.Outdated) {
+			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return nls.localize('resourceWithCommentLabelFileOutdated',
 					"Outdated from {0} in {1}, source: {2}",
 					element.comment.userName,
