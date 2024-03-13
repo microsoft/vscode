@@ -59,7 +59,7 @@ export class RenameInputField implements IContentWidget {
 	private _position?: Position;
 	private _domNode?: HTMLElement;
 	private _input?: HTMLInputElement;
-	private _candidatesView?: CandidatesView;
+	private _renameCandidateListView?: RenameCandidateListView;
 	private _label?: HTMLDivElement;
 	private _visible?: boolean;
 	private _nPxAvailableAbove?: number;
@@ -114,8 +114,8 @@ export class RenameInputField implements IContentWidget {
 			this._disposables.add(addDisposableListener(this._input, 'blur', () => { this._focusedContextKey.reset(); }));
 			this._domNode.appendChild(this._input);
 
-			this._candidatesView = this._disposables.add(
-				new CandidatesView(this._domNode, {
+			this._renameCandidateListView = this._disposables.add(
+				new RenameCandidateListView(this._domNode, {
 					fontInfo: this._editor.getOption(EditorOption.fontInfo),
 					onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
 				}));
@@ -151,7 +151,7 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	private _updateFont(): void {
-		if (!this._input || !this._label || !this._candidatesView) {
+		if (!this._input || !this._label || !this._renameCandidateListView) {
 			return;
 		}
 
@@ -160,7 +160,7 @@ export class RenameInputField implements IContentWidget {
 		this._input.style.fontWeight = fontInfo.fontWeight;
 		this._input.style.fontSize = `${fontInfo.fontSize}px`;
 
-		this._candidatesView.updateFont(fontInfo);
+		this._renameCandidateListView.updateFont(fontInfo);
 
 		this._label.style.fontSize = `${this._computeLabelFontSize(fontInfo.fontSize)}px`;
 	}
@@ -189,7 +189,7 @@ export class RenameInputField implements IContentWidget {
 		this._nPxAvailableBelow = bodyBox.height - this._nPxAvailableAbove;
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const { totalHeight: candidateViewHeight } = CandidateView.getLayoutInfo({ lineHeight });
+		const { totalHeight: candidateViewHeight } = RenameCandidateView.getLayoutInfo({ lineHeight });
 
 		const positionPreference = this._nPxAvailableBelow > candidateViewHeight * 6 /* approximate # of candidates to fit in (inclusive of rename input box & rename label) */
 			? [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
@@ -224,7 +224,7 @@ export class RenameInputField implements IContentWidget {
 			return;
 		}
 
-		assertType(this._candidatesView);
+		assertType(this._renameCandidateListView);
 		assertType(this._nPxAvailableAbove !== undefined);
 		assertType(this._nPxAvailableBelow !== undefined);
 
@@ -239,7 +239,7 @@ export class RenameInputField implements IContentWidget {
 			totalHeightAvailable = this._nPxAvailableAbove;
 		}
 
-		this._candidatesView!.layout({
+		this._renameCandidateListView!.layout({
 			height: totalHeightAvailable - labelHeight - inputBoxHeight,
 			width: getTotalWidth(this._input!),
 		});
@@ -260,11 +260,11 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	focusNextRenameSuggestion() {
-		this._candidatesView?.focusNext();
+		this._renameCandidateListView?.focusNext();
 	}
 
 	focusPreviousRenameSuggestion() {
-		if (!this._candidatesView?.focusPrevious()) {
+		if (!this._renameCandidateListView?.focusPrevious()) {
 			this._input!.focus();
 		}
 	}
@@ -294,7 +294,7 @@ export class RenameInputField implements IContentWidget {
 				this._trace('invoking _currentCancelInput');
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
-				this._candidatesView?.clearCandidates();
+				this._renameCandidateListView?.clearCandidates();
 				resolve(focusEditor);
 				return true;
 			};
@@ -302,13 +302,13 @@ export class RenameInputField implements IContentWidget {
 			this._currentAcceptInput = (wantsPreview) => {
 				this._trace('invoking _currentAcceptInput');
 				assertType(this._input !== undefined);
-				assertType(this._candidatesView !== undefined);
+				assertType(this._renameCandidateListView !== undefined);
 
-				const nRenameSuggestions = this._candidatesView.nCandidates;
+				const nRenameSuggestions = this._renameCandidateListView.nCandidates;
 
 				let newName: string;
 				let source: 'inputField' | 'renameSuggestion';
-				const focusedCandidate = this._candidatesView.focusedCandidate;
+				const focusedCandidate = this._renameCandidateListView.focusedCandidate;
 				if (focusedCandidate !== undefined) {
 					this._trace('using new name from renameSuggestion');
 					newName = focusedCandidate;
@@ -326,7 +326,7 @@ export class RenameInputField implements IContentWidget {
 
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
-				this._candidatesView.clearCandidates();
+				this._renameCandidateListView.clearCandidates();
 
 				resolve({
 					newName,
@@ -396,7 +396,7 @@ export class RenameInputField implements IContentWidget {
 
 		// show the candidates
 		trace('setting candidates');
-		this._candidatesView!.setCandidates(validDistinctNames);
+		this._renameCandidateListView!.setCandidates(validDistinctNames);
 
 		// ask editor to re-layout given that the widget is now of a different size after rendering rename candidates
 		trace('asking editor to re-layout');
@@ -427,10 +427,11 @@ export class RenameInputField implements IContentWidget {
 	}
 }
 
-class CandidatesView {
+class RenameCandidateListView {
 
-	private readonly _listWidget: List<NewSymbolName>;
+	/** Parent node of the list widget; needed to control # of list elements visible */
 	private readonly _listContainer: HTMLDivElement;
+	private readonly _listWidget: List<NewSymbolName>;
 
 	private _lineHeight: number;
 	private _availableHeight: number;
@@ -467,18 +468,18 @@ class CandidatesView {
 			}
 		};
 
-		const renderer = new class implements IListRenderer<NewSymbolName, CandidateView> {
+		const renderer = new class implements IListRenderer<NewSymbolName, RenameCandidateView> {
 			readonly templateId = 'candidate';
 
-			renderTemplate(container: HTMLElement): CandidateView {
-				return new CandidateView(container, { lineHeight: that._lineHeight });
+			renderTemplate(container: HTMLElement): RenameCandidateView {
+				return new RenameCandidateView(container, { lineHeight: that._lineHeight });
 			}
 
-			renderElement(candidate: NewSymbolName, index: number, templateData: CandidateView): void {
-				templateData.model = candidate;
+			renderElement(candidate: NewSymbolName, index: number, templateData: RenameCandidateView): void {
+				templateData.populate = candidate;
 			}
 
-			disposeTemplate(templateData: CandidateView): void {
+			disposeTemplate(templateData: RenameCandidateView): void {
 				templateData.dispose();
 			}
 		};
@@ -602,7 +603,7 @@ class CandidatesView {
 	}
 
 	private get _candidateViewHeight(): number {
-		const { totalHeight } = CandidateView.getLayoutInfo({ lineHeight: this._lineHeight });
+		const { totalHeight } = RenameCandidateView.getLayoutInfo({ lineHeight: this._lineHeight });
 		return totalHeight;
 	}
 
@@ -624,9 +625,7 @@ class CandidatesView {
 
 }
 
-class CandidateView {
-
-	// TODO@ulugbekna: accessibility
+class RenameCandidateView {
 
 	private static _PADDING: number = 2;
 
@@ -640,7 +639,7 @@ class CandidateView {
 		this.domNode.style.display = `flex`;
 		this.domNode.style.alignItems = `center`;
 		this.domNode.style.height = `${lineHeight}px`;
-		this.domNode.style.padding = `${CandidateView._PADDING}px`;
+		this.domNode.style.padding = `${RenameCandidateView._PADDING}px`;
 
 		this._icon = document.createElement('div');
 		this._icon.style.display = `flex`;
@@ -657,27 +656,30 @@ class CandidateView {
 		parent.appendChild(this.domNode);
 	}
 
-	public set model(value: NewSymbolName) {
+	public set populate(value: NewSymbolName) {
+		this._updateIcon(value);
+		this._updateLabel(value);
+	}
 
-		// @ulugbekna: a hack to always include sparkle for now
-		const alwaysIncludeSparkle = true;
-
-		// update icon
-		if (alwaysIncludeSparkle || value.tags?.includes(NewSymbolNameTag.AIGenerated)) {
-			if (this._icon.children.length === 0) {
+	private _updateIcon(value: NewSymbolName) {
+		const isAIGenerated = !!value.tags?.includes(NewSymbolNameTag.AIGenerated);
+		if (isAIGenerated) {
+			if (this._icon.children.length === 0) { // @ulugbekna: this is to prevent adding the same icon multiple times
 				this._icon.appendChild(renderIcon(Codicon.sparkle));
 			}
 		} else {
-			if (this._icon.children.length === 1) {
+			if (this._icon.children.length === 1) { // @ulugbekna: it's possible because of virtual list reusing elements
 				this._icon.removeChild(this._icon.children[0]);
 			}
 		}
+	}
 
+	private _updateLabel(value: NewSymbolName) {
 		this._label.innerText = value.newSymbolName;
 	}
 
 	public static getLayoutInfo({ lineHeight }: { lineHeight: number }): { totalHeight: number } {
-		const totalHeight = lineHeight + CandidateView._PADDING * 2 /* top & bottom padding */;
+		const totalHeight = lineHeight + RenameCandidateView._PADDING * 2 /* top & bottom padding */;
 		return { totalHeight };
 	}
 
