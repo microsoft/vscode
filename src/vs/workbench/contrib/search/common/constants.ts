@@ -77,4 +77,6 @@ export const SearchContext = {
 	ViewHasSomeCollapsibleKey: new RawContextKey<boolean>('viewHasSomeCollapsibleResult', false),
 	InTreeViewKey: new RawContextKey<boolean>('inTreeView', false),
 	AIResultsVisibleKey: new RawContextKey<boolean>('AIResultsVisibleKey', false),
+	hasAIResultProvider: new RawContextKey<boolean>('hasAIResultProviderKey', false),
+	hasAISettingEnabled: new RawContextKey<boolean>('hasAISettingEnabledKey', false),
 };

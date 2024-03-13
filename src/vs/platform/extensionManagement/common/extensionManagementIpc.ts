@@ -264,6 +264,9 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	}
 
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
+		if (extension.isWorkspaceScoped) {
+			throw new Error('Cannot uninstall a workspace extension');
+		}
 		return Promise.resolve(this.channel.call<void>('uninstall', [extension, options]));
 	}
 

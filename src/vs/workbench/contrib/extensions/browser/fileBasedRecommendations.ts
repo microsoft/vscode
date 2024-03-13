@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
+import { ExtensionRecommendations, GalleryExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -40,8 +40,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private readonly fileBasedRecommendations = new Map<string, { recommendedTime: number }>();
 	private readonly fileBasedImportantRecommendations = new Set<string>();
 
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> {
-		const recommendations: ExtensionRecommendation[] = [];
+	get recommendations(): ReadonlyArray<GalleryExtensionRecommendation> {
+		const recommendations: GalleryExtensionRecommendation[] = [];
 		[...this.fileBasedRecommendations.keys()]
 			.sort((a, b) => {
 				if (this.fileBasedRecommendations.get(a)!.recommendedTime === this.fileBasedRecommendations.get(b)!.recommendedTime) {
@@ -56,7 +56,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			})
 			.forEach(extensionId => {
 				recommendations.push({
-					extensionId,
+					extension: extensionId,
 					reason: {
 						reasonId: ExtensionRecommendationReason.File,
 						reasonText: localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened.")
@@ -66,12 +66,12 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		return recommendations;
 	}
 
-	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> {
-		return this.recommendations.filter(e => this.fileBasedImportantRecommendations.has(e.extensionId));
+	get importantRecommendations(): ReadonlyArray<GalleryExtensionRecommendation> {
+		return this.recommendations.filter(e => this.fileBasedImportantRecommendations.has(e.extension));
 	}
 
-	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> {
-		return this.recommendations.filter(e => !this.fileBasedImportantRecommendations.has(e.extensionId));
+	get otherRecommendations(): ReadonlyArray<GalleryExtensionRecommendation> {
+		return this.recommendations.filter(e => !this.fileBasedImportantRecommendations.has(e.extension));
 	}
 
 	constructor(
