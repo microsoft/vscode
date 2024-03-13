@@ -48,8 +48,11 @@ abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider,
 }
 
 export class DefaultTextPasteOrDropEditProvider extends SimplePasteAndDropProvider {
+
+	static readonly id = 'text';
 	static readonly kind = new HierarchicalKind('text.plain');
 
+	readonly id = DefaultTextPasteOrDropEditProvider.id;
 	readonly kind = DefaultTextPasteOrDropEditProvider.kind;
 	readonly dropMimeTypes = [Mimes.text];
 	readonly pasteMimeTypes = [Mimes.text];
