@@ -641,11 +641,16 @@ class RenameCandidateView {
 		this._domNode.style.height = `${fontInfo.lineHeight}px`;
 		this._domNode.style.padding = `${RenameCandidateView._PADDING}px`;
 
-		this._icon = document.createElement('div');
-		this._icon.style.display = `flex`;
-		this._icon.style.alignItems = `center`;
-		this._icon.style.width = this._icon.style.height = `${fontInfo.lineHeight * 0.8}px`;
-		this._domNode.appendChild(this._icon);
+		// @ulugbekna: needed to keep space when the `icon.style.display` is set to `none`
+		const iconContainer = document.createElement('div');
+		iconContainer.style.display = `flex`;
+		iconContainer.style.alignItems = `center`;
+		iconContainer.style.width = iconContainer.style.height = `${fontInfo.lineHeight * 0.8}px`;
+		this._domNode.appendChild(iconContainer);
+
+		this._icon = renderIcon(Codicon.sparkle);
+		this._icon.style.display = `none`;
+		iconContainer.appendChild(this._icon);
 
 		this._label = document.createElement('div');
 		this._icon.style.display = `flex`;
@@ -664,15 +669,7 @@ class RenameCandidateView {
 
 	private _updateIcon(value: NewSymbolName) {
 		const isAIGenerated = !!value.tags?.includes(NewSymbolNameTag.AIGenerated);
-		if (isAIGenerated) {
-			if (this._icon.children.length === 0) { // @ulugbekna: this is to prevent adding the same icon multiple times
-				this._icon.appendChild(renderIcon(Codicon.sparkle));
-			}
-		} else {
-			if (this._icon.children.length === 1) { // @ulugbekna: it's possible because of virtual list reusing elements
-				this._icon.removeChild(this._icon.children[0]);
-			}
-		}
+		this._icon.style.display = isAIGenerated ? 'inherit' : 'none';
 	}
 
 	private _updateLabel(value: NewSymbolName) {
