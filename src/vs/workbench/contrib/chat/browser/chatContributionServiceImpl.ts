@@ -113,6 +113,16 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 							},
 						}
 					}
+				},
+				locations: {
+					markdownDescription: localize('chatLocationsDescription', "Locations in which this Chat Participant is available."),
+					type: 'array',
+					default: ['panel'],
+					items: {
+						type: 'string',
+						enum: ['panel', 'terminal', 'notebook']
+					}
+
 				}
 			}
 		}
@@ -150,9 +160,10 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 				return;
 			}
 
-			const keys = new Set([this.productService.chatWelcomeView.when]);
+			const showWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
+			const keys = new Set([showWelcomeViewConfigKey]);
 			if (e.affectsSome(keys)) {
-				const contextKeyExpr = ContextKeyExpr.equals(this.productService.chatWelcomeView.when, true);
+				const contextKeyExpr = ContextKeyExpr.equals(showWelcomeViewConfigKey, true);
 				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 				if (this.contextService.contextMatchesRules(contextKeyExpr)) {
 					const viewId = this._chatContributionService.getViewIdForProvider(this.productService.chatWelcomeView.welcomeViewId);

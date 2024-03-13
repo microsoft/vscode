@@ -3272,6 +3272,11 @@ export enum CommentThreadState {
 	Resolved = 1
 }
 
+export enum CommentThreadApplicability {
+	Current = 0,
+	Outdated = 1
+}
+
 //#endregion
 
 //#region Semantic Coloring
@@ -4313,6 +4318,12 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 		readonly participant: { extensionId: string; name: string },
 		readonly command?: string
 	) { }
+}
+
+export enum ChatLocation {
+	Panel = 1,
+	Terminal = 2,
+	Notebook = 3
 }
 
 export class LanguageModelChatSystemMessage {

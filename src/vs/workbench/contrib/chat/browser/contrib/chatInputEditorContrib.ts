@@ -595,7 +595,7 @@ class ChatTokenDeleter extends Disposable {
 
 		// A simple heuristic to delete the previous token when the user presses backspace.
 		// The sophisticated way to do this would be to have a parse tree that can be updated incrementally.
-		this.widget.inputEditor.onDidChangeModelContent(e => {
+		this._register(this.widget.inputEditor.onDidChangeModelContent(e => {
 			if (!previousInputValue) {
 				previousInputValue = inputValue;
 			}
@@ -625,7 +625,7 @@ class ChatTokenDeleter extends Disposable {
 			}
 
 			previousInputValue = this.widget.inputEditor.getValue();
-		});
+		}));
 	}
 }
 ChatWidget.CONTRIBS.push(ChatTokenDeleter);

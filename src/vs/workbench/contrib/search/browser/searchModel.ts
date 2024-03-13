@@ -1602,6 +1602,9 @@ export class SearchResult extends Disposable {
 	private _onWillChangeModelListener: IDisposable | undefined;
 	private _onDidChangeModelListener: IDisposable | undefined;
 
+	private _cachedSearchComplete: ISearchComplete | undefined;
+	private _aiCachedSearchComplete: ISearchComplete | undefined;
+
 	constructor(
 		public readonly searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
@@ -1687,6 +1690,9 @@ export class SearchResult extends Disposable {
 			this._isDirty = false;
 		};
 
+		this._cachedSearchComplete = undefined;
+		this._aiCachedSearchComplete = undefined;
+
 		this._rangeHighlightDecorations.removeHighlightRange();
 		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 		this._aiFolderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
@@ -1710,6 +1716,18 @@ export class SearchResult extends Disposable {
 		this._otherFilesMatch = <FolderMatchNoRoot>this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + this._aiFolderMatches.length + 1, query, false);
 
 		this._query = query;
+	}
+
+	setCachedSearchComplete(cachedSearchComplete: ISearchComplete | undefined, ai: boolean) {
+		if (ai) {
+			this._aiCachedSearchComplete = cachedSearchComplete;
+		} else {
+			this._cachedSearchComplete = cachedSearchComplete;
+		}
+	}
+
+	getCachedSearchComplete(ai: boolean) {
+		return ai ? this._aiCachedSearchComplete : this._cachedSearchComplete;
 	}
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
@@ -1983,7 +2001,6 @@ export class SearchModel extends Disposable {
 	private _startStreamDelay: Promise<void> = Promise.resolve();
 	private readonly _resultQueue: IFileMatch[] = [];
 	private readonly _aiResultQueue: IFileMatch[] = [];
-	private _aiResultsEnabled = false;
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -1994,6 +2011,7 @@ export class SearchModel extends Disposable {
 	readonly onSearchResultChanged: Event<IChangeEvent> = this._onSearchResultChanged.event;
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
+	private currentAICancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
 	public location: SearchModelLocation = SearchModelLocation.PANEL;
 
@@ -2047,38 +2065,22 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	disableAIResults() {
-		this._aiResultsEnabled = false;
-	}
-
 	async addAIResults(onProgress?: (result: ISearchProgressItem) => void) {
 		if (this.searchResult.count(true)) {
 			// already has matches
 			return;
 		} else {
 			if (this._searchQuery) {
-				const start = Date.now();
-				const searchInstanceID = Date.now().toString();
-				await this.doAISearch(
+				await this.aiSearch(
 					{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
-					searchInstanceID,
+					onProgress,
 					this.currentCancelTokenSource?.token,
-					onProgress
-				).then(
-					value => {
-						this.onSearchCompleted(value, Date.now() - start, searchInstanceID);
-						return value;
-					},
-					e => {
-						this.onSearchError(e, Date.now() - start);
-						throw e;
-					});
+				);
 			}
-			this._aiResultsEnabled = true;
 		}
 	}
 
-	private async doAISearch(searchQuery: IAITextQuery, searchInstanceID: string, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void) {
+	private async doAISearchWithModal(searchQuery: IAITextQuery, searchInstanceID: string, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		const promise = this.searchService.aiTextSearch(
 			searchQuery,
 			token, async (p: ISearchProgressItem) => {
@@ -2090,6 +2092,29 @@ export class SearchModel extends Disposable {
 			type: 'syncing',
 			title: 'Searching for AI results...',
 		}, async (_) => promise);
+	}
+
+	aiSearch(query: IAITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): Promise<ISearchComplete> {
+
+		const searchInstanceID = Date.now().toString();
+		const tokenSource = this.currentAICancelTokenSource = new CancellationTokenSource(callerToken);
+		const start = Date.now();
+		const asyncAIResults = this.doAISearchWithModal(query,
+			searchInstanceID,
+			this.currentAICancelTokenSource.token, async (p: ISearchProgressItem) => {
+				this.onSearchProgress(p, searchInstanceID, false, true);
+				onProgress?.(p);
+			})
+			.then(
+				value => {
+					this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
+					return value;
+				},
+				e => {
+					this.onSearchError(e, Date.now() - start, true);
+					throw e;
+				}).finally(() => tokenSource.dispose());
+		return asyncAIResults;
 	}
 
 	private doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
@@ -2117,15 +2142,6 @@ export class SearchModel extends Disposable {
 			notebookResult.allScannedFiles,
 		);
 
-		const asyncAIResults = this._aiResultsEnabled ? this.doAISearch({ ...searchQuery, contentPattern: searchQuery.contentPattern.pattern, type: QueryType.aiText },
-			searchInstanceID,
-			this.currentCancelTokenSource.token, async (p: ISearchProgressItem) => {
-				progressEmitter.fire();
-				this.onSearchProgress(p, searchInstanceID, false, true);
-				onProgress?.(p);
-			}) : Promise.resolve(undefined);
-
-
 		const syncResults = textResult.syncResults.results;
 		syncResults.forEach(p => { if (p) { syncGenerateOnProgress(p); } });
 
@@ -2135,11 +2151,10 @@ export class SearchModel extends Disposable {
 			// resolve async parts of search
 			const allClosedEditorResults = await textResult.asyncResults;
 			const resolvedNotebookResults = await notebookResult.completeData;
-			const aiResults = await asyncAIResults;
 			tokenSource.dispose();
 			const searchLength = Date.now() - searchStart;
 			const resolvedResult = <ISearchComplete>{
-				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results, ...aiResults?.results ?? []],
+				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
 				messages: [...allClosedEditorResults.messages, ...resolvedNotebookResults.messages],
 				limitHit: allClosedEditorResults.limitHit || resolvedNotebookResults.limitHit,
 				exit: allClosedEditorResults.exit,
@@ -2209,11 +2224,11 @@ export class SearchModel extends Disposable {
 			return {
 				asyncResults: asyncResults.then(
 					value => {
-						this.onSearchCompleted(value, Date.now() - start, searchInstanceID);
+						this.onSearchCompleted(value, Date.now() - start, searchInstanceID, false);
 						return value;
 					},
 					e => {
-						this.onSearchError(e, Date.now() - start);
+						this.onSearchError(e, Date.now() - start, false);
 						throw e;
 					}),
 				syncResults
@@ -2229,16 +2244,20 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string): ISearchComplete | undefined {
+	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string, ai: boolean): ISearchComplete | undefined {
 		if (!this._searchQuery) {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
 
-		this._searchResult.add(this._resultQueue, searchInstanceID, false);
-		this._resultQueue.length = 0;
+		if (ai) {
+			this._searchResult.add(this._aiResultQueue, searchInstanceID, true);
+			this._aiResultQueue.length = 0;
+		} else {
+			this._searchResult.add(this._resultQueue, searchInstanceID, false);
+			this._resultQueue.length = 0;
+		}
 
-		this._searchResult.add(this._aiResultQueue, searchInstanceID, true);
-		this._aiResultQueue.length = 0;
+		this.searchResult.setCachedSearchComplete(completed, ai);
 
 		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
 		delete (options as any).pattern;
@@ -2275,13 +2294,13 @@ export class SearchModel extends Disposable {
 		return completed;
 	}
 
-	private onSearchError(e: any, duration: number): void {
+	private onSearchError(e: any, duration: number, ai: boolean): void {
 		if (errors.isCancellationError(e)) {
 			this.onSearchCompleted(
 				this.searchCancelledForNewSearch
 					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
 					: undefined,
-				duration, '');
+				duration, '', ai);
 			this.searchCancelledForNewSearch = false;
 		}
 	}

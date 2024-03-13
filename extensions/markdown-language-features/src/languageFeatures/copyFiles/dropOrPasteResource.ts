@@ -31,8 +31,8 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 	];
 
 	private readonly _yieldTo = [
-		{ mimeType: 'text/plain' },
-		{ kind: vscode.DocumentPasteEditKind.Empty.append('markdown', 'image', 'attachment') },
+		vscode.DocumentPasteEditKind.Empty.append('text'),
+		vscode.DocumentPasteEditKind.Empty.append('markdown', 'image', 'attachment'),
 	];
 
 	public async provideDocumentDropEdits(
