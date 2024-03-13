@@ -60,6 +60,15 @@ export class ChatVariablesService implements IChatVariablesService {
 		};
 	}
 
+	async resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[]> {
+		const data = this._resolver.get(variableName.toLowerCase());
+		if (!data) {
+			return Promise.resolve([]);
+		}
+
+		return (await data.resolver(promptText, undefined, model, progress, token)) ?? [];
+	}
+
 	hasVariable(name: string): boolean {
 		return this._resolver.has(name.toLowerCase());
 	}

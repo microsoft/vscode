@@ -263,7 +263,7 @@ declare module 'vscode' {
 		 * *Note* that the indices take the leading `#`-character into account which means they can
 		 * used to modify the prompt as-is.
 		 */
-		readonly range: [start: number, end: number];
+		readonly range?: [start: number, end: number];
 
 		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
 		/**

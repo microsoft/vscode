@@ -38,6 +38,7 @@ export interface IRawChatCommandContribution {
 	sampleRequest?: string;
 	isSticky?: boolean;
 	when?: string;
+	defaultImplicitVariables?: string[];
 }
 
 export interface IRawChatParticipantContribution {
@@ -45,6 +46,7 @@ export interface IRawChatParticipantContribution {
 	description?: string;
 	isDefault?: boolean;
 	commands?: IRawChatCommandContribution[];
+	defaultImplicitVariables?: string[];
 }
 
 export interface IChatParticipantContribution extends IRawChatParticipantContribution {
