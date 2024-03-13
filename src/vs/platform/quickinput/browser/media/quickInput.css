@@ -317,6 +317,7 @@
 	font-size: 12px;
 }
 
+/* Hide border when the item becomes the sticky one */
 .quick-input-list .monaco-tree-sticky-row .quick-input-list-entry.quick-input-list-separator-as-item.quick-input-list-separator-border {
 	border-top-style: none;
 }
