@@ -629,32 +629,32 @@ class RenameCandidateView {
 
 	private static _PADDING: number = 2;
 
-	public readonly domNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
 	private readonly _icon: HTMLElement;
 	private readonly _label: HTMLElement;
 
 	constructor(parent: HTMLElement, fontInfo: FontInfo) {
 
-		this.domNode = document.createElement('div');
-		this.domNode.style.display = `flex`;
-		this.domNode.style.alignItems = `center`;
-		this.domNode.style.height = `${fontInfo.lineHeight}px`;
-		this.domNode.style.padding = `${RenameCandidateView._PADDING}px`;
+		this._domNode = document.createElement('div');
+		this._domNode.style.display = `flex`;
+		this._domNode.style.alignItems = `center`;
+		this._domNode.style.height = `${fontInfo.lineHeight}px`;
+		this._domNode.style.padding = `${RenameCandidateView._PADDING}px`;
 
 		this._icon = document.createElement('div');
 		this._icon.style.display = `flex`;
 		this._icon.style.alignItems = `center`;
 		this._icon.style.width = this._icon.style.height = `${fontInfo.lineHeight * 0.8}px`;
-		this.domNode.appendChild(this._icon);
+		this._domNode.appendChild(this._icon);
 
 		this._label = document.createElement('div');
 		this._icon.style.display = `flex`;
 		this._icon.style.alignItems = `center`;
 		this._label.style.marginLeft = '5px';
 		applyFontInfo(this._label, fontInfo);
-		this.domNode.appendChild(this._label);
+		this._domNode.appendChild(this._label);
 
-		parent.appendChild(this.domNode);
+		parent.appendChild(this._domNode);
 	}
 
 	public set populate(value: NewSymbolName) {
