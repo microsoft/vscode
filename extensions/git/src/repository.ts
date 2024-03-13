@@ -1386,8 +1386,7 @@ export class Repository implements Disposable {
 	}
 
 	async fetchPruneAndDelete(): Promise<void> {
-		// await this.run(Operation.fetchPruneAndDelete, () => this.repository.fetchPruneAndDelete(force));
-		await this.run(Operation.fetchPruneAndDelete, () => this.repository.fetchPruneAndDelete());
+		await this.run(Operation.FetchPruneAndDelete, () => this.repository.fetchPruneAndDelete());
 	}
 
 	async renameBranch(name: string): Promise<void> {
