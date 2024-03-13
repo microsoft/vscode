@@ -88,9 +88,7 @@ export class TerminalChatWidget extends Disposable {
 		this._container.style.bottom = '';
 		const widgetHeight = this._inlineChatWidget.getHeight();
 		const terminalHeight = height * this._instance.rows;
-		const widgetExceedsTerminalHeight = widgetHeight > terminalHeight;
-		const anchorWidgetAtBottom = top > terminalHeight - widgetHeight;
-		if (anchorWidgetAtBottom && !widgetExceedsTerminalHeight) {
+		if (top > terminalHeight - widgetHeight) {
 			this._container.style.top = '';
 		}
 	}
