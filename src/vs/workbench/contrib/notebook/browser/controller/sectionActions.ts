@@ -12,7 +12,8 @@ import { FoldingController } from 'vs/workbench/contrib/notebook/browser/control
 import { CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 export type NotebookSectionArgs = {
 	notebookEditor: INotebookEditor | undefined;
@@ -35,8 +36,8 @@ export class NotebookRunSingleCellInSection extends Action2 {
 					group: 'inline',
 					order: 1,
 					when: ContextKeyExpr.and(
-						NotebookOutlineContext.CellKind.isEqualTo('code'),
-						NotebookOutlineContext.OutlineElementTarget.isEqualTo('outline'),
+						NotebookOutlineContext.CellKind.isEqualTo(CellKind.Code),
+						NotebookOutlineContext.OutlineElementTarget.isEqualTo(OutlineTarget.OutlinePane),
 						NotebookOutlineContext.CellHasChildren.toNegated(),
 						NotebookOutlineContext.CellHasHeader.toNegated(),
 					)
@@ -46,7 +47,11 @@ export class NotebookRunSingleCellInSection extends Action2 {
 	}
 
 	override async run(_accessor: ServicesAccessor, context: NotebookSectionArgs): Promise<void> {
-		context.notebookEditor?.executeNotebookCells([context.outlineEntry.cell]);
+		if (!checkSectionContext(context)) {
+			return;
+		}
+
+		context.notebookEditor!.executeNotebookCells([context.outlineEntry.cell]);
 	}
 }
 
@@ -71,8 +76,8 @@ export class NotebookRunCellsInSection extends Action2 {
 					group: 'inline',
 					order: 1,
 					when: ContextKeyExpr.and(
-						NotebookOutlineContext.CellKind.isEqualTo('markdown'),
-						NotebookOutlineContext.OutlineElementTarget.isEqualTo('outline'),
+						NotebookOutlineContext.CellKind.isEqualTo(CellKind.Markup),
+						NotebookOutlineContext.OutlineElementTarget.isEqualTo(OutlineTarget.OutlinePane),
 						NotebookOutlineContext.CellHasChildren,
 						NotebookOutlineContext.CellHasHeader,
 					)
@@ -82,23 +87,26 @@ export class NotebookRunCellsInSection extends Action2 {
 	}
 
 	override async run(_accessor: ServicesAccessor, context: NotebookSectionArgs): Promise<void> {
-		const cell = context.outlineEntry.cell;
+		if (!checkSectionContext(context)) {
+			return;
+		}
 
-		const idx = context.notebookEditor?.getViewModel()?.getCellIndex(cell);
+		const cell = context.outlineEntry.cell;
+		const idx = context.notebookEditor!.getViewModel()?.getCellIndex(cell);
 		if (idx === undefined) {
 			return;
 		}
-		const length = context.notebookEditor?.getViewModel()?.getFoldedLength(idx);
+		const length = context.notebookEditor!.getViewModel()?.getFoldedLength(idx);
 		if (length === undefined) {
 			return;
 		}
 
-		const cells = context.notebookEditor?.getCellsInRange({ start: idx, end: idx + length + 1 });
-		context.notebookEditor?.executeNotebookCells(cells);
+		const cells = context.notebookEditor!.getCellsInRange({ start: idx, end: idx + length + 1 });
+		context.notebookEditor!.executeNotebookCells(cells);
 	}
 }
 
-export class NotebookToggleFoldingSection extends Action2 {
+export class NotebookFoldSection extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.section.foldSection',
@@ -113,10 +121,11 @@ export class NotebookToggleFoldingSection extends Action2 {
 					group: 'notebookFolding',
 					order: 2,
 					when: ContextKeyExpr.and(
-						NotebookOutlineContext.CellKind.isEqualTo('markdown'),
-						NotebookOutlineContext.OutlineElementTarget.isEqualTo('outline'),
+						NotebookOutlineContext.CellKind.isEqualTo(CellKind.Markup),
+						NotebookOutlineContext.OutlineElementTarget.isEqualTo(OutlineTarget.OutlinePane),
 						NotebookOutlineContext.CellHasChildren,
 						NotebookOutlineContext.CellHasHeader,
+						NotebookOutlineContext.CellFoldingState.isEqualTo(CellFoldingState.Expanded)
 					)
 				}
 			]
@@ -124,24 +133,78 @@ export class NotebookToggleFoldingSection extends Action2 {
 	}
 
 	override async run(_accessor: ServicesAccessor, context: NotebookSectionArgs): Promise<void> {
-		if (context.notebookEditor) {
-			this.toggleFoldRange(context.outlineEntry, context.notebookEditor);
+		if (!checkSectionContext(context)) {
+			return;
 		}
+
+		this.toggleFoldRange(context.outlineEntry, context.notebookEditor!);
 	}
 
 	private toggleFoldRange(entry: OutlineEntry, notebookEditor: INotebookEditor) {
 		const foldingController = notebookEditor.getContribution<FoldingController>(FoldingController.id);
-		const currentState = (entry.cell as MarkupCellViewModel).foldingState;
-
 		const index = entry.index;
 		const headerLevel = entry.level;
-		const newFoldingState = (currentState === CellFoldingState.Collapsed) ? CellFoldingState.Expanded : CellFoldingState.Collapsed;
+		const newFoldingState = CellFoldingState.Collapsed;
 
-		foldingController.setFoldingStateUp(index, newFoldingState, headerLevel);
+		foldingController.setFoldingStateDown(index, newFoldingState, headerLevel);
+	}
+}
+
+export class NotebookExpandSection extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.section.expandSection',
+			title: {
+				...localize2('expandSection', "Expand Section"),
+				mnemonicTitle: localize({ key: 'miexpandSection', comment: ['&& denotes a mnemonic'] }, "&&Expand Section"),
+			},
+			shortTitle: localize('expandSection', "Expand Section"),
+			menu: [
+				{
+					id: MenuId.NotebookOutlineActionMenu,
+					group: 'notebookFolding',
+					order: 2,
+					when: ContextKeyExpr.and(
+						NotebookOutlineContext.CellKind.isEqualTo(CellKind.Markup),
+						NotebookOutlineContext.OutlineElementTarget.isEqualTo(OutlineTarget.OutlinePane),
+						NotebookOutlineContext.CellHasChildren,
+						NotebookOutlineContext.CellHasHeader,
+						NotebookOutlineContext.CellFoldingState.isEqualTo(CellFoldingState.Collapsed)
+					)
+				}
+			]
+		});
 	}
 
+	override async run(_accessor: ServicesAccessor, context: NotebookSectionArgs): Promise<void> {
+		if (!checkSectionContext(context)) {
+			return;
+		}
+
+		this.toggleFoldRange(context.outlineEntry, context.notebookEditor!);
+	}
+
+	private toggleFoldRange(entry: OutlineEntry, notebookEditor: INotebookEditor) {
+		const foldingController = notebookEditor.getContribution<FoldingController>(FoldingController.id);
+		const index = entry.index;
+		const headerLevel = entry.level;
+		const newFoldingState = CellFoldingState.Expanded;
+
+		foldingController.setFoldingStateDown(index, newFoldingState, headerLevel);
+	}
+}
+
+/**
+ * Take in context args and check if they are valid
+ *
+ * @param context - Notebook Section Context containing a notebook editor and outline entry
+ * @returns true if context is valid, false otherwise
+ */
+function checkSectionContext(context: NotebookSectionArgs): boolean {
+	return !!(context && context.notebookEditor && context.outlineEntry);
 }
 
 registerAction2(NotebookRunSingleCellInSection);
 registerAction2(NotebookRunCellsInSection);
-registerAction2(NotebookToggleFoldingSection);
+registerAction2(NotebookFoldSection);
+registerAction2(NotebookExpandSection);

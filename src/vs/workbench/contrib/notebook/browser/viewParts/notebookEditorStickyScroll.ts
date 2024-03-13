@@ -54,7 +54,7 @@ export class NotebookStickyLine extends Disposable {
 		const headerLevel = this.entry.level;
 		const newFoldingState = (currentState === CellFoldingState.Collapsed) ? CellFoldingState.Expanded : CellFoldingState.Collapsed;
 
-		foldingController.setFoldingStateUp(index, newFoldingState, headerLevel);
+		foldingController.setFoldingStateDown(index, newFoldingState, headerLevel);
 		this.focusCell();
 	}
 

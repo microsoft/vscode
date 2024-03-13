@@ -27,7 +27,7 @@ import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { CellRevealType, ICellModelDecorations, ICellModelDeltaDecorations, INotebookEditor, INotebookEditorOptions, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFoldingState, CellRevealType, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookEditor, INotebookEditorOptions, INotebookEditorPane, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -45,6 +45,8 @@ import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
 import { NotebookSectionArgs } from 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { disposableTimeout } from 'vs/base/common/async';
 
 class NotebookOutlineTemplate {
 
@@ -149,12 +151,15 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 			}
 			const idx = nbViewModel.getCellIndex(nbCell);
 			const length = isCodeCell ? 0 : nbViewModel.getFoldedLength(idx);
+			const foldingState = isCodeCell ? CellFoldingState.None : ((nbCell as MarkupCellViewModel).foldingState);
 
 			const scopedContextKeyService = template.elementDisposables.add(this._contextKeyService.createScoped(template.container));
-			NotebookOutlineContext.CellKind.bindTo(scopedContextKeyService).set(isCodeCell ? 'code' : 'markdown');
+			NotebookOutlineContext.CellKind.bindTo(scopedContextKeyService).set(isCodeCell ? CellKind.Code : CellKind.Markup);
 			NotebookOutlineContext.CellHasChildren.bindTo(scopedContextKeyService).set(length > 0);
 			NotebookOutlineContext.CellHasHeader.bindTo(scopedContextKeyService).set(node.element.level !== 7);
-			NotebookOutlineContext.OutlineElementTarget.bindTo(scopedContextKeyService).set('outline');
+			NotebookOutlineContext.CellFoldingState.bindTo(scopedContextKeyService).set(foldingState);
+			NotebookOutlineContext.OutlineElementTarget.bindTo(scopedContextKeyService).set(this._target);
+			this.setupFoldingListeners(nbViewModel, scopedContextKeyService, template, nbCell);
 
 			const outlineEntryToolbar = template.elementDisposables.add(new ToolBar(template.actionMenu, this._contextMenuService, {
 				actionViewItemProvider: action => {
@@ -163,15 +168,13 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 					}
 					return undefined;
 				},
-
 			}));
 
 			const menu = template.elementDisposables.add(this._menuService.createMenu(MenuId.NotebookOutlineActionMenu, scopedContextKeyService));
-			const updateActions = () => {
-				const actions = getOutlineToolbarActions(menu, { notebookEditor: this._editor, outlineEntry: node.element });
-				outlineEntryToolbar.setActions(actions.primary, actions.secondary);
-			};
-			updateActions();
+			const actions = getOutlineToolbarActions(menu, { notebookEditor: this._editor, outlineEntry: node.element });
+			outlineEntryToolbar.setActions(actions.primary, actions.secondary);
+
+			this.setupToolbarListeners(outlineEntryToolbar, menu, actions, node.element, template);
 		}
 	}
 
@@ -183,6 +186,51 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	disposeElement(element: ITreeNode<OutlineEntry, FuzzyScore>, index: number, templateData: NotebookOutlineTemplate, height: number | undefined): void {
 		templateData.elementDisposables.clear();
 		DOM.clearNode(templateData.actionMenu);
+	}
+
+	private setupFoldingListeners(nbViewModel: INotebookViewModel, scopedContextKeyService: IContextKeyService, template: NotebookOutlineTemplate, nbCell: ICellViewModel) {
+		template.elementDisposables.add(nbViewModel.onDidFoldingStateChanged(() => {
+			const foldingState = (nbCell as MarkupCellViewModel).foldingState;
+			NotebookOutlineContext.CellFoldingState.bindTo(scopedContextKeyService).set(foldingState);
+		}));
+	}
+
+	private setupToolbarListeners(toolbar: ToolBar, menu: IMenu, initActions: { primary: IAction[]; secondary: IAction[] }, entry: OutlineEntry, templateData: NotebookOutlineTemplate): void {
+		// same fix as in cellToolbars setupListeners re #103926
+		let dropdownIsVisible = false;
+		let deferredUpdate: (() => void) | undefined;
+
+		toolbar.setActions(initActions.primary, initActions.secondary);
+		templateData.elementDisposables.add(menu.onDidChange(() => {
+			if (dropdownIsVisible) {
+				const actions = getOutlineToolbarActions(menu, { notebookEditor: this._editor, outlineEntry: entry });
+				deferredUpdate = () => toolbar.setActions(actions.primary, actions.secondary);
+
+				return;
+			}
+
+			const actions = getOutlineToolbarActions(menu, { notebookEditor: this._editor, outlineEntry: entry });
+			toolbar.setActions(actions.primary, actions.secondary);
+		}));
+
+		templateData.container.classList.remove('notebook-outline-toolbar-dropdown-active');
+		templateData.elementDisposables.add(toolbar.onDidChangeDropdownVisibility(visible => {
+			dropdownIsVisible = visible;
+			if (visible) {
+				templateData.container.classList.add('notebook-outline-toolbar-dropdown-active');
+			} else {
+				templateData.container.classList.remove('notebook-outline-toolbar-dropdown-active');
+			}
+
+			if (deferredUpdate && !visible) {
+				disposableTimeout(() => {
+					deferredUpdate?.();
+				}, 0, templateData.elementDisposables);
+
+				deferredUpdate = undefined;
+			}
+		}));
+
 	}
 }
 
@@ -477,10 +525,11 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 }
 
 export const NotebookOutlineContext = {
-	CellKind: new RawContextKey<string>('notebookCellKind', undefined),
+	CellKind: new RawContextKey<CellKind>('notebookCellKind', undefined),
 	CellHasChildren: new RawContextKey<boolean>('notebookCellHasChildren', false),
 	CellHasHeader: new RawContextKey<boolean>('notebookCellHasHeader', false),
-	OutlineElementTarget: new RawContextKey<string>('notebookOutlineElementTarget', undefined),
+	CellFoldingState: new RawContextKey<CellFoldingState>('notebookCellFoldingState', CellFoldingState.None),
+	OutlineElementTarget: new RawContextKey<OutlineTarget>('notebookOutlineElementTarget', undefined),
 };
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookOutlineCreator, LifecyclePhase.Eventually);
