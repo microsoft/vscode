@@ -317,7 +317,6 @@ export class CodeActionModel extends Disposable {
 					// temporarilly hiding here as this is enabled/disabled behind a setting.
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
-
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
