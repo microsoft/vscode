@@ -517,7 +517,7 @@ export class BreadcrumbsControl {
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
 		} else {
-			element.outline.reveal(element, { pinned }, group === SIDE_GROUP);
+			element.outline.reveal(element, { pinned }, group === SIDE_GROUP, false);
 		}
 	}
 
@@ -611,7 +611,7 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
-				title: localize('cmd.toggle2', "Breadcrumbs"),
+				title: localize('cmd.toggle2', "Toggle Breadcrumbs"),
 				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs")
 			},
 			menu: [
@@ -860,7 +860,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return (<IOutline<any>>input).reveal(element, {
 				pinned: true,
 				preserveFocus: false
-			}, true);
+			}, true, false);
 		}
 	}
 });

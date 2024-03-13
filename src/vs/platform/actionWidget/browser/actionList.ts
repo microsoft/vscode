@@ -140,7 +140,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 	}
 
 	disposeTemplate(_templateData: IActionMenuTemplateData): void {
-		// noop
+		_templateData.keybinding.dispose();
 	}
 }
 

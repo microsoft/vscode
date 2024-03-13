@@ -853,19 +853,19 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 	private onServiceChange(): void {
 		this.badgeHandle.clear();
 
-		const extensionsReloadRequired = this.extensionsWorkbenchService.installed.filter(e => e.reloadRequiredStatus !== undefined);
-		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
-		const newBadgeNumber = outdated + extensionsReloadRequired.length;
+		const actionRequired = this.extensionsWorkbenchService.installed.filter(e => e.runtimeState !== undefined);
+		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !actionRequired.includes(e) ? 1 : 0), 0);
+		const newBadgeNumber = outdated + actionRequired.length;
 		if (newBadgeNumber > 0) {
 			let msg = '';
 			if (outdated) {
 				msg += outdated === 1 ? localize('extensionToUpdate', '{0} requires update', outdated) : localize('extensionsToUpdate', '{0} require update', outdated);
 			}
-			if (outdated > 0 && extensionsReloadRequired.length > 0) {
+			if (outdated > 0 && actionRequired.length > 0) {
 				msg += ', ';
 			}
-			if (extensionsReloadRequired.length) {
-				msg += extensionsReloadRequired.length === 1 ? localize('extensionToReload', '{0} requires reload', extensionsReloadRequired.length) : localize('extensionsToReload', '{0} require reload', extensionsReloadRequired.length);
+			if (actionRequired.length) {
+				msg += actionRequired.length === 1 ? localize('extensionToReload', '{0} requires restart', actionRequired.length) : localize('extensionsToReload', '{0} require restart', actionRequired.length);
 			}
 			const badge = new NumberBadge(newBadgeNumber, () => msg);
 			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge });

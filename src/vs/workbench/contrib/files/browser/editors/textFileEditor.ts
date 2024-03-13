@@ -46,6 +46,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService fileService: IFileService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
@@ -65,7 +66,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		@IHostService private readonly hostService: IHostService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
+		super(TextFileEditor.ID, group, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
 		// Clear view state for deleted files
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
@@ -192,7 +193,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		}
 
 		// Handle case where a file is too large to open without confirmation
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE && this.group) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 			let message: string;
 			if (error instanceof TooLargeFileOperationError) {
 				message = localize('fileTooLargeForHeapErrorWithSize', "The file is not displayed in the text editor because it is very large ({0}).", ByteSize.formatSize(error.size));
@@ -240,7 +241,6 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 
 	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.editor.defaultBinaryEditor');
-		const group = this.group ?? this.editorGroupService.activeGroup;
 
 		const editorOptions = {
 			...options,
@@ -259,9 +259,9 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		// and avoid enforcing binary or text on the file editor input.
 
 		if (defaultBinaryEditor && defaultBinaryEditor !== '' && defaultBinaryEditor !== DEFAULT_EDITOR_ASSOCIATION.id) {
-			this.doOpenAsBinaryInDifferentEditor(group, defaultBinaryEditor, input, editorOptions);
+			this.doOpenAsBinaryInDifferentEditor(this.group, defaultBinaryEditor, input, editorOptions);
 		} else {
-			this.doOpenAsBinaryInSameEditor(group, defaultBinaryEditor, input, editorOptions);
+			this.doOpenAsBinaryInSameEditor(this.group, defaultBinaryEditor, input, editorOptions);
 		}
 	}
 

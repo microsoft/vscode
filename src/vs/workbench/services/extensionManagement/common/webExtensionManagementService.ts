@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, IProductVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -170,8 +170,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		await this.webExtensionsScannerService.copyExtensions(fromProfileLocation, toProfileLocation, e => !e.metadata?.isApplicationScoped);
 	}
 
-	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
-		const compatibleExtension = await super.getCompatibleVersion(extension, sameVersion, includePreRelease);
+	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean, productVersion: IProductVersion): Promise<IGalleryExtension | null> {
+		const compatibleExtension = await super.getCompatibleVersion(extension, sameVersion, includePreRelease, productVersion);
 		if (compatibleExtension) {
 			return compatibleExtension;
 		}
@@ -235,6 +235,8 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		targetPlatform: TargetPlatform.WEB,
 		updated: !!metadata.updated,
 		pinned: !!metadata?.pinned,
+		isWorkspaceScoped: false,
+		source: metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'resource')
 	};
 }
 
@@ -289,6 +291,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.preRelease = isBoolean(this.options.preRelease)
 				? this.options.preRelease
 				: this.options.installPreReleaseVersion || this.extension.properties.isPreReleaseVersion || metadata.preRelease;
+			metadata.source = URI.isUri(this.extension) ? 'resource' : 'gallery';
 		}
 		metadata.pinned = this.options.installGivenVersion ? true : (this.options.pinned ?? metadata.pinned);
 

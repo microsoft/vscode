@@ -30,7 +30,7 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { EditorType, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
@@ -267,18 +267,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			),
 		}));
 
-		this._register(Event.runAndSubscribe(this._editors.modified.onDidChangeCursorPosition, (e) => {
-			if (e?.reason === CursorChangeReason.Explicit) {
-				const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
-				if (diff?.lineRangeMapping.modified.isEmpty) {
-					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'diffEditor.cursorPositionChanged' });
-				} else if (diff?.lineRangeMapping.original.isEmpty) {
-					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'diffEditor.cursorPositionChanged' });
-				} else if (diff) {
-					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
-				}
-			}
-		}));
+		this._register(Event.runAndSubscribe(this._editors.modified.onDidChangeCursorPosition, e => this._handleCursorPositionChange(e, true)));
+		this._register(Event.runAndSubscribe(this._editors.original.onDidChangeCursorPosition, e => this._handleCursorPositionChange(e, false)));
+
 
 		const isInitializingDiff = this._diffModel.map(this, (m, reader) => {
 			/** @isInitializingDiff isDiffUpToDate */
@@ -607,6 +598,19 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				region.showAll(tx);
 			}
 		});
+	}
+
+	private _handleCursorPositionChange(e: ICursorPositionChangedEvent | undefined, isModifiedEditor: boolean): void {
+		if (e?.reason === CursorChangeReason.Explicit) {
+			const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => isModifiedEditor ? m.lineRangeMapping.modified.contains(e.position.lineNumber) : m.lineRangeMapping.original.contains(e.position.lineNumber));
+			if (diff?.lineRangeMapping.modified.isEmpty) {
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'diffEditor.cursorPositionChanged' });
+			} else if (diff?.lineRangeMapping.original.isEmpty) {
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'diffEditor.cursorPositionChanged' });
+			} else if (diff) {
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
+			}
+		}
 	}
 }
 

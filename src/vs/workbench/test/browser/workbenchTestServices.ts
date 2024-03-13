@@ -160,8 +160,8 @@ import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { EnablementState, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
@@ -638,7 +638,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isMainEditorLayoutCentered(): boolean { return false; }
 	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
-	registerPart(part: Part): void { }
+	registerPart(part: Part): IDisposable { return Disposable.None; }
 	isWindowMaximized(targetWindow: Window) { return false; }
 	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
@@ -904,6 +904,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	openEditors(_editors: EditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
 	isPinned(_editor: EditorInput): boolean { return false; }
 	isSticky(_editor: EditorInput): boolean { return false; }
+	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
@@ -1561,8 +1562,8 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 
 		private _scopedContextKeyService: IContextKeyService;
 
-		constructor() {
-			super(id, NullTelemetryService, new TestThemeService(), disposables.add(new TestStorageService()));
+		constructor(group: IEditorGroup) {
+			super(id, group, NullTelemetryService, new TestThemeService(), disposables.add(new TestStorageService()));
 			this._scopedContextKeyService = new MockContextKeyService();
 		}
 
@@ -2100,7 +2101,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
 	onDidChangeProfile = Event.None;
-	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
 	installFromLocation(location: URI): Promise<ILocalExtension> {
@@ -2119,7 +2120,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	getManifest(vsix: URI): Promise<Readonly<IRelaxedExtensionManifest>> {
 		throw new Error('Method not implemented.');
 	}
-	install(vsix: URI, options?: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+	install(vsix: URI, options?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
 	async canInstall(extension: IGalleryExtension): Promise<boolean> { return false; }
@@ -2147,6 +2148,10 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	toggleAppliationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
+	getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]> { throw new Error('Method not implemented.'); }
+	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
+	getAllExtensions(location: URI): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
+	getExtension(location: URI): Promise<IResourceExtension | null> { throw new Error('Method not implemented.'); }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {

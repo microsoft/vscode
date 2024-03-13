@@ -338,7 +338,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this.element = parent;
 
 		// Track focus within container
-		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 		StatusBarFocused.bindTo(scopedContextKeyService).set(true);
 
 		// Left items container

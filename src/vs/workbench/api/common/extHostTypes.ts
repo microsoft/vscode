@@ -1795,6 +1795,17 @@ export class InlineSuggestionList implements vscode.InlineCompletionList {
 	}
 }
 
+export interface PartialAcceptInfo {
+	kind: PartialAcceptTriggerKind;
+}
+
+export enum PartialAcceptTriggerKind {
+	Unknown = 0,
+	Word = 1,
+	Line = 2,
+	Suggest = 3,
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -2775,27 +2786,63 @@ export class DataTransfer implements vscode.DataTransfer {
 
 @es5ClassCompat
 export class DocumentDropEdit {
+	title?: string;
+
 	id: string | undefined;
 
 	insertText: string | SnippetString;
 
 	additionalEdit?: WorkspaceEdit;
 
-	constructor(insertText: string | SnippetString) {
+	kind?: DocumentPasteEditKind;
+
+	constructor(insertText: string | SnippetString, title?: string, kind?: DocumentPasteEditKind) {
 		this.insertText = insertText;
+		this.title = title;
+		this.kind = kind;
 	}
 }
+
+export enum DocumentPasteTriggerKind {
+	Automatic = 0,
+	PasteAs = 1,
+}
+
+export class DocumentPasteEditKind {
+	static Empty: DocumentPasteEditKind;
+
+	private static sep = '.';
+
+	constructor(
+		public readonly value: string
+	) { }
+
+	public append(...parts: string[]): DocumentPasteEditKind {
+		return new DocumentPasteEditKind((this.value ? [this.value, ...parts] : parts).join(DocumentPasteEditKind.sep));
+	}
+
+	public intersects(other: DocumentPasteEditKind): boolean {
+		return this.contains(other) || other.contains(this);
+	}
+
+	public contains(other: DocumentPasteEditKind): boolean {
+		return this.value === other.value || other.value.startsWith(this.value + DocumentPasteEditKind.sep);
+	}
+}
+DocumentPasteEditKind.Empty = new DocumentPasteEditKind('');
 
 @es5ClassCompat
 export class DocumentPasteEdit {
 
-	label: string;
+	title: string;
 	insertText: string | SnippetString;
 	additionalEdit?: WorkspaceEdit;
+	kind: DocumentPasteEditKind;
 
-	constructor(insertText: string | SnippetString, label: string) {
-		this.label = label;
+	constructor(insertText: string | SnippetString, title: string, kind: DocumentPasteEditKind) {
+		this.title = title;
 		this.insertText = insertText;
+		this.kind = kind;
 	}
 }
 
@@ -3024,21 +3071,18 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 }
 
 
-@es5ClassCompat
-export class StackFrameFocus {
+export class StackFrame implements vscode.StackFrame {
 	constructor(
 		public readonly session: vscode.DebugSession,
-		readonly threadId?: number,
-		readonly frameId?: number) { }
+		readonly threadId: number,
+		readonly frameId: number) { }
 }
 
-@es5ClassCompat
-export class ThreadFocus {
+export class Thread implements vscode.Thread {
 	constructor(
 		public readonly session: vscode.DebugSession,
-		readonly threadId?: number) { }
+		readonly threadId: number) { }
 }
-
 
 
 @es5ClassCompat
@@ -4271,7 +4315,7 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 	) { }
 }
 
-export class LanguageModelSystemMessage {
+export class LanguageModelChatSystemMessage {
 	content: string;
 
 	constructor(content: string) {
@@ -4279,7 +4323,7 @@ export class LanguageModelSystemMessage {
 	}
 }
 
-export class LanguageModelUserMessage {
+export class LanguageModelChatUserMessage {
 	content: string;
 	name: string | undefined;
 
@@ -4289,12 +4333,32 @@ export class LanguageModelUserMessage {
 	}
 }
 
-export class LanguageModelAssistantMessage {
+export class LanguageModelChatAssistantMessage {
 	content: string;
 
 	constructor(content: string) {
 		this.content = content;
 	}
+}
+
+export class LanguageModelError extends Error {
+
+	static NotFound(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NotFound.name);
+	}
+
+	static NoPermissions(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
+	}
+
+	readonly code: string;
+
+	constructor(message?: string, code?: string, cause?: Error) {
+		super(message, { cause });
+		this.name = 'LanguageModelError';
+		this.code = code ?? '';
+	}
+
 }
 
 //#endregion

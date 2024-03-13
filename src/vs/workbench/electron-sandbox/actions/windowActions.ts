@@ -212,7 +212,7 @@ abstract class BaseSwitchWindow extends Action2 {
 	};
 
 	private readonly closeDirtyWindowAction: IQuickInputButton = {
-		iconClass: 'dirty-window ' + Codicon.closeDirty,
+		iconClass: 'dirty-window ' + ThemeIcon.asClassName(Codicon.closeDirty),
 		tooltip: localize('close', "Close Window"),
 		alwaysVisible: true
 	};

@@ -295,8 +295,20 @@ export class NotebookCellListView<T> extends ListView<T> {
 	}
 
 	removeWhitespace(id: string): void {
-		this.notebookRangeMap.removeWhitespace(id);
-		this.eventuallyUpdateScrollDimensions();
+		const scrollTop = this.scrollTop;
+		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const currentPosition = this.notebookRangeMap.getWhitespacePosition(id);
+
+		if (currentPosition > scrollTop) {
+			this.notebookRangeMap.removeWhitespace(id);
+			this.render(previousRenderRange, scrollTop, this.lastRenderHeight, undefined, undefined, false);
+			this._rerender(scrollTop, this.renderHeight, false);
+			this.eventuallyUpdateScrollDimensions();
+		} else {
+			this.notebookRangeMap.removeWhitespace(id);
+			this.eventuallyUpdateScrollDimensions();
+		}
+
 	}
 
 	getWhitespacePosition(id: string): number {

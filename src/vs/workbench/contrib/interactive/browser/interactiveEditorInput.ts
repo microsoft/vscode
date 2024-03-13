@@ -10,13 +10,14 @@ import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IResolvedNotebookEditorModel, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -44,6 +45,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 
 	private name: string;
+	private readonly isScratchpad: boolean;
 
 	get language() {
 		return this._inputModelRef?.object.textEditorModel.getLanguageId() ?? this._initLanguage;
@@ -93,10 +95,12 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService,
 		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, 'interactive', {});
 		super();
+		this.isScratchpad = configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
 		this.name = title ?? InteractiveEditorInput.windowNames[resource.path] ?? paths.basename(resource.path, paths.extname(resource.path));
@@ -130,10 +134,11 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 
 	override get capabilities(): EditorInputCapabilities {
+		const scratchPad = this.isScratchpad ? EditorInputCapabilities.Scratchpad : 0;
+
 		return EditorInputCapabilities.Untitled
 			| EditorInputCapabilities.Readonly
-			| EditorInputCapabilities.AuxWindowUnsupported
-			| EditorInputCapabilities.Scratchpad;
+			| scratchPad;
 	}
 
 	private async _resolveEditorModel() {
@@ -221,8 +226,22 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		return this.name;
 	}
 
+	override isDirty(): boolean {
+		if (this.isScratchpad) {
+			return false;
+		}
+
+		return this._editorModelReference?.isDirty() ?? false;
+	}
+
 	override isModified() {
 		return this._editorModelReference?.isModified() ?? false;
+	}
+
+	override async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		if (this._editorModelReference && this._editorModelReference.isDirty()) {
+			await this._editorModelReference.revert(options);
+		}
 	}
 
 	override dispose() {

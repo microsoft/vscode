@@ -15,20 +15,17 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import type { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
 import { Sequencer, timeout } from 'vs/base/common/async';
-import { EditorViewState } from 'vs/workbench/browser/quickaccess';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import type { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TerminalLinkQuickpick extends DisposableStore {
 
 	private readonly _editorSequencer = new Sequencer();
-	private readonly _editorViewState: EditorViewState;
+	private readonly _editorViewState: PickerEditorState;
 
 	private _instance: ITerminalInstance | IDetachedTerminalInstance | undefined;
 
@@ -36,15 +33,13 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IHistoryService private readonly _historyService: IHistoryService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		this._editorViewState = new EditorViewState(_editorService);
+		this._editorViewState = this.add(instantiationService.createInstance(PickerEditorState));
 	}
 
 	async show(instance: ITerminalInstance | IDetachedTerminalInstance, links: { viewport: IDetectedLinks; all: Promise<IDetectedLinks> }): Promise<void> {
@@ -150,7 +145,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 				// gesture and not e.g. when focus was lost because that
 				// could mean the user clicked into the editor directly.
 				if (reason === QuickInputHideReason.Gesture) {
-					this._editorViewState.restore(true);
+					this._editorViewState.restore();
 				}
 				disposables.dispose();
 				if (pick.selectedItems.length === 0) {
@@ -159,6 +154,16 @@ export class TerminalLinkQuickpick extends DisposableStore {
 				r();
 			}));
 			disposables.add(Event.once(pick.onDidAccept)(() => {
+				// Restore terminal scroll state
+				if (this._terminalScrollStateSaved) {
+					const markTracker = this._instance?.xterm?.markTracker;
+					if (markTracker) {
+						markTracker.restoreScrollState();
+						markTracker.clear();
+						this._terminalScrollStateSaved = false;
+					}
+				}
+
 				accepted = true;
 				const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
 				const activeItem = pick.activeItems?.[0];
@@ -247,12 +252,6 @@ export class TerminalLinkQuickpick extends DisposableStore {
 			return;
 		}
 
-		// Don't open if preview editors are disabled as it may open many editor
-		const config = this._configurationService.getValue<IFilesConfiguration>();
-		if (!config.workbench?.editor?.enablePreview) {
-			return;
-		}
-
 		this._previewItemInEditor(link);
 	}
 
@@ -267,16 +266,10 @@ export class TerminalLinkQuickpick extends DisposableStore {
 
 		this._editorViewState.set();
 		this._editorSequencer.queue(async () => {
-			// disable and re-enable history service so that we can ignore this history entry
-			const disposable = this._historyService.suspendTracking();
-			try {
-				await this._editorService.openEditor({
-					resource: link.uri,
-					options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
-				});
-			} finally {
-				disposable.dispose();
-			}
+			await this._editorViewState.openTransientEditor({
+				resource: link.uri,
+				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
+			});
 		});
 	}
 

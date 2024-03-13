@@ -15,12 +15,13 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { getCodeActions } from './codeAction';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -235,7 +236,7 @@ export class CodeActionModel extends Disposable {
 						}
 
 						// Search for quickfixes in the curret code action set.
-						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new CodeActionKind(action.action.kind)) : false);
+						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) : false);
 						const allMarkers = this._markerService.read({ resource: model.uri });
 						if (foundQuickfix) {
 							for (const action of codeActionSet.validActions) {
