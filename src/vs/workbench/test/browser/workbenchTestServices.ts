@@ -334,7 +334,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IPaneCompositePartService, disposables.add(new TestPaneCompositeService()));
 	instantiationService.stub(IListService, new TestListService());
-	instantiationService.stub(IContextViewService, instantiationService.createInstance(ContextViewService));
+	instantiationService.stub(IContextViewService, disposables.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
