@@ -1663,8 +1663,14 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		// Sticky element container
 		const stickyElement = document.createElement('div');
 		stickyElement.style.top = `${stickyNode.position}px`;
-		stickyElement.style.height = `${stickyNode.height}px`;
-		stickyElement.style.lineHeight = `${stickyNode.height}px`;
+
+		if (this.tree.options.setRowHeight !== false) {
+			stickyElement.style.height = `${stickyNode.height}px`;
+		}
+
+		if (this.tree.options.setRowLineHeight !== false) {
+			stickyElement.style.lineHeight = `${stickyNode.height}px`;
+		}
 
 		stickyElement.classList.add('monaco-tree-sticky-row');
 		stickyElement.classList.add('monaco-list-row');
