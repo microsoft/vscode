@@ -8,7 +8,7 @@ import { asArray } from 'vs/base/common/arrays';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { HoverVerbosityMetadata, HoverProvider, Hover, HoverContext } from 'vs/editor/common/languages';
+import { HoverVerbosityMetadata, HoverProvider, Hover, HoverContext, HoverVerbosityAction } from 'vs/editor/common/languages';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -63,8 +63,10 @@ export class VerboseMarkdownHover extends MarkdownHover {
 		contents: IMarkdownString[],
 		isBeforeContent: boolean,
 		ordinal: number,
-		public readonly sourceProvider: HoverProvider | undefined,
-		public readonly verbosityMetadata: HoverVerbosityMetadata | undefined,
+		public readonly hoverId?: string,
+		public readonly sourceProvider?: HoverProvider,
+		public readonly verbosityMetadata?: HoverVerbosityMetadata,
+		public readonly dispose?: () => void
 	) {
 		super(owner, range, contents, isBeforeContent, ordinal);
 	}
@@ -76,19 +78,14 @@ interface FocusedHoverInfo {
 	focusRemains: boolean;
 }
 
-export enum HoverVerbosityAction {
-	Increase,
-	Decrease
-}
-
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	public readonly hoverOrdinal: number = 3;
 	private _position: Position | undefined;
 	private _context: IEditorHoverRenderContext | undefined;
-
-	private _providers: (HoverProvider | undefined)[] = [];
 	private _focusInfo: FocusedHoverInfo | undefined;
+
+	private _hoverData: { id: string | undefined; provider: HoverProvider | undefined; dispose: (() => void) | undefined }[] = [];
 	private _verbosityLevelsByHoverIdx: number[] = [];
 
 	constructor(
@@ -101,7 +98,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
-		return new VerboseMarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], false, 2000, undefined, undefined);
+		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], false, 2000);
 	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
@@ -125,14 +122,14 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		let stopRenderingMessage = false;
 		if (stopRenderingLineAfter >= 0 && lineLength > stopRenderingLineAfter && anchor.range.startColumn >= stopRenderingLineAfter) {
 			stopRenderingMessage = true;
-			result.push(new VerboseMarkdownHover(this, anchor.range, [{
+			result.push(new MarkdownHover(this, anchor.range, [{
 				value: nls.localize('stopped rendering', "Rendering paused for long line for performance reasons. This can be configured via `editor.stopRenderingLineAfter`.")
-			}], false, index++, undefined, undefined));
+			}], false, index++));
 		}
 		if (!stopRenderingMessage && typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
-			result.push(new VerboseMarkdownHover(this, anchor.range, [{
+			result.push(new MarkdownHover(this, anchor.range, [{
 				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
-			}], false, index++, undefined, undefined));
+			}], false, index++));
 		}
 
 		let isBeforeContent = false;
@@ -151,7 +148,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new VerboseMarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++, undefined, undefined));
+			result.push(new MarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++));
 		}
 
 		return result;
@@ -173,14 +170,19 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
-				return new VerboseMarkdownHover(this, rng, item.hover.contents, false, item.ordinal, item.provider, item.hover.verbosityMetadata);
+				return new VerboseMarkdownHover(this, rng, item.hover.contents, false, item.ordinal, item.hover.id, item.provider, item.hover.verbosityMetadata, item.hover.dispose);
 			});
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: VerboseMarkdownHover[]): IDisposable {
 		this._context = context;
-		this._providers = hoverParts.map(hoverPart => hoverPart.sourceProvider);
+		this._context.disposables?.add(toDisposable(() => {
+			this._hoverData.forEach(hover => {
+				hover.dispose?.();
+			});
+		}));
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
+		this._hoverData = hoverParts.map(hover => { return { provider: hover.sourceProvider, id: hover.hoverId, dispose: hover.dispose }; });
 		const disposables = new DisposableStore();
 		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
 			const renderedMarkdown = this._renderMarkdownHoversAndActions(
@@ -189,13 +191,13 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				hoverPart.verbosityMetadata,
 				disposables
 			);
-			context.fragment.appendChild(renderedMarkdown);
+			this._context.fragment.appendChild(renderedMarkdown);
 		}
 		this._verbosityLevelsByHoverIdx = new Array(hoverParts.length).fill(0);
 		return disposables;
 	}
 
-	public async incrementFocusedMarkdownHoverVerbosityLevelBy(delta: number): Promise<void> {
+	public async updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
 		if (
 			!this._focusInfo
 			|| !this._position
@@ -207,17 +209,20 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 		const focusedIndex = this._focusInfo.focusedIndex;
 		const currentVerbosityLevel = this._verbosityLevelsByHoverIdx[focusedIndex];
-		const provider = this._providers[focusedIndex];
+		const provider = this._hoverData[focusedIndex].provider;
+		const previousId = this._hoverData[focusedIndex].id;
+		const dispose = this._hoverData[focusedIndex].dispose;
 		const model = this._editor.getModel();
-		if (!provider || !model || currentVerbosityLevel === undefined) {
+		if (!provider || previousId === undefined || !model || currentVerbosityLevel === undefined) {
 			return;
 		}
-		const verbosityLevel = currentVerbosityLevel + delta;
+		const verbosityLevel = currentVerbosityLevel + (action === HoverVerbosityAction.Increase ? 1 : -1);
 		this._verbosityLevelsByHoverIdx[focusedIndex] = verbosityLevel;
-		const context: HoverContext = { verbosityLevel };
+		const context: HoverContext = { action, previousId };
 		let hover: Hover | null | undefined;
 		try {
 			hover = await Promise.resolve(provider.provideHover(model, this._position, CancellationToken.None, context));
+			this._hoverData[focusedIndex] = { provider, id: hover?.id, dispose };
 		} catch (e) {
 			onUnexpectedExternalError(e);
 		}
@@ -304,8 +309,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			return;
 		}
 		element.classList.add('enabled');
-		const level = isActionIncrease ? 1 : -1;
-		registerActionOnClickOrAcceptKeydown(element, () => this.incrementFocusedMarkdownHoverVerbosityLevelBy(level), store);
+		registerActionOnClickOrAcceptKeydown(element, () => this.updateFocusedMarkdownHoverVerbosityLevel(action), store);
 	}
 }
 

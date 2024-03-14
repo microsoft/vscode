@@ -43,9 +43,11 @@ export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>
 	return getHover(registry, model, position, context, token).map(item => item.hover).toPromise();
 }
 
-registerModelAndPositionCommand('_executeHoverProvider', (accessor, model, position, context) => {
+registerModelAndPositionCommand('_executeHoverProvider', async (accessor, model, position, context) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	return getHoverPromise(languageFeaturesService.hoverProvider, model, position, context, CancellationToken.None);
+	const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, position, context, CancellationToken.None);
+	hovers.forEach(hover => hover.dispose());
+	return hovers;
 });
 
 function isValid(result: Hover) {

@@ -1205,6 +1205,11 @@ export class Hover {
 	}
 }
 
+export enum HoverVerbosityAction {
+	Increase = 0,
+	Decrease = 1
+}
+
 export enum DocumentHighlightKind {
 	Text = 0,
 	Read = 1,

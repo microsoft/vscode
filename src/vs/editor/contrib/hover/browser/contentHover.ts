@@ -28,6 +28,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
+import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnums';
 
 const $ = dom.$;
 
@@ -361,8 +362,8 @@ export class ContentHoverController extends Disposable {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
-	public async incrementFocusedMarkdownHoverVerbosityLevelBy(delta: number): Promise<void> {
-		this._markdownHoverParticipant?.incrementFocusedMarkdownHoverVerbosityLevelBy(delta);
+	public async updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
+		this._markdownHoverParticipant?.updateFocusedMarkdownHoverVerbosityLevel(action);
 	}
 
 	public getWidgetContent(): string | undefined {

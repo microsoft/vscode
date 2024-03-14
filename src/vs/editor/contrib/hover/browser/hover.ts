@@ -30,6 +30,7 @@ import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineComp
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
 
@@ -395,8 +396,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
-	public incrementFocusedMarkdownHoverVerbosityLevelBy(delta: number): void {
-		this._getOrCreateContentWidget().incrementFocusedMarkdownHoverVerbosityLevelBy(delta);
+	public updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): void {
+		this._getOrCreateContentWidget().updateFocusedMarkdownHoverVerbosityLevel(action);
 	}
 
 	public focus(): void {
@@ -851,7 +852,7 @@ class IncreaseHoverVerbosityLevel extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		HoverController.get(editor)?.incrementFocusedMarkdownHoverVerbosityLevelBy(1);
+		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Increase);
 	}
 }
 
@@ -875,7 +876,7 @@ class DecreaseHoverVerbosityLevel extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		HoverController.get(editor)?.incrementFocusedMarkdownHoverVerbosityLevelBy(-1);
+		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Decrease);
 	}
 }
 

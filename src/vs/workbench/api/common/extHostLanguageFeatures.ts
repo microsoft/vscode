@@ -16,6 +16,7 @@ import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { assertType, isObject } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { generateUuid } from 'vs/base/common/uuid';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
@@ -255,6 +256,8 @@ class TypeDefinitionAdapter {
 
 class HoverAdapter {
 
+	private _hoverMap = new Map<string, vscode.Hover>();
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.HoverProvider,
@@ -264,18 +267,37 @@ class HoverAdapter {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
-		const value = await this._provider.provideHover(doc, pos, token, context);
+
+		let value: vscode.Hover | null | undefined;
+		if (context) {
+			const previousHover = this._hoverMap.get(context?.previousId);
+			if (!previousHover) {
+				throw new Error('No previous hover');
+			}
+			value = await this._provider.provideHover(doc, pos, token, { action: context.action, previousHover });
+		} else {
+			value = await this._provider.provideHover(doc, pos, token);
+		}
 
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}
+		const id = generateUuid();
+		this._hoverMap.set(id, value);
 		if (!value.range) {
 			value.range = doc.getWordRangeAtPosition(pos);
 		}
 		if (!value.range) {
 			value.range = new Range(pos, pos);
 		}
-		return typeConvert.Hover.from(value);
+		return {
+			...typeConvert.Hover.from(value),
+			id
+		};
+	}
+
+	releaseHover(id: string): void {
+		this._hoverMap.delete(id);
 	}
 }
 
@@ -2235,6 +2257,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext | undefined, token: CancellationToken,): Promise<languages.Hover | undefined> {
 		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, context, token), undefined, token);
+	}
+
+	$releaseHover(handle: number, id: string): void {
+		this._withAdapter(handle, HoverAdapter, adapter => Promise.resolve(adapter.releaseHover(id)), undefined, undefined);
 	}
 
 	// --- debug hover

@@ -5,15 +5,28 @@
 
 declare module 'vscode' {
 
-	/**
-	 * The context of the hover
-	 */
 	export interface HoverContext {
 
 		/**
-		 * The verbosity level to provide at the given position
+		 * Whether to increase or decrease the hover's verbosity
 		 */
-		verbosityLevel: number;
+		action: HoverVerbosityAction;
+
+		/**
+		 * The previous hover sent for the same position
+		 */
+		previousHover: Hover;
+	}
+
+	export enum HoverVerbosityAction {
+		/**
+		 * Increase the hover verbosity
+		 */
+		Increase = 0,
+		/**
+		 * Decrease the hover verbosity
+		 */
+		Decrease = 1
 	}
 
 	/**

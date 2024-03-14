@@ -156,7 +156,13 @@ export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | 
  * A hover represents additional information for a symbol or word. Hovers are
  * rendered in a tooltip-like widget.
  */
-export interface Hover {
+export interface Hover extends IDisposable {
+
+	/**
+	 * ID of the hover
+	 */
+	id: string;
+
 	/**
 	 * The contents of this hover.
 	 */
@@ -202,9 +208,18 @@ export interface HoverProvider {
 
 export interface HoverContext {
 	/**
-	 * The verbosity level for the hover request. The verbosity level starts at 0 and can increase.
+	 * Whether to increase or decrease the hover's verbosity
 	 */
-	verbosityLevel: number;
+	action: HoverVerbosityAction;
+	/**
+	 * The previous hover for the same position
+	 */
+	previousId: string;
+}
+
+export enum HoverVerbosityAction {
+	Increase,
+	Decrease
 }
 
 /**
