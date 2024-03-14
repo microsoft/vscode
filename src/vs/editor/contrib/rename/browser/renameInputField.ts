@@ -601,7 +601,7 @@ class RenameCandidateListView {
 			}
 
 			renderElement(candidate: NewSymbolName, index: number, templateData: RenameCandidateView): void {
-				templateData.populate = candidate;
+				templateData.populate(candidate);
 			}
 
 			disposeTemplate(templateData: RenameCandidateView): void {
@@ -658,7 +658,7 @@ class RenameCandidateView {
 		parent.appendChild(this._domNode);
 	}
 
-	public set populate(value: NewSymbolName) {
+	public populate(value: NewSymbolName) {
 		this._updateIcon(value);
 		this._updateLabel(value);
 	}
