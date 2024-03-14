@@ -1685,10 +1685,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		if (this._disposed) {
 			return;
 		}
+		const output = cell.outputsViewModels.find(o => o.model.outputId === cell.focusedOutputId);
+		const outputId = output ? this.insetMapping.get(output)?.outputId : undefined;
 		this._sendMessageToWebview({
 			type: 'select-output-contents',
-			cellOrOutputId: (cell as ICellViewModel).focusedOutputId || cell.id,
-			alternateId: cell.outputsViewModels.length ? cell.outputsViewModels[0].model.outputId : undefined
+			cellOrOutputId: outputId || cell.id
 		});
 	}
 
