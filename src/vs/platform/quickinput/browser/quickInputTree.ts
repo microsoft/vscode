@@ -545,6 +545,7 @@ export class QuickInputTree extends Disposable {
 				findWidgetEnabled: false,
 				indent: 0,
 				horizontalScrolling: false,
+				allowNonCollapsibleParents: true,
 				identityProvider: {
 					getId: element => {
 						// always prefer item over separator because if item is defined, it must be the main item type
