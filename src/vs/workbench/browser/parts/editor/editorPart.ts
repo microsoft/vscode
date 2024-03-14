@@ -1098,6 +1098,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 					openVerticalPosition = Position.BOTTOM;
 				}
 
+				if (e.eventData.clientY < boundingRect.top + proximity) {
+					openVerticalPosition = Position.TOP;
+				}
+
 				if (horizontalOpenerTimeout && openHorizontalPosition !== lastOpenHorizontalPosition) {
 					clearTimeout(horizontalOpenerTimeout);
 					horizontalOpenerTimeout = undefined;
@@ -1110,12 +1114,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 				if (!horizontalOpenerTimeout && openHorizontalPosition !== undefined) {
 					lastOpenHorizontalPosition = openHorizontalPosition;
-					horizontalOpenerTimeout = setTimeout(() => openPartAtPosition(openHorizontalPosition), 200);
+					horizontalOpenerTimeout = setTimeout(() => openPartAtPosition(openHorizontalPosition!), 200);
 				}
 
 				if (!verticalOpenerTimeout && openVerticalPosition !== undefined) {
 					lastOpenVerticalPosition = openVerticalPosition;
-					verticalOpenerTimeout = setTimeout(() => openPartAtPosition(openVerticalPosition), 200);
+					verticalOpenerTimeout = setTimeout(() => openPartAtPosition(openVerticalPosition!), 200);
 				}
 			},
 			onDragLeave: () => clearAllTimeouts(),

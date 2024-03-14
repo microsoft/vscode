@@ -620,7 +620,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			case ViewContainerLocation.AuxiliaryBar:
 				return Orientation.VERTICAL;
 			case ViewContainerLocation.Panel:
-				return this.layoutService.getPanelPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+				return (this.layoutService.getPanelPosition() === Position.BOTTOM || this.layoutService.getPanelPosition() === Position.TOP) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 		}
 
 		return Orientation.VERTICAL;

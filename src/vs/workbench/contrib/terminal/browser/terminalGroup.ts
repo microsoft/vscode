@@ -285,7 +285,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if (this._container) {
 			this.attachToElement(this._container);
 		}
-		this._onPanelOrientationChanged.fire(this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL);
+		this._onPanelOrientationChanged.fire(this._terminalLocation === ViewContainerLocation.Panel && (this._panelPosition === Position.BOTTOM || this._panelPosition === Position.TOP) ? Orientation.HORIZONTAL : Orientation.VERTICAL);
 		this._register(toDisposable(() => {
 			if (this._container && this._groupElement) {
 				this._container.removeChild(this._groupElement);
@@ -466,7 +466,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
 			this._terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
-			const orientation = this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			const orientation = this._terminalLocation === ViewContainerLocation.Panel && (this._panelPosition === Position.BOTTOM || this._panelPosition === Position.TOP) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 			this._splitPaneContainer = this._instantiationService.createInstance(SplitPaneContainer, this._groupElement, orientation);
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance, this._activeInstanceIndex + 1));
 		}
@@ -527,7 +527,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			const newTerminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 			const terminalPositionChanged = newPanelPosition !== this._panelPosition || newTerminalLocation !== this._terminalLocation;
 			if (terminalPositionChanged) {
-				const newOrientation = newTerminalLocation === ViewContainerLocation.Panel && newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+				const newOrientation = newTerminalLocation === ViewContainerLocation.Panel && (newPanelPosition === Position.BOTTOM || newPanelPosition === Position.TOP) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 				this._splitPaneContainer.setOrientation(newOrientation);
 				this._panelPosition = newPanelPosition;
 				this._terminalLocation = newTerminalLocation;
@@ -563,7 +563,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	private _getOrientation(): Orientation {
-		return this._getPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		return (this._getPosition() === Position.BOTTOM || this._getPosition() === Position.TOP) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 	}
 
 	resizePane(direction: Direction): void {
@@ -591,7 +591,8 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				const shouldShrink =
 					(this._getPosition() === Position.LEFT && direction === Direction.Left) ||
 					(this._getPosition() === Position.RIGHT && direction === Direction.Right) ||
-					(this._getPosition() === Position.BOTTOM && direction === Direction.Down);
+					(this._getPosition() === Position.BOTTOM && direction === Direction.Down) ||
+					(this._getPosition() === Position.TOP && direction === Direction.Up);
 
 				if (shouldShrink) {
 					resizeAmount *= -1;

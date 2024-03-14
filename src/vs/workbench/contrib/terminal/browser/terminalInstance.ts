@@ -2357,7 +2357,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 	private _getViewOrientation(): Orientation {
 		const panelPosition = this._layoutService.getPanelPosition();
 		const terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
-		return terminalLocation === ViewContainerLocation.Panel && panelPosition === Position.BOTTOM
+		return terminalLocation === ViewContainerLocation.Panel && (panelPosition === Position.BOTTOM || panelPosition === Position.TOP)
 			? Orientation.HORIZONTAL
 			: Orientation.VERTICAL;
 	}
