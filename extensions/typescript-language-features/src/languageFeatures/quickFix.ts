@@ -252,11 +252,12 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
 			// Delay for 500ms when there are pending diagnostics before recomputing up-to-date diagnostics.
 			await new Promise((resolve) => {
-				if (token.isCancellationRequested) {
-					return;
-				}
 				setTimeout(resolve, 500);
 			});
+
+			if (token.isCancellationRequested) {
+				return;
+			}
 			const allDiagnostics: vscode.Diagnostic[] = [];
 
 			// Match ranges again after getting new diagnostics
