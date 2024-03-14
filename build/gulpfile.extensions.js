@@ -73,23 +73,22 @@ const compilations = [
 
 const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;
 
-const tasks = compilations.map(function (tsconfigFileRelativePath) {
-	const tsconfigFile = path.join(root, tsconfigFileRelativePath);
-	const extensionRoot = path.dirname(tsconfigFile);
-	const relativeDirname = path.dirname(tsconfigFileRelativePath.substring(tsconfigFileRelativePath.indexOf('extensions/') + 11));
+const tasks = compilations.map(function (tsconfigFile) {
+	const absolutePath = path.join(root, tsconfigFile);
 
 	const overrideOptions = {};
 	overrideOptions.sourceMap = true;
 
-	const name = relativeDirname.replace(/\//g, '-');
-
-	const srcBase = path.join(extensionRoot, 'src');
+	const srcRoot = path.dirname(absolutePath);
+	const srcBase = path.join(srcRoot, 'src');
 	const src = path.join(srcBase, '**');
 	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase, dot: true };
 
-	const out = path.join(extensionRoot, 'out');
+	const out = path.join(srcRoot, 'out');
 	const baseUrl = getBaseUrl(out);
 
+	const relativeDirname = path.dirname(tsconfigFile.substring(tsconfigFile.indexOf('extensions/') + 11));
+	const name = relativeDirname.replace(/\//g, '-');
 	let headerId, headerOut;
 	const index = relativeDirname.indexOf('/');
 	if (index < 0) {
@@ -108,9 +107,9 @@ const tasks = compilations.map(function (tsconfigFileRelativePath) {
 		const reporter = createReporter('extensions');
 
 		overrideOptions.inlineSources = Boolean(build);
-		overrideOptions.base = path.dirname(tsconfigFile);
+		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(tsconfigFile, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithSwc: true }, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithSwc: true }, err => reporter(err.toString()));
 
 		const pipeline = function () {
 			const input = es.through();
