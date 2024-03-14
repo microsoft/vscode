@@ -275,7 +275,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			this._openerService,
 			store
 		);
-		if (!verbosityMetadata || !this._context || !this._context.disposables || !this._verbosityLevelsByHoverIdx) {
+		if (
+			(!verbosityMetadata?.canIncreaseVerbosity && !verbosityMetadata?.canDecreaseVerbosity)
+			|| !this._context
+			|| !this._context.disposables
+			|| !this._verbosityLevelsByHoverIdx
+		) {
 			return contentsWrapper;
 		}
 		const actionsContainer = $('div.verbosity-actions');

@@ -263,7 +263,7 @@ class HoverAdapter {
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	async provideHover(resource: URI, position: IPosition, context: languages.HoverContext | undefined, token: CancellationToken,): Promise<languages.Hover | undefined> {
+	async provideHover(resource: URI, position: IPosition, context: languages.HoverContext | undefined, token: CancellationToken): Promise<languages.Hover | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
