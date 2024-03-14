@@ -133,7 +133,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		const cts = new CancellationTokenSource(this.cts.token);
 
 		const disposables = new DisposableStore();
-		disposables.add(toDisposable(() => cts.dispose(true)));
 
 		try {
 			const requestResource = URI.file(this.request.path);
@@ -350,7 +349,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			this.onDidWatchFail?.();
 		}
 
-		return disposables;
+		return toDisposable(() => {
+			cts.dispose(true);
+			disposables.dispose();
+		});
 	}
 
 	private onWatchedPathDeleted(resource: URI): void {
