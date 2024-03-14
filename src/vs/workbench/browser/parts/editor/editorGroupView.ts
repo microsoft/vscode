@@ -1349,7 +1349,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			let canCloseEditor = true;
 			if (
 				editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported) &&
-				getWindowById(target.windowId) === getWindowById(this.windowId)
+				getWindowById(target.windowId) !== getWindowById(this.windowId)
 			) {
 				canCloseEditor = false; // do not close the editor if it does not support aux windows
 			}
