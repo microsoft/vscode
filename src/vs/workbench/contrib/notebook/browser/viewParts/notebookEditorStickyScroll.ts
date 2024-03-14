@@ -3,17 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
@@ -27,33 +24,43 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
-export class ToggleNotebookStickyScroll extends Action2 {
+type NotebookSectionArgs = {
+	notebookEditor: INotebookEditor;
+	outlineEntry: OutlineEntry;
+};
 
+export class RunInSectionStickyScroll extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.action.toggleNotebookStickyScroll',
+			id: 'notebook.action.runInSection',
 			title: {
-				value: localize('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
-				original: 'Toggle Notebook Sticky Scroll',
-			},
-			category: Categories.View,
-			toggled: {
-				condition: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true),
-				title: localize('notebookStickyScroll', "Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'miNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Notebook Sticky Scroll"),
+				...localize2('runInSectionStickyScroll', "Run Section"),
+				mnemonicTitle: localize({ key: 'mirunInSectionStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Run Section"),
 			},
 			menu: [
-				{ id: MenuId.CommandPalette },
-				{ id: MenuId.NotebookStickyScrollContext }
+				{
+					id: MenuId.NotebookStickyScrollContext,
+					group: 'notebookExecution',
+					order: 1
+				}
 			]
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const newValue = !configurationService.getValue('notebook.stickyScroll.enabled');
-		return configurationService.updateValue('notebook.stickyScroll.enabled', newValue);
+	override async run(accessor: ServicesAccessor, context: NotebookSectionArgs, ...args: any[]): Promise<void> {
+		const cell = context.outlineEntry.cell;
+		const idx = context.notebookEditor.getViewModel()?.getCellIndex(cell);
+		if (idx === undefined) {
+			return;
+		}
+		const length = context.notebookEditor.getViewModel()?.getFoldedLength(idx);
+		if (length === undefined) {
+			return;
+		}
+		const cells = context.notebookEditor.getCellsInRange({ start: idx, end: idx + length + 1 });
+
+		const notebookEditor: INotebookEditor = context.notebookEditor;
+		notebookEditor.executeNotebookCells(cells);
 	}
 }
 
@@ -78,14 +85,6 @@ export class NotebookStickyLine extends Disposable {
 				this.toggleFoldRange(currentFoldingState);
 			}
 		}));
-
-		// folding icon hovers
-		// this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_OVER, () => {
-		// 	this.foldingIcon.setVisible(true);
-		// }));
-		// this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_OUT, () => {
-		// 	this.foldingIcon.setVisible(false);
-		// }));
 
 	}
 
@@ -146,7 +145,6 @@ export class NotebookStickyScroll extends Disposable {
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
 
-
 	getDomNode(): HTMLElement {
 		return this.domNode;
 	}
@@ -206,9 +204,22 @@ export class NotebookStickyScroll extends Disposable {
 
 	private onContextMenu(e: MouseEvent) {
 		const event = new StandardMouseEvent(DOM.getWindow(this.domNode), e);
+
+		const selectedElement = event.target.parentElement;
+		const selectedOutlineEntry = Array.from(this.currentStickyLines.values()).find(entry => entry.line.element.contains(selectedElement))?.line.entry;
+		if (!selectedOutlineEntry) {
+			return;
+		}
+
+		const args: NotebookSectionArgs = {
+			outlineEntry: selectedOutlineEntry,
+			notebookEditor: this.notebookEditor,
+		};
+
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,
+			menuActionOptions: { shouldForwardArgs: true, arg: args },
 		});
 	}
 
@@ -385,6 +396,7 @@ export class NotebookStickyScroll extends Disposable {
 		stickyHeader.innerText = entry.label;
 
 		stickyElement.append(stickyFoldingIcon.domNode, stickyHeader);
+
 		return new NotebookStickyLine(stickyElement, stickyFoldingIcon, stickyHeader, entry, notebookEditor);
 	}
 
@@ -490,4 +502,4 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 	return newMap;
 }
 
-registerAction2(ToggleNotebookStickyScroll);
+registerAction2(RunInSectionStickyScroll);

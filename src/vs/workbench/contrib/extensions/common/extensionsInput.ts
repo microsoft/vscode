@@ -21,6 +21,7 @@ const ExtensionEditorIcon = registerIcon('extensions-editor-label-icon', Codicon
 export interface IExtensionEditorOptions extends IEditorOptions {
 	showPreReleaseVersion?: boolean;
 	tab?: ExtensionEditorTab;
+	feature?: string;
 	sideByside?: boolean;
 }
 

@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 

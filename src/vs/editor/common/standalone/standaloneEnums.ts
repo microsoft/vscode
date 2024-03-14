@@ -416,6 +416,11 @@ export enum InlineCompletionTriggerKind {
 	 */
 	Explicit = 1
 }
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1
+}
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
  * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -703,6 +708,10 @@ export enum MouseTargetType {
 	OUTSIDE_EDITOR = 13
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
 /**
  * A positioning preference for rendering overlay widgets.
  */
@@ -729,6 +738,15 @@ export enum OverviewRulerLane {
 	Center = 2,
 	Right = 4,
 	Full = 7
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2
 }
 
 export enum PositionAffinity {

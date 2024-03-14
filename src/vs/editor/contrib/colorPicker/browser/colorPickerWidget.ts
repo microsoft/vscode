@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -475,7 +475,7 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService, standaloneColorPicker: boolean = false) {
 		super();
 
-		this._register(PixelRatio.onDidChange(() => this.layout()));
+		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
 
 		const element = $('.colorpicker-widget');
 		container.appendChild(element);

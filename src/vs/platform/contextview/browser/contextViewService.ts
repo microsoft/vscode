@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextView, ContextViewDOMPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ContextView, ContextViewDOMPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IContextViewDelegate, IContextViewService } from './contextView';
 import { getWindow } from 'vs/base/browser/dom';
 
-export class ContextViewService extends Disposable implements IContextViewService {
 
-	declare readonly _serviceBrand: undefined;
+export class ContextViewHandler extends Disposable implements IContextViewProvider {
 
-	private currentViewDisposable: IDisposable = Disposable.None;
-	private readonly contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
+	private currentViewDisposable = this._register(new MutableDisposable<IDisposable>());
+	protected readonly contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService
@@ -51,12 +50,8 @@ export class ContextViewService extends Disposable implements IContextViewServic
 			}
 		});
 
-		this.currentViewDisposable = disposable;
+		this.currentViewDisposable.value = disposable;
 		return disposable;
-	}
-
-	getContextViewElement(): HTMLElement {
-		return this.contextView.getViewElement();
 	}
 
 	layout(): void {
@@ -66,11 +61,13 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	hideContextView(data?: any): void {
 		this.contextView.hide(data);
 	}
+}
 
-	override dispose(): void {
-		super.dispose();
+export class ContextViewService extends ContextViewHandler implements IContextViewService {
 
-		this.currentViewDisposable.dispose();
-		this.currentViewDisposable = Disposable.None;
+	declare readonly _serviceBrand: undefined;
+
+	getContextViewElement(): HTMLElement {
+		return this.contextView.getViewElement();
 	}
 }

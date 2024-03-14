@@ -495,8 +495,11 @@ export const enum TerminalCommandId {
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
-	StartVoice = 'workbench.action.startTerminalVoice',
-	StopVoice = 'workbench.action.stopTerminalVoice',
+	StartVoice = 'workbench.action.terminal.startVoice',
+	StopVoice = 'workbench.action.terminal.stopVoice',
+	FontZoomIn = 'workbench.action.terminal.fontZoomIn',
+	FontZoomOut = 'workbench.action.terminal.fontZoomOut',
+	FontZoomReset = 'workbench.action.terminal.fontZoomReset',
 
 	// Developer commands
 
@@ -646,7 +649,18 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel',
 	'notification.acceptPrimaryAction',
-	'runCommands'
+	'runCommands',
+	'workbench.action.terminal.chat.start',
+	'workbench.action.terminal.chat.close',
+	'workbench.action.terminal.chat.discard',
+	'workbench.action.terminal.chat.makeRequest',
+	'workbench.action.terminal.chat.cancel',
+	'workbench.action.terminal.chat.feedbackHelpful',
+	'workbench.action.terminal.chat.feedbackUnhelpful',
+	'workbench.action.terminal.chat.feedbackReportIssue',
+	'workbench.action.terminal.chat.runCommand',
+	'workbench.action.terminal.chat.insertCommand',
+	'workbench.action.terminal.chat.viewInChat',
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {

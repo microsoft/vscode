@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { Event } from 'vs/base/common/event';
 import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
@@ -20,7 +20,6 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { URI } from 'vs/base/common/uri';
 
 export interface IInlineChatSlashCommand {
@@ -98,6 +97,23 @@ export const enum InlineChatResponseFeedbackKind {
 	Bug = 4
 }
 
+export interface IInlineChatReplyFollowup {
+	kind: 'reply';
+	message: string;
+	title?: string;
+	tooltip?: string;
+}
+
+export interface IInlineChatCommandFollowup {
+	kind: 'command';
+	commandId: string;
+	args?: any[];
+	title: string; // supports codicon strings
+	when?: string;
+}
+
+export type IInlineChatFollowup = IInlineChatReplyFollowup | IInlineChatCommandFollowup;
+
 export interface IInlineChatSessionProvider {
 
 	debugName: string;
@@ -108,17 +124,22 @@ export interface IInlineChatSessionProvider {
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
 
-	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IChatFollowup[]>;
+	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IInlineChatFollowup[]>;
 
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
 
 export const IInlineChatService = createDecorator<IInlineChatService>('IInlineChatService');
 
+export interface InlineChatProviderChangeEvent {
+	readonly added?: IInlineChatSessionProvider;
+	readonly removed?: IInlineChatSessionProvider;
+}
+
 export interface IInlineChatService {
 	_serviceBrand: undefined;
 
-	onDidChangeProviders: Event<void>;
+	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
 	addProvider(provider: IInlineChatSessionProvider): IDisposable;
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;
 }
@@ -135,7 +156,6 @@ export const CTX_INLINE_CHAT_INNER_CURSOR_FIRST = new RawContextKey<boolean>('in
 export const CTX_INLINE_CHAT_INNER_CURSOR_LAST = new RawContextKey<boolean>('inlineChatInnerCursorLast', false, localize('inlineChatInnerCursorLast', "Whether the cursor of the iteractive editor input is on the last line"));
 export const CTX_INLINE_CHAT_INNER_CURSOR_START = new RawContextKey<boolean>('inlineChatInnerCursorStart', false, localize('inlineChatInnerCursorStart', "Whether the cursor of the iteractive editor input is on the start of the input"));
 export const CTX_INLINE_CHAT_INNER_CURSOR_END = new RawContextKey<boolean>('inlineChatInnerCursorEnd', false, localize('inlineChatInnerCursorEnd', "Whether the cursor of the iteractive editor input is on the end of the input"));
-export const CTX_INLINE_CHAT_MESSAGE_CROP_STATE = new RawContextKey<'cropped' | 'not_cropped' | 'expanded'>('inlineChatMarkdownMessageCropState', 'not_cropped', localize('inlineChatMarkdownMessageCropState', "Whether the interactive editor message is cropped, not cropped or expanded"));
 export const CTX_INLINE_CHAT_OUTER_CURSOR_POSITION = new RawContextKey<'above' | 'below' | ''>('inlineChatOuterCursorPosition', '', localize('inlineChatOuterCursorPosition', "Whether the cursor of the outer editor is above or below the interactive editor input"));
 export const CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('inlineChatHasActiveRequest', false, localize('inlineChatHasActiveRequest', "Whether interactive editor has an active request"));
 export const CTX_INLINE_CHAT_HAS_STASHED_SESSION = new RawContextKey<boolean>('inlineChatHasStashedSession', false, localize('inlineChatHasStashedSession', "Whether interactive editor has kept a session for quick restore"));
@@ -160,7 +180,6 @@ export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 
 export const MENU_INLINE_CHAT_INPUT = MenuId.for('inlineChatInput');
 export const MENU_INLINE_CHAT_WIDGET = MenuId.for('inlineChatWidget');
-export const MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE = MenuId.for('inlineChatWidget.markdownMessage');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
 export const MENU_INLINE_CHAT_WIDGET_FEEDBACK = MenuId.for('inlineChatWidget.feedback');
 export const MENU_INLINE_CHAT_WIDGET_DISCARD = MenuId.for('inlineChatWidget.undo');
@@ -188,7 +207,6 @@ export const overviewRulerInlineChatDiffRemoved = registerColor('editorOverviewR
 
 export const enum EditMode {
 	Live = 'live',
-	LivePreview = 'livePreview',
 	Preview = 'preview'
 }
 
@@ -205,6 +223,7 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
+	AccessibleDiffView = 'inlineChat.accessibleDiffView'
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -212,13 +231,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		[InlineChatConfigKeys.Mode]: {
 			description: localize('mode', "Configure if changes crafted with inline chat are applied directly to the document or are previewed first."),
-			default: EditMode.LivePreview,
+			default: EditMode.Live,
 			type: 'string',
-			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live],
+			enum: [EditMode.Live, EditMode.Preview],
 			markdownEnumDescriptions: [
-				localize('mode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
-				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
+				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 			],
 			tags: ['experimental']
 		},
@@ -236,6 +254,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
 			default: true,
 			type: 'boolean'
+		},
+		[InlineChatConfigKeys.AccessibleDiffView]: {
+			description: localize('accessibleDiffView', "Whether the inline chat also renders an accessible diff viewer for its changes."),
+			default: 'auto',
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			markdownEnumDescriptions: [
+				localize('accessibleDiffView.auto', "The accessible diff viewer is based screen reader mode being enabled."),
+				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
+				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
+			],
 		}
 	}
 });

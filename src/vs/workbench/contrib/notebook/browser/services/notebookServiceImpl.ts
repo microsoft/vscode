@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { toAction } from 'vs/base/common/actions';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
-import { PixelRatio } from 'vs/base/browser/browser';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
@@ -17,9 +16,6 @@ import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -33,9 +29,8 @@ import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/no
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, TransientOptions, NotebookExtensionDescription, INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { INotebookEditorInputFactory } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo as NotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -201,7 +196,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				}
 
 				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
-				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
+				const editor = this._instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory).getOrCreate(notebookUri, preferredResource, notebookProviderInfo.id));
 				return { editor, options: notebookOptions };
 			};
 
@@ -211,10 +206,10 @@ export class NotebookProviderInfoStore extends Disposable {
 				// untitled notebooks are disposed when they get saved. we should not hold a reference
 				// to such a disposed notebook and therefore dispose the reference as well
 				ref.object.notebook.onWillDispose(() => {
-					ref!.dispose();
+					ref.dispose();
 				});
 
-				return { editor: NotebookEditorInput.getOrCreate(this._instantiationService, ref.object.resource, undefined, notebookProviderInfo.id), options };
+				return { editor: this._instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory).getOrCreate(ref.object.resource, undefined, notebookProviderInfo.id)), options };
 			};
 			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original, label, description }) => {
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };
@@ -489,8 +484,6 @@ export class NotebookService extends Disposable implements INotebookService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@INotebookDocumentService private readonly _notebookDocumentService: INotebookDocumentService
 	) {
@@ -578,43 +571,6 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			updateOrder();
 		}));
-
-		let decorationTriggeredAdjustment = false;
-		const decorationCheckSet = new Set<string>();
-		const onDidAddDecorationType = (e: string) => {
-			if (decorationTriggeredAdjustment) {
-				return;
-			}
-
-			if (decorationCheckSet.has(e)) {
-				return;
-			}
-
-			const options = this._codeEditorService.resolveDecorationOptions(e, true);
-			if (options.afterContentClassName || options.beforeContentClassName) {
-				const cssRules = this._codeEditorService.resolveDecorationCSSRules(e);
-				if (cssRules !== null) {
-					for (let i = 0; i < cssRules.length; i++) {
-						// The following ways to index into the list are equivalent
-						if (
-							((cssRules[i] as CSSStyleRule).selectorText.endsWith('::after') || (cssRules[i] as CSSStyleRule).selectorText.endsWith('::after'))
-							&& (cssRules[i] as CSSStyleRule).cssText.indexOf('top:') > -1
-						) {
-							// there is a `::before` or `::after` text decoration whose position is above or below current line
-							// we at least make sure that the editor top padding is at least one line
-							const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight + 2);
-							decorationTriggeredAdjustment = true;
-							break;
-						}
-					}
-				}
-			}
-
-			decorationCheckSet.add(e);
-		};
-		this._register(this._codeEditorService.onDecorationTypeRegistered(onDidAddDecorationType));
-		this._codeEditorService.listDecorationTypes().forEach(onDidAddDecorationType);
 
 		this._memento = new Memento(NotebookService._storageNotebookViewTypeProvider, this._storageService);
 		this._viewTypeCache = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);

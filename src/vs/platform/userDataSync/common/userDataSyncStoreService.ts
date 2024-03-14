@@ -76,7 +76,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		configurationSyncStore = isWeb && configurationSyncStore.web ? { ...configurationSyncStore, ...configurationSyncStore.web } : configurationSyncStore;
 		if (isString(configurationSyncStore.url)
 			&& isObject(configurationSyncStore.authenticationProviders)
-			&& Object.keys(configurationSyncStore.authenticationProviders).every(authenticationProviderId => Array.isArray(configurationSyncStore!.authenticationProviders![authenticationProviderId].scopes))
+			&& Object.keys(configurationSyncStore.authenticationProviders).every(authenticationProviderId => Array.isArray(configurationSyncStore.authenticationProviders[authenticationProviderId].scopes))
 		) {
 			const syncStore = configurationSyncStore as ConfigurationSyncStore;
 			const canSwitch = !!syncStore.canSwitch;
@@ -94,7 +94,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 				insidersUrl: URI.parse(syncStore.insidersUrl),
 				canSwitch,
 				authenticationProviders: Object.keys(syncStore.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
-					result.push({ id, scopes: syncStore!.authenticationProviders[id].scopes });
+					result.push({ id, scopes: syncStore.authenticationProviders[id].scopes });
 					return result;
 				}, [])
 			};

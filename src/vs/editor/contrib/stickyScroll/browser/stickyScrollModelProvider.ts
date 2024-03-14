@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { FoldingController, RangesLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
-import { ITextModel } from 'vs/editor/common/model';
 import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
 import { IndentRangeProvider } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { StickyElement, StickyModel, StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
 import { Iterable } from 'vs/base/common/iterator';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 enum ModelProvider {
 	OUTLINE_MODEL = 'outlineModel',
@@ -33,16 +32,14 @@ enum Status {
 	CANCELED
 }
 
-export interface IStickyModelProvider {
+export interface IStickyModelProvider extends IDisposable {
 
 	/**
 	 * Method which updates the sticky model
-	 * @param textModel text-model of the editor
-	 * @param textModelVersionId text-model version ID
 	 * @param token cancellation token
 	 * @returns the sticky model
 	 */
-	update(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<StickyModel | null>;
+	update(token: CancellationToken): Promise<StickyModel | null>;
 }
 
 export class StickyModelProvider extends Disposable implements IStickyModelProvider {
@@ -53,31 +50,31 @@ export class StickyModelProvider extends Disposable implements IStickyModelProvi
 	private readonly _updateOperation: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
-		private readonly _editor: ICodeEditor,
-		@ILanguageConfigurationService readonly _languageConfigurationService: ILanguageConfigurationService,
+		private readonly _editor: IActiveCodeEditor,
+		onProviderUpdate: () => void,
+		@IInstantiationService readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService readonly _languageFeaturesService: ILanguageFeaturesService,
-		defaultModel: string
 	) {
 		super();
 
-		const stickyModelFromCandidateOutlineProvider = new StickyModelFromCandidateOutlineProvider(_languageFeaturesService);
-		const stickyModelFromSyntaxFoldingProvider = new StickyModelFromCandidateSyntaxFoldingProvider(this._editor, _languageFeaturesService);
-		const stickyModelFromIndentationFoldingProvider = new StickyModelFromCandidateIndentationFoldingProvider(this._editor, _languageConfigurationService);
-
-		switch (defaultModel) {
+		switch (this._editor.getOption(EditorOption.stickyScroll).defaultModel) {
 			case ModelProvider.OUTLINE_MODEL:
-				this._modelProviders.push(stickyModelFromCandidateOutlineProvider);
-				this._modelProviders.push(stickyModelFromSyntaxFoldingProvider);
-				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
-				break;
+				this._modelProviders.push(new StickyModelFromCandidateOutlineProvider(this._editor, _languageFeaturesService));
+			// fall through
 			case ModelProvider.FOLDING_PROVIDER_MODEL:
-				this._modelProviders.push(stickyModelFromSyntaxFoldingProvider);
-				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
-				break;
+				this._modelProviders.push(new StickyModelFromCandidateSyntaxFoldingProvider(this._editor, onProviderUpdate, _languageFeaturesService));
+			// fall through
 			case ModelProvider.INDENTATION_MODEL:
-				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
+				this._modelProviders.push(new StickyModelFromCandidateIndentationFoldingProvider(this._editor, _languageConfigurationService));
 				break;
 		}
+	}
+
+	public override dispose(): void {
+		this._modelProviders.forEach(provider => provider.dispose());
+		this._updateOperation.clear();
+		this._cancelModelPromise();
+		super.dispose();
 	}
 
 	private _cancelModelPromise(): void {
@@ -87,7 +84,7 @@ export class StickyModelProvider extends Disposable implements IStickyModelProvi
 		}
 	}
 
-	public async update(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<StickyModel | null> {
+	public async update(token: CancellationToken): Promise<StickyModel | null> {
 
 		this._updateOperation.clear();
 		this._updateOperation.add({
@@ -101,11 +98,7 @@ export class StickyModelProvider extends Disposable implements IStickyModelProvi
 		return await this._updateScheduler.trigger(async () => {
 
 			for (const modelProvider of this._modelProviders) {
-				const { statusPromise, modelPromise } = modelProvider.computeStickyModel(
-					textModel,
-					textModelVersionId,
-					token
-				);
+				const { statusPromise, modelPromise } = modelProvider.computeStickyModel(token);
 				this._modelPromise = modelPromise;
 				const status = await statusPromise;
 				if (this._modelPromise !== modelPromise) {
@@ -127,26 +120,24 @@ export class StickyModelProvider extends Disposable implements IStickyModelProvi
 	}
 }
 
-interface IStickyModelCandidateProvider<T> {
+interface IStickyModelCandidateProvider<T> extends IDisposable {
 	get stickyModel(): StickyModel | null;
-
-	get provider(): LanguageFeatureRegistry<object> | null;
 
 	/**
 	 * Method which computes the sticky model and returns a status to signal whether the sticky model has been successfully found
-	 * @param textmodel text-model of the editor
-	 * @param modelVersionId version ID of the text-model
 	 * @param token cancellation token
 	 * @returns a promise of a status indicating whether the sticky model has been successfully found as well as the model promise
 	 */
-	computeStickyModel(textmodel: ITextModel, modelVersionId: number, token: CancellationToken): { statusPromise: Promise<Status> | Status; modelPromise: CancelablePromise<T | null> | null };
+	computeStickyModel(token: CancellationToken): { statusPromise: Promise<Status> | Status; modelPromise: CancelablePromise<T | null> | null };
 }
 
-abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateProvider<T> {
+abstract class StickyModelCandidateProvider<T> extends Disposable implements IStickyModelCandidateProvider<T> {
 
 	protected _stickyModel: StickyModel | null = null;
 
-	constructor() { }
+	constructor(protected readonly _editor: IActiveCodeEditor) {
+		super();
+	}
 
 	get stickyModel(): StickyModel | null {
 		return this._stickyModel;
@@ -157,13 +148,11 @@ abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateP
 		return Status.INVALID;
 	}
 
-	public abstract get provider(): LanguageFeatureRegistry<object> | null;
-
-	public computeStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): { statusPromise: Promise<Status> | Status; modelPromise: CancelablePromise<T | null> | null } {
-		if (token.isCancellationRequested || !this.isProviderValid(textModel)) {
+	public computeStickyModel(token: CancellationToken): { statusPromise: Promise<Status> | Status; modelPromise: CancelablePromise<T | null> | null } {
+		if (token.isCancellationRequested || !this.isProviderValid()) {
 			return { statusPromise: this._invalid(), modelPromise: null };
 		}
-		const providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(textModel, modelVersionId, token));
+		const providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(token));
 
 		return {
 			statusPromise: providerModelPromise.then(providerModel => {
@@ -174,7 +163,7 @@ abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateP
 				if (token.isCancellationRequested) {
 					return Status.CANCELED;
 				}
-				this._stickyModel = this.createStickyModel(textModel, modelVersionId, token, providerModel);
+				this._stickyModel = this.createStickyModel(token, providerModel);
 				return Status.VALID;
 			}).then(undefined, (err) => {
 				onUnexpectedError(err);
@@ -190,57 +179,49 @@ abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateP
 	 * @param model model returned by the provider
 	 * @returns boolean indicating whether the model is valid
 	 */
-	protected isModelValid(model: any): boolean {
+	protected isModelValid(model: T): boolean {
 		return true;
 	}
 
 	/**
 	 * Method which checks whether the provider is valid before applying it to find the provider model.
 	 * This method by default returns true.
-	 * @param textModel text-model of the editor
 	 * @returns boolean indicating whether the provider is valid
 	 */
-	protected isProviderValid(textModel: ITextModel): boolean {
+	protected isProviderValid(): boolean {
 		return true;
 	}
 
 	/**
 	 * Abstract method which creates the model from the provider and returns the provider model
-	 * @param textModel	text-model of the editor
-	 * @param textModelVersionId text-model version ID
 	 * @param token cancellation token
 	 * @returns the model returned by the provider
 	 */
-	protected abstract createModelFromProvider(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<T>;
+	protected abstract createModelFromProvider(token: CancellationToken): Promise<T>;
 
 	/**
 	 * Abstract method which computes the sticky model from the model returned by the provider and returns the sticky model
-	 * @param textModel text-model of the editor
-	 * @param textModelVersionId text-model version ID
 	 * @param token cancellation token
 	 * @param model model returned by the provider
 	 * @returns the sticky model
 	 */
-	protected abstract createStickyModel(textModel: ITextModel, textModelVersionId: number, token: CancellationToken, model: T): StickyModel;
+	protected abstract createStickyModel(token: CancellationToken, model: T): StickyModel;
 }
 
 class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvider<OutlineModel> {
 
-	constructor(@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService) {
-		super();
+	constructor(_editor: IActiveCodeEditor, @ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService) {
+		super(_editor);
 	}
 
-	public get provider(): LanguageFeatureRegistry<object> | null {
-		return this._languageFeaturesService.documentSymbolProvider;
+	protected createModelFromProvider(token: CancellationToken): Promise<OutlineModel> {
+		return OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, this._editor.getModel(), token);
 	}
 
-	protected createModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<OutlineModel> {
-		return OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, textModel, token);
-	}
-
-	protected createStickyModel(textModel: TextModel, modelVersionId: number, token: CancellationToken, model: OutlineModel): StickyModel {
+	protected createStickyModel(token: CancellationToken, model: OutlineModel): StickyModel {
 		const { stickyOutlineElement, providerID } = this._stickyModelFromOutlineModel(model, this._stickyModel?.outlineProviderId);
-		return new StickyModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
+		const textModel = this._editor.getModel();
+		return new StickyModel(textModel.uri, textModel.getVersionId(), stickyOutlineElement, providerID);
 	}
 
 	protected override isModelValid(model: OutlineModel): boolean {
@@ -334,14 +315,15 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 
 	protected _foldingLimitReporter: RangesLimitReporter;
 
-	constructor(editor: ICodeEditor) {
-		super();
+	constructor(editor: IActiveCodeEditor) {
+		super(editor);
 		this._foldingLimitReporter = new RangesLimitReporter(editor);
 	}
 
-	protected createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: FoldingRegions): StickyModel {
+	protected createStickyModel(token: CancellationToken, model: FoldingRegions): StickyModel {
 		const foldingElement = this._fromFoldingRegions(model);
-		return new StickyModel(textModel.uri, modelVersionId, foldingElement, undefined);
+		const textModel = this._editor.getModel();
+		return new StickyModel(textModel.uri, textModel.getVersionId(), foldingElement, undefined);
 	}
 
 	protected override isModelValid(model: FoldingRegions): boolean {
@@ -387,41 +369,41 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 
 class StickyModelFromCandidateIndentationFoldingProvider extends StickyModelFromCandidateFoldingProvider {
 
+	private readonly provider: IndentRangeProvider;
+
 	constructor(
-		editor: ICodeEditor,
+		editor: IActiveCodeEditor,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService) {
 		super(editor);
+
+		this.provider = this._register(new IndentRangeProvider(editor.getModel(), this._languageConfigurationService, this._foldingLimitReporter));
 	}
 
-	public get provider(): LanguageFeatureRegistry<object> | null {
-		return null;
-	}
-
-	protected createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions> {
-		const provider = new IndentRangeProvider(textModel, this._languageConfigurationService, this._foldingLimitReporter);
-		return provider.compute(token);
+	protected override async createModelFromProvider(token: CancellationToken): Promise<FoldingRegions> {
+		return this.provider.compute(token);
 	}
 }
 
 class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandidateFoldingProvider {
 
-	constructor(editor: ICodeEditor,
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService) {
+	private readonly provider: SyntaxRangeProvider | undefined;
+
+	constructor(editor: IActiveCodeEditor,
+		onProviderUpdate: () => void,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService
+	) {
 		super(editor);
+		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, editor.getModel());
+		if (selectedProviders.length > 0) {
+			this.provider = this._register(new SyntaxRangeProvider(editor.getModel(), selectedProviders, onProviderUpdate, this._foldingLimitReporter, undefined));
+		}
 	}
 
-	public get provider(): LanguageFeatureRegistry<object> | null {
-		return this._languageFeaturesService.foldingRangeProvider;
+	protected override isProviderValid(): boolean {
+		return this.provider !== undefined;
 	}
 
-	protected override isProviderValid(textModel: TextModel): boolean {
-		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
-		return selectedProviders.length > 0;
-	}
-
-	protected createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions | null> {
-		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
-		const provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.createModelFromProvider(textModel, modelVersionId, token), this._foldingLimitReporter, undefined);
-		return provider.compute(token);
+	protected override async createModelFromProvider(token: CancellationToken): Promise<FoldingRegions | null> {
+		return this.provider?.compute(token) ?? null;
 	}
 }

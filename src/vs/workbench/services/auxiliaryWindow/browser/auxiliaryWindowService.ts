@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, trackAttributes } from 'vs/base/browser/dom';
 import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -22,6 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -46,6 +47,7 @@ export interface IAuxiliaryWindowService {
 
 export interface IAuxiliaryWindow extends IDisposable {
 
+	readonly onWillLayout: Event<Dimension>;
 	readonly onDidLayout: Event<Dimension>;
 
 	readonly onBeforeUnload: Event<void>;
@@ -60,6 +62,9 @@ export interface IAuxiliaryWindow extends IDisposable {
 }
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
+
+	private readonly _onWillLayout = this._register(new Emitter<Dimension>());
+	readonly onWillLayout = this._onWillLayout.event;
 
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
@@ -80,9 +85,10 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		readonly container: HTMLElement,
 		stylesHaveLoaded: Barrier,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(window, undefined, hostService);
+		super(window, undefined, hostService, environmentService);
 
 		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => { });
 		this.registerListeners();
@@ -136,10 +142,16 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	layout(): void {
-		const dimension = getClientArea(this.window.document.body, this.container);
-		position(this.container, 0, 0, 0, 0, 'relative');
-		size(this.container, dimension.width, dimension.height);
 
+		// Split layout up into two events so that downstream components
+		// have a chance to participate in the beginning or end of the
+		// layout phase.
+		// This helps to build the auxiliary window in another component
+		// in the `onWillLayout` phase and then let other compoments
+		// react when the overall layout has finished in `onDidLayout`.
+
+		const dimension = getClientArea(this.window.document.body, this.container);
+		this._onWillLayout.fire(dimension);
 		this._onDidLayout.fire(dimension);
 	}
 
@@ -172,7 +184,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IHostService protected readonly hostService: IHostService
+		@IHostService protected readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -216,7 +229,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		type AuxiliaryWindowClassification = {
 			owner: 'bpasero';
 			comment: 'An event that fires when an auxiliary window is opened';
-			bounds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Has window bounds provided.' };
+			bounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Has window bounds provided.' };
 		};
 		type AuxiliaryWindowOpenEvent = {
 			bounds: boolean;
@@ -227,7 +240,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier): AuxiliaryWindow {
-		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService);
+		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService, this.environmentService);
 	}
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
@@ -283,22 +296,18 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions): { stylesLoaded: Barrier; container: HTMLElement } {
-		this.patchMethods(auxiliaryWindow);
+		auxiliaryWindow.document.createElement = function () {
+			// Disallow `createElement` because it would create
+			// HTML Elements in the "wrong" context and break
+			// code that does "instanceof HTMLElement" etc.
+			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
+		};
 
 		this.applyMeta(auxiliaryWindow);
 		const { stylesLoaded } = this.applyCSS(auxiliaryWindow, disposables);
 		const container = this.applyHTML(auxiliaryWindow, disposables);
+
 		return { stylesLoaded, container };
-	}
-
-	protected patchMethods(auxiliaryWindow: CodeWindow): void {
-
-		// Disallow `createElement` because it would create
-		// HTML Elements in the "wrong" context and break
-		// code that does "instanceof HTMLElement" etc.
-		auxiliaryWindow.document.createElement = function () {
-			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
-		};
 	}
 
 	private applyMeta(auxiliaryWindow: CodeWindow): void {
@@ -418,6 +427,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		// Create workbench container and apply classes
 		const container = document.createElement('div');
 		container.setAttribute('role', 'application');
+		position(container, 0, 0, 0, 0, 'relative');
+		container.style.display = 'flex';
+		container.style.height = '100%';
+		container.style.flexDirection = 'column';
 		auxiliaryWindow.document.body.append(container);
 
 		// Track attributes

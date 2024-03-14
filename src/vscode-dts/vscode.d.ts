@@ -657,7 +657,11 @@ declare module 'vscode' {
 		/**
 		 * Render the line numbers with values relative to the primary cursor location.
 		 */
-		Relative = 2
+		Relative = 2,
+		/**
+		 * Render the line numbers on every 10th line number.
+		 */
+		Interval = 3,
 	}
 
 	/**
@@ -1352,7 +1356,7 @@ declare module 'vscode' {
 	export interface TextEditorEdit {
 		/**
 		 * Replace a certain text region with a new value.
-		 * You can use \r\n or \n in `value` and they will be normalized to the current {@link TextDocument document}.
+		 * You can use `\r\n` or `\n` in `value` and they will be normalized to the current {@link TextDocument document}.
 		 *
 		 * @param location The range this operation should remove.
 		 * @param value The new text this operation should insert after removing `location`.
@@ -1361,7 +1365,7 @@ declare module 'vscode' {
 
 		/**
 		 * Insert text at a location.
-		 * You can use \r\n or \n in `value` and they will be normalized to the current {@link TextDocument document}.
+		 * You can use `\r\n` or `\n` in `value` and they will be normalized to the current {@link TextDocument document}.
 		 * Although the equivalent text edit can be made with {@link TextEditorEdit.replace replace}, `insert` will produce a different resulting selection (it will get moved).
 		 *
 		 * @param location The position where the new text should be inserted.
@@ -1530,7 +1534,7 @@ declare module 'vscode' {
 		 * ```ts
 		 * const u = URI.parse('file://server/c$/folder/file.txt')
 		 * u.authority === 'server'
-		 * u.path === '/shares/c$/file.txt'
+		 * u.path === '/c$/folder/file.txt'
 		 * u.fsPath === '\\server\c$\folder\file.txt'
 		 * ```
 		 */
@@ -7331,7 +7335,7 @@ declare module 'vscode' {
 		 *
 		 * @param text The text to send.
 		 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
-		 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
+		 * The character(s) added are `\n` or `\r\n`, depending on the platform. This defaults to `true`.
 		 */
 		sendText(text: string, shouldExecute?: boolean): void;
 
@@ -11737,7 +11741,7 @@ declare module 'vscode' {
 		 * until `Terminal.show` is called. The typical usage for this is when you need to run
 		 * something that may need interactivity but only want to tell the user about it when
 		 * interaction is needed. Note that the terminals will still be exposed to all extensions
-		 * as normal.
+		 * as normal. The hidden terminals will not be restored when the workspace is next opened.
 		 */
 		hideFromUser?: boolean;
 
@@ -13152,17 +13156,12 @@ declare module 'vscode' {
 		 * for file changes recursively.
 		 *
 		 * Additional paths can be added for file watching by providing a {@link RelativePattern} with
-		 * a `base` path to watch. If the `pattern` is complex (e.g. contains `**` or path segments),
-		 * the path will be watched recursively and otherwise will be watched non-recursively (i.e. only
-		 * changes to the first level of the path will be reported).
+		 * a `base` path to watch. If the path is a folder and the `pattern` is complex (e.g. contains
+		 * `**` or path segments), it will be watched recursively and otherwise will be watched
+		 * non-recursively (i.e. only changes to the first level of the path will be reported).
 		 *
-		 * *Note* that requests for recursive file watchers for a `base` path that is inside the opened
-		 * workspace are ignored given all opened {@link workspace.workspaceFolders workspace folders} are
-		 * watched for file changes recursively by default. Non-recursive file watchers however are always
-		 * supported, even inside the opened workspace because they allow to bypass the configured settings
-		 * for excludes (`files.watcherExclude`). If you need to watch in a location that is typically
-		 * excluded (for example `node_modules` or `.git` folder), then you can use a non-recursive watcher
-		 * in the workspace for this purpose.
+		 * *Note* that paths must exist in the file system to be watched. File watching may stop when
+		 * the watched path is renamed or deleted.
 		 *
 		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
 		 * is quite resource intense.

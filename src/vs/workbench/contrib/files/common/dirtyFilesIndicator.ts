@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -14,12 +13,14 @@ import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/wor
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class DirtyFilesIndicator extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dirtyFilesIndicator';
+
 	private readonly badgeHandle = this._register(new MutableDisposable());
 
 	private lastKnownDirtyCount = 0;
 
 	constructor(
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
@@ -35,9 +36,6 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 
 		// Working copy dirty indicator
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onWorkingCopyDidChangeDirty(workingCopy)));
-
-		// Lifecycle
-		this.lifecycleService.onDidShutdown(() => this.dispose());
 	}
 
 	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {

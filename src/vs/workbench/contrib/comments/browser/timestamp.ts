@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { fromNow } from 'vs/base/common/date';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
@@ -15,11 +17,14 @@ export class TimestampWidget extends Disposable {
 	private _timestamp: Date | undefined;
 	private _useRelativeTime: boolean;
 
+	private hover: ICustomHover;
+
 	constructor(private configurationService: IConfigurationService, container: HTMLElement, timeStamp?: Date) {
 		super();
 		this._date = dom.append(container, dom.$('span.timestamp'));
 		this._date.style.display = 'none';
 		this._useRelativeTime = this.useRelativeTimeSetting;
+		this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._date, ''));
 		this.setTimestamp(timeStamp);
 	}
 
@@ -52,9 +57,7 @@ export class TimestampWidget extends Disposable {
 			}
 
 			this._date.textContent = textContent;
-			if (tooltip) {
-				this._date.title = tooltip;
-			}
+			this.hover.update(tooltip ?? '');
 		}
 	}
 

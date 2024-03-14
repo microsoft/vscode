@@ -22,11 +22,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { INotebookEditorInputFactory, NotebookEditorInput, NotebookEditorInputFactory, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl';
 import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -67,6 +67,7 @@ import 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
 import 'vs/workbench/contrib/notebook/browser/controller/apiActions';
 import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
+import 'vs/workbench/contrib/notebook/browser/controller/chat/notebook.chat.contribution';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/editorHint/emptyCellEditorHint';
@@ -207,7 +208,7 @@ class NotebookEditorSerializer implements IEditorSerializer {
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, preferredResource, viewType, options);
+		const input = instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory).getOrCreate(resource, preferredResource, viewType, options));
 		return input;
 	}
 }
@@ -223,6 +224,9 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 );
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebook';
+
 	private _uriComparisonKeyComputer?: IDisposable;
 
 	constructor(
@@ -284,6 +288,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 }
 
 class CellContentProvider implements ITextModelContentProvider {
+
+	static readonly ID = 'workbench.contrib.cellContentProvider';
 
 	private readonly _registration: IDisposable;
 
@@ -356,6 +362,9 @@ class CellContentProvider implements ITextModelContentProvider {
 }
 
 class CellInfoContentProvider {
+
+	static readonly ID = 'workbench.contrib.cellInfoContentProvider';
+
 	private readonly _disposables: IDisposable[] = [];
 
 	constructor(
@@ -531,6 +540,9 @@ class CellInfoContentProvider {
 }
 
 class RegisterSchemasContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.registerCellSchemas';
+
 	constructor() {
 		super();
 		this.registerMetadataSchemas();
@@ -556,6 +568,8 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 }
 
 class NotebookEditorManager implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebookEditorManager';
 
 	private readonly _disposables = new DisposableStore();
 
@@ -604,6 +618,8 @@ class NotebookEditorManager implements IWorkbenchContribution {
 
 class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
+	static readonly ID = 'workbench.contrib.simpleNotebookWorkingCopyEditorHandler';
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
@@ -642,7 +658,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
-		return NotebookEditorInput.getOrCreate(this._instantiationService, workingCopy.resource, undefined, this._getViewType(workingCopy)!);
+		return this._instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory).getOrCreate(workingCopy.resource, undefined, this._getViewType(workingCopy)!));
 	}
 
 	private async _installHandler(): Promise<void> {
@@ -657,6 +673,8 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 }
 
 class NotebookLanguageSelectorScoreRefine {
+
+	static readonly ID = 'workbench.contrib.notebookLanguageSelectorScoreRefine';
 
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -713,13 +731,13 @@ class NotebookAccessibleViewContribution extends Disposable {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
+registerWorkbenchContribution2(NotebookContribution.ID, NotebookContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(CellContentProvider.ID, CellContentProvider, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(CellInfoContentProvider.ID, CellInfoContentProvider, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(RegisterSchemasContribution.ID, RegisterSchemasContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(NotebookEditorManager.ID, NotebookEditorManager, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(NotebookLanguageSelectorScoreRefine.ID, NotebookLanguageSelectorScoreRefine, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SimpleNotebookWorkingCopyEditorHandler.ID, SimpleNotebookWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibilityHelpContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookVariables, LifecyclePhase.Eventually);
@@ -736,6 +754,7 @@ registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService,
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
+registerSingleton(INotebookEditorInputFactory, NotebookEditorInputFactory, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
@@ -1072,7 +1091,7 @@ configurationRegistry.registerConfiguration({
 			default: 'auto'
 		},
 		[NotebookSetting.cellChat]: {
-			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental cell chat for notebooks."),
+			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental floating chat widget in notebooks."),
 			type: 'boolean',
 			default: false
 		},

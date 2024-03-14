@@ -52,6 +52,7 @@ export class MenuId {
 	static readonly DebugCallStackContext = new MenuId('DebugCallStackContext');
 	static readonly DebugConsoleContext = new MenuId('DebugConsoleContext');
 	static readonly DebugVariablesContext = new MenuId('DebugVariablesContext');
+	static readonly NotebookVariablesContext = new MenuId('NotebookVariablesContext');
 	static readonly DebugHoverContext = new MenuId('DebugHoverContext');
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
@@ -107,8 +108,13 @@ export class MenuId {
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMInputBox = new MenuId('SCMInputBox');
+	static readonly SCMChangesSeparator = new MenuId('SCMChangesSeparator');
 	static readonly SCMIncomingChanges = new MenuId('SCMIncomingChanges');
+	static readonly SCMIncomingChangesContext = new MenuId('SCMIncomingChangesContext');
+	static readonly SCMIncomingChangesSetting = new MenuId('SCMIncomingChangesSetting');
 	static readonly SCMOutgoingChanges = new MenuId('SCMOutgoingChanges');
+	static readonly SCMOutgoingChangesContext = new MenuId('SCMOutgoingChangesContext');
+	static readonly SCMOutgoingChangesSetting = new MenuId('SCMOutgoingChangesSetting');
 	static readonly SCMIncomingChangesAllChangesContext = new MenuId('SCMIncomingChangesAllChangesContext');
 	static readonly SCMIncomingChangesHistoryItemContext = new MenuId('SCMIncomingChangesHistoryItemContext');
 	static readonly SCMOutgoingChangesAllChangesContext = new MenuId('SCMOutgoingChangesAllChangesContext');
@@ -156,11 +162,13 @@ export class MenuId {
 	static readonly CommentThreadCommentContext = new MenuId('CommentThreadCommentContext');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
+	static readonly CommentsViewThreadActions = new MenuId('CommentsViewThreadActions');
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
 	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
 	static readonly InteractiveCellDelete = new MenuId('InteractiveCellDelete');
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
 	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
+	static readonly IssueReporter = new MenuId('IssueReporter');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
 	static readonly NotebookStickyScrollContext = new MenuId('NotebookStickyScrollContext');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
@@ -169,6 +177,7 @@ export class MenuId {
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
 	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
 	static readonly NotebookCellExecute = new MenuId('NotebookCellExecute');
+	static readonly NotebookCellExecuteGoTo = new MenuId('NotebookCellExecuteGoTo');
 	static readonly NotebookCellExecutePrimary = new MenuId('NotebookCellExecutePrimary');
 	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
@@ -186,6 +195,7 @@ export class MenuId {
 	static readonly SidebarTitle = new MenuId('SidebarTitle');
 	static readonly PanelTitle = new MenuId('PanelTitle');
 	static readonly AuxiliaryBarTitle = new MenuId('AuxiliaryBarTitle');
+	static readonly AuxiliaryBarHeader = new MenuId('AuxiliaryBarHeader');
 	static readonly TerminalInstanceContext = new MenuId('TerminalInstanceContext');
 	static readonly TerminalEditorInstanceContext = new MenuId('TerminalEditorInstanceContext');
 	static readonly TerminalNewDropdownContext = new MenuId('TerminalNewDropdownContext');
@@ -194,12 +204,14 @@ export class MenuId {
 	static readonly TerminalStickyScrollContext = new MenuId('TerminalStickyScrollContext');
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
+	static readonly InlineEditActions = new MenuId('InlineEditActions');
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
 	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
 	static readonly MergeBaseToolbar = new MenuId('MergeBaseToolbar');
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
+	static readonly InlineEditToolbar = new MenuId('InlineEditToolbar');
 	static readonly ChatContext = new MenuId('ChatContext');
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');

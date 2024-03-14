@@ -173,7 +173,7 @@ export class ViewOverlayWidgets extends ViewPart {
 			const fixedOverflowWidgets = this._context.configuration.options.get(EditorOption.fixedOverflowWidgets);
 			if (fixedOverflowWidgets && widgetData.widget.allowEditorOverflow) {
 				// top, left are computed relative to the editor and we need them relative to the page
-				const editorBoundingBox = this._viewDomNodeRect!;
+				const editorBoundingBox = this._viewDomNodeRect;
 				domNode.setTop(top + editorBoundingBox.top);
 				domNode.setLeft(left + editorBoundingBox.left);
 				domNode.setPosition('fixed');

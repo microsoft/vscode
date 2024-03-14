@@ -73,6 +73,7 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 	['ksh', PosixShellType.Ksh],
 	['sh', PosixShellType.Sh],
 	['pwsh', PosixShellType.PowerShell],
+	['python', PosixShellType.Python],
 	['zsh', PosixShellType.Zsh]
 ]);
 
@@ -261,7 +262,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd;
 		const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
-		const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
+		const executable = await findExecutable(slc.executable, cwd, envPaths, this._executableEnv);
 		if (!executable) {
 			return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 		}
@@ -404,7 +405,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
 		// If fig is installed it may change the title of the process
 		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
+
+		if (sanitizedTitle.toLowerCase().startsWith('python')) {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Python });
+		} else {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
+		}
 	}
 
 	shutdown(immediate: boolean): void {

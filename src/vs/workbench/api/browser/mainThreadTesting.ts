@@ -7,7 +7,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable } from 'vs/base/common/observable';
+import { ISettableObservable, transaction } from 'vs/base/common/observable';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
@@ -58,10 +58,17 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		}));
 
 		this._register(resultService.onResultsChanged(evt => {
-			const results = 'completed' in evt ? evt.completed : ('inserted' in evt ? evt.inserted : undefined);
-			const serialized = results?.toJSONWithMessages();
-			if (serialized) {
-				this.proxy.$publishTestResults([serialized]);
+			if ('completed' in evt) {
+				const serialized = evt.completed.toJSONWithMessages();
+				if (serialized) {
+					this.proxy.$publishTestResults([serialized]);
+				}
+			} else if ('removed' in evt) {
+				evt.removed.forEach(r => {
+					if (r instanceof LiveTestResult) {
+						this.proxy.$disposeRun(r.id);
+					}
+				});
 			}
 		}));
 	}
@@ -121,21 +128,28 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	$signalCoverageAvailable(runId: string, taskId: string, available: boolean): void {
+	$appendCoverage(runId: string, taskId: string, coverage: IFileCoverage.Serialized): void {
 		this.withLiveRun(runId, run => {
 			const task = run.tasks.find(t => t.id === taskId);
 			if (!task) {
 				return;
 			}
 
-			const fn = available ? ((token: CancellationToken) => TestCoverage.load(taskId, {
-				provideFileCoverage: async token => await this.proxy.$provideFileCoverage(runId, taskId, token)
-					.then(c => c.map(u => IFileCoverage.deserialize(this.uriIdentityService, u))),
-				resolveFileCoverage: (i, token) => this.proxy.$resolveFileCoverage(runId, taskId, i, token)
-					.then(d => d.map(CoverageDetails.deserialize)),
-			}, this.uriIdentityService, token)) : undefined;
+			const deserialized = IFileCoverage.deserialize(this.uriIdentityService, coverage);
 
-			(task.coverage as ISettableObservable<undefined | ((tkn: CancellationToken) => Promise<TestCoverage>)>).set(fn, undefined);
+			transaction(tx => {
+				let value = task.coverage.read(undefined);
+				if (!value) {
+					value = new TestCoverage(taskId, this.uriIdentityService, {
+						getCoverageDetails: (id, token) => this.proxy.$getCoverageDetails(id, token)
+							.then(r => r.map(CoverageDetails.deserialize)),
+					});
+					value.append(deserialized, tx);
+					(task.coverage as ISettableObservable<TestCoverage>).set(value, tx);
+				} else {
+					value.append(deserialized, tx);
+				}
+			});
 		});
 	}
 

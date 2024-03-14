@@ -653,7 +653,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (!this._isPromptingAfterCrash) {
 					if (this.pluginManager.plugins.length) {
 						prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
-							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
+							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList), reportIssueItem);
 					} else {
 						prompt = vscode.window.showWarningMessage(
 							vscode.l10n.t("The JS/TS language service crashed."),
@@ -1039,7 +1039,7 @@ function getReportIssueArgsForError(
 	error: TypeScriptServerError,
 	tsServerLog: TsServerLog | undefined,
 	globalPlugins: readonly TypeScriptServerPlugin[],
-): { extensionId: string; issueTitle: string; issueBody: string } | undefined {
+): { extensionId: string; issueTitle: string; issueBody: string; issueSource: string; issueData: string } | undefined {
 	if (!error.serverStack || !error.serverMessage) {
 		return undefined;
 	}
@@ -1089,19 +1089,20 @@ The log file may contain personal data, including full paths and source code fro
 After enabling this setting, future crash reports will include the server log.`);
 	}
 
-	sections.push(`**TS Server Error Stack**
+	const serverErrorStack = `**TS Server Error Stack**
 
 Server: \`${error.serverId}\`
 
 \`\`\`
 ${error.serverStack}
-\`\`\``);
+\`\`\``;
 
 	return {
 		extensionId: 'vscode.typescript-language-features',
 		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
-
-		issueBody: sections.join('\n\n')
+		issueSource: 'vscode',
+		issueBody: sections.join('\n\n'),
+		issueData: serverErrorStack,
 	};
 }
 
