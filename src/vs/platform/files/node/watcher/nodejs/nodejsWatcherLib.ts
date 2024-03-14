@@ -74,8 +74,12 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				return;
 			}
 
-			// Watch via node.js
 			const stat = await Promises.stat(realPath);
+
+			if (this.cts.token.isCancellationRequested) {
+				return;
+			}
+
 			this._register(await this.doWatch(realPath, stat.isDirectory()));
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
@@ -99,7 +103,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			// Second check for casing difference
 			// Note: this will be a no-op on Linux platforms
 			if (request.path === realPath) {
-				realPath = await realcase(request.path) ?? request.path;
+				realPath = await realcase(request.path, this.cts.token) ?? request.path;
 			}
 
 			// Correct watch path as needed
@@ -129,6 +133,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		const cts = new CancellationTokenSource(this.cts.token);
 
 		const disposables = new DisposableStore();
+		disposables.add(toDisposable(() => cts.dispose(true)));
 
 		try {
 			const requestResource = URI.file(this.request.path);
@@ -338,19 +343,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				}
 			});
 		} catch (error) {
-			if (!cts.token.isCancellationRequested && await Promises.exists(path)) {
+			if (!cts.token.isCancellationRequested) {
 				this.error(`Failed to watch ${path} for changes using fs.watch() (${error.toString()})`);
 			}
 
 			this.onDidWatchFail?.();
-
-			return Disposable.None;
 		}
 
-		return toDisposable(() => {
-			cts.dispose(true);
-			disposables.dispose();
-		});
+		return disposables;
 	}
 
 	private onWatchedPathDeleted(resource: URI): void {
@@ -454,8 +454,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	override dispose(): void {
-		this.trace(`stopping file watcher on ${this.request.path}`);
-
 		this.cts.dispose(true);
 
 		super.dispose();
