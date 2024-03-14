@@ -46,9 +46,8 @@ interface IHoverSettings {
 
 interface IHoverState {
 	mouseDown: boolean;
-	// TODO@aiday-mar maybe not needed, investigate this
+	// TODO @aiday-mar maybe not needed, investigate this
 	contentHoverFocused: boolean;
-	// TODO@aiday-mar do not place this here
 	activatedByDecoratorClick: boolean;
 }
 

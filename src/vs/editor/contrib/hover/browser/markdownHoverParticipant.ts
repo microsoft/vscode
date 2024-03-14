@@ -79,7 +79,7 @@ interface MarkdownFocusMetadata {
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	public readonly hoverOrdinal: number = 3;
-	private _anchor: HoverAnchor | undefined;
+	private _position: Position | undefined;
 	private _context: IEditorHoverRenderContext | undefined;
 
 	private _providers: (HoverProvider | undefined)[] = [];
@@ -104,7 +104,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
-		this._anchor = anchor;
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return [];
 		}
@@ -158,7 +157,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<MarkdownHover> {
-		this._anchor = anchor;
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -169,8 +167,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			return AsyncIterableObject.EMPTY;
 		}
 
-		const position = new Position(anchor.range.startLineNumber, anchor.range.startColumn);
-		return getHover(this._languageFeaturesService.hoverProvider, model, position, undefined, token)
+		this._position = new Position(anchor.range.startLineNumber, anchor.range.startColumn);
+		return getHover(this._languageFeaturesService.hoverProvider, model, this._position, undefined, token)
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
@@ -201,7 +199,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		if (
 			this._focusMetadata.index === undefined
 			|| this._focusMetadata.element === undefined
-			|| !this._anchor
+			|| !this._position
 			|| !this._context
 			|| !this._context.disposables
 			|| !this._verbosityLevels
@@ -216,11 +214,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 		const verbosityLevel = currentVerbosityLevel + delta;
 		this._verbosityLevels.set(this._focusMetadata.index, verbosityLevel);
-		const position = new Position(this._anchor.range.startLineNumber, this._anchor.range.startColumn);
 		const context = { verbosityLevel };
 		let hover: Hover | null | undefined;
 		try {
-			hover = await Promise.resolve(provider.provideHover(model, position, CancellationToken.None, context));
+			hover = await Promise.resolve(provider.provideHover(model, this._position, CancellationToken.None, context));
 		} catch (e) {
 			onUnexpectedExternalError(e);
 		}
