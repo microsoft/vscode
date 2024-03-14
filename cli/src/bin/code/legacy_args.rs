@@ -42,6 +42,9 @@ pub fn try_parse_legacy(
 				}
 			}
 		} else if let Ok(value) = arg.to_value() {
+			if value == "tunnel" {
+				return None;
+			}
 			if let Some(last_arg) = &last_arg {
 				args.get_mut(last_arg)
 					.expect("expected to have last arg")
