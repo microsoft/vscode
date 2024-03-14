@@ -5,29 +5,11 @@
 
 declare module 'vscode' {
 
-	export interface ChatToolInvocation {
-		/**
-		 * The name of the tool.
-		 *
-		 * *Note* that the name doesn't include the leading `#`-character,
-		 * e.g `selection` for `#selection`.
-		 */
-		readonly name: string;
-
-		/**
-		 * The start and end index of the tool in the {@link ChatAgentRequest.prompt prompt}.
-		 *
-		 * *Note* that the indices take the leading `#`-character into account which means they can
-		 * used to modify the prompt as-is.
-		 */
-		readonly range?: [start: number, end: number];
-	}
-
-	// Same as ChatToolInvocation, but with a value.
-	// This can represent a reference that is:
-	// - not a tool, like #file
-	// - a tool that was invoked once before sending the request, like 'selection'
-	// - a result from the `ChatParticipantCompletionItemProvider` which is not a tool
+	// This can represent a :
+	// - user reference to a tool, which has no value yet
+	// - a tool that was invoked once before sending the request, like 'selection', and has a value
+	// - a result from the `ChatParticipantCompletionItemProvider` which is not a tool, and has a value
+	// - not a tool, like #file, and has a value
 	export interface ChatReference {
 		/**
 		 * The name of the reference/tool type.
@@ -45,7 +27,8 @@ declare module 'vscode' {
 		 */
 		readonly range?: [start: number, end: number];
 
-		readonly value: any;
+		// If there's no value, it's a tool reference which needs to be resolved by invoking the tool
+		readonly value: any | undefined;
 	}
 
 	/**
@@ -74,13 +57,13 @@ declare module 'vscode' {
 		readonly command?: string;
 
 		/**
-		 * The variables that were referenced in this message.
+		 * The tools that were referenced in this message.
 		 */
-		readonly userToolInvocations: ChatToolInvocation[];
+		readonly userToolInvocations: ChatReference[];
 
 		readonly references: readonly ChatReference[];
 
-		private constructor(prompt: string, command: string | undefined, userToolInvocations: ChatToolInvocation[], participant: { extensionId: string; name: string });
+		private constructor(prompt: string, command: string | undefined, userToolInvocations: ChatReference[], participant: { extensionId: string; name: string });
 	}
 
 	/**
@@ -325,7 +308,7 @@ declare module 'vscode' {
 		readonly command: string | undefined;
 
 		/**
-		 * The list of tools that were explicitly invoked by the user in the prompt. (and also checked implicit invocations?)
+		 * The list of tools that were explicitly invoked by the user in the prompt. (and also checked implicit invocations)
 		 *
 		 * *Note* that the prompt contains tool references as authored and that it is up to the participant
 		 * to further modify the prompt, for instance by inlining tool values or creating links to
@@ -333,8 +316,12 @@ declare module 'vscode' {
 		 * in the prompt. That means the last tool in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
-		readonly userToolInvocations: readonly ChatToolInvocation[];
+		readonly userToolInvocations: readonly ChatReference[];
 
+		/**
+		 * Other non-tool references.
+		 * These two lists could technically just be one list, but it seems more clear this way.
+		 */
 		readonly references: readonly ChatReference[];
 
 		/**
