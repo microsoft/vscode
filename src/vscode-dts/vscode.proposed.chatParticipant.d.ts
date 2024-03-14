@@ -5,8 +5,7 @@
 
 declare module 'vscode' {
 
-	// What does this look like for 'file'? Does it even make sense for 'file' to be a tool?
-	export interface ChatToolInvocations {
+	export interface ChatToolInvocation {
 		/**
 		 * The name of the tool.
 		 *
@@ -15,7 +14,28 @@ declare module 'vscode' {
 		 */
 		readonly name: string;
 
-		readonly parameters: any;
+		/**
+		 * The start and end index of the tool in the {@link ChatAgentRequest.prompt prompt}.
+		 *
+		 * *Note* that the indices take the leading `#`-character into account which means they can
+		 * used to modify the prompt as-is.
+		 */
+		readonly range?: [start: number, end: number];
+	}
+
+	// Same as ChatToolInvocation, but with a value.
+	// This can represent a reference that is:
+	// - not a tool, like #file
+	// - a tool that was invoked once before sending the request, like 'selection'
+	// - a result from the `ChatParticipantCompletionItemProvider` which is not a tool
+	export interface ChatReference {
+		/**
+		 * The name of the reference/tool type.
+		 *
+		 * *Note* that the name doesn't include the leading `#`-character,
+		 * e.g `selection` for `#selection`.
+		 */
+		readonly name: string;
 
 		/**
 		 * The start and end index of the tool in the {@link ChatAgentRequest.prompt prompt}.
@@ -23,10 +43,9 @@ declare module 'vscode' {
 		 * *Note* that the indices take the leading `#`-character into account which means they can
 		 * used to modify the prompt as-is.
 		 */
-		readonly range: [start: number, end: number];
+		readonly range?: [start: number, end: number];
 
-		// The value, if the tool could be invoked immediately.
-		readonly value: any | undefined;
+		readonly value: any;
 	}
 
 	/**
@@ -57,9 +76,11 @@ declare module 'vscode' {
 		/**
 		 * The variables that were referenced in this message.
 		 */
-		readonly userToolInvocations: ChatToolInvocations[];
+		readonly userToolInvocations: ChatToolInvocation[];
 
-		private constructor(prompt: string, command: string | undefined, userToolInvocations: ChatToolInvocations[], participant: { extensionId: string; name: string });
+		readonly references: readonly ChatReference[];
+
+		private constructor(prompt: string, command: string | undefined, userToolInvocations: ChatToolInvocation[], participant: { extensionId: string; name: string });
 	}
 
 	/**
@@ -312,7 +333,9 @@ declare module 'vscode' {
 		 * in the prompt. That means the last tool in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
-		readonly userToolInvocations: readonly ChatToolInvocations[];
+		readonly userToolInvocations: readonly ChatToolInvocation[];
+
+		readonly references: readonly ChatReference[];
 
 		/**
 		 * The location at which the chat is happening. This will always be one of the supported values

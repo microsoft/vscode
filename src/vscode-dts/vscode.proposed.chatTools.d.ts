@@ -6,7 +6,10 @@
 declare module 'vscode' {
 
 	export namespace chat {
-		export function registerTool(tool: ChatTool, options: { canBeInvokedExplicitlyByUser: boolean }): Disposable;
+		// canBeInvokedExplicitlyByUser: whether the tool shows up in the chat input suggest widget
+		// isFast: whether the tool returns a value quickly, and so can be invoked before sending the request
+		//    Could also be like shouldInvokeBeforeRequest, communicating that its value should be captured early because it could change during the processing of the request
+		export function registerTool(tool: ChatTool, options: { canBeInvokedExplicitlyByUser: boolean; isFast: boolean }): Disposable;
 
 		export const tools: ReadonlyArray<ChatToolDescription>;
 
