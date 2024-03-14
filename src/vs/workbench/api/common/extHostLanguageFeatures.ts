@@ -258,20 +258,14 @@ class HoverAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.HoverProvider,
-		private readonly _metadata?: vscode.languages.HoverProviderMetadata,
 	) { }
 
 	async provideHover(resource: URI, position: IPosition, context: languages.HoverContext | undefined, token: CancellationToken,): Promise<languages.Hover | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
+		const value = await this._provider.provideHover(doc, pos, token, context);
 
-		let value: vscode.VerboseHover | null | undefined;
-		if (this._metadata?.canIncreaseVerbosity) {
-			value = await this._provider.provideHover(doc, pos, token, context ?? { verbosityLevel: 0 });
-		} else {
-			value = await this._provider.provideHover(doc, pos, token);
-		}
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}
@@ -2233,8 +2227,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- extra info
 
-	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, metadata?: vscode.languages.HoverProviderMetadata, extensionId?: ExtensionIdentifier): vscode.Disposable {
-		const handle = this._addNewAdapter(new HoverAdapter(this._documents, provider, metadata), extension);
+	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
+		const handle = this._addNewAdapter(new HoverAdapter(this._documents, provider), extension);
 		this._proxy.$registerHoverProvider(handle, this._transformDocumentSelector(selector, extension));
 		return this._createDisposable(handle);
 	}

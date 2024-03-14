@@ -567,8 +567,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerTypeDefinitionProvider(extension, checkSelector(selector), provider);
 			},
-			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider, metadata?: vscode.languages.HoverProviderMetadata): vscode.Disposable {
-				return extHostLanguageFeatures.registerHoverProvider(extension, checkSelector(selector), provider, metadata, extension.identifier);
+			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerHoverProvider(extension, checkSelector(selector), provider, extension.identifier);
 			},
 			registerEvaluatableExpressionProvider(selector: vscode.DocumentSelector, provider: vscode.EvaluatableExpressionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerEvaluatableExpressionProvider(extension, checkSelector(selector), provider, extension.identifier);

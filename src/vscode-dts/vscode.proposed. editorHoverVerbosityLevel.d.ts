@@ -68,31 +68,6 @@ declare module 'vscode' {
 		 * @returns A hover or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideHover(document: TextDocument, position: Position, token: CancellationToken, context: HoverContext): ProviderResult<VerboseHover>;
-	}
-
-	export namespace languages {
-		/**
-		 * Register a hover provider.
-		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A hover provider.
-		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
-		 */
-		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider, providerMetadata: HoverProviderMetadata): Disposable;
-
-		/**
-		 * Metadata concerning the hover provider
-		 */
-		export interface HoverProviderMetadata {
-			/**
-			 * Whether the hover provider can increase the verbosity of the hover
-			 */
-			canIncreaseVerbosity?: boolean;
-		}
+		provideHover(document: TextDocument, position: Position, token: CancellationToken, context?: HoverContext): ProviderResult<VerboseHover>;
 	}
 }
