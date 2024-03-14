@@ -200,6 +200,8 @@ export class InlineChatWidget {
 		this._chatMessageContents.className = 'chatMessageContent';
 		this._chatMessageContents.tabIndex = 0;
 		this._chatMessageContents.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+		this._chatMessageContents.style.maxHeight = `${this._inputWidget.getLineHeight() * 9}px`;
+
 		this._chatMessageScrollable = new DomScrollableElement(this._chatMessageContents, { alwaysConsumeMouseWheel: true });
 		this._store.add(this._chatMessageScrollable);
 		this._elements.chatMessage.appendChild(this._chatMessageScrollable.getDomNode());
@@ -291,8 +293,8 @@ export class InlineChatWidget {
 			const widgetToolbarWidth = getTotalWidth(this._elements.widgetToolbar);
 			const innerEditorWidth = widgetDim.width - widgetToolbarWidth;
 			const inputDim = new Dimension(innerEditorWidth, this._inputWidget.getPreferredSize().height);
-			if (!this._lastDim || !Dimension.equals(this._lastDim, inputDim)) {
-				this._lastDim = inputDim;
+			if (!this._lastDim || !Dimension.equals(this._lastDim, widgetDim)) {
+				this._lastDim = widgetDim;
 				this._doLayout(widgetDim, inputDim);
 			}
 		} finally {
@@ -310,9 +312,11 @@ export class InlineChatWidget {
 
 
 	protected _doLayout(widgetDimension: Dimension, inputDimension: Dimension): void {
+		this._elements.root.style.height = `${widgetDimension.height - this._getExtraHeight()}px`;
+		this._elements.root.style.width = `${widgetDimension.width}px`;
+
 		this._elements.progress.style.width = `${inputDimension.width}px`;
 		this._chatMessageContents.style.width = `${widgetDimension.width - 10}px`;
-		this._chatMessageContents.style.maxHeight = Math.min(270, widgetDimension.height) + 'px';
 
 		this._inputWidget.layout(inputDimension);
 	}
@@ -324,7 +328,11 @@ export class InlineChatWidget {
 		const chatResponseHeight = getTotalHeight(this._chatMessageContents);
 		const followUpsHeight = getTotalHeight(this._elements.followUps);
 		const statusHeight = getTotalHeight(this._elements.status);
-		return progressHeight + editorHeight + detectedIntentHeight + followUpsHeight + chatResponseHeight + statusHeight + 12 /* padding */ + 2 /*border*/ + 12 /*shadow*/;
+		return progressHeight + editorHeight + detectedIntentHeight + followUpsHeight + chatResponseHeight + statusHeight + this._getExtraHeight();
+	}
+
+	private _getExtraHeight(): number {
+		return 12 /* padding */ + 2 /*border*/ + 12 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
