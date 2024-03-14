@@ -793,7 +793,7 @@ export const enum EditorInputCapabilities {
 
 	/**
 	 * Signals that the editor does not support opening in
-	 * auxiliary windows yet.
+	 * auxiliary windows.
 	 */
 	AuxWindowUnsupported = 1 << 10
 }
