@@ -53,11 +53,11 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		// Logging
 
 		if (requestsToStart.length) {
-			this.trace(`Request to start watching: ${requestsToStart.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStart.map(request => this.requestToString(request)).join(',')}`);
 		}
 
 		if (watchersToStop.size) {
-			this.trace(`Request to stop watching: ${Array.from(watchersToStop).map(watcher => `${watcher.request.path} (correlationId: ${typeof watcher.request.correlationId === 'number' ? watcher.request.correlationId : '<none>'})`).join(',')}`);
+			this.trace(`Request to stop watching: ${Array.from(watchersToStop).map(watcher => this.requestToString(watcher.request)).join(',')}`);
 		}
 
 		// Stop watching as instructed
@@ -131,6 +131,10 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 				mapCorrelationtoRequests.set(request.correlationId, requestsForCorrelation);
 			}
 
+			if (requestsForCorrelation.has(path)) {
+				this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
+			}
+
 			requestsForCorrelation.set(path, request);
 		}
 
@@ -156,6 +160,6 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	}
 
 	private toMessage(message: string, watcher?: INodeJSWatcherInstance): string {
-		return watcher ? `[File Watcher (node.js)] ${message} (path: ${watcher.request.path})` : `[File Watcher (node.js)] ${message}`;
+		return watcher ? `[File Watcher (node.js)] ${message} (${this.requestToString(watcher.request)})` : `[File Watcher (node.js)] ${message}`;
 	}
 }

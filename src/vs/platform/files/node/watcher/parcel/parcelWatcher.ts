@@ -134,11 +134,11 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 		// Logging
 		if (requestsToStart.length) {
-			this.trace(`Request to start watching: ${requestsToStart.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStart.map(request => this.requestToString(request)).join(',')}`);
 		}
 
 		if (watchersToStop.size) {
-			this.trace(`Request to stop watching: ${Array.from(watchersToStop).map(watcher => `${watcher.request.path} (correlationId: ${typeof watcher.request.correlationId === 'number' ? watcher.request.correlationId : '<none>'})`).join(',')}`);
+			this.trace(`Request to stop watching: ${Array.from(watchersToStop).map(watcher => this.requestToString(watcher.request)).join(',')}`);
 		}
 
 		// Stop watching as instructed
@@ -605,7 +605,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// parents exist.
 		requests.sort((requestA, requestB) => requestA.path.length - requestB.path.length);
 
-		// Map request paths to correlation and ignore identical paths
+		// Ignore requests for the same paths that have the same correlation
 		const mapCorrelationtoRequests = new Map<number | undefined /* correlation */, Map<string, IRecursiveWatchRequest>>();
 		for (const request of requests) {
 			if (request.excludes.includes(GLOBSTAR)) {
@@ -618,6 +618,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 			if (!requestsForCorrelation) {
 				requestsForCorrelation = new Map<string, IRecursiveWatchRequest>();
 				mapCorrelationtoRequests.set(request.correlationId, requestsForCorrelation);
+			}
+
+			if (requestsForCorrelation.has(path)) {
+				this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
 			}
 
 			requestsForCorrelation.set(path, request);
@@ -645,12 +649,12 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 					try {
 						const realpath = realpathSync(request.path);
 						if (realpath === request.path) {
-							this.trace(`ignoring a path for watching who's parent is already watched: ${request.path}`);
+							this.trace(`ignoring a request for watching who's parent is already watched: ${this.requestToString(request)}`);
 
 							continue;
 						}
 					} catch (error) {
-						this.trace(`ignoring a path for watching who's realpath failed to resolve: ${request.path} (error: ${error})`);
+						this.trace(`ignoring a request for watching who's realpath failed to resolve: ${this.requestToString(request)} (error: ${error})`);
 
 						this._onDidWatchFail.fire(request);
 
