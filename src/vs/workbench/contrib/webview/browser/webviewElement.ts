@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, type IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -38,6 +38,7 @@ import { FromWebviewMessage, KeyEvent, ToWebviewMessage } from 'vs/workbench/con
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/contrib/webview/common/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CodeWindow } from 'vs/base/browser/window';
+import { WEBVIEW_FOCUSED } from 'vs/platform/webview/common/webviewContextKeys';
 
 interface WebviewContent {
 	readonly html: string;
@@ -144,7 +145,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	private _disposed = false;
 
-
+	private _focusedContextKey?: IContextKey<boolean>;
 	public extension: WebviewExtensionDescription | undefined;
 	private readonly _options: WebviewOptions;
 
@@ -339,6 +340,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	setContextKeyService(contextKeyService: IContextKeyService) {
 		this._contextKeyService = contextKeyService;
+		this._focusedContextKey = WEBVIEW_FOCUSED.bindTo(contextKeyService);
 	}
 
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
@@ -679,6 +681,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	protected handleFocusChange(isFocused: boolean): void {
 		this._focused = isFocused;
+		this._focusedContextKey?.set(isFocused);
 		if (isFocused) {
 			this._onDidFocus.fire();
 		} else {
