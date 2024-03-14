@@ -4204,6 +4204,10 @@ export class InteractiveWindowInput {
 export class ChatEditorTabInput {
 	constructor(readonly providerId: string) { }
 }
+
+export class TextMultiDiffTabInput {
+	constructor(readonly textDiffs: TextDiffTabInput[]) { }
+}
 //#endregion
 
 //#region Chat
