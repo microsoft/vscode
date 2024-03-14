@@ -41,7 +41,6 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		const marketPlaceLabel = localize("reportExtensionMarketplace", "Extension Marketplace");
 		issuePicksConst.push(
 			{ label: productLabel, ariaLabel: productLabel, accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.VSCode }) },
-			{ type: 'separator' },
 			{ label: marketPlaceLabel, ariaLabel: marketPlaceLabel, accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.Marketplace }) },
 			{ type: 'separator', label: localize('extensions', "Extensions") }
 		);
