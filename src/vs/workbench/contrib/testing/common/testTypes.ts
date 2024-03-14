@@ -556,36 +556,35 @@ export namespace ICoveredCount {
 }
 
 export interface IFileCoverage {
+	id: string;
 	uri: URI;
 	statement: ICoveredCount;
 	branch?: ICoveredCount;
 	declaration?: ICoveredCount;
-	details?: CoverageDetails[];
 }
-
 
 export namespace IFileCoverage {
 	export interface Serialized {
+		id: string;
 		uri: UriComponents;
 		statement: ICoveredCount;
 		branch?: ICoveredCount;
 		declaration?: ICoveredCount;
-		details?: CoverageDetails.Serialized[];
 	}
 
 	export const serialize = (original: Readonly<IFileCoverage>): Serialized => ({
+		id: original.id,
 		statement: original.statement,
 		branch: original.branch,
 		declaration: original.declaration,
-		details: original.details?.map(CoverageDetails.serialize),
 		uri: original.uri.toJSON(),
 	});
 
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): IFileCoverage => ({
+		id: serialized.id,
 		statement: serialized.statement,
 		branch: serialized.branch,
 		declaration: serialized.declaration,
-		details: serialized.details?.map(CoverageDetails.deserialize),
 		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
 	});
 }

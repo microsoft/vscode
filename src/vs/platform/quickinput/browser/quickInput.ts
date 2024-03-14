@@ -11,8 +11,7 @@ import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/cou
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { equals } from 'vs/base/common/arrays';
@@ -28,10 +27,10 @@ import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
-import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { QuickInputListFocus, QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -41,13 +40,6 @@ export interface IQuickInputOptions {
 	setContextKey(id?: string): void;
 	linkOpenerDelegate(content: string): void;
 	returnFocus(): void;
-	createList<T>(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
-		options: IListOptions<T>,
-	): List<T>;
 	/**
 	 * @todo With IHover in vs/editor, can we depend on the service directly
 	 * instead of passing it through a hover delegate?
@@ -108,7 +100,7 @@ export interface QuickInputUI {
 	customButtonContainer: HTMLElement;
 	customButton: Button;
 	progressBar: ProgressBar;
-	list: QuickInputList;
+	list: QuickInputTree;
 	onDidAccept: Event<void>;
 	onDidCustom: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;
@@ -830,7 +822,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
-						if (isMacintosh ? event.metaKey : event.ctrlKey) {
+						if (isMacintosh ? event.metaKey : event.altKey) {
 							this.ui.list.focus(QuickInputListFocus.NextSeparator);
 						} else {
 							this.ui.list.focus(QuickInputListFocus.Next);
@@ -841,7 +833,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.UpArrow:
-						if (isMacintosh ? event.metaKey : event.ctrlKey) {
+						if (isMacintosh ? event.metaKey : event.altKey) {
 							this.ui.list.focus(QuickInputListFocus.PreviousSeparator);
 						} else {
 							this.ui.list.focus(QuickInputListFocus.Previous);

@@ -11,7 +11,7 @@ import { EditorAction, EditorCommand, EditorContributionInstantiation, ServicesA
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 import { CopyPasteController, changePasteTypeCommandId, pasteWidgetVisibleCtx } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import { DefaultPasteProvidersFeature } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
+import { DefaultPasteProvidersFeature, DefaultTextPasteOrDropEditProvider } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
 import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
@@ -87,7 +87,7 @@ registerEditorAction(class PasteAsAction extends EditorAction {
 			// TODO: remove this in the future
 			kind = typeof (args as any).id === 'string' ? (args as any).id : undefined;
 		}
-		return CopyPasteController.get(editor)?.pasteAs(kind ? { kind: new HierarchicalKind(kind) } : undefined);
+		return CopyPasteController.get(editor)?.pasteAs(kind ? new HierarchicalKind(kind) : undefined);
 	}
 });
 
@@ -102,6 +102,6 @@ registerEditorAction(class extends EditorAction {
 	}
 
 	public override run(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return CopyPasteController.get(editor)?.pasteAs({ providerId: 'text' });
+		return CopyPasteController.get(editor)?.pasteAs({ providerId: DefaultTextPasteOrDropEditProvider.id });
 	}
 });

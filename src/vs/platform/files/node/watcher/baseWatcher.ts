@@ -164,6 +164,10 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		this.trace(typeof request.correlationId === 'number' ? `${traceMsg} (correlationId: ${request.correlationId})` : traceMsg);
 	}
 
+	protected requestToString(request: IUniversalWatchRequest): string {
+		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
+	}
+
 	protected abstract doWatch(requests: IUniversalWatchRequest[]): Promise<void>;
 
 	protected abstract trace(message: string): void;

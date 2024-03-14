@@ -6,7 +6,6 @@
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/terminalChatWidget';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -14,6 +13,9 @@ import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+
+const widgetHeightMargin = 100;
+const widgetWidthMargin = 40;
 
 export class TerminalChatWidget extends Disposable {
 
@@ -31,8 +33,7 @@ export class TerminalChatWidget extends Disposable {
 		terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -70,12 +71,15 @@ export class TerminalChatWidget extends Disposable {
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
-		this.layoutVertically();
+		this.updateHeight();
 		this._updateWidth();
-		this._register(this._instance.onDimensionsChanged(() => this._updateWidth()));
+		this._register(this._instance.onDimensionsChanged(() => {
+			this.updateHeight();
+			this._updateWidth();
+		}));
 	}
 
-	layoutVertically(): void {
+	private _updateVerticalPosition(): void {
 		const font = this._instance.xterm?.getFont();
 		if (!font?.charHeight) {
 			return;
@@ -84,16 +88,38 @@ export class TerminalChatWidget extends Disposable {
 		const height = font.charHeight * font.lineHeight;
 		const top = cursorY * height + 12;
 		this._container.style.top = `${top}px`;
-		const terminalHeight = this._instance.domElement.clientHeight;
-		if (terminalHeight && top > terminalHeight - this._inlineChatWidget.getHeight()) {
+		const widgetHeight = this._inlineChatWidget.getHeight();
+		const terminalHeight = this._getTerminalHeight();
+		if (!terminalHeight) {
+			return;
+		}
+		if (top > terminalHeight - widgetHeight) {
 			this._container.style.top = '';
 		}
+	}
+
+	private _getTerminalHeight(): number | undefined {
+		const font = this._instance.xterm?.getFont();
+		if (!font?.charHeight) {
+			return;
+		}
+		return font.charHeight * font.lineHeight * this._instance.rows;
+
+	}
+
+	updateHeight() {
+		const terminalHeight = this._getTerminalHeight();
+		if (!terminalHeight || terminalHeight < widgetHeightMargin) {
+			return;
+		}
+		this._inlineChatWidget.layout(new Dimension(this._inlineChatWidget.domNode.clientWidth, terminalHeight - widgetHeightMargin));
+		this._updateVerticalPosition();
 	}
 
 	private _updateWidth() {
 		const terminalWidth = this._instance.domElement.clientWidth;
 		if (terminalWidth && terminalWidth < 640) {
-			this._inlineChatWidget.layout(new Dimension(terminalWidth - 40, this._inlineChatWidget.getHeight()));
+			this._inlineChatWidget.layout(new Dimension(terminalWidth - widgetWidthMargin, this._inlineChatWidget.getHeight()));
 		}
 	}
 
@@ -127,19 +153,11 @@ export class TerminalChatWidget extends Disposable {
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 	}
-	acceptCommand(shouldExecute: boolean): void {
-		const editor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
-		if (!editor) {
-			return;
-		}
-		const model = editor.getModel();
-		if (!model) {
-			return;
-		}
-		const code = editor.getValue();
+	acceptCommand(code: string, shouldExecute: boolean): void {
 		this._instance.runCommand(code, shouldExecute);
 		this.hide();
 	}
+
 	updateProgress(progress?: IChatProgress): void {
 		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
 	}

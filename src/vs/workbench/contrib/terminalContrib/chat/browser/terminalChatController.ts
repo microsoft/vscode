@@ -312,8 +312,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
 				const containsCode = responseContent.includes('```');
 				this._chatWidget?.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: this._currentRequest.id, providerId: 'terminal' }, false, containsCode);
-				// the message grows in height, be sure to update top position so it doesn't go below the terminal
-				this._chatWidget?.value.layoutVertically();
+				this._chatWidget?.value.updateHeight();
 				this._responseContainsCodeBlockContextKey.set(containsCode);
 				this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 				this._messages.fire(Message.ACCEPT_INPUT);
@@ -347,8 +346,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		return !!this._chatWidget?.value.hasFocus();
 	}
 
-	acceptCommand(shouldExecute: boolean): void {
-		this._chatWidget?.value.acceptCommand(shouldExecute);
+	async acceptCommand(shouldExecute: boolean): Promise<void> {
+		const code = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(0);
+		if (!code) {
+			return;
+		}
+		this._chatWidget?.value.acceptCommand(code.object.textEditorModel.getValue(), shouldExecute);
 	}
 
 	reveal(): void {
@@ -363,22 +366,25 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		const model = this._model.value;
 		const widget = await this._chatWidgetService.revealViewForProvider(providerInfo.id);
-		if (widget && widget.viewModel && model) {
-			for (const request of model.getRequests()) {
-				if (request.response?.response.value || request.response?.result) {
-					this._chatService.addCompleteRequest(widget.viewModel.sessionId,
-						request.message as IParsedChatRequest,
-						request.variableData,
-						{
-							message: request.response.response.value,
-							result: request.response.result,
-							followups: request.response.followups
-						});
+		if (widget) {
+			if (widget.viewModel && model) {
+				for (const request of model.getRequests()) {
+					if (request.response?.response.value || request.response?.result) {
+						this._chatService.addCompleteRequest(widget.viewModel.sessionId,
+							request.message as IParsedChatRequest,
+							request.variableData,
+							{
+								message: request.response.response.value,
+								result: request.response.result,
+								followups: request.response.followups
+							});
+					}
 				}
+				widget.focusLastMessage();
+			} else if (!model) {
+				widget.focusInput();
 			}
-			widget.focusLastMessage();
-		} else if (!model) {
-			widget?.focusInput();
+			this._chatWidget?.value.hide();
 		}
 	}
 

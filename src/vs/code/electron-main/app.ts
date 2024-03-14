@@ -193,7 +193,7 @@ export class CodeApplication extends Disposable {
 		// Block all SVG requests from unsupported origins
 		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeManagedRemoteResource, 'devtools']);
 
-		// But allow them if the are made from inside an webview
+		// But allow them if they are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {

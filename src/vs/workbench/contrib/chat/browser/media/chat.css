@@ -338,14 +338,13 @@
 	display: flex;
 	box-sizing: border-box;
 	cursor: text;
-	margin: 0px 20px;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	position: relative;
 	padding: 0 6px;
 	margin-bottom: 4px;
-	align-items: center;
+	align-items: flex-end;
 	justify-content: space-between;
 }
 
@@ -374,6 +373,9 @@
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	height: 22px;
+
+	/* It's bottom-aligned, make it appear centered within the container */
+	margin-bottom: 7px;
 }
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
@@ -417,9 +419,17 @@
 }
 
 .interactive-session .interactive-input-part {
+	margin: 0px 20px;
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
+}
+
+.interactive-session .chat-implicit-context {
+	padding: 8px 8px 13px;
+	margin-bottom: -5px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
+	border-radius: 6px 6px 0px 0px;
 }
 
 .interactive-session-followups {
@@ -441,10 +451,6 @@
 
 .interactive-item-container .interactive-response-followups .monaco-button {
 	padding: 4px 8px;
-}
-
-.interactive-session .interactive-input-part .interactive-input-followups {
-	margin: 0px 20px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
@@ -493,7 +499,7 @@
 }
 
 .quick-input-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
-	bottom: 1px;
+	margin-bottom: 1px;
 }
 
 .quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
