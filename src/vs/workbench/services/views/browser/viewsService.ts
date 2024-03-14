@@ -399,7 +399,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						case ViewContainerLocation.AuxiliaryBar:
 						case ViewContainerLocation.Sidebar: {
 							const part = viewContainerLocation === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
-							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(part)) {
+							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(part, viewContainer.id)) {
 								await viewsService.openViewContainer(viewContainer.id, true);
 							} else {
 								editorGroupService.activeGroup.focus();
@@ -407,7 +407,7 @@ export class ViewsService extends Disposable implements IViewsService {
 							break;
 						}
 						case ViewContainerLocation.Panel:
-							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.PANEL_PART)) {
+							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.PANEL_PART, viewContainer.id)) {
 								await viewsService.openViewContainer(viewContainer.id, true);
 							} else {
 								viewsService.closeViewContainer(viewContainer.id);

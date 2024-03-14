@@ -48,6 +48,7 @@ import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxili
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { mainWindow } from 'vs/base/browser/window';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { CustomTitleBarVisibility } from '../../platform/window/common/window';
 
 //#region Layout Implementation
@@ -1115,7 +1116,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(delegate.onDidChangeNotificationsVisibility(visible => this._onDidChangeNotificationsVisibility.fire(visible)));
 	}
 
-	hasFocus(part: Parts): boolean {
+	hasFocus(part: Parts, viewContainerId?: string): boolean {
 		const container = this.getContainer(getActiveWindow(), part);
 		if (!container) {
 			return false;
@@ -1126,14 +1127,39 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
-		return isAncestorUsingFlowTo(activeElement, container);
+		// If the panel is activated, whether it is in focus should be compared two viewContainerIds.
+		const activePanel = this.getFocusWebviewPart(part);
+		if (viewContainerId && !!activePanel) {
+			return viewContainerId === activePanel?.getId?.();
+		}
+
+		return !!container && isAncestorUsingFlowTo(activeElement, container);
+	}
+
+	getFocusWebviewPart(part: Parts): IPaneComposite | undefined {
+		let focusPart: IPaneComposite | undefined;
+		// only these three part will combine webview view container
+		switch (part) {
+			case Parts.PANEL_PART: {
+				focusPart = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+				break;
+			}
+			case Parts.SIDEBAR_PART: {
+				focusPart = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+				break;
+			}
+			case Parts.AUXILIARYBAR_PART: {
+				focusPart = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+				break;
+			}
+		}
+		return focusPart;
 	}
 
 	focusPart(part: MULTI_WINDOW_PARTS, targetWindow: Window): void;
 	focusPart(part: SINGLE_WINDOW_PARTS): void;
 	focusPart(part: Parts, targetWindow: Window = mainWindow): void {
 		const container = this.getContainer(targetWindow, part) ?? this.mainContainer;
-
 		switch (part) {
 			case Parts.EDITOR_PART:
 				this.editorGroupService.getPart(container).activeGroup.focus();

@@ -185,7 +185,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Returns whether the given part has the keyboard focus or not.
 	 */
-	hasFocus(part: Parts): boolean;
+	hasFocus(part: Parts, viewContainerId?: string): boolean;
 
 	/**
 	 * Focuses the part in the target window. If the part is not visible this is a noop.
