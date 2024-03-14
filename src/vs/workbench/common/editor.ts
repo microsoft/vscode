@@ -106,6 +106,8 @@ export interface IEditorPane extends IComposite {
 	 */
 	readonly onDidChangeSelection?: Event<IEditorPaneSelectionChangeEvent>;
 
+	readonly onDidChangeScroll?: Event<void>;
+
 	/**
 	 * The assigned input of this editor.
 	 */
@@ -181,6 +183,10 @@ export interface IEditorPane extends IComposite {
 	 * selection as needed.
 	 */
 	getSelection?(): IEditorPaneSelection | undefined;
+
+	getScrollPosition?(): IEditorPaneScrollPosition;
+
+	setScrollPosition?(scrollPosition: IEditorPaneScrollPosition): void;
 
 	/**
 	 * Finds out if this editor is visible or not.
@@ -303,6 +309,14 @@ export function isEditorPaneWithSelection(editorPane: IEditorPane | undefined): 
 	const candidate = editorPane as IEditorPaneWithSelection | undefined;
 
 	return !!candidate && typeof candidate.getSelection === 'function' && !!candidate.onDidChangeSelection;
+}
+
+/**
+ * Scroll position of a pane
+ */
+export interface IEditorPaneScrollPosition {
+	readonly scrollTop: number;
+	readonly scrollLeft?: number;
 }
 
 /**

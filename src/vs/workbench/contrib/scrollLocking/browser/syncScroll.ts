@@ -4,16 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IScrollEvent } from 'vs/editor/common/editorCommon';
 import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
+import { IEditorPane, IEditorPaneScrollPosition } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
@@ -21,7 +18,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.syncScrolling';
 
-	private readonly editorsInitialScrollTop = new Map<ICodeEditor, number | undefined>();
+	private readonly editorsInitialScrollTop = new Map<IEditorPane, IEditorPaneScrollPosition | undefined>();
 
 	private readonly syncScrollDispoasbles = this._register(new DisposableStore());
 	private readonly paneDisposables = new DisposableStore();
@@ -66,43 +63,24 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 		this.editorsInitialScrollTop.clear();
 
 		for (const pane of this.editorService.visibleEditorPanes) {
-			const codeEditor = this.getTextEditorControl(pane);
 
-			if (!codeEditor) {
+			if (!pane.getScrollPosition || !pane.onDidChangeScroll) {
 				continue;
 			}
 
-			this.editorsInitialScrollTop.set(codeEditor, codeEditor.getScrollTop());
-			this.paneDisposables.add(codeEditor.onDidScrollChange((e) => this.onDidEditorPaneScroll(pane, e)));
+			this.editorsInitialScrollTop.set(pane, pane.getScrollPosition());
+			this.paneDisposables.add(pane.onDidChangeScroll(() => this.onDidEditorPaneScroll(pane)));
 		}
 	}
 
-	private getTextEditorControl(pane: IEditorPane): ICodeEditor | undefined {
-		if (!(pane instanceof TextFileEditor)) {
-			return undefined;
-		}
-		const textFileEditor = pane as TextFileEditor;
+	private onDidEditorPaneScroll(scrolledPane: IEditorPane) {
 
-		const codeEditor = textFileEditor.getControl();
-		if (!codeEditor) {
-			return undefined;
-		}
-
-		return codeEditor;
-	}
-
-	private onDidEditorPaneScroll(scrolledPane: IEditorPane, event: IScrollEvent) {
-		const scrolledCodeEditor = this.getTextEditorControl(scrolledPane);
-		if (!scrolledCodeEditor) {
-			return;
-		}
-
-		const scrolledPaneInitialOffset = this.editorsInitialScrollTop.get(scrolledCodeEditor);
+		const scrolledPaneInitialOffset = this.editorsInitialScrollTop.get(scrolledPane)?.scrollTop;
 		if (scrolledPaneInitialOffset === undefined) {
 			throw new Error('Scrolled pane not tracked');
 		}
 
-		const scrolledPaneScrollTop = scrolledCodeEditor.getScrollTop();
+		const scrolledPaneScrollTop = scrolledPane.getScrollPosition!().scrollTop;
 		const scrolledFromInitial = scrolledPaneScrollTop - scrolledPaneInitialOffset;
 
 		for (const pane of this.editorService.visibleEditorPanes) {
@@ -110,17 +88,18 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 				continue;
 			}
 
-			const editor = this.getTextEditorControl(pane);
-			if (!editor) {
-				continue;
+			if (!pane.setScrollPosition) {
+				return;
 			}
 
-			const initialOffsetTop = this.editorsInitialScrollTop.get(editor);
-			if (initialOffsetTop === undefined) {
+			const initialOffset = this.editorsInitialScrollTop.get(pane);
+			if (initialOffset === undefined) {
 				throw new Error('Could not find initial offset for pane');
 			}
 
-			editor.setScrollTop(initialOffsetTop + scrolledFromInitial);
+			pane.setScrollPosition({
+				scrollTop: initialOffset.scrollTop + scrolledFromInitial,
+			});
 		}
 	}
 
