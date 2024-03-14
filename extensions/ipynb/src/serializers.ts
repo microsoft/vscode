@@ -253,7 +253,7 @@ function translateCellErrorOutput(output: NotebookCellOutput): nbformat.IError {
 		// VS Code needs an `Error` object which requires a `stack` property as a string.
 		// Its possible the format could change when converting from `traceback` to `string` and back again to `string`
 		// When .NET stores errors in output (with their .NET kernel),
-		// stack is empty, hence store the message instead of stack (so that somethign gets displayed in ipynb).
+		// stack is empty, hence store the message instead of stack (so that something gets displayed in ipynb).
 		traceback: originalError?.traceback || splitMultilineString(value.stack || value.message || '')
 	};
 }

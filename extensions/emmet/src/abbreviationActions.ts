@@ -189,7 +189,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 					// Same as above but expandedTextLines.length > 1 so newPreviewEnd keeps its value.
 					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
 				} else if (expandedTextLines.length === 1) {
-					// If the expandedText is single line, add the length of preceeding text as it will not be included in line length.
+					// If the expandedText is single line, add the length of preceding text as it will not be included in line length.
 					newPreviewEnd += oldPreviewRange.start.character;
 				}
 
