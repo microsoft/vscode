@@ -24,7 +24,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { HoverVerbosityAction, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';

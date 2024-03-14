@@ -70,7 +70,7 @@ export class VerboseMarkdownHover extends MarkdownHover {
 	}
 }
 
-interface MarkdownFocusMetadata {
+interface FocusedHoverInfo {
 	index: number | undefined;
 	element: HTMLElement | undefined;
 	focusRemains: boolean;
@@ -88,7 +88,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _context: IEditorHoverRenderContext | undefined;
 
 	private _providers: (HoverProvider | undefined)[] = [];
-	private _focusMetadata: MarkdownFocusMetadata = {
+	private _focusInfo: FocusedHoverInfo = {
 		index: undefined,
 		element: undefined,
 		focusRemains: false
@@ -202,8 +202,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	public async incrementFocusedMarkdownHoverVerbosityLevelBy(delta: number): Promise<void> {
 		if (
-			this._focusMetadata.index === undefined
-			|| this._focusMetadata.element === undefined
+			this._focusInfo.index === undefined
+			|| this._focusInfo.element === undefined
 			|| !this._position
 			|| !this._context
 			|| !this._context.disposables
@@ -211,14 +211,14 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		) {
 			return;
 		}
-		const currentVerbosityLevel = this._verbosityLevels.get(this._focusMetadata.index);
-		const provider = this._providers[this._focusMetadata.index];
+		const currentVerbosityLevel = this._verbosityLevels.get(this._focusInfo.index);
+		const provider = this._providers[this._focusInfo.index];
 		const model = this._editor.getModel();
 		if (!provider || !model || currentVerbosityLevel === undefined) {
 			return;
 		}
 		const verbosityLevel = currentVerbosityLevel + delta;
-		this._verbosityLevels.set(this._focusMetadata.index, verbosityLevel);
+		this._verbosityLevels.set(this._focusInfo.index, verbosityLevel);
 		const context = { verbosityLevel };
 		let hover: Hover | null | undefined;
 		try {
@@ -231,13 +231,13 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 		const renderedMarkdown = this._renderMarkdownHoversAndActions(
 			hover.contents,
-			this._focusMetadata.index,
+			this._focusInfo.index,
 			hover.verbosityMetadata,
 			this._context.disposables
 		);
-		this._focusMetadata.focusRemains = true;
-		this._focusMetadata.element.replaceWith(renderedMarkdown);
-		this._focusMetadata.element = renderedMarkdown;
+		this._focusInfo.focusRemains = true;
+		this._focusInfo.element.replaceWith(renderedMarkdown);
+		this._focusInfo.element = renderedMarkdown;
 		this._context.onContentsChanged();
 		renderedMarkdown.focus();
 	}
@@ -273,19 +273,19 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 		const focusTracker = this._context.disposables.add(dom.trackFocus(contentsWrapper));
 		this._context.disposables.add(focusTracker.onDidFocus(() => {
-			const focusRemains = this._focusMetadata.focusRemains;
-			this._focusMetadata = {
+			const focusRemains = this._focusInfo.focusRemains;
+			this._focusInfo = {
 				index: hoverIndex,
 				element: contentsWrapper,
 				focusRemains
 			};
 		}));
 		this._context.disposables.add(focusTracker.onDidBlur(() => {
-			if (this._focusMetadata.focusRemains) {
-				this._focusMetadata.focusRemains = false;
+			if (this._focusInfo.focusRemains) {
+				this._focusInfo.focusRemains = false;
 				return;
 			}
-			this._focusMetadata = {
+			this._focusInfo = {
 				index: undefined,
 				element: undefined,
 				focusRemains: false
