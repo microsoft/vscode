@@ -142,6 +142,8 @@ export class NotebookCellOutlineProvider {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
+		const onlyShowMarkdownHeaders = this._configurationService.getValue<boolean>('notebook.outline.onlyShowMarkdownHeaders');
+
 		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
 
 		const entries: OutlineEntry[] = [];
@@ -161,6 +163,11 @@ export class NotebookCellOutlineProvider {
 
 			for (let i = 1; i < entries.length; i++) {
 				const entry = entries[i];
+
+				if (onlyShowMarkdownHeaders && entry.cell.cellKind === CellKind.Markup && entry.level === 7) {
+					// skip plain text markdown cells
+					continue;
+				}
 
 				while (true) {
 					const len = parentStack.length;
