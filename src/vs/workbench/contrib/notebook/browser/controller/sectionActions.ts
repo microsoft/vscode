@@ -20,6 +20,11 @@ export type NotebookSectionArgs = {
 	outlineEntry: OutlineEntry;
 };
 
+export type ValidNotebookSectionArgs = {
+	notebookEditor: INotebookEditor;
+	outlineEntry: OutlineEntry;
+};
+
 export class NotebookRunSingleCellInSection extends Action2 {
 	constructor() {
 		super({
@@ -51,7 +56,7 @@ export class NotebookRunSingleCellInSection extends Action2 {
 			return;
 		}
 
-		context.notebookEditor!.executeNotebookCells([context.outlineEntry.cell]);
+		context.notebookEditor.executeNotebookCells([context.outlineEntry.cell]);
 	}
 }
 
@@ -92,17 +97,17 @@ export class NotebookRunCellsInSection extends Action2 {
 		}
 
 		const cell = context.outlineEntry.cell;
-		const idx = context.notebookEditor!.getViewModel()?.getCellIndex(cell);
+		const idx = context.notebookEditor.getViewModel()?.getCellIndex(cell);
 		if (idx === undefined) {
 			return;
 		}
-		const length = context.notebookEditor!.getViewModel()?.getFoldedLength(idx);
+		const length = context.notebookEditor.getViewModel()?.getFoldedLength(idx);
 		if (length === undefined) {
 			return;
 		}
 
-		const cells = context.notebookEditor!.getCellsInRange({ start: idx, end: idx + length + 1 });
-		context.notebookEditor!.executeNotebookCells(cells);
+		const cells = context.notebookEditor.getCellsInRange({ start: idx, end: idx + length + 1 });
+		context.notebookEditor.executeNotebookCells(cells);
 	}
 }
 
@@ -137,7 +142,7 @@ export class NotebookFoldSection extends Action2 {
 			return;
 		}
 
-		this.toggleFoldRange(context.outlineEntry, context.notebookEditor!);
+		this.toggleFoldRange(context.outlineEntry, context.notebookEditor);
 	}
 
 	private toggleFoldRange(entry: OutlineEntry, notebookEditor: INotebookEditor) {
@@ -181,7 +186,7 @@ export class NotebookExpandSection extends Action2 {
 			return;
 		}
 
-		this.toggleFoldRange(context.outlineEntry, context.notebookEditor!);
+		this.toggleFoldRange(context.outlineEntry, context.notebookEditor);
 	}
 
 	private toggleFoldRange(entry: OutlineEntry, notebookEditor: INotebookEditor) {
@@ -195,12 +200,12 @@ export class NotebookExpandSection extends Action2 {
 }
 
 /**
- * Take in context args and check if they are valid
+ * Take in context args and check if they exist
  *
  * @param context - Notebook Section Context containing a notebook editor and outline entry
  * @returns true if context is valid, false otherwise
  */
-function checkSectionContext(context: NotebookSectionArgs): boolean {
+function checkSectionContext(context: NotebookSectionArgs): context is ValidNotebookSectionArgs {
 	return !!(context && context.notebookEditor && context.outlineEntry);
 }
 

@@ -151,15 +151,13 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 			}
 			const idx = nbViewModel.getCellIndex(nbCell);
 			const length = isCodeCell ? 0 : nbViewModel.getFoldedLength(idx);
-			const foldingState = isCodeCell ? CellFoldingState.None : ((nbCell as MarkupCellViewModel).foldingState);
 
 			const scopedContextKeyService = template.elementDisposables.add(this._contextKeyService.createScoped(template.container));
 			NotebookOutlineContext.CellKind.bindTo(scopedContextKeyService).set(isCodeCell ? CellKind.Code : CellKind.Markup);
 			NotebookOutlineContext.CellHasChildren.bindTo(scopedContextKeyService).set(length > 0);
 			NotebookOutlineContext.CellHasHeader.bindTo(scopedContextKeyService).set(node.element.level !== 7);
-			NotebookOutlineContext.CellFoldingState.bindTo(scopedContextKeyService).set(foldingState);
 			NotebookOutlineContext.OutlineElementTarget.bindTo(scopedContextKeyService).set(this._target);
-			this.setupFoldingListeners(nbViewModel, scopedContextKeyService, template, nbCell);
+			this.setupFolding(isCodeCell, nbViewModel, scopedContextKeyService, template, nbCell);
 
 			const outlineEntryToolbar = template.elementDisposables.add(new ToolBar(template.actionMenu, this._contextMenuService, {
 				actionViewItemProvider: action => {
@@ -188,11 +186,18 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		DOM.clearNode(templateData.actionMenu);
 	}
 
-	private setupFoldingListeners(nbViewModel: INotebookViewModel, scopedContextKeyService: IContextKeyService, template: NotebookOutlineTemplate, nbCell: ICellViewModel) {
-		template.elementDisposables.add(nbViewModel.onDidFoldingStateChanged(() => {
-			const foldingState = (nbCell as MarkupCellViewModel).foldingState;
-			NotebookOutlineContext.CellFoldingState.bindTo(scopedContextKeyService).set(foldingState);
-		}));
+	private setupFolding(isCodeCell: boolean, nbViewModel: INotebookViewModel, scopedContextKeyService: IContextKeyService, template: NotebookOutlineTemplate, nbCell: ICellViewModel) {
+		const foldingState = isCodeCell ? CellFoldingState.None : ((nbCell as MarkupCellViewModel).foldingState);
+		const foldingStateCtx = NotebookOutlineContext.CellFoldingState.bindTo(scopedContextKeyService);
+		foldingStateCtx.set(foldingState);
+
+		if (!isCodeCell) {
+			template.elementDisposables.add(nbViewModel.onDidFoldingStateChanged(() => {
+				const foldingState = (nbCell as MarkupCellViewModel).foldingState;
+				NotebookOutlineContext.CellFoldingState.bindTo(scopedContextKeyService).set(foldingState);
+				foldingStateCtx.set(foldingState);
+			}));
+		}
 	}
 
 	private setupToolbarListeners(toolbar: ToolBar, menu: IMenu, initActions: { primary: IAction[]; secondary: IAction[] }, entry: OutlineEntry, templateData: NotebookOutlineTemplate): void {
