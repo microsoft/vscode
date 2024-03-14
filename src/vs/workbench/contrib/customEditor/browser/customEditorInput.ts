@@ -159,7 +159,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			// backup should prevent to be moved across windows to prevent
 			// data loss. Their modified state is potentially stored within
 			// the `iframe` which will reset when moved across windows.
-			capabilities |= EditorInputCapabilities.PreventDirtyMoveAcrossWindows;
+			capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
 		}
 
 		return capabilities;

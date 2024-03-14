@@ -1346,7 +1346,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
-			const canCloseEditor = !editor.hasCapability(EditorInputCapabilities.PreventDirtyMoveAcrossWindows) || getWindowById(target.windowId) === getWindowById(this.windowId);
+			let canCloseEditor = true;
+			if (
+				editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported) &&
+				getWindowById(target.windowId) === getWindowById(this.windowId)
+			) {
+				canCloseEditor = false; // do not close the editor if it does not support aux windows
+			}
+
 			if (canCloseEditor) {
 				this.doCloseEditor(editor, true /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
 			}
