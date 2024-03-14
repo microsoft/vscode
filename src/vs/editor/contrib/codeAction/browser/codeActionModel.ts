@@ -326,7 +326,8 @@ export class CodeActionModel extends Disposable {
 					// Check if the current state is manual and the new state is automatic
 					isManualToAutoTransition = this._state.trigger.type === CodeActionTriggerType.Invoke &&
 						newState.type === CodeActionsState.Type.Triggered &&
-						newState.trigger.type === CodeActionTriggerType.Auto;
+						newState.trigger.type === CodeActionTriggerType.Auto &&
+						this._state.position !== newState.position;
 				}
 
 				// Do not trigger state if current state is manual and incoming state is automatic
