@@ -6822,7 +6822,7 @@ declare namespace monaco.languages {
 
 	export interface HoverContext {
 		/**
-		 * The verbosity level for the hover request.
+		 * The verbosity level for the hover request. The verbosity level starts at 0 and can increase.
 		 */
 		verbosityLevel: number;
 	}
