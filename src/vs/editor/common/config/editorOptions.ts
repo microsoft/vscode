@@ -76,6 +76,13 @@ export interface IEditorOptions {
 	 */
 	rulers?: (number | IRulerOption)[];
 	/**
+	 * Locales used for segmenting lines into words when doing word related navigations or operations.
+	 *
+	 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
+	 * Defaults to empty array
+	 */
+	wordSegmenterLocales?: string | string[];
+	/**
 	 * A string containing the word separators used when doing word navigation.
 	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
 	 */
@@ -160,13 +167,6 @@ export interface IEditorOptions {
 	 * The message to display when the editor is readonly.
 	 */
 	readOnlyMessage?: IMarkdownString;
-	/**
-	 * Locales that recognizes word separators when doing word related navigations or operations.
-	 *
-	 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). If you specify more than one, separate them with a comma.
-	 * If the default setting is blank, or if all specified BCP 47 language tags are not supported, the word will not be recognized.
-	 */
-	recognizeWordLocales?: string;
 	/**
 	 * Should the textarea used for input use the DOM `readonly` attribute.
 	 * Defaults to false.
@@ -3574,50 +3574,6 @@ class ReadonlyMessage extends BaseEditorOption<EditorOption.readOnlyMessage, IMa
 
 //#endregion
 
-//#region readonly
-
-/**
- * Locales that recognizes word separators when doing word related navigations or operations.
- *
- * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). If you specify more than one, separate them with a comma.
- * If the default setting is blank, or if all specified BCP 47 language tags are not supported, the word will not be recognized.
- */
-class RecognizeWordLocales extends BaseEditorOption<EditorOption.recognizeWordLocales, string, string[]> {
-	constructor() {
-		const defaults: string[] = [];
-
-		super(
-			EditorOption.recognizeWordLocales, 'recognizeWordLocales', defaults,
-			{
-				type: 'string',
-				description: nls.localize('recognizeWordLocales', "Locales that recognizes word separators when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). If you specify more than one, separate them with a comma.If the default setting is blank, or if all specified BCP 47 language tags are not supported, the word will not be recognized."),
-			}
-		);
-	}
-
-	public validate(input: any): string[] {
-		if (typeof input === 'string') {
-			const input_locales = input.split(',').map((item) => item.trim());
-			const valid_locales: string[] = [];
-			for (const locale of input_locales) {
-				try {
-					if (Intl.Segmenter.supportedLocalesOf(locale).length > 0) {
-						valid_locales.push(locale);
-					}
-				} catch (_) {
-					// ignore invalid locales
-				}
-			}
-			return valid_locales;
-		}
-
-		return this.defaultValue;
-	}
-}
-
-
-//#endregion
-
 //#region scrollbar
 
 /**
@@ -4944,6 +4900,62 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 
 //#endregion
 
+//#region readonly
+
+/**
+ * Locales used for segmenting lines into words when doing word related navigations or operations.
+ *
+ * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
+ */
+class WordSegmenterLocales extends BaseEditorOption<EditorOption.wordSegmenterLocales, string | string[], string[]> {
+	constructor() {
+		const defaults: string[] = [];
+
+		super(
+			EditorOption.wordSegmenterLocales, 'wordSegmenterLocales', defaults,
+			{
+				description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
+				oneOf: [
+					{
+						type: 'string',
+					}, {
+						type: 'array',
+						items: {
+							type: 'string'
+						}
+					}
+				]
+			}
+		);
+	}
+
+	public validate(input: any): string[] {
+		if (typeof input === 'string') {
+			input = [input];
+		}
+		if (Array.isArray(input)) {
+			const validLocales: string[] = [];
+			for (const locale of input) {
+				if (typeof locale === 'string') {
+					try {
+						if (Intl.Segmenter.supportedLocalesOf(locale).length > 0) {
+							validLocales.push(locale);
+						}
+					} catch {
+						// ignore invalid locales
+					}
+				}
+			}
+			return validLocales;
+		}
+
+		return this.defaultValue;
+	}
+}
+
+
+//#endregion
+
 //#region wrappingIndent
 
 /**
@@ -5298,7 +5310,6 @@ export const enum EditorOption {
 	quickSuggestionsDelay,
 	readOnly,
 	readOnlyMessage,
-	recognizeWordLocales,
 	renameOnType,
 	renderControlCharacters,
 	renderFinalNewline,
@@ -5336,6 +5347,7 @@ export const enum EditorOption {
 	useShadowDOM,
 	useTabStops,
 	wordBreak,
+	wordSegmenterLocales,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -5837,7 +5849,6 @@ export const EditorOptions = {
 		EditorOption.readOnly, 'readOnly', false,
 	)),
 	readOnlyMessage: register(new ReadonlyMessage()),
-	recognizeWordLocales: register(new RecognizeWordLocales()),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
 		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }
@@ -6054,6 +6065,7 @@ export const EditorOptions = {
 			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
 		}
 	)),
+	wordSegmenterLocales: register(new WordSegmenterLocales()),
 	wordSeparators: register(new EditorStringOption(
 		EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS,
 		{ description: nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations.") }

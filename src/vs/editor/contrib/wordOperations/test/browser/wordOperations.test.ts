@@ -191,7 +191,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 1)),
 			{
-				recognizeWordLocales: 'ja'
+				wordSegmenterLocales: 'ja'
 			}
 		);
 		const actual = serializePipePositions(text, actualStops);
@@ -210,7 +210,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 1)),
 			{
-				recognizeWordLocales: ''
+				wordSegmenterLocales: ''
 			}
 		);
 		const actual = serializePipePositions(text, actualStops);
@@ -378,7 +378,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 14)),
 			{
-				recognizeWordLocales: 'ja'
+				wordSegmenterLocales: 'ja'
 			}
 		);
 		const actual = serializePipePositions(text, actualStops);
@@ -397,7 +397,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 14)),
 			{
-				recognizeWordLocales: ''
+				wordSegmenterLocales: ''
 			}
 		);
 		const actual = serializePipePositions(text, actualStops);

@@ -45,7 +45,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 		if (!editor.hasModel()) {
 			return;
 		}
-		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.recognizeWordLocales));
+		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.wordSegmenterLocales));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
 
@@ -336,7 +336,7 @@ export abstract class DeleteWordCommand extends EditorCommand {
 		if (!editor.hasModel()) {
 			return;
 		}
-		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.recognizeWordLocales));
+		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.wordSegmenterLocales));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
 		const autoClosingBrackets = editor.getOption(EditorOption.autoClosingBrackets);
@@ -482,7 +482,7 @@ export class DeleteInsideWord extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
-		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.recognizeWordLocales));
+		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.wordSegmenterLocales));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
 

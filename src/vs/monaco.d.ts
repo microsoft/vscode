@@ -3103,6 +3103,13 @@ declare namespace monaco.editor {
 		 */
 		rulers?: (number | IRulerOption)[];
 		/**
+		 * Locales used for segmenting lines into words when doing word related navigations or operations.
+		 *
+		 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
+		 * Defaults to empty array
+		 */
+		wordSegmenterLocales?: string | string[];
+		/**
 		 * A string containing the word separators used when doing word navigation.
 		 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
 		 */
@@ -3187,13 +3194,6 @@ declare namespace monaco.editor {
 		 * The message to display when the editor is readonly.
 		 */
 		readOnlyMessage?: IMarkdownString;
-		/**
-		 * Locales that recognizes word separators when doing word related navigations or operations.
-		 *
-		 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). If you specify more than one, separate them with a comma.
-		 * If the default setting is blank, or if all specified BCP 47 language tags are not supported, the word will not be recognized.
-		 */
-		recognizeWordLocales?: string;
 		/**
 		 * Should the textarea used for input use the DOM `readonly` attribute.
 		 * Defaults to false.
@@ -4898,44 +4898,44 @@ declare namespace monaco.editor {
 		quickSuggestionsDelay = 90,
 		readOnly = 91,
 		readOnlyMessage = 92,
-		recognizeWordLocales = 93,
-		renameOnType = 94,
-		renderControlCharacters = 95,
-		renderFinalNewline = 96,
-		renderLineHighlight = 97,
-		renderLineHighlightOnlyWhenFocus = 98,
-		renderValidationDecorations = 99,
-		renderWhitespace = 100,
-		revealHorizontalRightPadding = 101,
-		roundedSelection = 102,
-		rulers = 103,
-		scrollbar = 104,
-		scrollBeyondLastColumn = 105,
-		scrollBeyondLastLine = 106,
-		scrollPredominantAxis = 107,
-		selectionClipboard = 108,
-		selectionHighlight = 109,
-		selectOnLineNumbers = 110,
-		showFoldingControls = 111,
-		showUnused = 112,
-		snippetSuggestions = 113,
-		smartSelect = 114,
-		smoothScrolling = 115,
-		stickyScroll = 116,
-		stickyTabStops = 117,
-		stopRenderingLineAfter = 118,
-		suggest = 119,
-		suggestFontSize = 120,
-		suggestLineHeight = 121,
-		suggestOnTriggerCharacters = 122,
-		suggestSelection = 123,
-		tabCompletion = 124,
-		tabIndex = 125,
-		unicodeHighlighting = 126,
-		unusualLineTerminators = 127,
-		useShadowDOM = 128,
-		useTabStops = 129,
-		wordBreak = 130,
+		renameOnType = 93,
+		renderControlCharacters = 94,
+		renderFinalNewline = 95,
+		renderLineHighlight = 96,
+		renderLineHighlightOnlyWhenFocus = 97,
+		renderValidationDecorations = 98,
+		renderWhitespace = 99,
+		revealHorizontalRightPadding = 100,
+		roundedSelection = 101,
+		rulers = 102,
+		scrollbar = 103,
+		scrollBeyondLastColumn = 104,
+		scrollBeyondLastLine = 105,
+		scrollPredominantAxis = 106,
+		selectionClipboard = 107,
+		selectionHighlight = 108,
+		selectOnLineNumbers = 109,
+		showFoldingControls = 110,
+		showUnused = 111,
+		snippetSuggestions = 112,
+		smartSelect = 113,
+		smoothScrolling = 114,
+		stickyScroll = 115,
+		stickyTabStops = 116,
+		stopRenderingLineAfter = 117,
+		suggest = 118,
+		suggestFontSize = 119,
+		suggestLineHeight = 120,
+		suggestOnTriggerCharacters = 121,
+		suggestSelection = 122,
+		tabCompletion = 123,
+		tabIndex = 124,
+		unicodeHighlighting = 125,
+		unusualLineTerminators = 126,
+		useShadowDOM = 127,
+		useTabStops = 128,
+		wordBreak = 129,
+		wordSegmenterLocales = 130,
 		wordSeparators = 131,
 		wordWrap = 132,
 		wordWrapBreakAfterCharacters = 133,
@@ -5052,7 +5052,6 @@ declare namespace monaco.editor {
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
 		readOnlyMessage: IEditorOption<EditorOption.readOnlyMessage, any>;
-		recognizeWordLocales: IEditorOption<EditorOption.recognizeWordLocales, {}>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
 		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, 'on' | 'off' | 'dimmed'>;
@@ -5093,6 +5092,7 @@ declare namespace monaco.editor {
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
+		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, {}>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;

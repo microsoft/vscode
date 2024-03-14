@@ -781,7 +781,7 @@ export class WordOperations {
 	}
 
 	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleCursorState {
-		const wordSeparators = getMapForWordSeparators(config.wordSeparators, config.recognizeWordLocales);
+		const wordSeparators = getMapForWordSeparators(config.wordSeparators, config.wordSegmenterLocales);
 		const prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
 		const nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
 
