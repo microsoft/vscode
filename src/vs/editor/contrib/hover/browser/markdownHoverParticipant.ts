@@ -89,7 +89,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	private _providers: (HoverProvider | undefined)[] = [];
 	private _focusInfo: FocusedHoverInfo | undefined;
-	private _verbosityLevels: Map<number, number> = new Map();
+	private _verbosityLevelsByHoverIdx: number[] = [];
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
@@ -179,7 +179,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: VerboseMarkdownHover[]): IDisposable {
 		this._context = context;
-		this._verbosityLevels.clear();
 		this._providers = hoverParts.map(hoverPart => hoverPart.sourceProvider);
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 		const disposables = new DisposableStore();
@@ -190,9 +189,9 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				hoverPart.verbosityMetadata,
 				disposables
 			);
-			this._verbosityLevels.set(hoverIndex, 0);
 			context.fragment.appendChild(renderedMarkdown);
 		}
+		this._verbosityLevelsByHoverIdx = new Array(hoverParts.length).fill(0);
 		return disposables;
 	}
 
@@ -202,18 +201,19 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			|| !this._position
 			|| !this._context
 			|| !this._context.disposables
-			|| !this._verbosityLevels
+			|| !this._verbosityLevelsByHoverIdx
 		) {
 			return;
 		}
-		const currentVerbosityLevel = this._verbosityLevels.get(this._focusInfo.focusedIndex);
-		const provider = this._providers[this._focusInfo.focusedIndex];
+		const focusedIndex = this._focusInfo.focusedIndex;
+		const currentVerbosityLevel = this._verbosityLevelsByHoverIdx[focusedIndex];
+		const provider = this._providers[focusedIndex];
 		const model = this._editor.getModel();
 		if (!provider || !model || currentVerbosityLevel === undefined) {
 			return;
 		}
 		const verbosityLevel = currentVerbosityLevel + delta;
-		this._verbosityLevels.set(this._focusInfo.focusedIndex, verbosityLevel);
+		this._verbosityLevelsByHoverIdx[focusedIndex] = verbosityLevel;
 		const context = { verbosityLevel };
 		let hover: Hover | null | undefined;
 		try {
@@ -226,7 +226,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 		const renderedMarkdown = this._renderMarkdownHoversAndActions(
 			hover.contents,
-			this._focusInfo.focusedIndex,
+			focusedIndex,
 			hover.verbosityMetadata,
 			this._context.disposables
 		);
@@ -257,7 +257,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			this._openerService,
 			store
 		);
-		if (!verbosityMetadata || !this._context || !this._context.disposables || !this._verbosityLevels) {
+		if (!verbosityMetadata || !this._context || !this._context.disposables || !this._verbosityLevelsByHoverIdx) {
 			return contentsWrapper;
 		}
 		const actionsContainer = $('div.verbosity-actions');
