@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
+import { LRUCache } from 'vs/base/common/map';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 
 export const enum WordCharacterClass {
@@ -14,8 +15,11 @@ export const enum WordCharacterClass {
 
 export class WordCharacterClassifier extends CharacterClassifier<WordCharacterClass> {
 
-	constructor(wordSeparators: string) {
+	public readonly intlSegmenterLocales: Intl.UnicodeBCP47LocaleIdentifier[];
+
+	constructor(wordSeparators: string, intlSegmenterLocales: Intl.UnicodeBCP47LocaleIdentifier[]) {
 		super(WordCharacterClass.Regular);
+		this.intlSegmenterLocales = intlSegmenterLocales;
 
 		for (let i = 0, len = wordSeparators.length; i < len; i++) {
 			this.set(wordSeparators.charCodeAt(i), WordCharacterClass.WordSeparator);
@@ -27,16 +31,14 @@ export class WordCharacterClassifier extends CharacterClassifier<WordCharacterCl
 
 }
 
-function once<R>(computeFn: (input: string) => R): (input: string) => R {
-	const cache: { [key: string]: R } = {}; // TODO@Alex unbounded cache
-	return (input: string): R => {
-		if (!cache.hasOwnProperty(input)) {
-			cache[input] = computeFn(input);
-		}
-		return cache[input];
-	};
-}
+const wordClassifierCache = new LRUCache<string, WordCharacterClassifier>(10);
 
-export const getMapForWordSeparators = once<WordCharacterClassifier>(
-	(input) => new WordCharacterClassifier(input)
-);
+export function getMapForWordSeparators(wordSeparators: string, intlSegmenterLocales: Intl.UnicodeBCP47LocaleIdentifier[]): WordCharacterClassifier {
+	const key = `${wordSeparators}/${intlSegmenterLocales.join(',')}`;
+	let result = wordClassifierCache.get(key)!;
+	if (!result) {
+		result = new WordCharacterClassifier(wordSeparators, intlSegmenterLocales);
+		wordClassifierCache.set(key, result);
+	}
+	return result;
+}

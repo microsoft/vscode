@@ -58,7 +58,6 @@ export interface DeleteWordContext {
 	autoClosingQuotes: EditorAutoClosingStrategy;
 	autoClosingPairs: AutoClosingPairs;
 	autoClosedCharacters: Range[];
-	recognizeWordLocales: string[];
 }
 
 export class WordOperations {
@@ -67,18 +66,18 @@ export class WordOperations {
 		return { start: start, end: end, wordType: wordType, nextCharClass: nextCharClass };
 	}
 
-	private static _findPreviousWordOnLine(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, recognizeWordLocales: string[]): IFindWordResult | null {
+	private static _findPreviousWordOnLine(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): IFindWordResult | null {
 		const lineContent = model.getLineContent(position.lineNumber);
-		return this._doFindPreviousWordOnLine(lineContent, wordSeparators, position, recognizeWordLocales);
+		return this._doFindPreviousWordOnLine(lineContent, wordSeparators, position);
 	}
 
-	private static _doFindPreviousWordOnLine(lineContent: string, wordSeparators: WordCharacterClassifier, position: Position, recognizeWordLocales: string[]): IFindWordResult | null {
+	private static _doFindPreviousWordOnLine(lineContent: string, wordSeparators: WordCharacterClassifier, position: Position): IFindWordResult | null {
 		let wordType = WordType.None;
 
 		const wordLikeChIndices: number[] = [];
 
-		if (recognizeWordLocales.length) {
-			const segmenter = new Intl.Segmenter(recognizeWordLocales, { granularity: 'word' });
+		if (wordSeparators.intlSegmenterLocales.length) {
+			const segmenter = new Intl.Segmenter(wordSeparators.intlSegmenterLocales, { granularity: 'word' });
 			const segments = segmenter.segment(lineContent);
 
 			for (const segment of segments) {
@@ -94,39 +93,39 @@ export class WordOperations {
 
 			for (const wordLikeChIndex of wordLikeChIndices) {
 				if (chIndex === wordLikeChIndex) {
-					return this._createWord(lineContent, wordType, chClass, chIndex, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex, recognizeWordLocales));
+					return this._createWord(lineContent, wordType, chClass, chIndex, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex));
 				}
 			}
 
 			if (chClass === WordCharacterClass.Regular) {
 				if (wordType === WordType.Separator) {
-					return this._createWord(lineContent, wordType, chClass, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1, recognizeWordLocales));
+					return this._createWord(lineContent, wordType, chClass, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
 				wordType = WordType.Regular;
 			} else if (chClass === WordCharacterClass.WordSeparator) {
 				if (wordType === WordType.Regular) {
-					return this._createWord(lineContent, wordType, chClass, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1, recognizeWordLocales));
+					return this._createWord(lineContent, wordType, chClass, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
 				wordType = WordType.Separator;
 			} else if (chClass === WordCharacterClass.Whitespace) {
 				if (wordType !== WordType.None) {
-					return this._createWord(lineContent, wordType, chClass, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1, recognizeWordLocales));
+					return this._createWord(lineContent, wordType, chClass, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
 			}
 		}
 
 		if (wordType !== WordType.None) {
-			return this._createWord(lineContent, wordType, WordCharacterClass.Whitespace, 0, this._findEndOfWord(lineContent, wordSeparators, wordType, 0, recognizeWordLocales));
+			return this._createWord(lineContent, wordType, WordCharacterClass.Whitespace, 0, this._findEndOfWord(lineContent, wordSeparators, wordType, 0));
 		}
 
 		return null;
 	}
 
-	private static _findEndOfWord(lineContent: string, wordSeparators: WordCharacterClassifier, wordType: WordType, startIndex: number, recognizeWordLocales: string[]): number {
+	private static _findEndOfWord(lineContent: string, wordSeparators: WordCharacterClassifier, wordType: WordType, startIndex: number): number {
 		const wordLikeChIndices: number[] = [];
 
-		if (recognizeWordLocales.length) {
-			const segmenter = new Intl.Segmenter(recognizeWordLocales, { granularity: 'word' });
+		if (wordSeparators.intlSegmenterLocales.length) {
+			const segmenter = new Intl.Segmenter(wordSeparators.intlSegmenterLocales, { granularity: 'word' });
 			const segments = segmenter.segment(lineContent);
 
 			for (const segment of segments) {
@@ -160,18 +159,18 @@ export class WordOperations {
 		return len;
 	}
 
-	private static _findNextWordOnLine(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, recognizeWordLocales: string[]): IFindWordResult | null {
+	private static _findNextWordOnLine(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): IFindWordResult | null {
 		const lineContent = model.getLineContent(position.lineNumber);
-		return this._doFindNextWordOnLine(lineContent, wordSeparators, position, recognizeWordLocales);
+		return this._doFindNextWordOnLine(lineContent, wordSeparators, position);
 	}
 
-	private static _doFindNextWordOnLine(lineContent: string, wordSeparators: WordCharacterClassifier, position: Position, recognizeWordLocales: string[]): IFindWordResult | null {
+	private static _doFindNextWordOnLine(lineContent: string, wordSeparators: WordCharacterClassifier, position: Position): IFindWordResult | null {
 		let wordType = WordType.None;
 		const len = lineContent.length;
 
 		const wordLikeChIndices = [];
-		if (recognizeWordLocales.length) {
-			const segmenter = new Intl.Segmenter(recognizeWordLocales, { granularity: 'word' });
+		if (wordSeparators.intlSegmenterLocales.length) {
+			const segmenter = new Intl.Segmenter(wordSeparators.intlSegmenterLocales, { granularity: 'word' });
 			const segments = segmenter.segment(lineContent);
 
 			for (const segment of segments) {
@@ -191,38 +190,38 @@ export class WordOperations {
 				}
 
 				if (chIndex === wordLikeChIndices[i]) {
-					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, wordLikeChIndices[i] - 1, recognizeWordLocales), wordLikeChIndices[i]);
+					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, wordLikeChIndices[i] - 1), wordLikeChIndices[i]);
 				}
 			}
 
 			if (chClass === WordCharacterClass.Regular) {
 				if (wordType === WordType.Separator) {
-					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1, recognizeWordLocales), chIndex);
+					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
 				wordType = WordType.Regular;
 			} else if (chClass === WordCharacterClass.WordSeparator) {
 				if (wordType === WordType.Regular) {
-					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1, recognizeWordLocales), chIndex);
+					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
 				wordType = WordType.Separator;
 			} else if (chClass === WordCharacterClass.Whitespace) {
 				if (wordType !== WordType.None) {
-					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1, recognizeWordLocales), chIndex);
+					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
 			}
 		}
 
 		if (wordType !== WordType.None) {
-			return this._createWord(lineContent, wordType, WordCharacterClass.Whitespace, this._findStartOfWord(lineContent, wordSeparators, wordType, len - 1, recognizeWordLocales), len);
+			return this._createWord(lineContent, wordType, WordCharacterClass.Whitespace, this._findStartOfWord(lineContent, wordSeparators, wordType, len - 1), len);
 		}
 
 		return null;
 	}
 
-	private static _findStartOfWord(lineContent: string, wordSeparators: WordCharacterClassifier, wordType: WordType, startIndex: number, recognizeWordLocales: string[]): number {
+	private static _findStartOfWord(lineContent: string, wordSeparators: WordCharacterClassifier, wordType: WordType, startIndex: number): number {
 		const wordLikeChIndices = [];
-		if (recognizeWordLocales.length) {
-			const segmenter = new Intl.Segmenter(recognizeWordLocales, { granularity: 'word' });
+		if (wordSeparators.intlSegmenterLocales.length) {
+			const segmenter = new Intl.Segmenter(wordSeparators.intlSegmenterLocales, { granularity: 'word' });
 			const segments = segmenter.segment(lineContent);
 
 			for (const segment of segments) {
@@ -255,7 +254,7 @@ export class WordOperations {
 		return 0;
 	}
 
-	public static moveWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType, recognizeWordLocales: string[]): Position {
+	public static moveWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
@@ -266,7 +265,7 @@ export class WordOperations {
 			}
 		}
 
-		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, column), recognizeWordLocales);
+		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, column));
 
 		if (wordNavigationType === WordNavigationType.WordStart) {
 			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
@@ -280,7 +279,7 @@ export class WordOperations {
 				&& prevWordOnLine.nextCharClass === WordCharacterClass.Regular
 			) {
 				// Skip over a word made up of one single separator and followed by a regular character
-				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1), recognizeWordLocales);
+				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
 			}
 
 			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
@@ -292,7 +291,7 @@ export class WordOperations {
 				&& prevWordOnLine.wordType === WordType.Separator
 			) {
 				// Skip over words made up of only separators
-				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1), recognizeWordLocales);
+				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
 			}
 
 			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
@@ -301,7 +300,7 @@ export class WordOperations {
 		// We are stopping at the ending of words
 
 		if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
-			prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1), recognizeWordLocales);
+			prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
 		}
 
 		return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.end + 1 : 1);
@@ -349,7 +348,7 @@ export class WordOperations {
 		return new Position(lineNumber, 1);
 	}
 
-	public static moveWordRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType, recognizeWordLocales: string[]): Position {
+	public static moveWordRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
@@ -362,13 +361,13 @@ export class WordOperations {
 			}
 		}
 
-		let nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, column), recognizeWordLocales);
+		let nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, column));
 
 		if (wordNavigationType === WordNavigationType.WordEnd) {
 			if (nextWordOnLine && nextWordOnLine.wordType === WordType.Separator) {
 				if (nextWordOnLine.end - nextWordOnLine.start === 1 && nextWordOnLine.nextCharClass === WordCharacterClass.Regular) {
 					// Skip over a word made up of one single separator and followed by a regular character
-					nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1), recognizeWordLocales);
+					nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 				}
 			}
 			if (nextWordOnLine) {
@@ -392,7 +391,7 @@ export class WordOperations {
 			) {
 				// Skip over a word made up of one single separator
 				// Also skip over word if it begins before current cursor position to ascertain we're moving forward at least 1 character.
-				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1), recognizeWordLocales);
+				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 
 			if (nextWordOnLine) {
@@ -402,7 +401,7 @@ export class WordOperations {
 			}
 		} else {
 			if (nextWordOnLine && !movedDown && column >= nextWordOnLine.start + 1) {
-				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1), recognizeWordLocales);
+				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 			if (nextWordOnLine) {
 				column = nextWordOnLine.start + 1;
@@ -498,7 +497,7 @@ export class WordOperations {
 			}
 		}
 
-		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, position, ctx.recognizeWordLocales);
+		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
 
 		if (wordNavigationType === WordNavigationType.WordStart) {
 			if (prevWordOnLine) {
@@ -513,7 +512,7 @@ export class WordOperations {
 			}
 		} else {
 			if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
-				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1), ctx.recognizeWordLocales);
+				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
 			}
 			if (prevWordOnLine) {
 				column = prevWordOnLine.end + 1;
@@ -530,7 +529,7 @@ export class WordOperations {
 		return new Range(lineNumber, column, position.lineNumber, position.column);
 	}
 
-	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, recognizeWordLocales: string[]): Range {
+	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
@@ -542,7 +541,7 @@ export class WordOperations {
 			return r;
 		}
 
-		return this._deleteInsideWordDetermineDeleteRange(wordSeparators, model, position, recognizeWordLocales);
+		return this._deleteInsideWordDetermineDeleteRange(wordSeparators, model, position);
 	}
 
 	private static _charAtIsWhitespace(str: string, index: number): boolean {
@@ -584,7 +583,7 @@ export class WordOperations {
 		return new Range(position.lineNumber, leftIndex + 1, position.lineNumber, rightIndex + 2);
 	}
 
-	private static _deleteInsideWordDetermineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, recognizeWordLocales: string[]): Range {
+	private static _deleteInsideWordDetermineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Range {
 		const lineContent = model.getLineContent(position.lineNumber);
 		const lineLength = lineContent.length;
 		if (lineLength === 0) {
@@ -625,11 +624,11 @@ export class WordOperations {
 			return createRangeWithPosition(startColumn, endColumn);
 		};
 
-		const prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, position, recognizeWordLocales);
+		const prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
 		if (prevWordOnLine && touchesWord(prevWordOnLine)) {
 			return deleteWordAndAdjacentWhitespace(prevWordOnLine);
 		}
-		const nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, position, recognizeWordLocales);
+		const nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, position);
 		if (nextWordOnLine && touchesWord(nextWordOnLine)) {
 			return deleteWordAndAdjacentWhitespace(nextWordOnLine);
 		}
@@ -683,7 +682,6 @@ export class WordOperations {
 		const model = ctx.model;
 		const selection = ctx.selection;
 		const whitespaceHeuristics = ctx.whitespaceHeuristics;
-		const recognizeWordLocales = ctx.recognizeWordLocales;
 
 		if (!selection.isEmpty()) {
 			return selection;
@@ -708,7 +706,7 @@ export class WordOperations {
 			}
 		}
 
-		let nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, position, recognizeWordLocales);
+		let nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, position);
 
 		if (wordNavigationType === WordNavigationType.WordEnd) {
 			if (nextWordOnLine) {
@@ -718,7 +716,7 @@ export class WordOperations {
 					column = maxColumn;
 				} else {
 					lineNumber++;
-					nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, 1), recognizeWordLocales);
+					nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, 1));
 					if (nextWordOnLine) {
 						column = nextWordOnLine.start + 1;
 					} else {
@@ -728,7 +726,7 @@ export class WordOperations {
 			}
 		} else {
 			if (nextWordOnLine && column >= nextWordOnLine.start + 1) {
-				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1), recognizeWordLocales);
+				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 			if (nextWordOnLine) {
 				column = nextWordOnLine.start + 1;
@@ -737,7 +735,7 @@ export class WordOperations {
 					column = maxColumn;
 				} else {
 					lineNumber++;
-					nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, 1), recognizeWordLocales);
+					nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, 1));
 					if (nextWordOnLine) {
 						column = nextWordOnLine.start + 1;
 					} else {
@@ -769,13 +767,13 @@ export class WordOperations {
 		};
 	}
 
-	public static getWordAtPosition(model: ITextModel, _wordSeparators: string, position: Position, recognizeWordLocales: string[]): IWordAtPosition | null {
-		const wordSeparators = getMapForWordSeparators(_wordSeparators);
-		const prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position, recognizeWordLocales);
+	public static getWordAtPosition(model: ITextModel, _wordSeparators: string, position: Position, _intlSegmenterLocales: string[]): IWordAtPosition | null {
+		const wordSeparators = getMapForWordSeparators(_wordSeparators, _intlSegmenterLocales);
+		const prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
 		if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
 			return WordOperations._createWordAtPosition(model, position.lineNumber, prevWord);
 		}
-		const nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position, recognizeWordLocales);
+		const nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
 		if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
 			return WordOperations._createWordAtPosition(model, position.lineNumber, nextWord);
 		}
@@ -783,10 +781,9 @@ export class WordOperations {
 	}
 
 	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleCursorState {
-		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-		const recognizeWordLocales = config.recognizeWordLocales;
-		const prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position, recognizeWordLocales);
-		const nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position, recognizeWordLocales);
+		const wordSeparators = getMapForWordSeparators(config.wordSeparators, config.recognizeWordLocales);
+		const prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
+		const nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
 
 		if (!inSelectionMode) {
 			// Entering word selection for the first time
@@ -879,20 +876,20 @@ export class WordPartOperations extends WordOperations {
 		return candidates[0];
 	}
 
-	public static moveWordPartLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, recognizeWordLocales: string[]): Position {
+	public static moveWordPartLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Position {
 		const candidates = enforceDefined([
-			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordStart, recognizeWordLocales),
-			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordEnd, recognizeWordLocales),
+			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordStart),
+			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordEnd),
 			WordOperations._moveWordPartLeft(model, position)
 		]);
 		candidates.sort(Position.compare);
 		return candidates[2];
 	}
 
-	public static moveWordPartRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, recognizeWordLocales: string[]): Position {
+	public static moveWordPartRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Position {
 		const candidates = enforceDefined([
-			WordOperations.moveWordRight(wordSeparators, model, position, WordNavigationType.WordStart, recognizeWordLocales),
-			WordOperations.moveWordRight(wordSeparators, model, position, WordNavigationType.WordEnd, recognizeWordLocales),
+			WordOperations.moveWordRight(wordSeparators, model, position, WordNavigationType.WordStart),
+			WordOperations.moveWordRight(wordSeparators, model, position, WordNavigationType.WordEnd),
 			WordOperations._moveWordPartRight(model, position)
 		]);
 		candidates.sort(Position.compare);
