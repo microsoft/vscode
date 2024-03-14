@@ -76,6 +76,11 @@ interface MarkdownFocusMetadata {
 	focusRemains: boolean;
 }
 
+export enum HoverVerbosityAction {
+	Increase,
+	Decrease
+}
+
 export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	public readonly hoverOrdinal: number = 3;
@@ -263,8 +268,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const actionsContainer = $('div.verbosity-actions');
 		contentsWrapper.appendChild(actionsContainer);
 
-		this._renderHoverExpansionAction(actionsContainer, { increase: true, activated: verbosityMetadata.canIncreaseVerbosity ?? false }, store);
-		this._renderHoverExpansionAction(actionsContainer, { increase: false, activated: verbosityMetadata.canDecreaseVerbosity ?? false }, store);
+		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, verbosityMetadata.canIncreaseVerbosity ?? false, store);
+		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, verbosityMetadata.canDecreaseVerbosity ?? false, store);
 
 		const focusTracker = this._context.disposables.add(dom.trackFocus(contentsWrapper));
 		this._context.disposables.add(focusTracker.onDidFocus(() => {
@@ -289,10 +294,11 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return contentsWrapper;
 	}
 
-	private _renderHoverExpansionAction(container: HTMLElement, verbosityMetadata: { increase: boolean; activated: boolean }, store: DisposableStore): void {
-		const element = dom.append(container, $(ThemeIcon.asCSSSelector(verbosityMetadata.increase ? increaseHoverVerbosityIcon : decreaseHoverVerbosityIcon)));
+	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, enabled: boolean, store: DisposableStore): void {
+		const isActionIncrease = action === HoverVerbosityAction.Increase;
+		const element = dom.append(container, $(ThemeIcon.asCSSSelector(isActionIncrease ? increaseHoverVerbosityIcon : decreaseHoverVerbosityIcon)));
 		element.tabIndex = 0;
-		if (verbosityMetadata.increase) {
+		if (isActionIncrease) {
 			const kb = this._keybindingService.lookupKeybinding('editor.action.increaseHoverVerbosityLevel');
 			store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), element, kb ?
 				nls.localize('increaseVerbosityWithKb', "Increase Verbosity ({0})", kb.getLabel()) :
@@ -303,12 +309,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				nls.localize('decreaseVerbosityWithKb', "Decrease Verbosity ({0})", kb.getLabel()) :
 				nls.localize('decreaseVerbosity', "Decrease Verbosity")));
 		}
-		if (!verbosityMetadata.activated) {
+		if (!enabled) {
 			element.classList.add('disabled');
 			return;
 		}
 		element.classList.add('enabled');
-		const level = verbosityMetadata.increase ? 1 : -1;
+		const level = isActionIncrease ? 1 : -1;
 		registerActionOnClickOrAcceptKeydown(element, () => this.incrementFocusedMarkdownHoverVerbosityLevelBy(level), store);
 	}
 }
