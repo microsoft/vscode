@@ -328,7 +328,7 @@ class EditorStatus extends Disposable {
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private readonly currentMarkerStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
-	private readonly tabFocusMode = this.instantiationService.createInstance(TabFocusMode);
+	private readonly tabFocusMode = this._register(this.instantiationService.createInstance(TabFocusMode));
 
 	private readonly state = new State();
 	private toRender: StateChange | undefined = undefined;
@@ -366,7 +366,7 @@ class EditorStatus extends Disposable {
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand({ id: `changeEditorIndentation${this.targetWindowId}`, handler: () => this.showIndentationPicker() });
+		this._register(CommandsRegistry.registerCommand({ id: `changeEditorIndentation${this.targetWindowId}`, handler: () => this.showIndentationPicker() }));
 	}
 
 	private async showIndentationPicker(): Promise<unknown> {

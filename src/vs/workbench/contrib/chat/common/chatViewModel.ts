@@ -258,7 +258,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			.forEach((item: ChatResponseViewModel) => item.dispose());
 	}
 
-	private updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
+	updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
 		const content = isRequestVM(model) ? model.messageText : model.response.asString();
 		const renderer = new marked.Renderer();
 
@@ -266,7 +266,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		renderer.code = (value, languageId) => {
 			languageId ??= '';
 			const newText = this.fixCodeText(value, languageId);
-			const textModel = this.codeBlockModelCollection.getOrCreate(model.id, codeBlockIndex++);
+			const textModel = this.codeBlockModelCollection.getOrCreate(this._model.sessionId, model, codeBlockIndex++);
 			textModel.then(ref => {
 				const model = ref.object.textEditorModel;
 				if (languageId) {

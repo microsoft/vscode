@@ -51,7 +51,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Mutable } from 'vs/base/common/types';
-import { IUpdateService } from 'vs/platform/update/common/update';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -95,6 +95,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
+			async getInstalledWorkspaceExtensions() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
 				local.identifier.uuid = metadata.id;
@@ -132,7 +133,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
-		instantiationService.stub(IUpdateService, { onStateChange: Event.None });
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 	});
 
 	test('test gallery extension', async () => {

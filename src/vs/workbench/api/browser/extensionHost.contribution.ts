@@ -85,7 +85,7 @@ import './mainThreadTimeline';
 import './mainThreadTesting';
 import './mainThreadSecretState';
 import './mainThreadShare';
-import './mainThreadProfilContentHandlers';
+import './mainThreadProfileContentHandlers';
 import './mainThreadAiRelatedInformation';
 import './mainThreadAiEmbeddingVector';
 import './mainThreadIssueReporter';

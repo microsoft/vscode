@@ -1236,9 +1236,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.144"
+version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b00cc1c228a6782d0f076e7b232802e0c5689d41bb5df366f2a6b6621cfdfe1"
+checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
 
 [[package]]
 name = "libz-sys"
@@ -1330,14 +1330,13 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.8.4"
+version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57ee1c23c7c63b0c9250c339ffdc69255f110b298b901b9f6c82547b7b87caaf"
+checksum = "a4a650543ca06a924e8b371db273b2756685faae30f8487da1b56505a8f78b0c"
 dependencies = [
  "libc",
- "log",
  "wasi 0.11.0+wasi-snapshot-preview1",
- "windows-sys 0.36.1",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2526,7 +2525,7 @@ dependencies = [
 [[package]]
 name = "tunnels"
 version = "0.1.0"
-source = "git+https://github.com/microsoft/dev-tunnels?rev=4de1ff7979b5758c69218a3f45f6d9784b165072#4de1ff7979b5758c69218a3f45f6d9784b165072"
+source = "git+https://github.com/microsoft/dev-tunnels?rev=8cae9b2a24c65c6c1958f5a0e77d72b23b5c6c30#8cae9b2a24c65c6c1958f5a0e77d72b23b5c6c30"
 dependencies = [
  "async-trait",
  "chrono",

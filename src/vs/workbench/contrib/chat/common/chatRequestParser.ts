@@ -99,7 +99,7 @@ export class ChatRequestParser {
 		const varRange = new OffsetRange(offset, offset + full.length);
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		const agent = this.agentService.getRegisteredAgent(name);
+		const agent = this.agentService.getAgent(name);
 		if (!agent) {
 			return;
 		}

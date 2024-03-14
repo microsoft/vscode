@@ -165,10 +165,6 @@
 	padding-bottom: 5px;
 }
 
-.quick-input-list .monaco-scrollable-element {
-	padding: 0px 5px;
-}
-
 .quick-input-list .quick-input-list-entry {
 	box-sizing: border-box;
 	overflow: hidden;
@@ -184,6 +180,7 @@
 
 .quick-input-list .monaco-list-row {
 	border-radius: 3px;
+	padding: 0px 5px;
 }
 
 .quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
@@ -318,4 +315,14 @@
 .quick-input-list .quick-input-list-separator-as-item {
 	font-weight: 600;
 	font-size: 12px;
+}
+
+/* Hide border when the item becomes the sticky one */
+.quick-input-list .monaco-tree-sticky-row .quick-input-list-entry.quick-input-list-separator-as-item.quick-input-list-separator-border {
+	border-top-style: none;
+}
+
+/* TODO: This seems to be the best way to do this... is there a better way? */
+.quick-input-list .monaco-tl-twistie {
+	display: none !important;
 }

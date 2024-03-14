@@ -52,7 +52,7 @@ declare module 'vscode' {
 		/**
 		 * The name of the {@link ChatCommand command} that was selected for this request.
 		 */
-		readonly command: string | undefined;
+		readonly command?: string;
 
 		/**
 		 * The variables that were referenced in this message.
@@ -269,6 +269,24 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
+	/**
+	 * The location at which the chat is happening.
+	 */
+	export enum ChatLocation {
+		/**
+		 * The chat panel
+		 */
+		Panel = 1,
+		/**
+		 * Terminal inline chat
+		 */
+		Terminal = 2,
+		/**
+		 * Notebook inline chat
+		 */
+		Notebook = 3
+	}
+
 	export interface ChatRequest {
 		/**
 		 * The prompt as entered by the user.
@@ -295,6 +313,11 @@ declare module 'vscode' {
 		 * string-manipulation of the prompt.
 		 */
 		readonly userToolInvocations: readonly ChatToolInvocations[];
+
+		/**
+		 * The location at which the chat is happening. This will always be one of the supported values
+		 */
+		readonly location: ChatLocation;
 	}
 
 	/**

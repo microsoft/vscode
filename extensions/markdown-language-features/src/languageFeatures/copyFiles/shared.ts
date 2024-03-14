@@ -7,11 +7,10 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
 import { ITextDocument } from '../../types/textDocument';
-import { coalesce } from '../../util/arrays';
 import { getDocumentDir } from '../../util/document';
 import { Schemes } from '../../util/schemes';
+import { UriList } from '../../util/uriList';
 import { resolveSnippet } from './snippets';
-import { parseUriList } from '../../util/uriList';
 
 enum MediaKind {
 	Image,
@@ -68,24 +67,13 @@ export function getSnippetLabel(counter: { insertedAudioVideoCount: number; inse
 export function createInsertUriListEdit(
 	document: ITextDocument,
 	ranges: readonly vscode.Range[],
-	urlList: string,
+	urlList: UriList,
 	options?: UriListSnippetOptions,
 ): { edits: vscode.SnippetTextEdit[]; label: string } | undefined {
-	if (!ranges.length) {
+	if (!ranges.length || !urlList.entries.length) {
 		return;
 	}
 
-	const entries = coalesce(parseUriList(urlList).map(line => {
-		try {
-			return { uri: vscode.Uri.parse(line), str: line };
-		} catch {
-			// Uri parse failure
-			return undefined;
-		}
-	}));
-	if (!entries.length) {
-		return;
-	}
 
 	const edits: vscode.SnippetTextEdit[] = [];
 
@@ -94,14 +82,14 @@ export function createInsertUriListEdit(
 	let insertedAudioVideoCount = 0;
 
 	// Use 1 for all empty ranges but give non-empty range unique indices starting after 1
-	let placeHolderStartIndex = 1 + entries.length;
+	let placeHolderStartIndex = 1 + urlList.entries.length;
 
 	// Sort ranges by start position
 	const orderedRanges = [...ranges].sort((a, b) => a.start.compareTo(b.start));
 	const allRangesAreEmpty = orderedRanges.every(range => range.isEmpty);
 
 	for (const range of orderedRanges) {
-		const snippet = createUriListSnippet(document.uri, entries, {
+		const snippet = createUriListSnippet(document.uri, urlList.entries, {
 			placeholderText: range.isEmpty ? undefined : document.getText(range),
 			placeholderStartIndex: allRangesAreEmpty ? 1 : placeHolderStartIndex,
 			...options,
@@ -114,7 +102,7 @@ export function createInsertUriListEdit(
 		insertedImageCount += snippet.insertedImageCount;
 		insertedAudioVideoCount += snippet.insertedAudioVideoCount;
 
-		placeHolderStartIndex += entries.length;
+		placeHolderStartIndex += urlList.entries.length;
 
 		edits.push(new vscode.SnippetTextEdit(range, snippet.snippet));
 	}
@@ -272,4 +260,11 @@ function needsBracketLink(mdPath: string): boolean {
 	}
 
 	return nestingCount > 0;
+}
+
+export interface DropOrPasteEdit {
+	readonly snippet: vscode.SnippetString;
+	readonly label: string;
+	readonly additionalEdits: vscode.WorkspaceEdit;
+	readonly yieldTo: vscode.DocumentPasteEditKind[];
 }
