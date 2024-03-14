@@ -822,7 +822,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
-						if (isMacintosh ? event.metaKey : event.ctrlKey) {
+						if (isMacintosh ? event.metaKey : event.altKey) {
 							this.ui.list.focus(QuickInputListFocus.NextSeparator);
 						} else {
 							this.ui.list.focus(QuickInputListFocus.Next);
@@ -833,7 +833,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.UpArrow:
-						if (isMacintosh ? event.metaKey : event.ctrlKey) {
+						if (isMacintosh ? event.metaKey : event.altKey) {
 							this.ui.list.focus(QuickInputListFocus.PreviousSeparator);
 						} else {
 							this.ui.list.focus(QuickInputListFocus.Previous);
