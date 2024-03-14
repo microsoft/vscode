@@ -103,7 +103,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { WEBVIEW_NESTED_IN_LIST_VIEW_FOCUSED } from 'vs/platform/webview/common/webviewContextKeys';
+import { WEBVIEW_FOCUSED } from 'vs/platform/webview/common/webviewContextKeys';
 
 const $ = DOM.$;
 
@@ -423,7 +423,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._outputInputFocus = NOTEBOOK_OUPTUT_INPUT_FOCUSED.bindTo(this.scopedContextKeyService);
-		this._webviewHasFocus = WEBVIEW_NESTED_IN_LIST_VIEW_FOCUSED.bindTo(this.scopedContextKeyService);
+		this._webviewHasFocus = WEBVIEW_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.scopedContextKeyService);
 		this._cursorNavMode = NOTEBOOK_CURSOR_NAVIGATION_MODE.bindTo(this.scopedContextKeyService);
 

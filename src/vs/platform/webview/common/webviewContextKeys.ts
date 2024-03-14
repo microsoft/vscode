@@ -7,4 +7,4 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 
 // WebView Commands
-export const WEBVIEW_NESTED_IN_LIST_VIEW_FOCUSED = new RawContextKey<boolean>('webviewNestedInListViewFocused', false);
+export const WEBVIEW_FOCUSED = new RawContextKey<boolean>('webviewFocused', false);
