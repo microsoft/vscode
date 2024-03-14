@@ -10,7 +10,6 @@ export type IMouseWheelEvent = [number, number, number];
 
 suite('MouseWheelClassifier', () => {
 
-
 	test('OSX - Apple Magic Mouse', () => {
 		const testData: IMouseWheelEvent[] = [
 			[1503409622410, -0.025, 0],
@@ -711,7 +710,6 @@ suite('MouseWheelClassifier', () => {
 			[1707837465136, 1.5, 0],
 			[1707837465157, 1.5, 0],
 		];
-
 
 		const classifier = new MouseWheelClassifier();
 		for (let i = 0, len = testData.length; i < len; i++) {

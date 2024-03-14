@@ -391,12 +391,13 @@ export abstract class AbstractScrollableElement extends Widget {
 			return;
 		}
 
-
 		const classifier = MouseWheelClassifier.INSTANCE;
 		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
 			classifier.acceptStandardWheelEvent(e);
 		}
 
+		// useful for creating unit tests:
+		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
 
 		let didScroll = false;
 
