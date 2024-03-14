@@ -63,7 +63,7 @@ export class VerboseMarkdownHover extends MarkdownHover {
 		contents: IMarkdownString[],
 		isBeforeContent: boolean,
 		ordinal: number,
-		public readonly provider: HoverProvider | undefined,
+		public readonly sourceProvider: HoverProvider | undefined,
 		public readonly verbosityMetadata: HoverVerbosityMetadata | undefined,
 	) {
 		super(owner, range, contents, isBeforeContent, ordinal);
@@ -181,7 +181,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: VerboseMarkdownHover[]): IDisposable {
 		this._context = context;
 		this._verbosityLevels.clear();
-		this._providers = hoverParts.map(hoverPart => hoverPart.provider);
+		this._providers = hoverParts.map(hoverPart => hoverPart.sourceProvider);
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 		const disposables = new DisposableStore();
 		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
