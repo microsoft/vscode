@@ -168,9 +168,12 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		if (this._domNode === undefined) {
 			return;
 		}
-		this._editor.applyFontInfo(this._domNode);
-		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		assertType(this._input !== undefined, 'RenameInputField#_updateFont: _input must not be undefined given _domNode is defined');
 		assertType(this._label !== undefined, 'RenameInputField#_updateFont: _label must not be undefined given _domNode is defined');
+
+		this._editor.applyFontInfo(this._input);
+
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		this._label.style.fontSize = `${this._computeLabelFontSize(fontInfo.fontSize)}px`;
 	}
 
