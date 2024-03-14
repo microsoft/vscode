@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { HoverVerbosityMetadata, HoverProvider, Hover } from 'vs/editor/common/languages';
+import { HoverVerbosityMetadata, HoverProvider, Hover, HoverContext } from 'vs/editor/common/languages';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -214,7 +214,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 		const verbosityLevel = currentVerbosityLevel + delta;
 		this._verbosityLevelsByHoverIdx[focusedIndex] = verbosityLevel;
-		const context = { verbosityLevel };
+		const context: HoverContext = { verbosityLevel };
 		let hover: Hover | null | undefined;
 		try {
 			hover = await Promise.resolve(provider.provideHover(model, this._position, CancellationToken.None, context));
