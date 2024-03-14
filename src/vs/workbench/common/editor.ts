@@ -792,10 +792,10 @@ export const enum EditorInputCapabilities {
 	Scratchpad = 1 << 9,
 
 	/**
-	 * Signals that the editor does not support opening in
-	 * auxiliary windows yet.
+	 * Signals that the editor does not support movig to
+	 * another window when being dirty.
 	 */
-	AuxWindowUnsupported = 1 << 10
+	PreventDirtyMoveAcrossWindows = 1 << 10
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

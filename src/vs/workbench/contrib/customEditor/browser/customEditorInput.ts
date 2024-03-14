@@ -152,11 +152,14 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 		if (this.resource.scheme === Schemas.untitled) {
 			capabilities |= EditorInputCapabilities.Untitled;
-			capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
 		}
 
-		if (this.isDirty()) {
-			capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
+		if (this.isModified() && !this._modelRef?.object.isTextBased && !this.backupId) {
+			// Non-text based modified custom editors without associated
+			// backup should prevent to be moved across windows to prevent
+			// data loss. Their modified state is potentially stored within
+			// the `iframe` which will reset when moved across windows.
+			capabilities |= EditorInputCapabilities.PreventDirtyMoveAcrossWindows;
 		}
 
 		return capabilities;
