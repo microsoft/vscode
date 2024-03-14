@@ -107,6 +107,11 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeSelection?: Event<IEditorPaneSelectionChangeEvent>;
 
 	/**
+	 * An optional event to notify when the editor inside the pane scrolled
+	 */
+	readonly onDidChangeScroll?: Event<void>;
+
+	/**
 	 * The assigned input of this editor.
 	 */
 	readonly input: EditorInput | undefined;
@@ -181,6 +186,22 @@ export interface IEditorPane extends IComposite {
 	 * selection as needed.
 	 */
 	getSelection?(): IEditorPaneSelection | undefined;
+
+	/**
+	 * An optional method to return the current scroll position
+	 * of an editor inside the pane.
+	 *
+	 * Clients of this method will typically react to the
+	 * `onDidChangeScroll` event to receive the current
+	 * scroll position as needed.
+	 */
+	getScrollPosition?(): IEditorPaneScrollPosition;
+
+	/**
+	 * An optional method to set the current scroll position
+	 * of an editor inside the pane.
+	 */
+	setScrollPosition?(scrollPosition: IEditorPaneScrollPosition): void;
 
 	/**
 	 * Finds out if this editor is visible or not.
@@ -303,6 +324,14 @@ export function isEditorPaneWithSelection(editorPane: IEditorPane | undefined): 
 	const candidate = editorPane as IEditorPaneWithSelection | undefined;
 
 	return !!candidate && typeof candidate.getSelection === 'function' && !!candidate.onDidChangeSelection;
+}
+
+/**
+ * Scroll position of a pane
+ */
+export interface IEditorPaneScrollPosition {
+	readonly scrollTop: number;
+	readonly scrollLeft?: number;
 }
 
 /**
