@@ -2082,6 +2082,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
 	readonly contextViewProvider?: IContextViewProvider;
 	readonly collapseByDefault?: boolean; // defaults to false
+	readonly allowNonCollapsibleParents?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly paddingBottom?: number;
