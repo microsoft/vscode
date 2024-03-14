@@ -76,7 +76,7 @@ const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${com
 const tasks = compilations.map(function (tsconfigFileRelativePath) {
 	const tsconfigFile = path.join(root, tsconfigFileRelativePath);
 	const extensionRoot = path.dirname(tsconfigFile);
-	const relativeDirname = path.basename(extensionRoot);
+	const relativeDirname = path.dirname(tsconfigFileRelativePath.substring(tsconfigFileRelativePath.indexOf('extensions/') + 11));
 
 	const overrideOptions = {};
 	overrideOptions.sourceMap = true;
