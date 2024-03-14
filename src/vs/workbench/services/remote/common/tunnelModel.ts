@@ -20,7 +20,7 @@ import { RemoteTunnel, ITunnelService, TunnelProtocol, TunnelPrivacyId, LOCALHOS
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNumber, isObject, isString } from 'vs/base/common/types';
 import { deepClone } from 'vs/base/common/objects';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -993,7 +993,7 @@ export class TunnelModel extends Disposable {
 				const portGroup = entry[1];
 				const matchingCandidate = matchingCandidates.get(portGroup[0]);
 				return provider.providePortAttributes(portGroup,
-					matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token);
+					matchingCandidate?.pid, matchingCandidate?.detail, CancellationToken.None);
 			});
 		})));
 		const providedAttributes: Map<number, ProvidedPortAttributes> = new Map();

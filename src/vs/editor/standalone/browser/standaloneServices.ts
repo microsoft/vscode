@@ -10,7 +10,7 @@ import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/editor/common/services/languageFeatureDebounce';
 import 'vs/editor/common/services/semanticTokensStylingService';
 import 'vs/editor/common/services/languageFeaturesService';
-import 'vs/editor/browser/services/hoverService';
+import 'vs/editor/browser/services/hoverService/hoverService';
 
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';

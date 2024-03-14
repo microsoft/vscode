@@ -135,7 +135,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		let capabilities = EditorInputCapabilities.None;
 
 		capabilities |= EditorInputCapabilities.CanDropIntoEditor;
-		capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
 
 		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
 			capabilities |= EditorInputCapabilities.Singleton;
@@ -153,6 +152,11 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 		if (this.resource.scheme === Schemas.untitled) {
 			capabilities |= EditorInputCapabilities.Untitled;
+			capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
+		}
+
+		if (this.isDirty()) {
+			capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
 		}
 
 		return capabilities;

@@ -21,6 +21,6 @@ export class NodeJSWatcherClient extends AbstractNonRecursiveWatcherClient {
 	}
 
 	protected override createWatcher(disposables: DisposableStore): INonRecursiveWatcher {
-		return disposables.add(new NodeJSWatcher());
+		return disposables.add(new NodeJSWatcher()) satisfies INonRecursiveWatcher;
 	}
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -125,8 +124,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const viewModelPlaceholder = this.widget.viewModel?.inputPlaceholder;
-			const placeholder = viewModelPlaceholder ?? '';
+			const defaultAgent = this.chatAgentService.getDefaultAgent();
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -137,7 +135,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: placeholder,
+							contentText: viewModel.inputPlaceholder ?? defaultAgent?.metadata.description ?? '',
 							color: this.getPlaceholderColor()
 						}
 					}
@@ -237,8 +235,7 @@ class InputEditorSlashCommandMode extends Disposable {
 	public readonly id = 'InputEditorSlashCommandMode';
 
 	constructor(
-		private readonly widget: IChatWidget,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+		private readonly widget: IChatWidget
 	) {
 		super();
 		this._register(this.widget.onDidSubmitAgent(e => {
@@ -248,10 +245,9 @@ class InputEditorSlashCommandMode extends Disposable {
 
 	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand | undefined) {
 		let value: string | undefined;
-		if (slashCommand && slashCommand.shouldRepopulate) {
+		if (slashCommand && slashCommand.isSticky) {
 			value = `${chatAgentLeader}${agent.id} ${chatSubcommandLeader}${slashCommand.name} `;
-		} else if (agent.id !== this._chatAgentService.getDefaultAgent()?.id) {
-			// Agents always repopulate, and slash commands fall back to the agent if they don't repopulate
+		} else if (agent.metadata.isSticky) {
 			value = `${chatAgentLeader}${agent.id} `;
 		}
 
@@ -349,7 +345,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => !a.metadata.isDefault);
+					.filter(a => !a.isDefault);
 				return <CompletionList>{
 					suggestions: agents.map((c, i) => {
 						const withAt = `@${c.id}`;
@@ -400,10 +396,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
-				const commands = await usedAgent.agent.provideSlashCommands(token); // Refresh the cache here
-
 				return <CompletionList>{
-					suggestions: commands.map((c, i) => {
+					suggestions: usedAgent.agent.slashCommands.map((c, i) => {
 						const withSlash = `/${c.name}`;
 						return <CompletionItem>{
 							label: withSlash,
@@ -423,7 +417,8 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
+				const viewModel = widget?.viewModel;
+				if (!widget || !viewModel) {
 					return;
 				}
 
@@ -433,15 +428,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents();
-				const all = agents.map(agent => agent.provideSlashCommands(token));
-				const commands = await raceCancellation(Promise.all(all), token);
-
-				if (!commands) {
-					return;
-				}
-
 				const justAgents: CompletionItem[] = agents
-					.filter(a => !a.metadata.isDefault)
+					.filter(a => !a.isDefault)
 					.map(agent => {
 						const agentLabel = `${chatAgentLeader}${agent.id}`;
 						return {
@@ -456,7 +444,7 @@ class AgentCompletions extends Disposable {
 
 				return {
 					suggestions: justAgents.concat(
-						agents.flatMap((agent, i) => commands[i].map((c, i) => {
+						agents.flatMap(agent => agent.slashCommands.map((c, i) => {
 							const agentLabel = `${chatAgentLeader}${agent.id}`;
 							const withSlash = `${chatSubcommandLeader}${c.name}`;
 							return {
@@ -464,7 +452,7 @@ class AgentCompletions extends Disposable {
 								filterText: `${chatSubcommandLeader}${agent.id}${c.name}`,
 								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
-								detail: `(${agentLabel}) ${c.description}`,
+								detail: `(${agentLabel}) ${c.description ?? ''}`,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
 								sortText: `${chatSubcommandLeader}${agent.id}${c.name}`,
@@ -607,7 +595,7 @@ class ChatTokenDeleter extends Disposable {
 
 		// A simple heuristic to delete the previous token when the user presses backspace.
 		// The sophisticated way to do this would be to have a parse tree that can be updated incrementally.
-		this.widget.inputEditor.onDidChangeModelContent(e => {
+		this._register(this.widget.inputEditor.onDidChangeModelContent(e => {
 			if (!previousInputValue) {
 				previousInputValue = inputValue;
 			}
@@ -637,7 +625,7 @@ class ChatTokenDeleter extends Disposable {
 			}
 
 			previousInputValue = this.widget.inputEditor.getValue();
-		});
+		}));
 	}
 }
 ChatWidget.CONTRIBS.push(ChatTokenDeleter);

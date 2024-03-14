@@ -4,28 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
+import {
+	extractLocalHostUriMetaDataForPortMapping,
+	extractQueryLocalHostUriMetaDataForPortMapping
+} from 'vs/platform/tunnel/common/tunnel';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 suite('Tunnel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function portMappingDoTest(res: { address: string; port: number } | undefined, expectedAddress?: string, expectedPort?: number) {
+	function portMappingDoTest(uri: string,
+		func: (uri: URI) => { address: string; port: number } | undefined,
+		expectedAddress?: string,
+		expectedPort?: number) {
+		const res = func(URI.parse(uri));
 		assert.strictEqual(!expectedAddress, !res);
 		assert.strictEqual(res?.address, expectedAddress);
 		assert.strictEqual(res?.port, expectedPort);
 	}
 
 	function portMappingTest(uri: string, expectedAddress?: string, expectedPort?: number) {
-		for (const checkQuery of [true, false]) {
-			portMappingDoTest(extractLocalHostUriMetaDataForPortMapping(URI.parse(uri), { checkQuery }), expectedAddress, expectedPort);
-		}
+		portMappingDoTest(uri, extractLocalHostUriMetaDataForPortMapping, expectedAddress, expectedPort);
 	}
 
 	function portMappingTestQuery(uri: string, expectedAddress?: string, expectedPort?: number) {
-		portMappingDoTest(extractLocalHostUriMetaDataForPortMapping(URI.parse(uri)), expectedAddress, expectedPort);
-		portMappingDoTest(extractLocalHostUriMetaDataForPortMapping(URI.parse(uri), { checkQuery: false }), undefined, undefined);
+		portMappingDoTest(uri, extractQueryLocalHostUriMetaDataForPortMapping, expectedAddress, expectedPort);
 	}
 
 	test('portMapping', () => {

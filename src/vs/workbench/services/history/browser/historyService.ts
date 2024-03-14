@@ -35,6 +35,21 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { mainWindow } from 'vs/base/browser/window';
 
+interface ISerializedEditorHistoryEntry {
+	readonly editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
+}
+
+interface IRecentlyClosedEditor {
+	readonly editorId: string | undefined;
+	readonly editor: IUntypedEditorInput;
+
+	readonly resource: URI | undefined;
+	readonly associatedResources: URI[];
+
+	readonly index: number;
+	readonly sticky: boolean;
+}
+
 export class HistoryService extends Disposable implements IHistoryService {
 
 	declare readonly _serviceBrand: undefined;
@@ -57,7 +72,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -166,18 +182,27 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeEditorPane?.input && activeEditorPane.group ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
+		this.lastActiveEditor = activeEditorPane?.input ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
 
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
 
-		// Handle editor change
-		this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
+		// Handle editor change unless the editor is transient
+		if (!activeEditorPane?.group.isTransient(activeEditorPane.input)) {
+			this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
+		} else {
+			this.logService.trace(`[History]: ignoring transient editor change (editor: ${activeEditorPane.input?.resource?.toString()}})`);
+		}
 
-		// Listen to selection changes if the editor pane
-		// is having a selection concept.
+		// Listen to selection changes unless the editor is transient
 		if (isEditorPaneWithSelection(activeEditorPane)) {
-			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e)));
+			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => {
+				if (!activeEditorPane.group.isTransient(activeEditorPane.input)) {
+					this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e);
+				} else {
+					this.logService.trace(`[History]: ignoring transient editor selection change (editor: ${activeEditorPane.input?.resource?.toString()}})`);
+				}
+			}));
 		}
 
 		// Context keys
@@ -1497,7 +1522,7 @@ ${entryLabels.join('\n')}
 		this.trace('notifyNavigation()', editorPane?.input, event);
 
 		const isSelectionAwareEditorPane = isEditorPaneWithSelection(editorPane);
-		const hasValidEditor = editorPane?.group && editorPane.input && !editorPane.input.isDisposed();
+		const hasValidEditor = editorPane?.input && !editorPane.input.isDisposed();
 
 		// Treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
@@ -1868,7 +1893,7 @@ ${entryLabels.join('\n')}
 			return false; // we need an active editor pane with selection support
 		}
 
-		if (pane.group?.id !== this.current.groupId) {
+		if (pane.group.id !== this.current.groupId) {
 			return false; // we need matching groups
 		}
 
@@ -2069,19 +2094,4 @@ class EditorHelper {
 			mapEditorToDispose.delete(editor);
 		}
 	}
-}
-
-interface ISerializedEditorHistoryEntry {
-	editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
-}
-
-interface IRecentlyClosedEditor {
-	editorId: string | undefined;
-	editor: IUntypedEditorInput;
-
-	resource: URI | undefined;
-	associatedResources: URI[];
-
-	index: number;
-	sticky: boolean;
 }

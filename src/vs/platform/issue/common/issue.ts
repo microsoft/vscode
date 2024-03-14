@@ -25,6 +25,12 @@ export const enum IssueType {
 	FeatureRequest
 }
 
+export enum IssueSource {
+	VSCode = 'vscode',
+	Extension = 'extension',
+	Marketplace = 'marketplace'
+}
+
 export interface IssueReporterStyles extends WindowStyles {
 	textLinkColor?: string;
 	textLinkActiveForeground?: string;
@@ -65,13 +71,14 @@ export interface IssueReporterData extends WindowData {
 	styles: IssueReporterStyles;
 	enabledExtensions: IssueReporterExtensionData[];
 	issueType?: IssueType;
+	issueSource?: IssueSource;
 	extensionId?: string;
 	experiments?: string;
 	restrictedMode: boolean;
 	isUnsupported: boolean;
 	githubAccessToken: string;
-	readonly issueTitle?: string;
-	readonly issueBody?: string;
+	issueTitle?: string;
+	issueBody?: string;
 	data?: string;
 	uri?: UriComponents;
 }
@@ -138,5 +145,6 @@ export interface IIssueMainService {
 	$getIssueReporterData(extensionId: string): Promise<string>;
 	$getIssueReporterTemplate(extensionId: string): Promise<string>;
 	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]>;
+	$sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
 	$closeReporter(): Promise<void>;
 }

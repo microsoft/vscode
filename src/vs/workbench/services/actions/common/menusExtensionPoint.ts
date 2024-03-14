@@ -291,6 +291,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribCommentPeekContext'
 	},
 	{
+		key: 'commentsView/commentThread/context',
+		id: MenuId.CommentsViewThreadActions,
+		description: localize('commentsView.threadActions', "The contributed comment thread context menu in the comments view"),
+		proposed: 'contribCommentsViewThreadMenus'
+	},
+	{
 		key: 'notebook/toolbar',
 		id: MenuId.NotebookToolbar,
 		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
@@ -322,6 +328,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
 	},
 	{
+		key: 'issue/reporter',
+		id: MenuId.IssueReporter,
+		description: localize('issue.reporter', "The contributed issue reporter menu"),
+		proposed: 'contribIssueReporter'
+	},
+	{
 		key: 'testing/item/context',
 		id: MenuId.TestItem,
 		description: localize('testing.item.context', "The contributed test item menu"),
@@ -330,6 +342,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'testing/item/gutter',
 		id: MenuId.TestItemGutter,
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
+	},
+	{
+		key: 'testing/item/result',
+		id: MenuId.TestPeekElement,
+		description: localize('testing.item.result.title', "The menu for an item in the Test Results view or peek."),
 	},
 	{
 		key: 'testing/message/context',
@@ -394,6 +411,13 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
 		supportsSubmenus: false,
 		proposed: 'inlineCompletionsAdditions'
+	},
+	{
+		key: 'editor/inlineEdit/actions',
+		id: MenuId.InlineEditActions,
+		description: localize('inlineEdit.actions', "The actions shown when hovering on an inline edit"),
+		supportsSubmenus: false,
+		proposed: 'inlineEdit'
 	},
 	{
 		key: 'editor/content',

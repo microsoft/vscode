@@ -60,6 +60,9 @@ export interface IDelegate {
 	canRelayout?: boolean; // default: true
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
 	onHide?(data?: unknown): void;
+
+	// context views with higher layers are rendered over contet views with lower layers
+	layer?: number; // Default: 0
 }
 
 export interface IContextViewProvider {
@@ -222,7 +225,7 @@ export class ContextView extends Disposable {
 		this.view.className = 'context-view';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
-		this.view.style.zIndex = '2575';
+		this.view.style.zIndex = `${2575 + (delegate.layer ?? 0)}`;
 		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 

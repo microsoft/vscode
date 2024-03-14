@@ -12,6 +12,7 @@ import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 const OpenIssueReporterApiId = 'vscode.openIssueReporter';
@@ -59,7 +60,8 @@ interface OpenIssueReporterArgs {
 
 export class BaseIssueContribution implements IWorkbenchContribution {
 	constructor(
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		if (!productService.reportIssueUrl) {
 			return;
