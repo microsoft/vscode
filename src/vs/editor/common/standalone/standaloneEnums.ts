@@ -366,7 +366,13 @@ export enum GlyphMarginLane {
 }
 
 export enum HoverVerbosityAction {
+	/**
+	 * Increase the verbosity of the hover
+	 */
 	Increase = 0,
+	/**
+	 * Decrease the verbosity of the hover
+	 */
 	Decrease = 1
 }
 

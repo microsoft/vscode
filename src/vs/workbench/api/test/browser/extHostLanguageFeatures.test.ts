@@ -435,6 +435,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(hovers.length, 1);
 		const [entry] = hovers;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
+		hovers.forEach(h => h.dispose());
 	});
 
 
@@ -451,6 +452,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(hovers.length, 1);
 		const [entry] = hovers;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
+		hovers.forEach(h => h.dispose());
 	});
 
 
@@ -474,6 +476,7 @@ suite('ExtHostLanguageFeatures', function () {
 		const [first, second] = (value as languages.Hover[]);
 		assert.strictEqual(first.contents[0].value, 'registered second');
 		assert.strictEqual(second.contents[0].value, 'registered first');
+		value.forEach(h => h.dispose());
 	});
 
 
@@ -493,6 +496,7 @@ suite('ExtHostLanguageFeatures', function () {
 		await rpcProtocol.sync();
 		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), undefined, CancellationToken.None);
 		assert.strictEqual(hovers.length, 1);
+		hovers.forEach(h => h.dispose());
 	});
 
 	// --- occurrences

@@ -211,7 +211,13 @@ export interface HoverContext {
 }
 
 export enum HoverVerbosityAction {
+	/**
+	 * Increase the verbosity of the hover
+	 */
 	Increase,
+	/**
+	 * Decrease the verbosity of the hover
+	 */
 	Decrease
 }
 
