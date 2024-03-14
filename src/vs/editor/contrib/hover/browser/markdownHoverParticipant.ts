@@ -261,7 +261,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			return contentsWrapper;
 		}
 		const actionsContainer = $('div.verbosity-actions');
-		contentsWrapper.appendChild(actionsContainer);
+		contentsWrapper.prepend(actionsContainer);
 
 		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, verbosityMetadata.canIncreaseVerbosity ?? false, store);
 		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, verbosityMetadata.canDecreaseVerbosity ?? false, store);

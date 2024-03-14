@@ -24,7 +24,6 @@
 
 .monaco-editor .monaco-hover .hover-row {
 	display: flex;
-	justify-content: space-between;
 }
 
 .monaco-editor .monaco-hover .hover-row .hover-row-contents {
@@ -35,8 +34,10 @@
 .monaco-editor .monaco-hover .hover-row .verbosity-actions {
 	display: flex;
 	flex-direction: column;
-	margin-right: 10px;
-	justify-content: center;
+	padding-left: 5px;
+	padding-right: 5px;
+	justify-content: end;
+	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions .codicon {
