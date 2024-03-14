@@ -478,6 +478,17 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 			await this.checkForWorkspaceTrust(extension.manifest);
 
+			if (extension.manifest.extensionDependencies?.length) {
+				const installed = await server.extensionManagementService.getInstalled();
+				const dependeciesToInstall = extension.manifest.extensionDependencies.filter(id => !installed.some(i => areSameExtensions(i.identifier, { id })));
+				if (dependeciesToInstall.length) {
+					const toInstall = await this.extensionGalleryService.getExtensions(dependeciesToInstall.map(id => ({ id })), CancellationToken.None);
+					if (toInstall.length) {
+						await server.extensionManagementService.installGalleryExtensions(toInstall.map(extension => ({ extension, options: {} })));
+					}
+				}
+			}
+
 			const existingLocations = this.getWorkspaceExtensionsLocations();
 			const workspaceExtensions = await this.getInstalledWorkspaceExtensions();
 

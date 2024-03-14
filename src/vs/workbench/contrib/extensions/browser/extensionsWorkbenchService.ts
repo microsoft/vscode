@@ -1691,7 +1691,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			case StateType.Updating:
 			case StateType.Ready: {
 				const version = this.updateService.state.update.productVersion;
-				if (semver.valid(version)) {
+				if (version && semver.valid(version)) {
 					return { version, date: this.updateService.state.update.timestamp ? new Date(this.updateService.state.update.timestamp).toISOString() : undefined };
 				}
 			}

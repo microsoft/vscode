@@ -81,7 +81,13 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 				return;
 			}
 
-			return report.getUri(model.uri);
+			const file = report.getUri(model.uri);
+			if (file) {
+				return file;
+			}
+
+			report.didAddCoverage.read(reader); // re-read if changes when there's no report
+			return undefined;
 		});
 
 		this._register(autorun(reader => {

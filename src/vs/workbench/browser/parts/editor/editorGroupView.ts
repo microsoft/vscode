@@ -11,7 +11,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement, getWindowById } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -28,7 +28,7 @@ import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DeferredPromise, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalEditorMoveCopyOpenOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction, SubmenuAction } from 'vs/base/common/actions';
@@ -1049,7 +1049,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		});
 	}
 
-	private async doOpenEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
+	private async doOpenEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorMoveCopyOpenOptions): Promise<IEditorPane | undefined> {
 
 		// Guard against invalid editors. Disposed editors
 		// should never open because they emit no events
@@ -1146,7 +1146,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return showEditorResult;
 	}
 
-	private doShowEditor(editor: EditorInput, context: { active: boolean; isNew: boolean }, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
+	private doShowEditor(editor: EditorInput, context: { active: boolean; isNew: boolean }, options?: IEditorOptions, internalOptions?: IInternalEditorMoveCopyOpenOptions): Promise<IEditorPane | undefined> {
 
 		// Show in editor control if the active editor changed
 		let openEditorPromise: Promise<IEditorPane | undefined>;
@@ -1253,7 +1253,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// through a method that allows for bulk updates but only
 		// when moving to a different group where many editors
 		// are more likely to occur.
-		const internalOptions: IInternalMoveCopyOptions = {
+		const internalOptions: IInternalEditorMoveCopyOpenOptions = {
 			skipTitleUpdate: this !== target
 		};
 
@@ -1270,7 +1270,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalMoveCopyOptions): void {
+	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalEditorMoveCopyOpenOptions): void {
 
 		// Move within same group
 		if (this === target) {
@@ -1320,7 +1320,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): void {
+	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalEditorMoveCopyOpenOptions): void {
 		const keepCopy = internalOptions?.keepCopy;
 
 		// When moving/copying an editor, try to preserve as much view state as possible
@@ -1342,11 +1342,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// A move to another group is an open first...
-		target.doOpenEditor(keepCopy ? editor.copy() : editor, options, internalOptions);
+		target.doOpenEditor(keepCopy ? editor.copy() : editor, options, { ...internalOptions, sourceGroup: this });
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
-			this.doCloseEditor(editor, true /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
+			let canCloseEditor = true;
+			if (
+				editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported) &&
+				getWindowById(target.windowId) !== getWindowById(this.windowId)
+			) {
+				canCloseEditor = false; // do not close the editor if it does not support aux windows
+			}
+
+			if (canCloseEditor) {
+				this.doCloseEditor(editor, true /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
+			}
 		}
 	}
 
@@ -1361,7 +1371,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// through a method that allows for bulk updates but only
 		// when moving to a different group where many editors
 		// are more likely to occur.
-		const internalOptions: IInternalMoveCopyOptions = {
+		const internalOptions: IInternalEditorMoveCopyOpenOptions = {
 			skipTitleUpdate: this !== target
 		};
 

@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatCopyKind, IChat, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -435,7 +435,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(data.providerId, data, CancellationToken.None);
 	}
 
-	async sendRequest(sessionId: string, request: string): Promise<IChatSendRequestData | undefined> {
+	async sendRequest(sessionId: string, request: string, implicitVariablesEnabled?: boolean): Promise<IChatSendRequestData | undefined> {
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 		if (!request.trim()) {
 			this.trace('sendRequest', 'Rejected empty message');
@@ -464,7 +464,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
-			responseCompletePromise: this._sendRequestAsync(model, sessionId, provider, parsedRequest),
+			responseCompletePromise: this._sendRequestAsync(model, sessionId, provider, parsedRequest, implicitVariablesEnabled),
 			agent,
 			slashCommand: agentSlashCommandPart?.command,
 		};
@@ -478,7 +478,7 @@ export class ChatService extends Disposable implements IChatService {
 		return newTokenSource.token;
 	}
 
-	private async _sendRequestAsync(model: ChatModel, sessionId: string, provider: IChatProvider, parsedRequest: IParsedChatRequest): Promise<void> {
+	private async _sendRequestAsync(model: ChatModel, sessionId: string, provider: IChatProvider, parsedRequest: IParsedChatRequest, implicitVariablesEnabled?: boolean): Promise<void> {
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -541,13 +541,22 @@ export class ChatService extends Disposable implements IChatService {
 					request.variableData = variableData;
 
 					const promptTextResult = getPromptText(request.message);
+					const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
+					if (implicitVariablesEnabled) {
+						const implicitVariables = agent.defaultImplicitVariables;
+						if (implicitVariables) {
+							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => ({ name: v, values: await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token) } satisfies IChatRequestVariableEntry)));
+							updatedVariableData.variables.push(...resolvedImplicitVariables);
+						}
+					}
+
 					const requestProps: IChatAgentRequest = {
 						sessionId,
 						requestId: request.id,
 						agentId: agent.id,
 						message: promptTextResult.message,
 						command: agentSlashCommandPart?.command.name,
-						variables: updateRanges(variableData, promptTextResult.diff), // TODO bit of a hack
+						variables: updatedVariableData,
 						location: ChatAgentLocation.Terminal
 					};
 

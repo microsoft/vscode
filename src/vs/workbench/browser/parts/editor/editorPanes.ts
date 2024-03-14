@@ -17,7 +17,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions, IInternalEditorMoveCopyOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
@@ -28,7 +28,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService, IPromptButton, IPromptCancelButton } from 'vs/platform/dialogs/common/dialogs';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { mainWindow } from 'vs/base/browser/window';
 
 export interface IOpenEditorResult {
 
@@ -127,12 +126,12 @@ export class EditorPanes extends Disposable {
 		}
 	}
 
-	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorMoveCopyOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 		try {
 
 			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
-			if (getWindowById(this.groupView.windowId, true).window !== mainWindow && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
-				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "This type of editor cannot be opened in other windows yet."), [
+			if (getWindowById(this.groupView.windowId) !== getWindowById(internalOptions?.sourceGroup?.windowId, true) && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
+				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "Save the editor first before opening in this window."), [
 					toAction({
 						id: 'workbench.editor.action.closeEditor', label: localize('openFolder', "Close Editor"), run: async () => {
 							return this.groupView.closeEditor(editor);

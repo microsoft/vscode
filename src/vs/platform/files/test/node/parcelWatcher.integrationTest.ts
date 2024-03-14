@@ -38,14 +38,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 		readonly onWatchFail = this._onDidWatchFail.event;
 
-		testNormalizePaths(paths: string[], excludes: string[] = []): string[] {
+		testRemoveDuplicateRequests(paths: string[], excludes: string[] = []): string[] {
 
 			// Work with strings as paths to simplify testing
 			const requests: IRecursiveWatchRequest[] = paths.map(path => {
 				return { path, excludes, recursive: true };
 			});
 
-			return this.normalizeRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
+			return this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
 		}
 
 		protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
@@ -56,7 +56,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 		}
 
 		async whenReady(): Promise<void> {
-			for (const [, watcher] of this.watchers) {
+			for (const watcher of this.watchers) {
 				await watcher.ready;
 			}
 		}
@@ -584,35 +584,40 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 	test('should not exclude roots that do not overlap', () => {
 		if (isWindows) {
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a']), ['C:\\a']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a']), ['C:\\a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
 		} else {
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a']), ['/a']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/b']), ['/a', '/b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a']), ['/a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/b']), ['/a', '/b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
 		}
 	});
 
 	test('should remove sub-folders of other paths', () => {
 		if (isWindows) {
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
 		} else {
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/a/b']), ['/a']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/a/b', '/a/c/d']), ['/a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/a/b']), ['/a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/b', '/a/b']), ['/a', '/b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/a/b', '/a/c/d']), ['/a']);
 		}
 	});
 
 	test('should ignore when everything excluded', () => {
-		assert.deepStrictEqual(watcher.testNormalizePaths(['/foo/bar', '/bar'], ['**', 'something']), []);
+		assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/foo/bar', '/bar'], ['**', 'something']), []);
 	});
 
 	test('watching same or overlapping paths supported when correlation is applied', async () => {
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: true, correlationId: 1 }
+		]);
+
+		await basicCrudTest(join(testDir, 'newFile.txt'), null, 1);
 
 		// same path, same options
 		await watcher.watch([
