@@ -6,13 +6,13 @@
 import { CachedFunction } from 'vs/base/common/cache';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunDelta, constObservable, debouncedObservable, derived, derivedOpts, observableFromEvent, observableFromPromise, wasEventTriggeredRecently } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunDelta, constObservable, derived, derivedOpts, observableFromEvent, observableFromPromise } from 'vs/base/common/observable';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilitySignal, SignalModality, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -37,10 +37,28 @@ export class SignalLineFeatureContribution
 		() => this.accessibilitySignalService.isSoundEnabled(cue)
 	));
 
-	private readonly isAnnouncmentEnabledCahce = new CachedFunction<AccessibilitySignal, IObservable<boolean>>((cue) => observableFromEvent(
+	private readonly isAnnouncementEnabledCache = new CachedFunction<AccessibilitySignal, IObservable<boolean>>((cue) => observableFromEvent(
 		this.accessibilitySignalService.onAnnouncementEnabledChanged(cue),
 		() => this.accessibilitySignalService.isAnnouncementEnabled(cue)
 	));
+
+	private readonly modalities: SignalModality[] = [SignalModality.Sound, SignalModality.Announcement];
+	private pendingAccessibilitySignals: Map<SignalModality, any | null> = new Map();
+
+	private cancelAccessibilitySignals(modality: SignalModality) {
+		const pendingSignal = this.pendingAccessibilitySignals.get(modality);
+		if (pendingSignal !== null) {
+			clearTimeout(pendingSignal);
+			this.pendingAccessibilitySignals.set(modality, null);
+		}
+	}
+
+	private delayedAccessibilitySignals(signals: AccessibilitySignal[], modality: SignalModality, delay: number) {
+		const timeout = setTimeout(() => {
+			this.accessibilitySignalService.playAccessibilitySignals(signals, modality);
+		}, delay);
+		this.pendingAccessibilitySignals.set(modality, timeout);
+	}
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -52,7 +70,7 @@ export class SignalLineFeatureContribution
 
 		const someAccessibilitySignalIsEnabled = derived(
 			(reader) => /** @description someAccessibilitySignalFeatureIsEnabled */ this.features.some((feature) =>
-				this.isSoundEnabledCache.get(feature.signal).read(reader) || this.isAnnouncmentEnabledCahce.get(feature.signal).read(reader)
+				this.isSoundEnabledCache.get(feature.signal).read(reader) || this.isAnnouncementEnabledCache.get(feature.signal).read(reader)
 			)
 		);
 
@@ -71,6 +89,12 @@ export class SignalLineFeatureContribution
 				return editor && editor.hasModel() ? { editor, model: editor.getModel() } : undefined;
 			}
 		);
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.signals.lineFeatureDelays')) {
+				this.features.forEach(f => f.readDelaysFromSettings(this._configurationService));
+			}
+		}));
 
 		this._register(
 			autorun(reader => {
@@ -106,14 +130,12 @@ export class SignalLineFeatureContribution
 					// Ignore cursor changes caused by navigation (e.g. which happens when execution is paused).
 					return undefined;
 				}
+				// Ensure that any pending accessibility signal is cancelled immediately whenever the cursor position changes in the editor
+				for (const modality of this.modalities) {
+					this.cancelAccessibilitySignals(modality);
+				}
 				return editor.getPosition();
 			}
-		);
-		const debouncedPosition = debouncedObservable(curPosition, this._configurationService.getValue('accessibility.signals.debouncePositionChanges') ? 300 : 0, store);
-		const isTyping = wasEventTriggeredRecently(
-			editorModel.onDidChangeContent.bind(editorModel),
-			1000,
-			store
 		);
 
 		const featureStates = this.features.map((feature) => {
@@ -121,28 +143,24 @@ export class SignalLineFeatureContribution
 			const isFeaturePresent = derivedOpts(
 				{ debugName: `isPresentInLine:${feature.signal.name}` },
 				(reader) => {
-					if (!this.isSoundEnabledCache.get(feature.signal).read(reader) && !this.isAnnouncmentEnabledCahce.get(feature.signal).read(reader)) {
+					if (!this.isSoundEnabledCache.get(feature.signal).read(reader) && !this.isAnnouncementEnabledCache.get(feature.signal).read(reader)) {
 						return false;
 					}
-					const position = debouncedPosition.read(reader);
+					const position = curPosition.read(reader);
 					if (!position) {
 						return false;
 					}
+					feature.trackLineChanged(position);
+
 					return lineFeatureState.read(reader).isPresent(position);
 				}
 			);
-			return derivedOpts(
-				{ debugName: `typingDebouncedFeatureState:\n${feature.signal.name}` },
-				(reader) =>
-					feature.debounceWhileTyping && isTyping.read(reader)
-						? (debouncedPosition.read(reader), isFeaturePresent.get())
-						: isFeaturePresent.read(reader)
-			);
+			return isFeaturePresent;
 		});
 
 		const state = derived(
 			(reader) => /** @description states */({
-				lineNumber: debouncedPosition.read(reader),
+				lineNumber: curPosition.read(reader),
 				featureStates: new Map(
 					this.features.map((feature, idx) => [
 						feature,
@@ -160,8 +178,14 @@ export class SignalLineFeatureContribution
 						newValue?.featureStates.get(feature) &&
 						(!lastValue?.featureStates?.get(feature) || newValue.lineNumber !== lastValue.lineNumber)
 				);
-
-				this.accessibilitySignalService.playAccessibilitySignals(newFeatures.map(f => f.signal));
+				if (newFeatures.length) {
+					const newSignals = newFeatures.map(f => f.signal);
+					for (const modality of this.modalities) {
+						// The delay is determined by the shortest delay among the existing line features
+						const delay = Math.min(...newFeatures.map(f => f.getDelay(modality)));
+						this.delayedAccessibilitySignals(newSignals, modality, delay);
+					}
+				}
 			})
 		);
 	}
@@ -169,26 +193,95 @@ export class SignalLineFeatureContribution
 
 interface LineFeature {
 	signal: AccessibilitySignal;
-	debounceWhileTyping?: boolean;
 	getObservableState(
 		editor: ICodeEditor,
 		model: ITextModel
 	): IObservable<LineFeatureState>;
+	readDelaysFromSettings(configurationService: IConfigurationService): void;
+	trackLineChanged(position: Position): void;
+	getDelay(modality: SignalModality): number;
 }
 
 interface LineFeatureState {
 	isPresent(position: Position): boolean;
 }
 
-class MarkerLineFeature implements LineFeature {
-	public readonly debounceWhileTyping = true;
-	private _previousLine: number = 0;
+type DelayType = {
+	lineDelay: number;
+	inlineDelay: number;
+};
+
+abstract class BaseLineFeature implements LineFeature {
+	abstract signal: AccessibilitySignal;
+	abstract getObservableState(
+		editor: ICodeEditor,
+		model: ITextModel
+	): IObservable<LineFeatureState>;
+
+	// Holds the current delay values associated with this feature
+	protected _modalityDelays: Map<SignalModality, DelayType> = new Map();
+	protected setModalityDelays(modality: SignalModality, lineDelay: number | undefined, inlineDelay: number | undefined) {
+		this._modalityDelays.set(modality, { lineDelay: lineDelay || 0, inlineDelay: inlineDelay || 0 });
+	}
+	public readDelaysFromSettings(configurationService: IConfigurationService) {
+		// set default delays to "info" feature type (longer delays)
+		this.setModalityDelays(
+			SignalModality.Sound,
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.informational.soundLineDelay'),
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.informational.soundInlineDelay')
+		);
+		this.setModalityDelays(
+			SignalModality.Announcement,
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.informational.announcementLineDelay'),
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.informational.announcementInlineDelay')
+		);
+	}
+
+	protected _previousLine: number = 0;
+	protected _lineChanged: boolean = false;
+	public trackLineChanged(position: Position) {
+		this._lineChanged = position.lineNumber !== this._previousLine;
+		this._previousLine = position.lineNumber;
+	}
+
+	public getDelay(modality: SignalModality): number {
+		let minDelay = Infinity;
+		for (const [key, delayObj] of this._modalityDelays) {
+			if ((modality & key) !== 0) {
+				const delay = this._lineChanged ? delayObj.lineDelay : delayObj.inlineDelay;
+				if (delay < minDelay) {
+					minDelay = delay;
+				}
+			}
+		}
+		return minDelay === Infinity ? 0 : minDelay;
+	}
+}
+
+class MarkerLineFeature extends BaseLineFeature implements LineFeature {
+	public override readDelaysFromSettings(configurationService: IConfigurationService) {
+		// set delays to "critical" feature type (shorter delays)
+		this.setModalityDelays(
+			SignalModality.Sound,
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.critical.soundLineDelay'),
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.critical.soundInlineDelay')
+		);
+		this.setModalityDelays(
+			SignalModality.Announcement,
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.critical.announcementLineDelay'),
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.critical.announcementInlineDelay')
+		);
+	}
+
 	constructor(
 		public readonly signal: AccessibilitySignal,
 		private readonly severity: MarkerSeverity,
 		@IMarkerService private readonly markerService: IMarkerService,
-
-	) { }
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+		this.readDelaysFromSettings(this.configurationService);
+	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		return observableFromEvent<LineFeatureState>(
@@ -197,14 +290,12 @@ class MarkerLineFeature implements LineFeature {
 			),
 			() => /** @description this.markerService.onMarkerChanged */({
 				isPresent: (position) => {
-					const lineChanged = position.lineNumber !== this._previousLine;
-					this._previousLine = position.lineNumber;
 					const hasMarker = this.markerService
 						.read({ resource: model.uri })
 						.some(
 							(m) => {
 								const onLine = m.severity === this.severity && m.startLineNumber <= position.lineNumber && position.lineNumber <= m.endLineNumber;
-								return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
+								return this._lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
 							});
 					return hasMarker;
 				},
@@ -213,8 +304,13 @@ class MarkerLineFeature implements LineFeature {
 	}
 }
 
-class FoldedAreaLineFeature implements LineFeature {
+class FoldedAreaLineFeature extends BaseLineFeature implements LineFeature {
 	public readonly signal = AccessibilitySignal.foldedArea;
+
+	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
+		super();
+		this.readDelaysFromSettings(this.configurationService);
+	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		const foldingController = FoldingController.get(editor);
@@ -240,10 +336,16 @@ class FoldedAreaLineFeature implements LineFeature {
 	}
 }
 
-class BreakpointLineFeature implements LineFeature {
+class BreakpointLineFeature extends BaseLineFeature implements LineFeature {
 	public readonly signal = AccessibilitySignal.break;
 
-	constructor(@IDebugService private readonly debugService: IDebugService) { }
+	constructor(@
+		IDebugService private readonly debugService: IDebugService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super();
+		this.readDelaysFromSettings(this.configurationService);
+	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		return observableFromEvent<LineFeatureState>(

@@ -17,8 +17,11 @@ export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalS
 
 export interface IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
-	playSignal(signal: AccessibilitySignal, options?: IAccessbilitySignalOptions): Promise<void>;
-	playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
+	playSignal(signal: AccessibilitySignal, options?: IAccessibilitySignalOptions): Promise<void>;
+	playAccessibilitySignals(
+		signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[],
+		modality?: SignalModality
+	): Promise<void>;
 	isSoundEnabled(signal: AccessibilitySignal): boolean;
 	isAnnouncementEnabled(signal: AccessibilitySignal): boolean;
 	onSoundEnabledChanged(signal: AccessibilitySignal): Event<void>;
@@ -28,7 +31,15 @@ export interface IAccessibilitySignalService {
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 }
 
-export interface IAccessbilitySignalOptions {
+export enum SignalModality {
+	Silent = 0,
+	Sound = 1,
+	Announcement = 2,
+	Voice = 4, // other possibilities?
+	All = Sound | Announcement | Voice
+}
+
+export interface IAccessibilitySignalOptions {
 	allowManyInParallel?: boolean;
 	source?: string;
 	/**
@@ -56,10 +67,10 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		super();
 	}
 
-	public async playSignal(signal: AccessibilitySignal, options: IAccessbilitySignalOptions = {}): Promise<void> {
-		const announcementMessage = signal.announcementMessage;
-		if (this.isAnnouncementEnabled(signal, options.userGesture) && announcementMessage) {
-			this.accessibilityService.status(announcementMessage);
+	public async playSignal(signal: AccessibilitySignal, options: IAccessibilitySignalOptions = {}): Promise<void> {
+		const alertMessage = signal.announcementMessage;
+		if (this.isAnnouncementEnabled(signal, options.userGesture) && alertMessage) {
+			this.accessibilityService.status(alertMessage);
 		}
 
 		if (this.isSoundEnabled(signal, options.userGesture)) {
@@ -68,20 +79,27 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		}
 	}
 
-	public async playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void> {
+	public async playAccessibilitySignals(
+		signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[],
+		modality: SignalModality = SignalModality.All
+	): Promise<void> {
 		for (const signal of signals) {
 			this.sendSignalTelemetry('signal' in signal ? signal.signal : signal, 'source' in signal ? signal.source : undefined);
 		}
 		const signalArray = signals.map(s => 'signal' in s ? s.signal : s);
-		const announcements = signalArray.filter(signal => this.isAnnouncementEnabled(signal)).map(s => s.announcementMessage);
-		if (announcements.length) {
-			this.accessibilityService.status(announcements.join(', '));
+
+		if (modality & SignalModality.Announcement) {
+			const announcements = signalArray.filter(signal => this.isAnnouncementEnabled(signal)).map(s => s.announcementMessage);
+			if (announcements.length) {
+				this.accessibilityService.status(announcements.join(', '));
+			}
 		}
 
-		// Some sounds are reused. Don't play the same sound twice.
-		const sounds = new Set(signalArray.filter(signal => this.isSoundEnabled(signal)).map(signal => signal.sound.getSound()));
-		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
-
+		if (modality & SignalModality.Sound) {
+			// Some sounds are reused. Don't play the same sound twice.
+			const sounds = new Set(signalArray.filter(signal => this.isSoundEnabled(signal)).map(signal => signal.sound.getSound()));
+			await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
+		}
 	}
 
 
