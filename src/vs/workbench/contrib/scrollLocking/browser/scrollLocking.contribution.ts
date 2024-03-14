@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { SyncScroll } from 'vs/workbench/contrib/scrollLocking/browser/syncScroll';
+import { SyncScroll as ScrollLocking } from 'vs/workbench/contrib/scrollLocking/browser/scrollLocking';
 
 registerWorkbenchContribution2(
-	SyncScroll.ID,
-	SyncScroll,
+	ScrollLocking.ID,
+	ScrollLocking,
 	WorkbenchPhase.Eventually // registration only
 );
