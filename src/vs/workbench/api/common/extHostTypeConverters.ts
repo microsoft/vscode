@@ -946,7 +946,7 @@ export namespace DefinitionLink {
 }
 
 export namespace Hover {
-	export function from(hover: vscode.VerboseHover): languages.Hover {
+	export function from(hover: vscode.Hover): languages.Hover {
 		return <languages.Hover>{
 			range: Range.from(hover.range),
 			contents: MarkdownString.fromMany(hover.contents),
@@ -954,8 +954,8 @@ export namespace Hover {
 		};
 	}
 
-	export function to(info: languages.Hover): types.VerboseHover {
-		return new types.VerboseHover(info.contents.map(MarkdownString.to), Range.to(info.range), info.verbosityMetadata);
+	export function to(info: languages.Hover): types.Hover {
+		return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range), info.verbosityMetadata);
 	}
 }
 

@@ -1185,10 +1185,12 @@ export class Hover {
 
 	public contents: (vscode.MarkdownString | vscode.MarkedString)[];
 	public range: Range | undefined;
+	public verbosityMetadata: vscode.HoverVerbosityMetadata | undefined;
 
 	constructor(
 		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
-		range?: Range
+		range?: Range,
+		verbosityMetadata?: vscode.HoverVerbosityMetadata
 	) {
 		if (!contents) {
 			throw new Error('Illegal argument, contents must be defined');
@@ -1199,20 +1201,6 @@ export class Hover {
 			this.contents = [contents];
 		}
 		this.range = range;
-	}
-}
-
-@es5ClassCompat
-export class VerboseHover extends Hover {
-
-	public verbosityMetadata: vscode.HoverVerbosityMetadata | undefined;
-
-	constructor(
-		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
-		range?: Range,
-		verbosityMetadata?: vscode.HoverVerbosityMetadata
-	) {
-		super(contents, range);
 		this.verbosityMetadata = verbosityMetadata;
 	}
 }
