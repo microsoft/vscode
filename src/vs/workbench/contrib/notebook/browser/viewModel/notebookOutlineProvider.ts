@@ -70,7 +70,7 @@ export class NotebookCellOutlineProvider {
 		);
 
 		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
+			if (e.affectsConfiguration('notebook.outline.showCodeCells') || e.affectsConfiguration('notebook.outline.onlyShowMarkdownHeaders')) {
 				this._recomputeState();
 			}
 		}));
