@@ -344,7 +344,7 @@
 	position: relative;
 	padding: 0 6px;
 	margin-bottom: 4px;
-	align-items: center;
+	align-items: flex-end;
 	justify-content: space-between;
 }
 
@@ -373,6 +373,9 @@
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	height: 22px;
+
+	/* It's bottom-aligned, make it appear centered within the container */
+	margin-bottom: 7px;
 }
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
@@ -496,7 +499,7 @@
 }
 
 .quick-input-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
-	bottom: 1px;
+	margin-bottom: 1px;
 }
 
 .quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
