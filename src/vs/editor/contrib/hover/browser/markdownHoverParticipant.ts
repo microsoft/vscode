@@ -197,7 +197,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return disposables;
 	}
 
-	public async changeFocusedHoverVerbosityLevel(increaseVerbosity: boolean): Promise<void> {
+	public async incrementFocusedMarkdownHoverVerbosityLevelBy(delta: number): Promise<void> {
 		if (
 			this._focusMetadata.index === undefined
 			|| this._focusMetadata.element === undefined
@@ -214,7 +214,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		if (!provider || !model || currentVerbosityLevel === undefined) {
 			return;
 		}
-		const verbosityLevel = currentVerbosityLevel + (increaseVerbosity ? 1 : -1);
+		const verbosityLevel = currentVerbosityLevel + delta;
 		this._verbosityLevels.set(this._focusMetadata.index, verbosityLevel);
 		const position = new Position(this._anchor.range.startLineNumber, this._anchor.range.startColumn);
 		const context = { verbosityLevel };
@@ -311,7 +311,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			return;
 		}
 		element.classList.add('enabled');
-		registerActionOnClickOrAcceptKeydown(element, () => this.changeFocusedHoverVerbosityLevel(verbosityMetadata.increase), store);
+		const level = verbosityMetadata.increase ? 1 : -1;
+		registerActionOnClickOrAcceptKeydown(element, () => this.incrementFocusedMarkdownHoverVerbosityLevelBy(level), store);
 	}
 }
 

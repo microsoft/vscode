@@ -361,8 +361,8 @@ export class ContentHoverController extends Disposable {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
-	public async changeFocusedMarkdownHoverVerbosityLevel(increaseVerbosity: boolean): Promise<void> {
-		this._markdownHoverParticipant?.changeFocusedHoverVerbosityLevel(increaseVerbosity);
+	public async incrementFocusedMarkdownHoverVerbosityLevelBy(delta: number): Promise<void> {
+		this._markdownHoverParticipant?.incrementFocusedMarkdownHoverVerbosityLevelBy(delta);
 	}
 
 	public getWidgetContent(): string | undefined {

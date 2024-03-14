@@ -396,8 +396,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
-	public changeFocusedMarkdownHoverVerbosityLevel(increaseVerbosity: boolean): void {
-		this._getOrCreateContentWidget().changeFocusedMarkdownHoverVerbosityLevel(increaseVerbosity);
+	public incrementFocusedMarkdownHoverVerbosityLevelBy(delta: number): void {
+		this._getOrCreateContentWidget().incrementFocusedMarkdownHoverVerbosityLevelBy(delta);
 	}
 
 	public focus(): void {
@@ -852,7 +852,7 @@ class IncreaseHoverVerbosityLevel extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		HoverController.get(editor)?.changeFocusedMarkdownHoverVerbosityLevel(true);
+		HoverController.get(editor)?.incrementFocusedMarkdownHoverVerbosityLevelBy(1);
 	}
 }
 
@@ -876,7 +876,7 @@ class DecreaseHoverVerbosityLevel extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		HoverController.get(editor)?.changeFocusedMarkdownHoverVerbosityLevel(false);
+		HoverController.get(editor)?.incrementFocusedMarkdownHoverVerbosityLevelBy(-1);
 	}
 }
 
