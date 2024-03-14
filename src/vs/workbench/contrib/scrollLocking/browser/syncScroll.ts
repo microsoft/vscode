@@ -76,13 +76,16 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 
 	private onDidEditorPaneScroll(scrolledPane: IEditorPane) {
 
-		const scrolledPaneInitialOffset = this.editorsInitialScrollTop.get(scrolledPane)?.scrollTop;
+		const scrolledPaneInitialOffset = this.editorsInitialScrollTop.get(scrolledPane);
 		if (scrolledPaneInitialOffset === undefined) {
 			throw new Error('Scrolled pane not tracked');
 		}
 
-		const scrolledPaneScrollTop = scrolledPane.getScrollPosition!().scrollTop;
-		const scrolledFromInitial = scrolledPaneScrollTop - scrolledPaneInitialOffset;
+		const scrolledPaneCurrentPosition = scrolledPane.getScrollPosition!()!;
+		const scrolledFromInitial = {
+			scrollTop: scrolledPaneCurrentPosition.scrollTop - scrolledPaneInitialOffset.scrollTop,
+			scrollLeft: scrolledPaneCurrentPosition.scrollLeft !== undefined && scrolledPaneInitialOffset.scrollLeft !== undefined ? scrolledPaneCurrentPosition.scrollLeft - scrolledPaneInitialOffset.scrollLeft : undefined,
+		};
 
 		for (const pane of this.getAllVisiblePanes()) {
 			if (pane === scrolledPane) {
@@ -99,7 +102,8 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 			}
 
 			pane.setScrollPosition({
-				scrollTop: initialOffset.scrollTop + scrolledFromInitial,
+				scrollTop: initialOffset.scrollTop + scrolledFromInitial.scrollTop,
+				scrollLeft: initialOffset.scrollLeft !== undefined && scrolledFromInitial.scrollLeft !== undefined ? initialOffset.scrollLeft + scrolledFromInitial.scrollLeft : undefined,
 			});
 		}
 	}
