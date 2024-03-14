@@ -163,6 +163,9 @@
 	overflow: hidden;
 	max-height: calc(20 * 22px);
 	padding-bottom: 5px;
+	/* match border radius of quick input widget */
+	border-top-left-radius: 5px;
+	border-top-right-radius: 5px;
 }
 
 .quick-input-list .quick-input-list-entry {
@@ -263,6 +266,9 @@
 
 .quick-input-list .monaco-highlighted-label .highlight {
 	font-weight: bold;
+	/* preserve list-like styling instead of tree-like styling */
+	color: var(--vscode-list-focusHighlightForeground) !important;
+	background-color: transparent;
 }
 
 .quick-input-list .quick-input-list-entry .quick-input-list-separator {
@@ -298,7 +304,8 @@
 
 .quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .action-label.always-visible,
 .quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
-.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label {
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label,
+.quick-input-list .monaco-list-row.passive-focused .quick-input-list-entry-action-bar .action-label {
 	display: flex;
 }
 
@@ -320,9 +327,4 @@
 /* Hide border when the item becomes the sticky one */
 .quick-input-list .monaco-tree-sticky-row .quick-input-list-entry.quick-input-list-separator-as-item.quick-input-list-separator-border {
 	border-top-style: none;
-}
-
-/* TODO: This seems to be the best way to do this... is there a better way? */
-.quick-input-list .monaco-tl-twistie {
-	display: none !important;
 }
