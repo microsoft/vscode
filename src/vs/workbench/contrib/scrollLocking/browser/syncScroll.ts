@@ -9,6 +9,7 @@ import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorPane, IEditorPaneScrollPosition } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -62,7 +63,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 		this.paneDisposables.clear();
 		this.editorsInitialScrollTop.clear();
 
-		for (const pane of this.editorService.visibleEditorPanes) {
+		for (const pane of this.getAllVisiblePanes()) {
 
 			if (!pane.getScrollPosition || !pane.onDidChangeScroll) {
 				continue;
@@ -83,7 +84,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 		const scrolledPaneScrollTop = scrolledPane.getScrollPosition!().scrollTop;
 		const scrolledFromInitial = scrolledPaneScrollTop - scrolledPaneInitialOffset;
 
-		for (const pane of this.editorService.visibleEditorPanes) {
+		for (const pane of this.getAllVisiblePanes()) {
 			if (pane === scrolledPane) {
 				continue;
 			}
@@ -103,11 +104,36 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
+	private getAllVisiblePanes(): IEditorPane[] {
+		const panes: IEditorPane[] = [];
+
+		for (const pane of this.editorService.visibleEditorPanes) {
+
+			if (pane instanceof SideBySideEditor) {
+				const primaryPane = pane.getPrimaryEditorPane();
+				const secondaryPane = pane.getSecondaryEditorPane();
+				if (primaryPane) {
+					panes.push(primaryPane);
+				}
+				if (secondaryPane) {
+					panes.push(secondaryPane);
+				}
+				continue;
+			}
+
+			panes.push(pane);
+		}
+
+		return panes;
+	}
+
 	private deactivate(): void {
 		this.paneDisposables.clear();
 		this.syncScrollDispoasbles.clear();
 		this.editorsInitialScrollTop.clear();
 	}
+
+	// Actions & Commands
 
 	private toggleStatusbarItem(active: boolean): void {
 		if (active) {
