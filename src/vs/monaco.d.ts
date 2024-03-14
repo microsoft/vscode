@@ -6795,13 +6795,6 @@ declare namespace monaco.languages {
 		 */
 		range?: IRange;
 		/**
-		 * Metadata concerning the verbosity of the hover
-		 */
-		verbosityMetadata?: HoverVerbosityMetadata;
-	}
-
-	export interface HoverVerbosityMetadata {
-		/**
 		 * Can increase the verbosity of the hover
 		 */
 		canIncreaseVerbosity?: boolean;

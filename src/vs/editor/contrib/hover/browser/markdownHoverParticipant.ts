@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { HoverVerbosityMetadata, HoverProvider, Hover, HoverContext, HoverVerbosityAction } from 'vs/editor/common/languages';
+import { HoverProvider, Hover, HoverContext, HoverVerbosityAction } from 'vs/editor/common/languages';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -70,6 +70,11 @@ export class VerboseMarkdownHover extends MarkdownHover {
 	) {
 		super(owner, range, contents, isBeforeContent, ordinal);
 	}
+}
+
+interface HoverVerbosityMetadata {
+	canIncreaseVerbosity?: boolean;
+	canDecreaseVerbosity?: boolean;
 }
 
 interface FocusedHoverInfo {
@@ -170,7 +175,11 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
-				return new VerboseMarkdownHover(this, rng, item.hover.contents, false, item.ordinal, item.hover.id, item.provider, item.hover.verbosityMetadata, item.hover.dispose);
+				const hoverVerbosity: HoverVerbosityMetadata = {
+					canIncreaseVerbosity: item.hover.canIncreaseVerbosity,
+					canDecreaseVerbosity: item.hover.canDecreaseVerbosity
+				};
+				return new VerboseMarkdownHover(this, rng, item.hover.contents, false, item.ordinal, item.hover.id, item.provider, hoverVerbosity, item.hover.dispose);
 			});
 	}
 
@@ -229,10 +238,14 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		if (!hover) {
 			return;
 		}
+		const verbosityMetadata: HoverVerbosityMetadata = {
+			canIncreaseVerbosity: hover.canIncreaseVerbosity,
+			canDecreaseVerbosity: hover.canDecreaseVerbosity
+		};
 		const renderedMarkdown = this._renderMarkdownHoversAndActions(
 			hover.contents,
 			focusedIndex,
-			hover.verbosityMetadata,
+			verbosityMetadata,
 			this._context.disposables
 		);
 		this._focusInfo.focusRemains = true;

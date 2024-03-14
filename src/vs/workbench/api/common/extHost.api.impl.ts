@@ -1551,6 +1551,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineCompletionItem: extHostTypes.InlineSuggestion,
 			InlineCompletionList: extHostTypes.InlineSuggestionList,
 			Hover: extHostTypes.Hover,
+			VerboseHover: extHostTypes.VerboseHover,
 			HoverVerbosityAction: extHostTypes.HoverVerbosityAction,
 			IndentAction: languageConfiguration.IndentAction,
 			Location: extHostTypes.Location,

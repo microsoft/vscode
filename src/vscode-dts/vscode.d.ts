@@ -3058,32 +3058,12 @@ declare module 'vscode' {
 		range?: Range;
 
 		/**
-		 * Verbosity metadata
-		 */
-		verbosityMetadata?: HoverVerbosityMetadata;
-
-		/**
 		 * Creates a new hover object.
 		 *
 		 * @param contents The contents of the hover.
 		 * @param range The range to which the hover applies.
 		 */
-		constructor(contents: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>, range?: Range, verbosityMetadata?: HoverVerbosityMetadata);
-	}
-
-	/**
-	 * Hover verbosity metadata
-	 */
-	export interface HoverVerbosityMetadata {
-		/**
-		 * Can increase the verbosity of the hover
-		 */
-		canIncreaseVerbosity?: boolean;
-
-		/**
-		 * Can decrease the verbosity of the hover
-		 */
-		canDecreaseVerbosity?: boolean;
+		constructor(contents: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>, range?: Range);
 	}
 
 	/**
