@@ -168,7 +168,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			return AsyncIterableObject.EMPTY;
 		}
 
-		this._position = new Position(anchor.range.startLineNumber, anchor.range.startColumn);
+		this._position = anchor.range.getStartPosition();
 		return getHover(this._languageFeaturesService.hoverProvider, model, this._position, undefined, token)
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
