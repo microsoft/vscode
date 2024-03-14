@@ -43,11 +43,11 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		for (const request of requests) {
 			const watcher = this.findWatcher(request);
 			if (watcher && patternsEquals(watcher.request.excludes, request.excludes) && patternsEquals(watcher.request.includes, request.includes)) {
-				watchersToStop.delete(watcher);
-				continue; // skip over requests that are already watched with same patterns
+				watchersToStop.delete(watcher); // keep watcher
+			} else {
+				requestsToStart.push(request); // start watching
 			}
 
-			requestsToStart.push(request);
 		}
 
 		// Logging

@@ -125,11 +125,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		for (const request of requests) {
 			const watcher = this.findWatcher(request);
 			if (watcher && patternsEquals(watcher.request.excludes, request.excludes) && patternsEquals(watcher.request.includes, request.includes) && watcher.request.pollingInterval === request.pollingInterval) {
-				watchersToStop.delete(watcher);
-				continue; // skip over requests that are already watched with same patterns
+				watchersToStop.delete(watcher); // keep watcher
+			} else {
+				requestsToStart.push(request); // start watching
 			}
-
-			requestsToStart.push(request);
 		}
 
 		// Logging
