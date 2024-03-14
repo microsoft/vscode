@@ -242,10 +242,13 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				break;
 
 			case StateType.Ready: {
-				const currentVersion = parseVersion(this.productService.version);
-				const nextVersion = parseVersion(state.update.productVersion);
-				this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
-				this.onUpdateReady(state.update);
+				const productVersion = state.update.productVersion;
+				if (productVersion) {
+					const currentVersion = parseVersion(this.productService.version);
+					const nextVersion = parseVersion(productVersion);
+					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
+					this.onUpdateReady(state.update);
+				}
 				break;
 			}
 		}
@@ -299,6 +302,11 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			return;
 		}
 
+		const productVersion = update.productVersion;
+		if (!productVersion) {
+			return;
+		}
+
 		this.notificationService.prompt(
 			severity.Info,
 			nls.localize('thereIsUpdateAvailable', "There is an available update."),
@@ -311,7 +319,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}, {
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
 				}
 			}]
 		);
@@ -330,9 +338,14 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			return;
 		}
 
+		const productVersion = update.productVersion;
+		if (!productVersion) {
+			return;
+		}
+
 		this.notificationService.prompt(
 			severity.Info,
-			nls.localize('updateAvailable', "There's an update available: {0} {1}", this.productService.nameLong, update.productVersion),
+			nls.localize('updateAvailable', "There's an update available: {0} {1}", this.productService.nameLong, productVersion),
 			[{
 				label: nls.localize('installUpdate', "Install Update"),
 				run: () => this.updateService.applyUpdate()
@@ -342,7 +355,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}, {
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
 				}
 			}]
 		);
@@ -362,12 +375,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			run: () => { }
 		}];
 
-		// TODO@joao check why snap updates send `update` as falsy
-		if (update.productVersion) {
+		const productVersion = update.productVersion;
+		if (productVersion) {
 			actions.push({
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
 				}
 			});
 		}
@@ -468,8 +481,11 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					return;
 				}
 
-				const version = this.updateService.state.update.productVersion;
-				this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, version));
+				const productVersion = this.updateService.state.update.productVersion;
+				if (productVersion) {
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
+				}
+
 			});
 			MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 				group: '7_update',
