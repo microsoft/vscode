@@ -1093,6 +1093,9 @@ export namespace ProxyChannel {
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
+		// However, this will not work for services that
+		// are lazy and use a Proxy within. For that we
+		// still need to check later (see below).
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
@@ -1108,10 +1111,16 @@ export namespace ProxyChannel {
 					return eventImpl as Event<T>;
 				}
 
-				if (propertyIsDynamicEvent(event)) {
-					const target = handler[event];
-					if (typeof target === 'function') {
+				const target = handler[event];
+				if (typeof target === 'function') {
+					if (propertyIsDynamicEvent(event)) {
 						return target.call(handler, arg);
+					}
+
+					if (propertyIsEvent(event)) {
+						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, true, undefined, disposables));
+
+						return mapEventNameToEvent.get(event) as Event<T>;
 					}
 				}
 

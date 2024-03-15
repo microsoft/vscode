@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isEmptyObject } from 'vs/base/common/types';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 
 export type MementoObject = { [key: string]: any };
 
@@ -25,8 +27,6 @@ export class Memento {
 
 	getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
 		switch (scope) {
-
-			// Scope by Workspace
 			case StorageScope.WORKSPACE: {
 				let workspaceMemento = Memento.workspaceMementos.get(this.id);
 				if (!workspaceMemento) {
@@ -37,7 +37,6 @@ export class Memento {
 				return workspaceMemento.getMemento();
 			}
 
-			// Scope Profile
 			case StorageScope.PROFILE: {
 				let profileMemento = Memento.profileMementos.get(this.id);
 				if (!profileMemento) {
@@ -48,7 +47,6 @@ export class Memento {
 				return profileMemento.getMemento();
 			}
 
-			// Scope Application
 			case StorageScope.APPLICATION: {
 				let applicationMemento = Memento.applicationMementos.get(this.id);
 				if (!applicationMemento) {
@@ -61,10 +59,31 @@ export class Memento {
 		}
 	}
 
+	onDidChangeValue(scope: StorageScope, disposables: DisposableStore): Event<IStorageValueChangeEvent> {
+		return this.storageService.onDidChangeValue(scope, this.id, disposables);
+	}
+
 	saveMemento(): void {
 		Memento.workspaceMementos.get(this.id)?.save();
 		Memento.profileMementos.get(this.id)?.save();
 		Memento.applicationMementos.get(this.id)?.save();
+	}
+
+	reloadMemento(scope: StorageScope): void {
+		let memento: ScopedMemento | undefined;
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				memento = Memento.applicationMementos.get(this.id);
+				break;
+			case StorageScope.PROFILE:
+				memento = Memento.profileMementos.get(this.id);
+				break;
+			case StorageScope.WORKSPACE:
+				memento = Memento.workspaceMementos.get(this.id);
+				break;
+		}
+
+		memento?.reload();
 	}
 
 	static clear(scope: StorageScope): void {
@@ -84,36 +103,44 @@ export class Memento {
 
 class ScopedMemento {
 
-	private readonly mementoObj: MementoObject;
+	private mementoObj: MementoObject;
 
 	constructor(private id: string, private scope: StorageScope, private target: StorageTarget, private storageService: IStorageService) {
-		this.mementoObj = this.load();
+		this.mementoObj = this.doLoad();
+	}
+
+	private doLoad(): MementoObject {
+		try {
+			return this.storageService.getObject<MementoObject>(this.id, this.scope, {});
+		} catch (error) {
+			// Seeing reports from users unable to open editors
+			// from memento parsing exceptions. Log the contents
+			// to diagnose further
+			// https://github.com/microsoft/vscode/issues/102251
+			onUnexpectedError(`[memento]: failed to parse contents: ${error} (id: ${this.id}, scope: ${this.scope}, contents: ${this.storageService.get(this.id, this.scope)})`);
+		}
+
+		return {};
 	}
 
 	getMemento(): MementoObject {
 		return this.mementoObj;
 	}
 
-	private load(): MementoObject {
-		const memento = this.storageService.get(this.id, this.scope);
-		if (memento) {
-			try {
-				return JSON.parse(memento);
-			} catch (error) {
-				// Seeing reports from users unable to open editors
-				// from memento parsing exceptions. Log the contents
-				// to diagnose further
-				// https://github.com/microsoft/vscode/issues/102251
-				onUnexpectedError(`[memento]: failed to parse contents: ${error} (id: ${this.id}, scope: ${this.scope}, contents: ${memento})`);
-			}
+	reload(): void {
+
+		// Clear old
+		for (const name of Object.getOwnPropertyNames(this.mementoObj)) {
+			delete this.mementoObj[name];
 		}
 
-		return {};
+		// Assign new
+		Object.assign(this.mementoObj, this.doLoad());
 	}
 
 	save(): void {
 		if (!isEmptyObject(this.mementoObj)) {
-			this.storageService.store(this.id, JSON.stringify(this.mementoObj), this.scope, this.target);
+			this.storageService.store(this.id, this.mementoObj, this.scope, this.target);
 		} else {
 			this.storageService.remove(this.id, this.scope);
 		}

@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/common/extHostTypes';
-import { TextEditorCursorStyle, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
+import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { RenderLineNumbersType, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { Lazy } from 'vs/base/common/lazy';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
+import { ExtHostTextEditor, ExtHostTextEditorOptions } from 'vs/workbench/api/common/extHostTextEditor';
+import { Range, TextEditorLineNumbersStyle } from 'vs/workbench/api/common/extHostTypes';
 
 suite('ExtHostTextEditor', () => {
 
@@ -59,6 +60,8 @@ suite('ExtHostTextEditor', () => {
 		await editor.value.edit(edit => { edit.delete(new Range(0, 0, 1, 1)); });
 		assert.strictEqual(applyCount, 2);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('ExtHostTextEditorOptions', () => {
@@ -513,4 +516,5 @@ suite('ExtHostTextEditorOptions', () => {
 		assert.deepStrictEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block, lineNumbers: RenderLineNumbersType.Relative }]);
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

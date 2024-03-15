@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -19,18 +19,52 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IIssueMainService, IssueType } from 'vs/platform/issue/common/issue';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
+
 
 //#region Issue Contribution
 
 class NativeIssueContribution extends BaseIssueContribution {
 
 	constructor(
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(productService);
+		super(productService, configurationService);
 
 		if (productService.reportIssueUrl) {
-			registerAction2(ReportPerformanceIssueUsingReporterAction);
+			this._register(registerAction2(ReportPerformanceIssueUsingReporterAction));
+		}
+
+		let disposable: IDisposable | undefined;
+
+		const registerQuickAccessProvider = () => {
+			disposable = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
+				ctor: IssueQuickAccess,
+				prefix: IssueQuickAccess.PREFIX,
+				contextKey: 'inReportIssuePicker',
+				placeholder: localize('tasksQuickAccessPlaceholder', "Type the name of an extension to report on."),
+				helpEntries: [{
+					description: localize('openIssueReporter', "Open Issue Reporter"),
+					commandId: 'workbench.action.openIssueReporter'
+				}]
+			});
+		};
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (!configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess') && disposable) {
+				disposable.dispose();
+				disposable = undefined;
+			} else if (!disposable) {
+				registerQuickAccessProvider();
+			}
+		}));
+
+		if (configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess')) {
+			registerQuickAccessProvider();
 		}
 	}
 }
@@ -43,7 +77,7 @@ class ReportPerformanceIssueUsingReporterAction extends Action2 {
 	constructor() {
 		super({
 			id: ReportPerformanceIssueUsingReporterAction.ID,
-			title: { value: localize({ key: 'reportPerformanceIssue', comment: [`Here, 'issue' means problem or bug`] }, "Report Performance Issue..."), original: 'Report Performance Issue' },
+			title: localize2({ key: 'reportPerformanceIssue', comment: [`Here, 'issue' means problem or bug`] }, "Report Performance Issue..."),
 			category: Categories.Help,
 			f1: true
 		});
@@ -67,7 +101,7 @@ class OpenProcessExplorer extends Action2 {
 	constructor() {
 		super({
 			id: OpenProcessExplorer.ID,
-			title: { value: localize('openProcessExplorer', "Open Process Explorer"), original: 'Open Process Explorer' },
+			title: localize2('openProcessExplorer', 'Open Process Explorer'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -96,7 +130,7 @@ class StopTracing extends Action2 {
 	constructor() {
 		super({
 			id: StopTracing.ID,
-			title: { value: localize('stopTracing', "Stop Tracing"), original: 'Stop Tracing' },
+			title: localize2('stopTracing', 'Stop Tracing'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -133,5 +167,4 @@ registerAction2(StopTracing);
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return accessor.get(IIssueMainService).getSystemStatus();
 });
-
 //#endregion

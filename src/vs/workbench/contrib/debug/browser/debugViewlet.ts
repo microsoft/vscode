@@ -23,7 +23,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusSessionActionViewItem, StartDebugActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_COMMAND_ID, DEBUG_START_LABEL, DISCONNECT_ID, FOCUS_SESSION_ID, SELECT_AND_START_ID, STOP_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
@@ -32,6 +33,7 @@ import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { BREAKPOINTS_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, getStateLabel, IDebugService, ILaunch, REPL_VIEW_ID, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -92,9 +94,9 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		}
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === DEBUG_START_COMMAND_ID) {
-			this.startDebugActionViewItem = this.instantiationService.createInstance(StartDebugActionViewItem, null, action);
+			this.startDebugActionViewItem = this.instantiationService.createInstance(StartDebugActionViewItem, null, action, options);
 			return this.startDebugActionViewItem;
 		}
 		if (action.id === FOCUS_SESSION_ID) {
@@ -103,13 +105,13 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 
 		if (action.id === STOP_ID || action.id === DISCONNECT_ID) {
 			this.stopActionViewItemDisposables.clear();
-			const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor));
+			const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor, { hoverDelegate: options.hoverDelegate }));
 			if (item) {
 				return item;
 			}
 		}
 
-		return createActionViewItem(this.instantiationService, action);
+		return createActionViewItem(this.instantiationService, action, options);
 	}
 
 	focusView(id: string): void {
@@ -132,7 +134,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		}
 	}
 
-	override addPanes(panes: { pane: ViewPane; size: number; index?: number }[]): void {
+	override addPanes(panes: { pane: ViewPane; size: number; index?: number; disposable: IDisposable }[]): void {
 		super.addPanes(panes);
 
 		for (const { pane: pane } of panes) {

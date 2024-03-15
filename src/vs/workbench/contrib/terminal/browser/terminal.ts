@@ -22,10 +22,13 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange } from '@xterm/xterm';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -111,13 +114,17 @@ export interface IMarkTracker {
 	selectToNextMark(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
-	clearMarker(): void;
+	clear(): void;
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;
-	revealCommand(command: ITerminalCommand, position?: ScrollPosition): void;
+	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position?: ScrollPosition): void;
+	revealRange(range: IBufferRange): void;
 	registerTemporaryDecoration(marker: IMarker, endMarker: IMarker | undefined, showOutline: boolean): void;
 	showCommandGuide(command: ITerminalCommand | undefined): void;
+
+	saveScrollState(): void;
+	restoreScrollState(): void;
 }
 
 export interface ITerminalGroup {
@@ -296,7 +303,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
-	moveToEditor(source: ITerminalInstance): void;
+	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
+	moveIntoNewEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
@@ -418,7 +426,7 @@ export interface ICreateTerminalOptions {
 }
 
 export interface TerminalEditorLocation {
-	viewColumn: EditorGroupColumn;
+	viewColumn: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
 	preserveFocus?: boolean;
 }
 
@@ -659,7 +667,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
 	onDidChangeSelection: Event<ITerminalInstance>;
-	onDidRunText: Event<void>;
+	onDidExecuteText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
 	onDidSendText: Event<string>;
 
@@ -786,8 +794,9 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 
 	/**
 	 * Registers and returns a marker
+	 * @param the y offset from the cursor
 	 */
-	registerMarker(): IMarker | undefined;
+	registerMarker(offset?: number): IMarker | undefined;
 
 	/**
 	 * Adds a marker to the buffer, mapping it to an ID if provided.
@@ -998,6 +1007,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * If successful, places commandToRun on the command line
 	 */
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
+
+	/**
+	 * Update the parent context key service to use for this terminal instance.
+	 */
+	setParentContextKeyService(parentContextKeyService: IContextKeyService): void;
 }
 
 export const enum XtermTerminalConstants {

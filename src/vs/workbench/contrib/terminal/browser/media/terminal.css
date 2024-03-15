@@ -58,11 +58,6 @@
 	opacity: 0 !important;
 }
 
-.monaco-workbench .terminal-tab::before {
-	font-family: 'codicon' !important;
-	font-size: 16px !important;
-}
-
 .monaco-workbench .terminal-tab:not(.terminal-uri-icon)::before {
 	background-image: none !important;
 }
@@ -476,6 +471,11 @@
 	right: 0;
 	border-left: 5px solid #ffffff;
 	border-left-width: 5px !important;
+	pointer-events: none;
+}
+
+.terminal-range-highlight {
+	outline: 1px solid var(--vscode-focusBorder);
 	pointer-events: none;
 }
 

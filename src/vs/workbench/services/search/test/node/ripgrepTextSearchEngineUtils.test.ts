@@ -8,8 +8,10 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import { Range, TextSearchOptions, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('RipgrepTextSearchEngine', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('unicodeEscapesToPCRE2', async () => {
 		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234'), '\\x{1234}');
 		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234\\u0001'), '\\x{1234}\\x{0001}');
@@ -103,7 +105,7 @@ suite('RipgrepTextSearchEngine', () => {
 		const TEST_FOLDER = URI.file('/foo/bar');
 
 		function testParser(inputData: string[], expectedResults: TextSearchResult[]): void {
-			const testParser = new RipgrepParser(1000, TEST_FOLDER.fsPath);
+			const testParser = new RipgrepParser(1000, TEST_FOLDER);
 
 			const actualResults: TextSearchResult[] = [];
 			testParser.on('result', r => {

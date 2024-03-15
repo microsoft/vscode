@@ -76,6 +76,13 @@ export interface IEditorOptions {
 	 */
 	rulers?: (number | IRulerOption)[];
 	/**
+	 * Locales used for segmenting lines into words when doing word related navigations or operations.
+	 *
+	 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
+	 * Defaults to empty array
+	 */
+	wordSegmenterLocales?: string | string[];
+	/**
 	 * A string containing the word separators used when doing word navigation.
 	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
 	 */
@@ -428,6 +435,7 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	inlineSuggest?: IInlineSuggestOptions;
+	experimentalInlineEdit?: IInlineEditOptions;
 	/**
 	 * Smart select options.
 	 */
@@ -802,6 +810,10 @@ export interface IDiffEditorBaseOptions {
 	 * Default to true.
 	 */
 	renderMarginRevertIcon?: boolean;
+	/**
+	 * Indicates if the gutter menu should be rendered.
+	*/
+	renderGutterMenu?: boolean;
 	/**
 	 * Original model should be editable?
 	 * Defaults to false.
@@ -2003,7 +2015,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 		}
 		const input = _input as IGotoLocationOptions;
 		return {
-			multiple: stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple!, ['peek', 'gotoAndPeek', 'goto']),
+			multiple: stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple, ['peek', 'gotoAndPeek', 'goto']),
 			multipleDefinitions: input.multipleDefinitions ?? stringSet<GoToLocationValues>(input.multipleDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleTypeDefinitions: input.multipleTypeDefinitions ?? stringSet<GoToLocationValues>(input.multipleTypeDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleDeclarations: input.multipleDeclarations ?? stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
@@ -2720,7 +2732,7 @@ class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, '
 
 //#region lightbulb
 
-export enum ShowAiIconMode {
+export enum ShowLightbulbIconMode {
 	Off = 'off',
 	OnCode = 'onCode',
 	On = 'on'
@@ -2732,16 +2744,12 @@ export enum ShowAiIconMode {
 export interface IEditorLightbulbOptions {
 	/**
 	 * Enable the lightbulb code action.
-	 * Defaults to true.
+	 * The three possible values are `off`, `on` and `onCode` and the default is `onCode`.
+	 * `off` disables the code action menu.
+	 * `on` shows the code action menu on code and on empty lines.
+	 * `onCode` shows the code action menu on code only.
 	 */
-	enabled?: boolean;
-
-	experimental?: {
-		/**
-		 * Highlight AI code actions with AI icon
-		 */
-		showAiIcon?: ShowAiIconMode;
-	};
+	enabled?: ShowLightbulbIconMode;
 }
 
 /**
@@ -2752,26 +2760,22 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true, experimental: { showAiIcon: ShowAiIconMode.Off } };
+		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.OnCode };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
 				'editor.lightbulb.enabled': {
-					type: 'boolean',
-					default: defaults.enabled,
-					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
-				},
-				'editor.lightbulb.experimental.showAiIcon': {
 					type: 'string',
-					enum: [ShowAiIconMode.Off, ShowAiIconMode.OnCode, ShowAiIconMode.On],
-					default: defaults.experimental.showAiIcon,
+					tags: ['experimental'],
+					enum: [ShowLightbulbIconMode.Off, ShowLightbulbIconMode.OnCode, ShowLightbulbIconMode.On],
+					default: defaults.enabled,
 					enumDescriptions: [
-						nls.localize('editor.lightbulb.showAiIcon.off', 'Don not show the AI icon.'),
-						nls.localize('editor.lightbulb.showAiIcon.onCode', 'Show an AI icon when the code action menu contains an AI action, but only on code.'),
-						nls.localize('editor.lightbulb.showAiIcon.on', 'Show an AI icon when the code action menu contains an AI action, on code and empty lines.'),
+						nls.localize('editor.lightbulb.enabled.off', 'Disable the code action menu.'),
+						nls.localize('editor.lightbulb.enabled.onCode', 'Show the code action menu when the cursor is on lines with code.'),
+						nls.localize('editor.lightbulb.enabled.on', 'Show the code action menu when the cursor is on lines with code or on empty lines.'),
 					],
-					description: nls.localize('showAiIcons', "Show an AI icon along with the lightbulb when the code action menu contains an AI action.")
-				},
+					description: nls.localize('enabled', "Enables the Code Action lightbulb in the editor.")
+				}
 			}
 		);
 	}
@@ -2782,10 +2786,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		}
 		const input = _input as IEditorLightbulbOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			experimental: {
-				showAiIcon: stringSet(input.experimental?.showAiIcon, this.defaultValue.experimental?.showAiIcon, [ShowAiIconMode.Off, ShowAiIconMode.OnCode, ShowAiIconMode.On])
-			}
+			enabled: stringSet(input.enabled, this.defaultValue.enabled, [ShowLightbulbIconMode.Off, ShowLightbulbIconMode.OnCode, ShowLightbulbIconMode.On])
 		};
 	}
 }
@@ -2828,13 +2829,14 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor."),
+					tags: ['experimental']
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',
 					default: defaults.maxLineCount,
 					minimum: 1,
-					maximum: 10,
+					maximum: 20,
 					description: nls.localize('editor.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show.")
 				},
 				'editor.stickyScroll.defaultModel': {
@@ -2859,7 +2861,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 		const input = _input as IEditorStickyScrollOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
+			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 20),
 			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
 			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor)
 		};
@@ -4005,6 +4007,11 @@ export interface IInlineSuggestOptions {
 	 * Does not clear active inline suggestions when the editor loses focus.
 	 */
 	keepOnBlur?: boolean;
+
+	/**
+	 * Font family for inline suggestions.
+	 */
+	fontFamily?: string | 'default';
 }
 
 /**
@@ -4023,6 +4030,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showToolbar: 'onHover',
 			suppressSuggestions: false,
 			keepOnBlur: false,
+			fontFamily: 'default'
 		};
 
 		super(
@@ -4049,6 +4057,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.suppressSuggestions,
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
 				},
+				'editor.inlineSuggest.fontFamily': {
+					type: 'string',
+					default: defaults.fontFamily,
+					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
+				},
 			}
 		);
 	}
@@ -4064,11 +4077,96 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
 		};
 	}
 }
 
 //#endregion
+
+//#region inlineEdit
+
+export interface IInlineEditOptions {
+	/**
+	 * Enable or disable the rendering of automatic inline edit.
+	*/
+	enabled?: boolean;
+	showToolbar?: 'always' | 'onHover' | 'never';
+	/**
+	 * Font family for inline suggestions.
+	 */
+	fontFamily?: string | 'default';
+
+	/**
+	 * Does not clear active inline suggestions when the editor loses focus.
+	 */
+	keepOnBlur?: boolean;
+
+	backgroundColoring?: boolean;
+}
+
+/**
+ * @internal
+ */
+export type InternalInlineEditOptions = Readonly<Required<IInlineEditOptions>>;
+
+class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInlineEditOptions, InternalInlineEditOptions> {
+	constructor() {
+		const defaults: InternalInlineEditOptions = {
+			enabled: false,
+			showToolbar: 'onHover',
+			fontFamily: 'default',
+			keepOnBlur: false,
+			backgroundColoring: false,
+		};
+
+		super(
+			EditorOption.inlineEdit, 'experimentalInlineEdit', defaults,
+			{
+				'editor.experimentalInlineEdit.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('inlineEdit.enabled', "Controls whether to show inline edits in the editor.")
+				},
+				'editor.experimentalInlineEdit.showToolbar': {
+					type: 'string',
+					default: defaults.showToolbar,
+					enum: ['always', 'onHover', 'never'],
+					enumDescriptions: [
+						nls.localize('inlineEdit.showToolbar.always', "Show the inline edit toolbar whenever an inline suggestion is shown."),
+						nls.localize('inlineEdit.showToolbar.onHover', "Show the inline edit toolbar when hovering over an inline suggestion."),
+						nls.localize('inlineEdit.showToolbar.never', "Never show the inline edit toolbar."),
+					],
+					description: nls.localize('inlineEdit.showToolbar', "Controls when to show the inline edit toolbar."),
+				},
+				'editor.experimentalInlineEdit.fontFamily': {
+					type: 'string',
+					default: defaults.fontFamily,
+					description: nls.localize('inlineEdit.fontFamily', "Controls the font family of the inline edit.")
+				},
+				'editor.experimentalInlineEdit.backgroundColoring': {
+					type: 'boolean',
+					default: defaults.backgroundColoring,
+					description: nls.localize('inlineEdit.backgroundColoring', "Controls whether to color the background of inline edits.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): InternalInlineEditOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IInlineEditOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
+			backgroundColoring: boolean(input.backgroundColoring, this.defaultValue.backgroundColoring)
+		};
+	}
+}
 
 //#region bracketPairColorization
 
@@ -4806,6 +4904,63 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 
 //#endregion
 
+//#region wordSegmenterLocales
+
+/**
+ * Locales used for segmenting lines into words when doing word related navigations or operations.
+ *
+ * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
+ */
+class WordSegmenterLocales extends BaseEditorOption<EditorOption.wordSegmenterLocales, string | string[], string[]> {
+	constructor() {
+		const defaults: string[] = [];
+
+		super(
+			EditorOption.wordSegmenterLocales, 'wordSegmenterLocales', defaults,
+			{
+				anyOf: [
+					{
+						description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
+						type: 'string',
+					}, {
+						description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
+						type: 'array',
+						items: {
+							type: 'string'
+						}
+					}
+				]
+			}
+		);
+	}
+
+	public validate(input: any): string[] {
+		if (typeof input === 'string') {
+			input = [input];
+		}
+		if (Array.isArray(input)) {
+			const validLocales: string[] = [];
+			for (const locale of input) {
+				if (typeof locale === 'string') {
+					try {
+						if (Intl.Segmenter.supportedLocalesOf(locale).length > 0) {
+							validLocales.push(locale);
+						}
+					} catch {
+						// ignore invalid locales
+					}
+				}
+			}
+			return validLocales;
+		}
+
+		return this.defaultValue;
+	}
+}
+
+
+//#endregion
+
 //#region wrappingIndent
 
 /**
@@ -5130,6 +5285,7 @@ export const enum EditorOption {
 	hover,
 	inDiffEditor,
 	inlineSuggest,
+	inlineEdit,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -5196,6 +5352,7 @@ export const enum EditorOption {
 	useShadowDOM,
 	useTabStops,
 	wordBreak,
+	wordSegmenterLocales,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -5448,7 +5605,7 @@ export const EditorOptions = {
 				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered via the keyboard or API."),
 				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
 			],
-			markdownDescription: nls.localize('cursorSurroundingLinesStyle', "Controls when `#cursorSurroundingLines#` should be enforced.")
+			markdownDescription: nls.localize('cursorSurroundingLinesStyle', "Controls when `#editor.cursorSurroundingLines#` should be enforced.")
 		}
 	)),
 	cursorWidth: register(new EditorIntOption(
@@ -5600,7 +5757,11 @@ export const EditorOptions = {
 	)),
 	mouseWheelZoom: register(new EditorBooleanOption(
 		EditorOption.mouseWheelZoom, 'mouseWheelZoom', false,
-		{ markdownDescription: nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.") }
+		{
+			markdownDescription: platform.isMacintosh
+				? nls.localize('mouseWheelZoom.mac', "Zoom the font of the editor when using mouse wheel and holding `Cmd`.")
+				: nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.")
+		}
 	)),
 	multiCursorMergeOverlapping: register(new EditorBooleanOption(
 		EditorOption.multiCursorMergeOverlapping, 'multiCursorMergeOverlapping', true,
@@ -5829,6 +5990,7 @@ export const EditorOptions = {
 	)),
 	suggest: register(new EditorSuggest()),
 	inlineSuggest: register(new InlineEditorSuggest()),
+	inlineEdit: register(new InlineEditorEdit()),
 	inlineCompletionsAccessibilityVerbose: register(new EditorBooleanOption(EditorOption.inlineCompletionsAccessibilityVerbose, 'inlineCompletionsAccessibilityVerbose', false,
 		{ description: nls.localize('inlineCompletionsAccessibilityVerbose', "Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.") })),
 	suggestFontSize: register(new EditorIntOption(
@@ -5894,7 +6056,7 @@ export const EditorOptions = {
 	)),
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
-		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.") }
+		{ description: nls.localize('useTabStops', "Spaces and tabs are inserted and deleted in alignment with tab stops.") }
 	)),
 	wordBreak: register(new EditorStringEnumOption(
 		EditorOption.wordBreak, 'wordBreak',
@@ -5908,6 +6070,7 @@ export const EditorOptions = {
 			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
 		}
 	)),
+	wordSegmenterLocales: register(new WordSegmenterLocales()),
 	wordSeparators: register(new EditorStringOption(
 		EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS,
 		{ description: nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations.") }

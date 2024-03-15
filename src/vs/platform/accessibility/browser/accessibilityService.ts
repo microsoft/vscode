@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { alert, status } from 'vs/base/browser/ui/aria/aria';
 import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -109,5 +109,9 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 	alert(message: string): void {
 		alert(message);
+	}
+
+	status(message: string): void {
+		status(message);
 	}
 }

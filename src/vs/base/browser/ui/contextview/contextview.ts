@@ -60,6 +60,9 @@ export interface IDelegate {
 	canRelayout?: boolean; // default: true
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
 	onHide?(data?: unknown): void;
+
+	// context views with higher layers are rendered over contet views with lower layers
+	layer?: number; // Default: 0
 }
 
 export interface IContextViewProvider {
@@ -159,8 +162,8 @@ export class ContextView extends Disposable {
 		const usedShadowDOM = this.useShadowDOM;
 		this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW;
 
-		if (container === this.container && usedShadowDOM !== this.useShadowDOM) {
-			return; // container is the same and now shadow DOM usage has changed
+		if (container === this.container && usedShadowDOM === this.useShadowDOM) {
+			return; // container is the same and no shadow DOM usage has changed
 		}
 
 		if (this.container) {
@@ -222,7 +225,7 @@ export class ContextView extends Disposable {
 		this.view.className = 'context-view';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
-		this.view.style.zIndex = '2575';
+		this.view.style.zIndex = `${2575 + (delegate.layer ?? 0)}`;
 		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 
@@ -253,9 +256,7 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate!.layout) {
-			this.delegate!.layout!();
-		}
+		this.delegate?.layout?.();
 
 		this.doLayout();
 	}

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -43,7 +43,8 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -51,10 +52,10 @@ import { IExplorerService, IExplorerView } from 'vs/workbench/contrib/files/brow
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { isInputElement } from 'vs/base/browser/ui/list/listWidget';
+import { AbstractTreePart } from 'vs/base/browser/ui/tree/abstractTree';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -272,10 +273,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const titleElement = container.querySelector('.title') as HTMLElement;
 		const setHeader = () => {
-			const workspace = this.contextService.getWorkspace();
-			const title = workspace.folders.map(folder => folder.name).join();
 			titleElement.textContent = this.name;
-			titleElement.title = title;
+			this.updateTitle(this.name);
 			this.ariaHeaderLabel = nls.localize('explorerSection', "Explorer Section: {0}", this.name);
 			titleElement.setAttribute('aria-label', this.ariaHeaderLabel);
 		};
@@ -329,8 +328,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			if (!this.hasFocus() || this.readonlyContext.get()) {
 				return;
 			}
-
-			await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
+			if (event.clipboardData?.files?.length) {
+				await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
+			}
 		}));
 	}
 
@@ -338,9 +338,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		super.focus();
 		this.tree.domFocus();
 
-		const focused = this.tree.getFocus();
-		if (focused.length === 1 && this._autoReveal) {
-			this.tree.reveal(focused[0], 0.5);
+		if (this.tree.getFocusedPart() === AbstractTreePart.Tree) {
+			const focused = this.tree.getFocus();
+			if (focused.length === 1 && this._autoReveal) {
+				this.tree.reveal(focused[0], 0.5);
+			}
 		}
 	}
 
@@ -348,8 +350,23 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		return DOM.isAncestorOfActiveElement(this.container);
 	}
 
+	getFocus(): ExplorerItem[] {
+		return this.tree.getFocus();
+	}
+
+	focusNext(): void {
+		this.tree.focusNext();
+	}
+
+	focusLast(): void {
+		this.tree.focusLast();
+	}
+
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
-		return getContext(this.tree.getFocus(), this.tree.getSelection(), respectMultiSelection, this.renderer);
+		const focusedItems = this.tree.getFocusedPart() === AbstractTreePart.StickyScroll ?
+			this.tree.getStickyScrollFocus() :
+			this.tree.getFocus();
+		return getContext(focusedItems, this.tree.getSelection(), respectMultiSelection, this.renderer);
 	}
 
 	isItemVisible(item: ExplorerItem): boolean {
@@ -681,9 +698,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, !!item, {
-			diffIdentityProvider: identityProvider
-		});
+		return this.tree.updateChildren(toRefresh, recursive, !!item);
 	}
 
 	override getOptimalWidth(): number {
@@ -795,13 +810,16 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			} catch (e) {
 				return this.selectResource(resource, reveal, retry + 1);
 			}
-
-			for (const child of item.children.values()) {
-				if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
-					item = child;
-					break;
-				}
+			if (!item.children.size) {
 				item = null;
+			} else {
+				for (const child of item.children.values()) {
+					if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
+						item = child;
+						break;
+					}
+					item = null;
+				}
 			}
 		}
 
@@ -1006,7 +1024,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.refreshFilesExplorer',
-			title: { value: nls.localize('refreshExplorer', "Refresh Explorer"), original: 'Refresh Explorer' },
+			title: nls.localize2('refreshExplorer', "Refresh Explorer"),
 			f1: true,
 			icon: Codicon.refresh,
 			menu: {
@@ -1019,9 +1037,9 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewsService = accessor.get(IViewsService);
 		const explorerService = accessor.get(IExplorerService);
-		await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+		await viewsService.openView(VIEW_ID);
 		await explorerService.refresh();
 	}
 });
@@ -1030,7 +1048,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.collapseExplorerFolders',
-			title: { value: nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer"), original: 'Collapse Folders in Explorer' },
+			title: nls.localize2('collapseExplorerFolders', "Collapse Folders in Explorer"),
 			f1: true,
 			icon: Codicon.collapseAll,
 			menu: {

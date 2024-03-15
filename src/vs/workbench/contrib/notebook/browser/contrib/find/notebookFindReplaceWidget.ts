@@ -40,6 +40,7 @@ import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } 
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -63,11 +64,12 @@ const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCo
 const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 318;
 const NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING = 4;
 class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
-	constructor(readonly filters: NotebookFindFilters, action: IAction, actionRunner: IActionRunner, @IContextMenuService contextMenuService: IContextMenuService) {
+	constructor(readonly filters: NotebookFindFilters, action: IAction, options: IActionViewItemOptions, actionRunner: IActionRunner, @IContextMenuService contextMenuService: IContextMenuService) {
 		super(action,
 			{ getActions: () => this.getActions() },
 			contextMenuService,
 			{
+				...options,
 				actionRunner,
 				classNames: action.class,
 				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
@@ -196,9 +198,9 @@ export class NotebookFindInputFilterButton extends Disposable {
 
 	private createFilters(container: HTMLElement): void {
 		this._actionbar = this._register(new ActionBar(container, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === this._filtersAction.id) {
-					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, new ActionRunner());
+					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, options, new ActionRunner());
 				}
 				return undefined;
 			}

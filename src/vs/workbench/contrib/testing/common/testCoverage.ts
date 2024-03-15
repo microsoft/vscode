@@ -5,38 +5,78 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResourceMap } from 'vs/base/common/map';
+import { deepClone } from 'vs/base/common/objects';
+import { ITransaction, observableSignal } from 'vs/base/common/observable';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { CoverageDetails, ICoveredCount, IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ICoverageAccessor {
-	provideFileCoverage: (token: CancellationToken) => Promise<IFileCoverage[]>;
-	resolveFileCoverage: (fileIndex: number, token: CancellationToken) => Promise<CoverageDetails[]>;
+	getCoverageDetails: (id: string, token: CancellationToken) => Promise<CoverageDetails[]>;
 }
+
+let incId = 0;
 
 /**
  * Class that exposese coverage information for a run.
  */
 export class TestCoverage {
-	private _tree?: WellDefinedPrefixTree<ComputedFileCoverage>;
+	private readonly fileCoverage = new ResourceMap<FileCoverage>();
+	public readonly didAddCoverage = observableSignal<IPrefixTreeNode<AbstractFileCoverage>[]>(this);
+	public readonly tree = new WellDefinedPrefixTree<AbstractFileCoverage>();
 
-	public static async load(taskId: string, accessor: ICoverageAccessor, token: CancellationToken) {
-		const files = await accessor.provideFileCoverage(token);
-		const map = new ResourceMap<FileCoverage>();
-		for (const [i, file] of files.entries()) {
-			map.set(file.uri, new FileCoverage(file, i, accessor));
-		}
-		return new TestCoverage(taskId, map);
-	}
-
-	public get tree() {
-		return this._tree ??= this.buildCoverageTree();
-	}
+	public readonly associatedData = new Map<unknown, unknown>();
 
 	constructor(
 		public readonly fromTaskId: string,
-		private readonly fileCoverage: ResourceMap<FileCoverage>,
+		private readonly uriIdentityService: IUriIdentityService,
+		private readonly accessor: ICoverageAccessor,
 	) { }
+
+	public append(rawCoverage: IFileCoverage, tx: ITransaction | undefined) {
+		const coverage = new FileCoverage(rawCoverage, this.accessor);
+		const previous = this.getComputedForUri(coverage.uri);
+		const applyDelta = (kind: 'statement' | 'branch' | 'declaration', node: ComputedFileCoverage) => {
+			if (!node[kind]) {
+				if (coverage[kind]) {
+					node[kind] = { ...coverage[kind]! };
+				}
+			} else {
+				node[kind]!.covered += (coverage[kind]?.covered || 0) - (previous?.[kind]?.covered || 0);
+				node[kind]!.total += (coverage[kind]?.total || 0) - (previous?.[kind]?.total || 0);
+			}
+		};
+
+		// We insert using the non-canonical path to normalize for casing differences
+		// between URIs, but when inserting an intermediate node always use 'a' canonical
+		// version.
+		const canonical = [...this.treePathForUri(coverage.uri, /* canonical = */ true)];
+		const chain: IPrefixTreeNode<AbstractFileCoverage>[] = [];
+		this.tree.insert(this.treePathForUri(coverage.uri, /* canonical = */ false), coverage, node => {
+			chain.push(node);
+
+			if (chain.length === canonical.length - 1) {
+				node.value = coverage;
+			} else if (!node.value) {
+				// clone because later intersertions can modify the counts:
+				const intermediate = deepClone(rawCoverage);
+				intermediate.id = String(incId++);
+				intermediate.uri = this.treePathToUri(canonical.slice(0, chain.length));
+				node.value = new ComputedFileCoverage(intermediate);
+			} else {
+				applyDelta('statement', node.value);
+				applyDelta('branch', node.value);
+				applyDelta('declaration', node.value);
+				node.value.didChange.trigger(tx);
+			}
+		});
+
+		this.fileCoverage.set(coverage.uri, coverage);
+		if (chain) {
+			this.didAddCoverage.trigger(tx, chain);
+		}
+	}
 
 	/**
 	 * Gets coverage information for all files.
@@ -57,54 +97,15 @@ export class TestCoverage {
 	 * from child tests.
 	 */
 	public getComputedForUri(uri: URI) {
-		return this.tree.find(this.treePathForUri(uri));
+		return this.tree.find(this.treePathForUri(uri, /* canonical = */ false));
 	}
 
-	private buildCoverageTree() {
-		const tree = new WellDefinedPrefixTree<ComputedFileCoverage>();
-
-		// 1. Initial iteration
-		for (const file of this.fileCoverage.values()) {
-			tree.insert(this.treePathForUri(file.uri), file);
-		}
-
-		// 2. Depth-first iteration to create computed nodes
-		const calculateComputed = (path: string[], node: IPrefixTreeNode<ComputedFileCoverage | FileCoverage>): AbstractFileCoverage => {
-			if (node.value) {
-				return node.value;
-			}
-
-			const fileCoverage: IFileCoverage = {
-				uri: this.treePathToUri(path),
-				statement: ICoveredCount.empty(),
-			};
-
-			if (node.children) {
-				for (const [prefix, child] of node.children) {
-					path.push(prefix);
-					const v = calculateComputed(path, child);
-					path.pop();
-
-					ICoveredCount.sum(fileCoverage.statement, v.statement);
-					if (v.branch) { ICoveredCount.sum(fileCoverage.branch ??= ICoveredCount.empty(), v.branch); }
-					if (v.function) { ICoveredCount.sum(fileCoverage.function ??= ICoveredCount.empty(), v.function); }
-				}
-			}
-
-			return node.value = new ComputedFileCoverage(fileCoverage);
-		};
-
-		for (const node of tree.nodes) {
-			calculateComputed([], node);
-		}
-
-		return tree;
-	}
-
-	private *treePathForUri(uri: URI) {
+	private *treePathForUri(uri: URI, canconicalPath: boolean) {
 		yield uri.scheme;
 		yield uri.authority;
-		yield* uri.path.split('/');
+
+		const path = !canconicalPath && this.uriIdentityService.extUri.ignorePathCasing(uri) ? uri.path.toLowerCase() : uri.path;
+		yield* path.split('/');
 	}
 
 	private treePathToUri(path: string[]) {
@@ -112,38 +113,45 @@ export class TestCoverage {
 	}
 }
 
+export const getTotalCoveragePercent = (statement: ICoveredCount, branch: ICoveredCount | undefined, function_: ICoveredCount | undefined) => {
+	let numerator = statement.covered;
+	let denominator = statement.total;
+
+	if (branch) {
+		numerator += branch.covered;
+		denominator += branch.total;
+	}
+
+	if (function_) {
+		numerator += function_.covered;
+		denominator += function_.total;
+	}
+
+	return denominator === 0 ? 1 : numerator / denominator;
+};
+
 export abstract class AbstractFileCoverage {
+	public readonly id: string;
 	public readonly uri: URI;
-	public readonly statement: ICoveredCount;
-	public readonly branch?: ICoveredCount;
-	public readonly function?: ICoveredCount;
+	public statement: ICoveredCount;
+	public branch?: ICoveredCount;
+	public declaration?: ICoveredCount;
+	public readonly didChange = observableSignal(this);
 
 	/**
 	 * Gets the total coverage percent based on information provided.
 	 * This is based on the Clover total coverage formula
 	 */
 	public get tpc() {
-		let numerator = this.statement.covered;
-		let denominator = this.statement.total;
-
-		if (this.branch) {
-			numerator += this.branch.covered;
-			denominator += this.branch.total;
-		}
-
-		if (this.function) {
-			numerator += this.function.covered;
-			denominator += this.function.total;
-		}
-
-		return denominator === 0 ? 1 : numerator / denominator;
+		return getTotalCoveragePercent(this.statement, this.branch, this.declaration);
 	}
 
 	constructor(coverage: IFileCoverage) {
-		this.uri = URI.revive(coverage.uri);
+		this.id = coverage.id;
+		this.uri = coverage.uri;
 		this.statement = coverage.statement;
 		this.branch = coverage.branch;
-		this.function = coverage.function;
+		this.declaration = coverage.declaration;
 	}
 }
 
@@ -154,21 +162,28 @@ export abstract class AbstractFileCoverage {
 export class ComputedFileCoverage extends AbstractFileCoverage { }
 
 export class FileCoverage extends AbstractFileCoverage {
-	private _details?: CoverageDetails[] | Promise<CoverageDetails[]>;
+	private _details?: Promise<CoverageDetails[]>;
+	private resolved?: boolean;
 
-	constructor(coverage: IFileCoverage, private readonly index: number, private readonly accessor: ICoverageAccessor) {
+	/** Gets whether details are synchronously available */
+	public get hasSynchronousDetails() {
+		return this._details instanceof Array || this.resolved;
+	}
+
+	constructor(coverage: IFileCoverage, private readonly accessor: ICoverageAccessor) {
 		super(coverage);
-		this._details = coverage.details;
 	}
 
 	/**
 	 * Gets per-line coverage details.
 	 */
 	public async details(token = CancellationToken.None) {
-		this._details ??= this.accessor.resolveFileCoverage(this.index, token);
+		this._details ??= this.accessor.getCoverageDetails(this.id, token);
 
 		try {
-			return await this._details;
+			const d = await this._details;
+			this.resolved = true;
+			return d;
 		} catch (e) {
 			this._details = undefined;
 			throw e;

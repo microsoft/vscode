@@ -83,7 +83,7 @@ export interface IExtensionsProfileScannerService {
 	readonly onDidRemoveExtensions: Event<DidRemoveProfileExtensionsEvent>;
 
 	scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]>;
-	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
+	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI, keepExistingVersions?: boolean): Promise<IScannedProfileExtension[]>;
 	updateMetadata(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
 	removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void>;
 }
@@ -120,18 +120,22 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		return this.withProfileExtensions(profileLocation, undefined, options);
 	}
 
-	async addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
+	async addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI, keepExistingVersions?: boolean): Promise<IScannedProfileExtension[]> {
 		const extensionsToRemove: IScannedProfileExtension[] = [];
 		const extensionsToAdd: IScannedProfileExtension[] = [];
 		try {
 			await this.withProfileExtensions(profileLocation, existingExtensions => {
 				const result: IScannedProfileExtension[] = [];
-				for (const existing of existingExtensions) {
-					if (extensions.some(([e]) => areSameExtensions(e.identifier, existing.identifier) && e.manifest.version !== existing.version)) {
-						// Remove the existing extension with different version
-						extensionsToRemove.push(existing);
-					} else {
-						result.push(existing);
+				if (keepExistingVersions) {
+					result.push(...existingExtensions);
+				} else {
+					for (const existing of existingExtensions) {
+						if (extensions.some(([e]) => areSameExtensions(e.identifier, existing.identifier) && e.manifest.version !== existing.version)) {
+							// Remove the existing extension with different version
+							extensionsToRemove.push(existing);
+						} else {
+							result.push(existing);
+						}
 					}
 				}
 				for (const [extension, metadata] of extensions) {
@@ -253,12 +257,8 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						// Extension in new format. No migration needed.
 						location = this.resolveExtensionLocation(e.relativeLocation);
 					} else if (isString(e.location)) {
-						// Extension in intermediate format. Migrate to new format.
-						location = this.resolveExtensionLocation(e.location);
-						migrate = true;
-						e.relativeLocation = e.location;
-						// retain old format so that old clients can read it
-						e.location = location.toJSON();
+						this.logService.warn(`Extensions profile: Ignoring extension with invalid location: ${e.location}`);
+						continue;
 					} else {
 						location = URI.revive(e.location);
 						const relativePath = this.toRelativePath(location);
@@ -267,6 +267,10 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 							migrate = true;
 							e.relativeLocation = relativePath;
 						}
+					}
+					if (isUndefined(e.metadata?.hasPreReleaseVersion) && e.metadata?.preRelease) {
+						migrate = true;
+						e.metadata.hasPreReleaseVersion = true;
 					}
 					extensions.push({
 						identifier: e.identifier,

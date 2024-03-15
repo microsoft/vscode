@@ -11,7 +11,7 @@ import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IP
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { INotificationService, Severity, INotificationHandle, NotificationPriority } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, INotificationHandle, NotificationPriority, isNotificationSource, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -21,7 +21,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
 import { parseLinkedText } from 'vs/base/common/linkedText';
-import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -68,8 +69,18 @@ export class ProgressService extends Disposable implements IProgressService {
 		}
 
 		switch (location) {
-			case ProgressLocation.Notification:
-				return this.withNotificationProgress({ ...options, location, priority: this.notificationService.doNotDisturbMode ? NotificationPriority.SILENT : undefined }, task, onDidCancel);
+			case ProgressLocation.Notification: {
+				let priority = (options as IProgressNotificationOptions).priority;
+				if (priority !== NotificationPriority.URGENT) {
+					if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
+						priority = NotificationPriority.SILENT;
+					} else if (isNotificationSource(options.source) && this.notificationService.getFilter(options.source) === NotificationsFilter.ERROR) {
+						priority = NotificationPriority.SILENT;
+					}
+				}
+
+				return this.withNotificationProgress({ ...options, location, priority }, task, onDidCancel);
+			}
 			case ProgressLocation.Window: {
 				const type = (options as IProgressWindowOptions).type;
 				if ((options as IProgressWindowOptions).command) {

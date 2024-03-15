@@ -17,9 +17,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Codicon } from 'vs/base/common/codicons';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Event } from 'vs/base/common/event';
 import { addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
@@ -241,10 +239,6 @@ function canToggleWordWrap(codeEditorService: ICodeEditorService, editor: ICodeE
 	if (!model) {
 		return false;
 	}
-	if (model.uri.scheme === 'output') {
-		// in output editor
-		return false;
-	}
 	if (editor.getOption(EditorOption.inDiffEditor)) {
 		// this editor belongs to a diff editor
 		for (const diffEditor of codeEditorService.listDiffEditors()) {
@@ -259,6 +253,8 @@ function canToggleWordWrap(codeEditorService: ICodeEditorService, editor: ICodeE
 }
 
 class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.editorWordWrapContextKeyTracker';
 
 	private readonly _canToggleWordWrap: IContextKey<boolean>;
 	private readonly _editorWordWrap: IContextKey<boolean>;
@@ -318,8 +314,7 @@ class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchCo
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditorWordWrapContextKeyTracker, LifecyclePhase.Ready);
+registerWorkbenchContribution2(EditorWordWrapContextKeyTracker.ID, EditorWordWrapContextKeyTracker, WorkbenchPhase.AfterRestored);
 
 registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController, EditorContributionInstantiation.Eager); // eager because it needs to change the editor word wrap configuration
 registerDiffEditorContribution(DiffToggleWordWrapController.ID, DiffToggleWordWrapController);

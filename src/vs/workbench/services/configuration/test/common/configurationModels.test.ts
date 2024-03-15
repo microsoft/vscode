@@ -11,8 +11,11 @@ import { ResourceMap } from 'vs/base/common/map';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('FolderSettingsModelParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -125,6 +128,8 @@ suite('FolderSettingsModelParser', () => {
 
 suite('StandaloneConfigurationModelParser', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('parse tasks stand alone configuration model', () => {
 		const testObject = new StandaloneConfigurationModelParser('tasks', 'tasks');
 
@@ -140,6 +145,8 @@ suite('StandaloneConfigurationModelParser', () => {
 });
 
 suite('Workspace Configuration', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const defaultConfigurationModel = toConfigurationModel({
 		'editor.lineNumbers': 'on',

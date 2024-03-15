@@ -100,6 +100,7 @@ export class InlayHintsController implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private static readonly _MAX_DECORATORS = 1500;
+	private static readonly _MAX_LABEL_LEN = 43;
 
 	static get(editor: ICodeEditor): InlayHintsController | undefined {
 		return editor.getContribution<InlayHintsController>(InlayHintsController.ID) ?? undefined;
@@ -475,7 +476,19 @@ export class InlayHintsController implements IEditorContribution {
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
+
+		type ILineInfo = { line: number; totalLen: number };
+		let currentLineInfo: ILineInfo = { line: 0, totalLen: 0 };
+
 		for (const item of items) {
+
+			if (currentLineInfo.line !== item.anchor.range.startLineNumber) {
+				currentLineInfo = { line: item.anchor.range.startLineNumber, totalLen: 0 };
+			}
+
+			if (currentLineInfo.totalLen > InlayHintsController._MAX_LABEL_LEN) {
+				continue;
+			}
 
 			// whitespace leading the actual label
 			if (item.hint.paddingLeft) {
@@ -533,13 +546,26 @@ export class InlayHintsController implements IEditorContribution {
 					}
 				}
 
+				let textlabel = part.label;
+				currentLineInfo.totalLen += textlabel.length;
+				let tooLong = false;
+				const over = currentLineInfo.totalLen - InlayHintsController._MAX_LABEL_LEN;
+				if (over > 0) {
+					textlabel = textlabel.slice(0, -over) + '…';
+					tooLong = true;
+				}
+
 				addInjectedText(
 					item,
 					this._ruleFactory.createClassNameRef(cssProperties),
-					fixSpace(part.label),
+					fixSpace(textlabel),
 					isLast && !item.hint.paddingRight ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None,
 					new RenderedInlayHintLabelPart(item, i)
 				);
+
+				if (tooLong) {
+					break;
+				}
 			}
 
 			// whitespace trailing the actual label
@@ -555,15 +581,12 @@ export class InlayHintsController implements IEditorContribution {
 		// collect all decoration ids that are affected by the ranges
 		// and only update those decorations
 		const decorationIdsToReplace: string[] = [];
-		for (const range of ranges) {
-
-			for (const { id } of this._editor.getDecorationsInRange(range) ?? []) {
-				const metadata = this._decorationsMetadata.get(id);
-				if (metadata) {
-					decorationIdsToReplace.push(id);
-					metadata.classNameRef.dispose();
-					this._decorationsMetadata.delete(id);
-				}
+		for (const [id, metadata] of this._decorationsMetadata) {
+			const range = this._editor.getModel()?.getDecorationRange(id);
+			if (range && ranges.some(r => r.containsRange(range))) {
+				decorationIdsToReplace.push(id);
+				metadata.classNameRef.dispose();
+				this._decorationsMetadata.delete(id);
 			}
 		}
 
@@ -648,7 +671,6 @@ function fixSpace(str: string): string {
 	const noBreakWhitespace = '\xa0';
 	return str.replace(/[ \t]/g, noBreakWhitespace);
 }
-
 
 CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<languages.InlayHint[]> => {
 

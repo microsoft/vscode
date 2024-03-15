@@ -11,14 +11,16 @@ import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
+import { AnythingQuickAccessProviderRunOptions, IQuickAccessOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatRequestVariableValue, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -44,8 +46,14 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
 				this._variables = coalesce(this._variables.map(ref => {
-					if (Range.areIntersecting(ref.range, c.range)) {
+					const intersection = Range.intersectRanges(ref.range, c.range);
+					if (intersection && !intersection.isEmpty()) {
 						// The reference text was changed, it's broken
+						const rangeToDelete = new Range(ref.range.startLineNumber, ref.range.startColumn, ref.range.endLineNumber, ref.range.endColumn - 1);
+						this.widget.inputEditor.executeEdits(this.id, [{
+							range: rangeToDelete,
+							text: '',
+						}]);
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
@@ -129,6 +137,8 @@ export class SelectAndInsertFileAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const textModelService = accessor.get(ITextModelService);
 		const logService = accessor.get(ILogService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const chatVariablesService = accessor.get(IChatVariablesService);
 
 		const context = args[0];
 		if (!isSelectAndInsertFileActionContext(context)) {
@@ -140,14 +150,45 @@ export class SelectAndInsertFileAction extends Action2 {
 			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
 		};
 
-		const quickInputService = accessor.get(IQuickInputService);
-		const picks = await quickInputService.quickAccess.pick('');
+		let options: IQuickAccessOptions | undefined;
+		const filesVariableName = 'files';
+		const filesItem = {
+			label: localize('allFiles', 'All Files'),
+			description: localize('allFilesDescription', 'Search for relevant files in the workspace and provide context from them'),
+		};
+		// If we have a `files` variable, add an option to select all files in the picker.
+		// This of course assumes that the `files` variable has the behavior that it searches
+		// through files in the workspace.
+		if (chatVariablesService.hasVariable(filesVariableName)) {
+			options = {
+				providerOptions: <AnythingQuickAccessProviderRunOptions>{
+					additionPicks: [filesItem, { type: 'separator' }]
+				},
+			};
+		}
+		// TODO: have dedicated UX for this instead of using the quick access picker
+		const picks = await quickInputService.quickAccess.pick('', options);
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertFileAction: no file selected');
 			doCleanup();
 			return;
 		}
 
+		const editor = context.widget.inputEditor;
+		const range = context.range;
+
+		// Handle the special case of selecting all files
+		if (picks[0] === filesItem) {
+			const text = `#${filesVariableName}`;
+			const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
+			if (!success) {
+				logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);
+				doCleanup();
+			}
+			return;
+		}
+
+		// Handle the case of selecting a specific file
 		const resource = (picks[0] as unknown as { resource: unknown }).resource as URI;
 		if (!textModelService.canHandleResource(resource)) {
 			logService.trace('SelectAndInsertFileAction: non-text resource selected');
@@ -156,9 +197,7 @@ export class SelectAndInsertFileAction extends Action2 {
 		}
 
 		const fileName = basename(resource);
-		const editor = context.widget.inputEditor;
 		const text = `#file:${fileName}`;
-		const range = context.range;
 		const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
 		if (!success) {
 			logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);

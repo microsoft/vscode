@@ -39,6 +39,8 @@ export interface ISCMResource {
 	readonly decorations: ISCMResourceDecorations;
 	readonly contextValue: string | undefined;
 	readonly command: Command | undefined;
+	readonly multiDiffEditorOriginalUri: URI | undefined;
+	readonly multiDiffEditorModifiedUri: URI | undefined;
 	open(preserveFocus: boolean): Promise<void>;
 }
 
@@ -53,6 +55,8 @@ export interface ISCMResourceGroup {
 	readonly label: string;
 	readonly hideWhenEmpty: boolean;
 	readonly onDidChange: Event<void>;
+
+	readonly multiDiffEditorEnableViewChanges: boolean;
 }
 
 export interface ISCMProvider extends IDisposable {
@@ -182,6 +186,7 @@ export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
 	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
+	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;

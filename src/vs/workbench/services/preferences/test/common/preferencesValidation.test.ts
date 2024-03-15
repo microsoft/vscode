@@ -30,7 +30,7 @@ suite('Preferences Validation', () => {
 					(message: string) => {
 						const actual = this.validator(input);
 						assert.ok(actual);
-						assert(actual!.indexOf(message) > -1,
+						assert(actual.indexOf(message) > -1,
 							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
 					}
 			};
@@ -357,7 +357,7 @@ suite('Preferences Validation', () => {
 					(message: string) => {
 						const actual = this.validator(input);
 						assert.ok(actual);
-						assert(actual!.indexOf(message) > -1,
+						assert(actual.indexOf(message) > -1,
 							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
 					}
 			};
