@@ -270,7 +270,7 @@ class HoverAdapter {
 
 		let value: vscode.Hover | null | undefined;
 		if (context) {
-			const previousHover = this._hoverMap.get(context?.previousId);
+			const previousHover = this._hoverMap.get(context?.hover.id);
 			if (!previousHover) {
 				throw new Error('No previous hover');
 			}

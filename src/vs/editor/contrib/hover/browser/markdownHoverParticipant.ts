@@ -58,17 +58,14 @@ export class MarkdownHover implements IHoverPart {
 export class VerboseMarkdownHover extends MarkdownHover {
 
 	constructor(
+		public readonly hover: Hover,
+		public readonly sourceProvider: HoverProvider,
 		owner: IEditorHoverParticipant<MarkdownHover>,
 		range: Range,
-		contents: IMarkdownString[],
 		isBeforeContent: boolean,
 		ordinal: number,
-		public readonly hoverId?: string,
-		public readonly sourceProvider?: HoverProvider,
-		public readonly verbosityMetadata?: HoverVerbosityMetadata,
-		public readonly dispose?: () => void
 	) {
-		super(owner, range, contents, isBeforeContent, ordinal);
+		super(owner, range, hover.contents, isBeforeContent, ordinal);
 	}
 }
 
@@ -78,8 +75,8 @@ interface HoverVerbosityMetadata {
 }
 
 interface FocusedHoverInfo {
-	focusedIndex: number;
-	focusedElement: HTMLElement;
+	index: number;
+	element: HTMLElement;
 	focusRemains: boolean;
 }
 
@@ -90,7 +87,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _context: IEditorHoverRenderContext | undefined;
 	private _focusInfo: FocusedHoverInfo | undefined;
 
-	private _hoverData: { id: string | undefined; provider: HoverProvider | undefined; dispose: (() => void) | undefined }[] = [];
+	private _hoverData: { provider: HoverProvider | undefined; hover: Hover | undefined }[] = [];
 	private _verbosityLevelsByHoverIdx: number[] = [];
 
 	constructor(
@@ -175,29 +172,29 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
-				const hoverVerbosity: HoverVerbosityMetadata = {
-					canIncreaseVerbosity: item.hover.canIncreaseVerbosity,
-					canDecreaseVerbosity: item.hover.canDecreaseVerbosity
-				};
-				return new VerboseMarkdownHover(this, rng, item.hover.contents, false, item.ordinal, item.hover.id, item.provider, hoverVerbosity, item.hover.dispose);
+				return new VerboseMarkdownHover(item.hover, item.provider, this, rng, false, item.ordinal);
 			});
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: VerboseMarkdownHover[]): IDisposable {
 		this._context = context;
 		this._context.disposables?.add(toDisposable(() => {
-			this._hoverData.forEach(hover => {
-				hover.dispose?.();
+			this._hoverData.forEach(hoverData => {
+				hoverData.hover?.dispose?.();
 			});
 		}));
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
-		this._hoverData = hoverParts.map(hover => { return { provider: hover.sourceProvider, id: hover.hoverId, dispose: hover.dispose }; });
+		this._hoverData = hoverParts.map(hover => { return { provider: hover.sourceProvider, hover: hover.hover }; });
 		const disposables = new DisposableStore();
 		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
+			const verbosityMetadata = {
+				canIncreaseVerbosity: hoverPart.hover?.canIncreaseVerbosity,
+				canDecreaseVerbosity: hoverPart.hover?.canDecreaseVerbosity
+			};
 			const renderedMarkdown = this._renderMarkdownHoversAndActions(
 				hoverPart.contents,
 				hoverIndex,
-				hoverPart.verbosityMetadata,
+				verbosityMetadata,
 				disposables
 			);
 			this._context.fragment.appendChild(renderedMarkdown);
@@ -216,41 +213,40 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		) {
 			return;
 		}
-		const focusedIndex = this._focusInfo.focusedIndex;
+		const focusedIndex = this._focusInfo.index;
 		const currentVerbosityLevel = this._verbosityLevelsByHoverIdx[focusedIndex];
 		const provider = this._hoverData[focusedIndex].provider;
-		const previousId = this._hoverData[focusedIndex].id;
-		const dispose = this._hoverData[focusedIndex].dispose;
+		const hover = this._hoverData[focusedIndex].hover;
 		const model = this._editor.getModel();
-		if (!provider || previousId === undefined || !model || currentVerbosityLevel === undefined) {
+		if (!provider || hover === undefined || !model || currentVerbosityLevel === undefined) {
 			return;
 		}
 		const verbosityLevel = currentVerbosityLevel + (action === HoverVerbosityAction.Increase ? 1 : -1);
 		this._verbosityLevelsByHoverIdx[focusedIndex] = verbosityLevel;
-		const context: HoverContext = { action, previousId };
-		let hover: Hover | null | undefined;
+		const context: HoverContext = { action, hover };
+		let newHover: Hover | null | undefined;
 		try {
-			hover = await Promise.resolve(provider.provideHover(model, this._position, CancellationToken.None, context));
-			this._hoverData[focusedIndex] = { provider, id: hover?.id, dispose };
+			newHover = await Promise.resolve(provider.provideHover(model, this._position, CancellationToken.None, context));
+			this._hoverData[focusedIndex] = { provider, hover: newHover ?? undefined };
 		} catch (e) {
 			onUnexpectedExternalError(e);
 		}
-		if (!hover) {
+		if (!newHover) {
 			return;
 		}
 		const verbosityMetadata: HoverVerbosityMetadata = {
-			canIncreaseVerbosity: hover.canIncreaseVerbosity,
-			canDecreaseVerbosity: hover.canDecreaseVerbosity
+			canIncreaseVerbosity: newHover.canIncreaseVerbosity,
+			canDecreaseVerbosity: newHover.canDecreaseVerbosity
 		};
 		const renderedMarkdown = this._renderMarkdownHoversAndActions(
-			hover.contents,
+			newHover.contents,
 			focusedIndex,
 			verbosityMetadata,
 			this._context.disposables
 		);
 		this._focusInfo.focusRemains = true;
-		this._focusInfo.focusedElement.replaceWith(renderedMarkdown);
-		this._focusInfo.focusedElement = renderedMarkdown;
+		this._focusInfo.element.replaceWith(renderedMarkdown);
+		this._focusInfo.element = renderedMarkdown;
 		this._context.onContentsChanged();
 		renderedMarkdown.focus();
 	}
@@ -292,8 +288,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const focusTracker = this._context.disposables.add(dom.trackFocus(contentsWrapper));
 		this._context.disposables.add(focusTracker.onDidFocus(() => {
 			this._focusInfo = {
-				focusedIndex: hoverIndex,
-				focusedElement: contentsWrapper,
+				index: hoverIndex,
+				element: contentsWrapper,
 				focusRemains: true
 			};
 		}));

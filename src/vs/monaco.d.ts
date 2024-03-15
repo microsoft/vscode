@@ -6825,7 +6825,7 @@ declare namespace monaco.languages {
 		/**
 		 * The previous hover for the same position
 		 */
-		previousId: string;
+		hover: Hover;
 	}
 
 	export enum HoverVerbosityAction {
