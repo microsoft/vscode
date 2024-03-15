@@ -42,7 +42,7 @@ export function sortEditsByYieldTo<T extends {
 		if ('mimeType' in yTo) {
 			return yTo.mimeType === other.handledMimeType;
 		}
-		return !!other.kind && other.kind.contains(new HierarchicalKind(yTo.kind));
+		return !!other.kind && yTo.kind.contains(other.kind);
 	}
 
 	// Build list of nodes each node yields to

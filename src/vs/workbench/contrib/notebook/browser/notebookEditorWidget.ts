@@ -1025,9 +1025,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		this._register(this._list.onDidScroll((e) => {
-			this._onDidScroll.fire();
-
 			if (e.scrollTop !== e.oldScrollTop) {
+				this._onDidScroll.fire();
 				this.clearActiveCellWidgets();
 			}
 		}));

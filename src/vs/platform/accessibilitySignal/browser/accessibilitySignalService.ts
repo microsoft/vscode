@@ -18,7 +18,7 @@ export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalS
 export interface IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	playSignal(signal: AccessibilitySignal, options?: IAccessbilitySignalOptions): Promise<void>;
-	playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
+	playSignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
 	isSoundEnabled(signal: AccessibilitySignal): boolean;
 	isAnnouncementEnabled(signal: AccessibilitySignal): boolean;
 	onSoundEnabledChanged(signal: AccessibilitySignal): Event<void>;
@@ -30,7 +30,12 @@ export interface IAccessibilitySignalService {
 
 export interface IAccessbilitySignalOptions {
 	allowManyInParallel?: boolean;
+
+	/**
+	 * The source that triggered the signal (e.g. "diffEditor.cursorPositionChanged").
+	 */
 	source?: string;
+
 	/**
 	 * For actions like save or format, depending on the
 	 * configured value, we will only
@@ -68,7 +73,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		}
 	}
 
-	public async playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void> {
+	public async playSignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void> {
 		for (const signal of signals) {
 			this.sendSignalTelemetry('signal' in signal ? signal.signal : signal, 'source' in signal ? signal.source : undefined);
 		}
@@ -315,6 +320,7 @@ export class Sound {
 	public static readonly save = Sound.register({ fileName: 'save.mp3' });
 	public static readonly format = Sound.register({ fileName: 'format.mp3' });
 	public static readonly voiceRecordingStarted = Sound.register({ fileName: 'voiceRecordingStarted.mp3' });
+	public static readonly voiceRecordingStopped = Sound.register({ fileName: 'voiceRecordingStopped.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -588,6 +594,13 @@ export class AccessibilitySignal {
 		sound: Sound.voiceRecordingStarted,
 		legacySoundSettingsKey: 'audioCues.voiceRecordingStarted',
 		settingsKey: 'accessibility.signals.voiceRecordingStarted'
+	});
+
+	public static readonly voiceRecordingStopped = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.voiceRecordingStopped', 'Voice Recording Stopped'),
+		sound: Sound.voiceRecordingStopped,
+		legacySoundSettingsKey: 'audioCues.voiceRecordingStopped',
+		settingsKey: 'accessibility.signals.voiceRecordingStopped'
 	});
 
 	private constructor(

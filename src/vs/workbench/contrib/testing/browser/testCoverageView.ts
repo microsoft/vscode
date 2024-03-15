@@ -8,6 +8,7 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { findLast } from 'vs/base/common/arraysFind';
 import { assertNever } from 'vs/base/common/assert';
 import { Codicon } from 'vs/base/common/codicons';
 import { memoize } from 'vs/base/common/decorators';
@@ -42,6 +43,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { testingStatesToIcons, testingWasCovered } from 'vs/workbench/contrib/testing/browser/icons';
 import { CoverageBarSource, ManagedTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
 import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { onObservableChange } from 'vs/workbench/contrib/testing/common/observableUtils';
 import { ComputedFileCoverage, FileCoverage, TestCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { CoverageDetails, DetailType, ICoveredCount, IDeclarationCoverage, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
@@ -198,6 +200,7 @@ const shouldShowDeclDetailsOnExpand = (c: CoverageTreeElement): c is IPrefixTree
 
 class TestCoverageTree extends Disposable {
 	private readonly tree: WorkbenchCompressibleObjectTree<CoverageTreeElement, void>;
+	private readonly inputDisposables = this._register(new DisposableStore());
 
 	constructor(
 		container: HTMLElement,
@@ -294,6 +297,8 @@ class TestCoverageTree extends Disposable {
 	}
 
 	public setInput(coverage: TestCoverage) {
+		this.inputDisposables.clear();
+
 		const files = [];
 		for (let node of coverage.tree.nodes) {
 			// when showing initial children, only show from the first file or tee
@@ -314,6 +319,17 @@ class TestCoverageTree extends Disposable {
 				children: file.children && Iterable.map(file.children?.values(), toChild)
 			};
 		};
+
+		this.inputDisposables.add(onObservableChange(coverage.didAddCoverage, nodes => {
+			const toRender = findLast(nodes, n => this.tree.hasElement(n));
+			if (toRender) {
+				this.tree.setChildren(
+					toRender,
+					Iterable.map(toRender.children?.values() || [], toChild),
+					{ diffIdentityProvider: { getId: el => (el as TestCoverageFileNode).value!.id } }
+				);
+			}
+		}));
 
 		this.tree.setChildren(null, Iterable.map(files, toChild));
 	}
@@ -416,6 +432,7 @@ interface FileTemplateData {
 	container: HTMLElement;
 	bars: ManagedTestCoverageBars;
 	templateDisposables: DisposableStore;
+	elementsDisposables: DisposableStore;
 	label: IResourceLabel;
 }
 
@@ -440,6 +457,7 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 			label: templateDisposables.add(this.labels.create(container, {
 				supportHighlights: true,
 			})),
+			elementsDisposables: templateDisposables.add(new DisposableStore()),
 			templateDisposables,
 		};
 	}
@@ -460,9 +478,15 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 
 	/** @inheritdoc */
 	private doRender(element: CoverageTreeElement | CoverageTreeElement[], templateData: FileTemplateData, filterData: FuzzyScore | undefined) {
+		templateData.elementsDisposables.clear();
+
 		const stat = (element instanceof Array ? element[element.length - 1] : element) as TestCoverageFileNode;
 		const file = stat.value!;
 		const name = element instanceof Array ? element.map(e => basenameOrAuthority((e as TestCoverageFileNode).value!.uri)) : basenameOrAuthority(file.uri);
+		templateData.elementsDisposables.add(autorun(reader => {
+			stat.value?.didChange.read(reader);
+			templateData.bars.setCoverageInfo(file);
+		}));
 
 		templateData.bars.setCoverageInfo(file);
 		templateData.label.setResource({ resource: file.uri, name }, {

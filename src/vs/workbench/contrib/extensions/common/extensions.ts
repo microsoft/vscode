@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { EnablementState, IExtensionManagementServer, IResourceExtension } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -52,6 +52,7 @@ export type ExtensionRuntimeState = { action: ExtensionRuntimeActionType; reason
 export interface IExtension {
 	readonly type: ExtensionType;
 	readonly isBuiltin: boolean;
+	readonly isWorkspaceScoped: boolean;
 	readonly state: ExtensionState;
 	readonly name: string;
 	readonly displayName: string;
@@ -95,6 +96,7 @@ export interface IExtension {
 	readonly server?: IExtensionManagementServer;
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
+	readonly resourceExtension?: IResourceExtension;
 	readonly isMalicious: boolean;
 	readonly deprecationInfo?: IDeprecationInfo;
 }
@@ -121,6 +123,7 @@ export interface IExtensionsWorkbenchService {
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
+	getResourceExtensions(locations: URI[], isWorkspaceScoped: boolean): Promise<IExtension[]>;
 	canInstall(extension: IExtension): Promise<boolean>;
 	install(id: string, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
 	install(vsix: URI, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation): Promise<IExtension>;

@@ -804,6 +804,10 @@ export interface IDiffEditorBaseOptions {
 	 */
 	renderMarginRevertIcon?: boolean;
 	/**
+	 * Indicates if the gutter menu should be rendered.
+	*/
+	renderGutterMenu?: boolean;
+	/**
 	 * Original model should be editable?
 	 * Defaults to false.
 	 */
@@ -5987,7 +5991,7 @@ export const EditorOptions = {
 	)),
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
-		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.") }
+		{ description: nls.localize('useTabStops', "Spaces and tabs are inserted and deleted in alignment with tab stops.") }
 	)),
 	wordBreak: register(new EditorStringEnumOption(
 		EditorOption.wordBreak, 'wordBreak',

@@ -43,6 +43,14 @@ interface IWatchRequest {
 	readonly correlationId?: number;
 }
 
+export interface IWatchRequestWithCorrelation extends IWatchRequest {
+	readonly correlationId: number;
+}
+
+export function isWatchRequestWithCorrelation(request: IWatchRequest): request is IWatchRequestWithCorrelation {
+	return typeof request.correlationId === 'number';
+}
+
 export interface INonRecursiveWatchRequest extends IWatchRequest {
 
 	/**
