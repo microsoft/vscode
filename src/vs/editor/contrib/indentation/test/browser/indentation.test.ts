@@ -19,6 +19,7 @@ import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { javascriptIndentationRules } from 'vs/editor/test/common/modes/supports/javascriptIndentationRules';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToSpacesCommand(sel, tabSize), expectedLines, expectedSelection);
@@ -30,49 +31,12 @@ function testIndentationToTabsCommand(lines: string[], selection: Selection, tab
 
 suite('Indentation - TypeScript/Javascript', () => {
 
-	const languageId = 'ts-test';
+	let languageId: string;
 	let disposables: DisposableStore;
 
 	setup(() => {
 		disposables = new DisposableStore();
-		const instantiationService = createModelServices(disposables);
-		const languageService = instantiationService.get(ILanguageService);
-		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		disposables.add(languageService.registerLanguage({ id: languageId }));
-		disposables.add(TokenizationRegistry.register(languageId, {
-			getInitialState: (): IState => NullState,
-			tokenize: () => {
-				throw new Error('not implemented');
-			},
-			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				const tokensArr: number[] = [];
-				if (line.indexOf('*') !== -1) {
-					tokensArr.push(0);
-					tokensArr.push(StandardTokenType.Comment << MetadataConsts.TOKEN_TYPE_OFFSET);
-				} else {
-					tokensArr.push(0);
-					tokensArr.push(StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET);
-				}
-				const tokens = new Uint32Array(tokensArr.length);
-				for (let i = 0; i < tokens.length; i++) {
-					tokens[i] = tokensArr[i];
-				}
-				return new EncodedTokenizationResult(tokens, state);
-			}
-		}));
-		disposables.add(languageConfigurationService.register(languageId, {
-			brackets: [
-				['{', '}'],
-				['[', ']'],
-				['(', ')']
-			],
-			comments: {
-				lineComment: '//',
-				blockComment: ['/*', '*/']
-			},
-			indentationRules: javascriptIndentationRules,
-			onEnterRules: javascriptOnEnterRules
-		}));
+		languageId = 'ts-test';
 	});
 
 	teardown(() => {
@@ -82,6 +46,11 @@ suite('Indentation - TypeScript/Javascript', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('Change Indentation to Spaces', () => {
+
+		setup(() => {
+			const instantiationService = createModelServices(disposables);
+			instantiateContext(instantiationService, true);
+		});
 
 		test('single tabs only at start of line', function () {
 			testIndentationToSpacesCommand(
@@ -254,11 +223,11 @@ suite('Indentation - TypeScript/Javascript', () => {
 	suite('Auto Indent On Paste', () => {
 
 		test('issue #119225: Do not add extra leading space when pasting JSDoc', () => {
-			const languageId = 'leadingSpacePaste';
 			const model = createTextModel("", languageId, {});
 			disposables.add(model);
-			withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel) => {
+			withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
 
+				instantiateContext(instantiationService);
 				const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 				const pasteText = [
 					'/**',
@@ -277,11 +246,11 @@ suite('Indentation - TypeScript/Javascript', () => {
 	suite('Keep Indent On Paste', () => {
 
 		test('issue #167299: Blank line removes indent', () => {
-			const languageId = 'blankLineRemovesIndent';
 			const model = createTextModel("", languageId, {});
 			disposables.add(model);
 			withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
 
+				instantiateContext(instantiationService);
 				const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 				const pasteText = [
 					'',
@@ -302,13 +271,112 @@ suite('Indentation - TypeScript/Javascript', () => {
 				assert.strictEqual(model.getValue(), pasteText);
 			});
 		});
+
+		// TODO: tokenization is not corerct, hence why the test does not reflect the real behavior
+		test('issue #181065: Incorrect paste', () => {
+			const model = createTextModel("", languageId, {});
+			disposables.add(model);
+			withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+
+				instantiateContext(instantiationService);
+				const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+				const pasteText = [
+					'/**',
+					' * @typedef {',
+					' * }',
+					' */',
+				].join('\n');
+
+				viewModel.paste(pasteText, true, undefined, 'keyboard');
+				autoIndentOnPasteController.trigger(new Range(1, 1, 4, 4));
+				assert.strictEqual(model.getValue(), pasteText);
+			});
+		});
 	});
+
+	// suite('Auto Indent On Type', () => {
+	// 	test('issue #193875: incorrect indentation', () => {
+	// 		const model = createTextModel([
+	// 			'{',
+	// 			'	for(;;)',
+	// 			'	for(;;) {}',
+	// 			'}'
+	// 		].join('\n'), languageId, {});
+	// 		disposables.add(model);
+	// 		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+	// 			instantiateContext(instantiationService);
+	// 			// viewModel.type([
+	// 			// 	'{',
+	// 			// 	'	for(;;)',
+	// 			// 	'	for(;;) {}',
+	// 			// 	'}'
+	// 			// ].join('\n'));
+	// 			viewModel.setSelections('test', [new Selection(3, 11, 3, 11)]);
+	// 			viewModel.type("\n", 'keyboard');
+	// 			assert.strictEqual(model.getValue(), [
+	// 				'{',
+	// 				'	for(;;)',
+	// 				'	for(;;) {',
+	// 				'}',
+	// 				'}'
+	// 			].join('\n'));
+	// 		});
+	// 	});
+	// });
+
+	function instantiateContext(instantiationService: TestInstantiationService, includeTokenization: boolean = false) {
+		const languageService = instantiationService.get(ILanguageService);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
+			],
+			comments: {
+				lineComment: '//',
+				blockComment: ['/*', '*/']
+			},
+			indentationRules: javascriptIndentationRules,
+			onEnterRules: javascriptOnEnterRules
+		}));
+		if (includeTokenization) {
+			disposables.add(TokenizationRegistry.register(languageId, {
+				getInitialState: (): IState => NullState,
+				tokenize: () => {
+					throw new Error('not implemented');
+				},
+				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+					console.log('tokenizeEncoded', line, hasEOL, state);
+					const tokensArr: number[] = [];
+					if (line.indexOf('*') !== -1) {
+						console.log('first');
+						tokensArr.push(0);
+						tokensArr.push(StandardTokenType.Comment << MetadataConsts.TOKEN_TYPE_OFFSET);
+					} else {
+						console.log('second');
+						tokensArr.push(0);
+						tokensArr.push(StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET);
+					}
+					const tokens = new Uint32Array(tokensArr.length);
+					for (let i = 0; i < tokens.length; i++) {
+						tokens[i] = tokensArr[i];
+					}
+					return new EncodedTokenizationResult(tokens, state);
+				}
+			}));
+		}
+	}
 });
 
 suite('Indentation - Ruby', () => {
+
+	let languageId: string;
 	let disposables: DisposableStore;
 
 	setup(() => {
+		languageId = 'ruby-test';
 		disposables = new DisposableStore();
 	});
 
@@ -318,48 +386,16 @@ suite('Indentation - Ruby', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('Indent On Type', () => {
+	suite('Auto Indent On Type', () => {
 
 		test('issue #198350: in or when incorrectly match non keywords for Ruby', () => {
-			const languageId = "ruby";
 			const model = createTextModel("", languageId, {});
 			disposables.add(model);
 
 			withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-				const languageService = instantiationService.get(ILanguageService);
-				const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-				disposables.add(languageService.registerLanguage({ id: languageId }));
-				const languageModel = languageConfigurationService.register(languageId, {
-					brackets: [
-						['{', '}'],
-						['[', ']'],
-						['(', ')']
-					],
-					indentationRules: {
-						decreaseIndentPattern: /\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif|when|in)\b)/,
-						increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
-					},
-				});
 
-				viewModel.type("def foo\n  i", 'keyboard');
-				viewModel.type("n", 'keyboard');
-				// The 'in' triggers decreaseIndentPattern immediately, which is incorrect
-				assert.strictEqual(model.getValue(), "def foo\nin");
-				languageModel.dispose();
+				instantiateContext(instantiationService);
 
-				const improvedLanguageModel = languageConfigurationService.register(languageId, {
-					brackets: [
-						['{', '}'],
-						['[', ']'],
-						['(', ')']
-					],
-					indentationRules: {
-						decreaseIndentPattern: /^\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif)\b|(in|when)\s)/,
-						increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
-					},
-				});
-
-				viewModel.model.setValue("");
 				viewModel.type("def foo\n        i");
 				viewModel.type("n", 'keyboard');
 				assert.strictEqual(model.getValue(), "def foo\n        in");
@@ -371,8 +407,24 @@ suite('Indentation - Ruby', () => {
 				assert.strictEqual(model.getValue(), "  # in");
 				viewModel.type(" ", 'keyboard');
 				assert.strictEqual(model.getValue(), "  # in ");
-				improvedLanguageModel.dispose();
 			});
 		});
 	});
+
+	function instantiateContext(instantiationService: TestInstantiationService) {
+		const languageService = instantiationService.get(ILanguageService);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
+			],
+			indentationRules: {
+				decreaseIndentPattern: /^\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif)\b|(in|when)\s)/,
+				increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
+			},
+		}));
+	}
 });
