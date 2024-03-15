@@ -1243,7 +1243,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	async updateRunningExtensions(): Promise<void> {
 		const toAdd: ILocalExtension[] = [];
 		const toRemove: string[] = [];
-		for (const extension of this.local) {
+
+		const extensionsToCheck = [...this.local];
+
+		const notExistingRunningExtensions = this.extensionService.extensions.filter(e => !this.local.some(local => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, local.identifier)));
+		if (notExistingRunningExtensions.length) {
+			const extensions = await this.getExtensions(notExistingRunningExtensions.map(e => ({ id: e.identifier.value })), CancellationToken.None);
+			extensionsToCheck.push(...extensions);
+		}
+
+		for (const extension of extensionsToCheck) {
 			const runtimeState = extension.runtimeState;
 			if (!runtimeState || runtimeState.action !== ExtensionRuntimeActionType.RestartExtensions) {
 				continue;
