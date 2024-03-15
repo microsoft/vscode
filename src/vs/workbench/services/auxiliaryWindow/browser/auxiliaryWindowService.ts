@@ -22,6 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -84,11 +85,13 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		readonly container: HTMLElement,
 		stylesHaveLoaded: Barrier,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(window, undefined, hostService);
+		super(window, undefined, hostService, environmentService);
 
-		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => { });
+		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => undefined);
+
 		this.registerListeners();
 	}
 
@@ -182,7 +185,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IHostService protected readonly hostService: IHostService
+		@IHostService protected readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -226,7 +230,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		type AuxiliaryWindowClassification = {
 			owner: 'bpasero';
 			comment: 'An event that fires when an auxiliary window is opened';
-			bounds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Has window bounds provided.' };
+			bounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Has window bounds provided.' };
 		};
 		type AuxiliaryWindowOpenEvent = {
 			bounds: boolean;
@@ -237,7 +241,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier): AuxiliaryWindow {
-		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService);
+		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService, this.environmentService);
 	}
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
@@ -293,22 +297,18 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions): { stylesLoaded: Barrier; container: HTMLElement } {
-		this.patchMethods(auxiliaryWindow);
+		auxiliaryWindow.document.createElement = function () {
+			// Disallow `createElement` because it would create
+			// HTML Elements in the "wrong" context and break
+			// code that does "instanceof HTMLElement" etc.
+			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
+		};
 
 		this.applyMeta(auxiliaryWindow);
 		const { stylesLoaded } = this.applyCSS(auxiliaryWindow, disposables);
 		const container = this.applyHTML(auxiliaryWindow, disposables);
+
 		return { stylesLoaded, container };
-	}
-
-	protected patchMethods(auxiliaryWindow: CodeWindow): void {
-
-		// Disallow `createElement` because it would create
-		// HTML Elements in the "wrong" context and break
-		// code that does "instanceof HTMLElement" etc.
-		auxiliaryWindow.document.createElement = function () {
-			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
-		};
 	}
 
 	private applyMeta(auxiliaryWindow: CodeWindow): void {
@@ -334,7 +334,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}
 	}
 
-	protected applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
+	private applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
 		mark('code/auxiliaryWindow/willApplyCSS');
 
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
@@ -342,11 +342,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const stylesLoaded = new Barrier();
 		stylesLoaded.wait().then(() => mark('code/auxiliaryWindow/didLoadCSSStyles'));
 
-		let pendingLinkSettles = 0;
-		function onLinkSettled(_event?: globalThis.Event) {
-			// network errors from loading stylesheets will be written to the console
-			// already, we probably don't need to log them manually.
-			if (!--pendingLinkSettles) {
+		const pendingLinksDisposables = disposables.add(new DisposableStore());
+
+		let pendingLinksToSettle = 0;
+		function onLinkSettled() {
+			if (--pendingLinksToSettle === 0) {
+				pendingLinksDisposables.dispose();
 				stylesLoaded.open();
 			}
 		}
@@ -357,21 +358,28 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			}
 
 			const clonedNode = auxiliaryWindow.document.head.appendChild(originalNode.cloneNode(true));
-			if (originalNode.tagName === 'LINK') {
-				pendingLinkSettles++;
-				disposables.add(addDisposableListener(clonedNode, 'load', onLinkSettled));
-				disposables.add(addDisposableListener(clonedNode, 'error', onLinkSettled));
+			if (originalNode.tagName.toLowerCase() === 'link') {
+				pendingLinksToSettle++;
+
+				pendingLinksDisposables.add(addDisposableListener(clonedNode, 'load', onLinkSettled));
+				pendingLinksDisposables.add(addDisposableListener(clonedNode, 'error', onLinkSettled));
 			}
 
 			mapOriginalToClone.set(originalNode, clonedNode);
 		}
 
 		// Clone all style elements and stylesheet links from the window to the child window
-		pendingLinkSettles++; // outer increment handles cases where there's nothing to load, and ensures it can't settle prematurely
-		for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
-			cloneNode(originalNode);
+		// and keep track of <link> elements to settle to signal that styles have loaded
+		// Increment pending links right from the beginning to ensure we only settle when
+		// all style related nodes have been cloned.
+		pendingLinksToSettle++;
+		try {
+			for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
+				cloneNode(originalNode);
+			}
+		} finally {
+			onLinkSettled();
 		}
-		onLinkSettled();
 
 		// Global stylesheets in <head> are cloned in a special way because the mutation
 		// observer is not firing for changes done via `style.sheet` API. Only text changes

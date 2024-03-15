@@ -11,7 +11,7 @@ import { PromiseAdapter, arrayEquals, promiseFromEvent } from './common/utils';
 import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
 import { crypto } from './node/crypto';
-import { TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { CANCELLATION_ERROR, TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 
 interface SessionData {
 	id: string;
@@ -296,13 +296,44 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				scopes: JSON.stringify(scopes),
 			});
 
+			const sessions = await this._sessionsPromise;
 
 			const scopeString = sortedScopes.join(' ');
-			const token = await this._githubServer.login(scopeString);
+			const existingLogin = sessions[0]?.account.label;
+			const token = await this._githubServer.login(scopeString, existingLogin);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			const sessions = await this._sessionsPromise;
+			if (sessions.some(s => s.account.id !== session.account.id)) {
+				const otherAccountsIndexes = new Array<number>();
+				const otherAccountsLabels = new Set<string>();
+				for (let i = 0; i < sessions.length; i++) {
+					if (sessions[i].account.id !== session.account.id) {
+						otherAccountsIndexes.push(i);
+						otherAccountsLabels.add(sessions[i].account.label);
+					}
+				}
+				const proceed = vscode.l10n.t("Continue");
+				const labelstr = [...otherAccountsLabels].join(', ');
+				const result = await vscode.window.showInformationMessage(
+					vscode.l10n.t({
+						message: "You are logged into another account already ({0}).\n\nDo you want to log out of that account and log in to '{1}' instead?",
+						comment: ['{0} is a comma-separated list of account names. {1} is the account name to log into.'],
+						args: [labelstr, session.account.label]
+					}),
+					{ modal: true },
+					proceed
+				);
+				if (result !== proceed) {
+					throw new Error(CANCELLATION_ERROR);
+				}
+
+				// Remove other accounts
+				for (const i of otherAccountsIndexes) {
+					sessions.splice(i, 1);
+				}
+			}
+
 			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
 			if (sessionIndex > -1) {
 				sessions.splice(sessionIndex, 1, session);

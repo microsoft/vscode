@@ -7,8 +7,10 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IUpdate {
+	// Windows and Linux: 9a19815253d91900be5ec1016e0ecc7cc9a6950 (Commit Hash). Mac: 1.54.0 (Product Version)
 	version: string;
-	productVersion: string;
+	productVersion?: string;
+	timestamp?: number;
 	url?: string;
 	sha256hash?: string;
 }
@@ -63,7 +65,7 @@ export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
 export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
 export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate };
-export type Downloading = { type: StateType.Downloading; update: IUpdate };
+export type Downloading = { type: StateType.Downloading };
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate };
 export type Updating = { type: StateType.Updating; update: IUpdate };
 export type Ready = { type: StateType.Ready; update: IUpdate };
@@ -76,7 +78,7 @@ export const State = {
 	Idle: (updateType: UpdateType, error?: string) => ({ type: StateType.Idle, updateType, error }) as Idle,
 	CheckingForUpdates: (explicit: boolean) => ({ type: StateType.CheckingForUpdates, explicit } as CheckingForUpdates),
 	AvailableForDownload: (update: IUpdate) => ({ type: StateType.AvailableForDownload, update } as AvailableForDownload),
-	Downloading: (update: IUpdate) => ({ type: StateType.Downloading, update } as Downloading),
+	Downloading: { type: StateType.Downloading } as Downloading,
 	Downloaded: (update: IUpdate) => ({ type: StateType.Downloaded, update } as Downloaded),
 	Updating: (update: IUpdate) => ({ type: StateType.Updating, update } as Updating),
 	Ready: (update: IUpdate) => ({ type: StateType.Ready, update } as Ready),

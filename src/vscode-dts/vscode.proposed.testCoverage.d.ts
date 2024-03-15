@@ -9,40 +9,25 @@ declare module 'vscode' {
 
 	export interface TestRun {
 		/**
-		 * Test coverage provider for this result. An extension can defer setting
-		 * this until after a run is complete and coverage is available.
+		 * Adds coverage for a file in the run.
 		 */
-		coverageProvider?: TestCoverageProvider;
-		// ...
+		addCoverage(fileCoverage: FileCoverage): void;
+
+		/**
+		 * An event fired when the editor is no longer interested in data
+		 * associated with the test run.
+		 */
+		onDidDispose: Event<void>;
 	}
 
-	/**
-	 * Provides information about test coverage for a test result.
-	 * Methods on the provider will not be called until the test run is complete
-	 */
-	export interface TestCoverageProvider<T extends FileCoverage = FileCoverage> {
+	export interface TestRunProfile {
 		/**
-		 * Returns coverage information for all files involved in the test run.
-		 * @param token A cancellation token.
-		 * @return Coverage metadata for all files involved in the test.
-		 */
-		// @API - pass something into the provide method:
-		// (1) have TestController#coverageProvider: TestCoverageProvider
-		// (2) pass TestRun into this method
-		provideFileCoverage(token: CancellationToken): ProviderResult<T[]>;
-
-		/**
-		 * Give a FileCoverage to fill in more data, namely {@link FileCoverage.detailedCoverage}.
-		 * The editor will only resolve a FileCoverage once, and only if detailedCoverage
-		 * is undefined.
+		 * A function that provides detailed statement and function-level coverage for a file.
 		 *
-		 * @param coverage A coverage object obtained from {@link provideFileCoverage}
-		 * @param token A cancellation token.
-		 * @return The resolved file coverage, or a thenable that resolves to one. It
-		 * is OK to return the given `coverage`. When no result is returned, the
-		 * given `coverage` will be used.
+		 * The {@link FileCoverage} object passed to this function is the same instance
+		 * emitted on {@link TestRun.addCoverage} calls associated with this profile.
 		 */
-		resolveFileCoverage?(coverage: T, token: CancellationToken): ProviderResult<T>;
+		loadDetailedCoverage?: (testRun: TestRun, fileCoverage: FileCoverage, token: CancellationToken) => Thenable<FileCoverageDetail[]>;
 	}
 
 	/**
@@ -93,18 +78,12 @@ declare module 'vscode' {
 		declarationCoverage?: CoveredCount;
 
 		/**
-		 * Detailed, per-statement coverage. If this is undefined, the editor will
-		 * call {@link TestCoverageProvider.resolveFileCoverage} when necessary.
-		 */
-		detailedCoverage?: DetailedCoverage[];
-
-		/**
 		 * Creates a {@link FileCoverage} instance with counts filled in from
 		 * the coverage details.
 		 * @param uri Covered file URI
 		 * @param detailed Detailed coverage information
 		 */
-		static fromDetails(uri: Uri, details: readonly DetailedCoverage[]): FileCoverage;
+		static fromDetails(uri: Uri, details: readonly FileCoverageDetail[]): FileCoverage;
 
 		/**
 		 * @param uri Covered file URI
@@ -217,6 +196,6 @@ declare module 'vscode' {
 		constructor(name: string, executed: number | boolean, location: Position | Range);
 	}
 
-	export type DetailedCoverage = StatementCoverage | DeclarationCoverage;
+	export type FileCoverageDetail = StatementCoverage | DeclarationCoverage;
 
 }

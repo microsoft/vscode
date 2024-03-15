@@ -40,9 +40,7 @@ export class ChatVariablesService implements IChatVariablesService {
 					const data = this._resolver.get(part.variableName.toLowerCase());
 					if (data) {
 						jobs.push(data.resolver(prompt.text, part.variableArg, model, progress, token).then(values => {
-							if (values?.length) {
-								resolvedVariables[i] = { name: part.variableName, range: part.range, values };
-							}
+							resolvedVariables[i] = { name: part.variableName, range: part.range, values: values ?? [] };
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
@@ -60,6 +58,15 @@ export class ChatVariablesService implements IChatVariablesService {
 		return {
 			variables: resolvedVariables,
 		};
+	}
+
+	async resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[]> {
+		const data = this._resolver.get(variableName.toLowerCase());
+		if (!data) {
+			return Promise.resolve([]);
+		}
+
+		return (await data.resolver(promptText, undefined, model, progress, token)) ?? [];
 	}
 
 	hasVariable(name: string): boolean {
