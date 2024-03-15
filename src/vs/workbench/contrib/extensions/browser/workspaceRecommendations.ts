@@ -11,6 +11,9 @@ import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRe
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { IExtensionsConfigContent, IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class WorkspaceRecommendations extends ExtensionRecommendations {
 
@@ -25,6 +28,9 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 
 	constructor(
 		@IWorkspaceExtensionsConfigService private readonly workspaceExtensionsConfigService: IWorkspaceExtensionsConfigService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
@@ -62,7 +68,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 				for (const extensionId of extensionsConfig.recommendations) {
 					if (invalidRecommendations.indexOf(extensionId) === -1) {
 						this._recommendations.push({
-							extensionId,
+							extension: extensionId,
 							reason: {
 								reasonId: ExtensionRecommendationReason.Workspace,
 								reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
@@ -70,6 +76,27 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 						});
 					}
 				}
+			}
+		}
+
+		for (const workspaceFolder of this.contextService.getWorkspace().folders) {
+			const extensionsLocaiton = this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, '.vscode/extensions');
+			try {
+				const stat = await this.fileService.resolve(extensionsLocaiton);
+				for (const extension of stat.children ?? []) {
+					if (!extension.isDirectory) {
+						continue;
+					}
+					this._recommendations.push({
+						extension: extension.resource,
+						reason: {
+							reasonId: ExtensionRecommendationReason.Workspace,
+							reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
+						}
+					});
+				}
+			} catch (error) {
+				// ignore
 			}
 		}
 	}

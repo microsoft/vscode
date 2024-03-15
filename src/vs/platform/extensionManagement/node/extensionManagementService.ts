@@ -173,7 +173,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		if (!local || !local.manifest.name || !local.manifest.version) {
 			throw new Error(`Cannot find a valid extension from the location ${location.toString()}`);
 		}
-		await this.addExtensionsToProfile([[local, undefined]], profileLocation);
+		await this.addExtensionsToProfile([[local, { source: 'resource' }]], profileLocation);
 		this.logService.info('Successfully installed extension', local.identifier.id, profileLocation.toString());
 		return local;
 	}
@@ -715,6 +715,8 @@ export class ExtensionsScanner extends Disposable {
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
+			isWorkspaceScoped: false,
+			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix')
 		};
 	}
 
@@ -906,7 +908,8 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			pinned: this.options.installGivenVersion ? true : (this.options.pinned ?? existingExtension?.pinned),
 			preRelease: isBoolean(this.options.preRelease)
 				? this.options.preRelease
-				: this.options.installPreReleaseVersion || this.gallery.properties.isPreReleaseVersion || existingExtension?.preRelease
+				: this.options.installPreReleaseVersion || this.gallery.properties.isPreReleaseVersion || existingExtension?.preRelease,
+			source: 'gallery',
 		};
 
 		if (existingExtension?.manifest.version === this.gallery.version) {
@@ -978,6 +981,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 			isBuiltin: this.options.isBuiltin || existing?.isBuiltin,
 			installedTimestamp: Date.now(),
 			pinned: this.options.installGivenVersion ? true : (this.options.pinned ?? existing?.pinned),
+			source: 'vsix',
 		};
 
 		if (existing) {

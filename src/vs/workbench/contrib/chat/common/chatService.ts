@@ -283,7 +283,7 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string): Promise<IChatSendRequestData | undefined>;
+	sendRequest(sessionId: string, message: string, implicitVariablesEnabled?: boolean): Promise<IChatSendRequestData | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;

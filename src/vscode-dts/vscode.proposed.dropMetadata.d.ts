@@ -7,11 +7,27 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/179430
 
+
+	/**
+	 * TODO:
+	 * - Add ctor(insertText: string | SnippetString, title?: string, kind?: DocumentPasteEditKind); Can't be done as this is an extension to an existing class
+	 * - Update provider to return multiple edits
+	 */
+
 	export interface DocumentDropEdit {
 		/**
 		 * Human readable label that describes the edit.
 		 */
-		label?: string;
+		title?: string;
+
+		/**
+		 * {@link DocumentPasteEditKind Kind} of the edit.
+		 *
+		 * Used to identify specific types of edits.
+		 *
+		 * TODO: use own type?
+		 */
+		kind: DocumentPasteEditKind;
 
 		/**
 		 * The mime type from the {@link DataTransfer} that this edit applies.
@@ -23,22 +39,11 @@ declare module 'vscode' {
 		/**
 		 * Controls the ordering or multiple paste edits. If this provider yield to edits, it will be shown lower in the list.
 		 */
-		yieldTo?: ReadonlyArray<
-			// TODO: what about built-in providers?
-			| { readonly extensionId: string; readonly providerId: string }
-			| { readonly mimeType: string }
-		>;
+		yieldTo?: ReadonlyArray<DocumentPasteEditKind>;
 	}
 
 	export interface DocumentDropEditProviderMetadata {
-		/**
-		 * Identifies the provider.
-		 *
-		 * This id is used when users configure the default provider for drop.
-		 *
-		 * This id should be unique within the extension but does not need to be unique across extensions.
-		 */
-		readonly id: string;
+		readonly providedDropEditKinds?: readonly DocumentPasteEditKind[];
 
 		/**
 		 * List of {@link DataTransfer} mime types that the provider can handle.

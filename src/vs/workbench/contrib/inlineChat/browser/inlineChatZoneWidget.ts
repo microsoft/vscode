@@ -14,15 +14,14 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { InlineChatWidget } from './inlineChatWidget';
+import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditorBasedInlineChatWidget } from './inlineChatWidget';
 
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
-	readonly widget: InlineChatWidget;
+	readonly widget: EditorBasedInlineChatWidget;
 
-	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
 	private _dimension?: Dimension;
 	private _indentationWidth: number | undefined;
@@ -34,15 +33,13 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	) {
 		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 });
 
-		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
 
 		this._disposables.add(toDisposable(() => {
-			this._ctxVisible.reset();
 			this._ctxCursorPosition.reset();
 		}));
 
-		this.widget = this._instaService.createInstance(InlineChatWidget, this.editor, {
+		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, this.editor, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			inputMenuId: MENU_INLINE_CHAT_INPUT,
 			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
@@ -96,11 +93,9 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 
 	protected override _doLayout(heightInPixel: number): void {
-
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
 		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation(this._indentationWidth));
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
 	}
 
@@ -111,7 +106,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	private _computeHeightInLines(): number {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-		return this.widget.getHeight() / lineHeight;
+		const widgetHeight = this.widget.getHeight();
+		return widgetHeight / lineHeight;
 	}
 
 	protected override _onWidth(_widthInPixel: number): void {
@@ -128,9 +124,21 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override show(position: Position): void {
+		assertType(this.container);
+
+		const info = this.editor.getLayoutInfo();
+		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
+		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
+
+		this._setWidgetMargins(position);
+		this.widget.takeInputWidgetOwnership();
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
-		this._ctxVisible.set(true);
+	}
+
+	override updatePositionAndHeight(position: Position): void {
+		this._setWidgetMargins(position);
+		super.updatePositionAndHeight(position);
 	}
 
 	protected override _getWidth(info: EditorLayoutInfo): number {
@@ -164,15 +172,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		return this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
 	}
 
-	setContainerMargins(): void {
-		assertType(this.container);
-
-		const info = this.editor.getLayoutInfo();
-		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
-		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
-	}
-
-	setWidgetMargins(position: Position): void {
+	private _setWidgetMargins(position: Position): void {
 		const indentationWidth = this._calculateIndentationWidth(position);
 		if (this._indentationWidth === indentationWidth) {
 			return;
@@ -184,7 +184,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	override hide(): void {
 		this.container!.classList.remove('inside-selection');
-		this._ctxVisible.reset();
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
 		super.hide();

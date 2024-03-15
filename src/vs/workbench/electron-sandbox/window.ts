@@ -42,11 +42,11 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
+import { IOpenerService, IResolvedExternalUri, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { posix } from 'vs/base/common/path';
-import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
+import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping, extractQueryLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -139,7 +139,7 @@ export class NativeWindow extends BaseWindow {
 		this.create();
 	}
 
-	private registerListeners(): void {
+	protected registerListeners(): void {
 
 		// Layout
 		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => this.layoutService.layout()));
@@ -644,7 +644,7 @@ export class NativeWindow extends BaseWindow {
 		}
 	}
 
-	private create(): void {
+	protected create(): void {
 
 		// Handle open calls
 		this.setupOpenHandlers();
@@ -784,6 +784,79 @@ export class NativeWindow extends BaseWindow {
 		});
 	}
 
+	private async openTunnel(address: string, port: number): Promise<RemoteTunnel | string | undefined> {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
+			getAddress: async (): Promise<IAddress> => {
+				return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
+			}
+		} : undefined;
+		const tunnel = await this.tunnelService.getExistingTunnel(address, port);
+		if (!tunnel || (typeof tunnel === 'string')) {
+			return this.tunnelService.openTunnel(addressProvider, address, port);
+		}
+		return tunnel;
+	}
+
+	async resolveExternalUri(uri: URI, options?: OpenOptions): Promise<IResolvedExternalUri | undefined> {
+		let queryTunnel: RemoteTunnel | string | undefined;
+		if (options?.allowTunneling) {
+			const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
+			const queryPortMapping = extractQueryLocalHostUriMetaDataForPortMapping(uri);
+			if (queryPortMapping) {
+				queryTunnel = await this.openTunnel(queryPortMapping.address, queryPortMapping.port);
+				if (queryTunnel && (typeof queryTunnel !== 'string')) {
+					// If the tunnel was mapped to a different port, dispose it, because some services
+					// validate the port number in the query string.
+					if (queryTunnel.tunnelRemotePort !== queryPortMapping.port) {
+						queryTunnel.dispose();
+						queryTunnel = undefined;
+					} else {
+						if (!portMappingRequest) {
+							const tunnel = queryTunnel;
+							return {
+								resolved: uri,
+								dispose: () => tunnel.dispose()
+							};
+						}
+					}
+				}
+			}
+			if (portMappingRequest) {
+				const tunnel = await this.openTunnel(portMappingRequest.address, portMappingRequest.port);
+				if (tunnel && (typeof tunnel !== 'string')) {
+					const addressAsUri = URI.parse(tunnel.localAddress);
+					const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
+					return {
+						resolved,
+						dispose() {
+							tunnel.dispose();
+							if (queryTunnel && (typeof queryTunnel !== 'string')) {
+								queryTunnel.dispose();
+							}
+						}
+					};
+				}
+			}
+		}
+
+		if (!options?.openExternal) {
+			const canHandleResource = await this.fileService.canHandleResource(uri);
+			if (canHandleResource) {
+				return {
+					resolved: URI.from({
+						scheme: this.productService.urlProtocol,
+						path: 'workspace',
+						query: uri.toString()
+					}),
+					dispose() { }
+				};
+			}
+		}
+
+		return undefined;
+	}
+
 	private setupOpenHandlers(): void {
 
 		// Handle external open() calls
@@ -805,46 +878,7 @@ export class NativeWindow extends BaseWindow {
 		// Register external URI resolver
 		this.openerService.registerExternalUriResolver({
 			resolveExternalUri: async (uri: URI, options?: OpenOptions) => {
-				if (options?.allowTunneling) {
-					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
-					if (portMappingRequest) {
-						const remoteAuthority = this.environmentService.remoteAuthority;
-						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
-							getAddress: async (): Promise<IAddress> => {
-								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
-							}
-						} : undefined;
-						let tunnel = await this.tunnelService.getExistingTunnel(portMappingRequest.address, portMappingRequest.port);
-						if (!tunnel || (typeof tunnel === 'string')) {
-							tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
-						}
-						if (tunnel && (typeof tunnel !== 'string')) {
-							const constTunnel = tunnel;
-							const addressAsUri = URI.parse(constTunnel.localAddress);
-							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: constTunnel.localAddress });
-							return {
-								resolved,
-								dispose: () => constTunnel.dispose(),
-							};
-						}
-					}
-				}
-
-				if (!options?.openExternal) {
-					const canHandleResource = await this.fileService.canHandleResource(uri);
-					if (canHandleResource) {
-						return {
-							resolved: URI.from({
-								scheme: this.productService.urlProtocol,
-								path: 'workspace',
-								query: uri.toString()
-							}),
-							dispose() { }
-						};
-					}
-				}
-
-				return undefined;
+				return this.resolveExternalUri(uri, options);
 			}
 		});
 	}

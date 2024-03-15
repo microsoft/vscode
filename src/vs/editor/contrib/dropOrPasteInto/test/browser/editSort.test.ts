@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DocumentOnDropEdit } from 'vs/editor/common/languages';
 import { sortEditsByYieldTo } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
 
-type DropEdit = DocumentOnDropEdit & { providerId: string | undefined };
 
-function createTestEdit(providerId: string, args?: Partial<DropEdit>): DropEdit {
+function createTestEdit(kind: string, args?: Partial<DocumentOnDropEdit>): DocumentOnDropEdit {
 	return {
-		label: '',
+		title: '',
 		insertText: '',
-		providerId,
+		kind: new HierarchicalKind(kind),
 		...args,
 	};
 }
@@ -21,48 +21,48 @@ function createTestEdit(providerId: string, args?: Partial<DropEdit>): DropEdit 
 suite('sortEditsByYieldTo', () => {
 
 	test('Should noop for empty edits', () => {
-		const edits: DropEdit[] = [];
+		const edits: DocumentOnDropEdit[] = [];
 
 		assert.deepStrictEqual(sortEditsByYieldTo(edits), []);
 	});
 
 	test('Yielded to edit should get sorted after target', () => {
-		const edits: DropEdit[] = [
-			createTestEdit('a', { yieldTo: [{ providerId: 'b' }] }),
+		const edits: DocumentOnDropEdit[] = [
+			createTestEdit('a', { yieldTo: [{ kind: new HierarchicalKind('b') }] }),
 			createTestEdit('b'),
 		];
-		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.providerId), ['b', 'a']);
+		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind?.value), ['b', 'a']);
 	});
 
 	test('Should handle chain of yield to', () => {
 		{
-			const edits: DropEdit[] = [
-				createTestEdit('c', { yieldTo: [{ providerId: 'a' }] }),
-				createTestEdit('a', { yieldTo: [{ providerId: 'b' }] }),
+			const edits: DocumentOnDropEdit[] = [
+				createTestEdit('c', { yieldTo: [{ kind: new HierarchicalKind('a') }] }),
+				createTestEdit('a', { yieldTo: [{ kind: new HierarchicalKind('b') }] }),
 				createTestEdit('b'),
 			];
 
-			assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.providerId), ['b', 'a', 'c']);
+			assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind?.value), ['b', 'a', 'c']);
 		}
 		{
-			const edits: DropEdit[] = [
-				createTestEdit('a', { yieldTo: [{ providerId: 'b' }] }),
-				createTestEdit('c', { yieldTo: [{ providerId: 'a' }] }),
+			const edits: DocumentOnDropEdit[] = [
+				createTestEdit('a', { yieldTo: [{ kind: new HierarchicalKind('b') }] }),
+				createTestEdit('c', { yieldTo: [{ kind: new HierarchicalKind('a') }] }),
 				createTestEdit('b'),
 			];
 
-			assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.providerId), ['b', 'a', 'c']);
+			assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind?.value), ['b', 'a', 'c']);
 		}
 	});
 
 	test(`Should not reorder when yield to isn't used`, () => {
-		const edits: DropEdit[] = [
-			createTestEdit('c', { yieldTo: [{ providerId: 'x' }] }),
-			createTestEdit('a', { yieldTo: [{ providerId: 'y' }] }),
+		const edits: DocumentOnDropEdit[] = [
+			createTestEdit('c', { yieldTo: [{ kind: new HierarchicalKind('x') }] }),
+			createTestEdit('a', { yieldTo: [{ kind: new HierarchicalKind('y') }] }),
 			createTestEdit('b'),
 		];
 
-		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.providerId), ['c', 'a', 'b']);
+		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.kind?.value), ['c', 'a', 'b']);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -2786,27 +2786,63 @@ export class DataTransfer implements vscode.DataTransfer {
 
 @es5ClassCompat
 export class DocumentDropEdit {
+	title?: string;
+
 	id: string | undefined;
 
 	insertText: string | SnippetString;
 
 	additionalEdit?: WorkspaceEdit;
 
-	constructor(insertText: string | SnippetString) {
+	kind?: DocumentPasteEditKind;
+
+	constructor(insertText: string | SnippetString, title?: string, kind?: DocumentPasteEditKind) {
 		this.insertText = insertText;
+		this.title = title;
+		this.kind = kind;
 	}
 }
+
+export enum DocumentPasteTriggerKind {
+	Automatic = 0,
+	PasteAs = 1,
+}
+
+export class DocumentPasteEditKind {
+	static Empty: DocumentPasteEditKind;
+
+	private static sep = '.';
+
+	constructor(
+		public readonly value: string
+	) { }
+
+	public append(...parts: string[]): DocumentPasteEditKind {
+		return new DocumentPasteEditKind((this.value ? [this.value, ...parts] : parts).join(DocumentPasteEditKind.sep));
+	}
+
+	public intersects(other: DocumentPasteEditKind): boolean {
+		return this.contains(other) || other.contains(this);
+	}
+
+	public contains(other: DocumentPasteEditKind): boolean {
+		return this.value === other.value || other.value.startsWith(this.value + DocumentPasteEditKind.sep);
+	}
+}
+DocumentPasteEditKind.Empty = new DocumentPasteEditKind('');
 
 @es5ClassCompat
 export class DocumentPasteEdit {
 
-	label: string;
+	title: string;
 	insertText: string | SnippetString;
 	additionalEdit?: WorkspaceEdit;
+	kind: DocumentPasteEditKind;
 
-	constructor(insertText: string | SnippetString, label: string) {
-		this.label = label;
+	constructor(insertText: string | SnippetString, title: string, kind: DocumentPasteEditKind) {
+		this.title = title;
 		this.insertText = insertText;
+		this.kind = kind;
 	}
 }
 
@@ -3035,21 +3071,18 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 }
 
 
-@es5ClassCompat
-export class StackFrameFocus {
+export class StackFrame implements vscode.StackFrame {
 	constructor(
 		public readonly session: vscode.DebugSession,
-		readonly threadId?: number,
-		readonly frameId?: number) { }
+		readonly threadId: number,
+		readonly frameId: number) { }
 }
 
-@es5ClassCompat
-export class ThreadFocus {
+export class Thread implements vscode.Thread {
 	constructor(
 		public readonly session: vscode.DebugSession,
-		readonly threadId?: number) { }
+		readonly threadId: number) { }
 }
-
 
 
 @es5ClassCompat
@@ -3237,6 +3270,11 @@ export enum CommentState {
 export enum CommentThreadState {
 	Unresolved = 0,
 	Resolved = 1
+}
+
+export enum CommentThreadApplicability {
+	Current = 0,
+	Outdated = 1
 }
 
 //#endregion
@@ -3999,7 +4037,7 @@ const validateCC = (cc?: vscode.CoveredCount) => {
 };
 
 export class FileCoverage implements vscode.FileCoverage {
-	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
+	public static fromDetails(uri: vscode.Uri, details: vscode.FileCoverageDetail[]): vscode.FileCoverage {
 		const statements = new CoveredCount(0, 0);
 		const branches = new CoveredCount(0, 0);
 		const decl = new CoveredCount(0, 0);
@@ -4031,7 +4069,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		return coverage;
 	}
 
-	detailedCoverage?: vscode.DetailedCoverage[];
+	detailedCoverage?: vscode.FileCoverageDetail[];
 
 	constructor(
 		public readonly uri: vscode.Uri,
@@ -4166,6 +4204,10 @@ export class InteractiveWindowInput {
 export class ChatEditorTabInput {
 	constructor(readonly providerId: string) { }
 }
+
+export class TextMultiDiffTabInput {
+	constructor(readonly textDiffs: TextDiffTabInput[]) { }
+}
 //#endregion
 
 //#region Chat
@@ -4280,6 +4322,12 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 		readonly participant: { extensionId: string; name: string },
 		readonly command?: string
 	) { }
+}
+
+export enum ChatLocation {
+	Panel = 1,
+	Terminal = 2,
+	Notebook = 3
 }
 
 export class LanguageModelChatSystemMessage {

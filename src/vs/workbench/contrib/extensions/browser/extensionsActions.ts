@@ -322,6 +322,7 @@ export class InstallAction extends ExtensionAction {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.Class, false);
 		this.options = { ...options, isMachineScoped: false };
@@ -502,6 +503,9 @@ export class InstallAction extends ExtensionAction {
 	}
 
 	getLabel(primary?: boolean): string {
+		if (this.extension?.isWorkspaceScoped && this.extension.resourceExtension && this.contextService.isInsideWorkspace(this.extension.resourceExtension.location)) {
+			return localize('install workspace version', "Install Workspace Extension");
+		}
 		/* install pre-release version */
 		if (this.options.installPreReleaseVersion && this.extension?.hasPreReleaseVersion) {
 			return primary ? localize('install pre-release', "Install Pre-Release") : localize('install pre-release version', "Install Pre-Release Version");
@@ -1080,6 +1084,10 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['isBuiltinExtension', extension.isBuiltin]);
 			cksOverlay.push(['isDefaultApplicationScopedExtension', extension.local && isApplicationScopedExtension(extension.local.manifest)]);
 			cksOverlay.push(['isApplicationScopedExtension', extension.local && extension.local.isApplicationScoped]);
+			cksOverlay.push(['isWorkspaceScopedExtension', extension.isWorkspaceScoped]);
+			if (extension.local) {
+				cksOverlay.push(['extensionSource', extension.local.source]);
+			}
 			cksOverlay.push(['extensionHasConfiguration', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.configuration]);
 			cksOverlay.push(['extensionHasKeybindings', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.keybindings]);
 			cksOverlay.push(['extensionHasCommands', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes?.commands]);
@@ -1414,7 +1422,7 @@ export class EnableForWorkspaceAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local) {
+		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped) {
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& !this.extensionEnablementService.isEnabled(this.extension.local)
 				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
@@ -1445,7 +1453,7 @@ export class EnableGloballyAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local) {
+		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped) {
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& this.extensionEnablementService.isDisabledGlobally(this.extension.local)
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
@@ -1479,7 +1487,7 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local && this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
+		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped && this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
 				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
@@ -1512,7 +1520,7 @@ export class DisableGloballyAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local && this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))) {
+		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped && this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))) {
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
@@ -1554,20 +1562,21 @@ export class DisableDropDownAction extends ActionWithDropDownAction {
 
 }
 
-export class ReloadAction extends ExtensionAction {
+export class ExtensionRuntimeStateAction extends ExtensionAction {
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} reload`;
-	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${ExtensionRuntimeStateAction.EnabledClass} disabled`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
 	) {
-		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
+		super('extensions.runtimeState', '', ExtensionRuntimeStateAction.DisabledClass, false);
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this.update();
 	}
@@ -1575,7 +1584,7 @@ export class ReloadAction extends ExtensionAction {
 	update(): void {
 		this.enabled = false;
 		this.tooltip = '';
-		this.class = ReloadAction.DisabledClass;
+		this.class = ExtensionRuntimeStateAction.DisabledClass;
 
 		if (!this.extension) {
 			return;
@@ -1596,18 +1605,23 @@ export class ReloadAction extends ExtensionAction {
 		}
 
 		this.enabled = true;
-		this.class = ReloadAction.EnabledClass;
+		this.class = ExtensionRuntimeStateAction.EnabledClass;
 		this.tooltip = runtimeState.reason;
-		this.label = runtimeState.action === ExtensionRuntimeActionType.Reload ? localize('reload required', 'Reload {0}', this.productService.nameShort)
-			: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart {0}', this.productService.nameShort)
-				: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', 'Update {0}', this.productService.nameShort) : '';
+		this.label = runtimeState.action === ExtensionRuntimeActionType.ReloadWindow ? localize('reload window', 'Reload Window')
+			: runtimeState.action === ExtensionRuntimeActionType.RestartExtensions ? localize('restart extensions', 'Restart Extensions')
+				: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart to Update')
+					: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', 'Update {0}', this.productService.nameShort) : '';
 	}
 
 	override async run(): Promise<any> {
 		const runtimeState = this.extension?.runtimeState;
 
-		if (runtimeState?.action === ExtensionRuntimeActionType.Reload) {
+		if (runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow) {
 			return this.hostService.reload();
+		}
+
+		else if (runtimeState?.action === ExtensionRuntimeActionType.RestartExtensions) {
+			return this.extensionsWorkbenchService.updateRunningExtensions();
 		}
 
 		else if (runtimeState?.action === ExtensionRuntimeActionType.DownloadUpdate) {
@@ -2530,7 +2544,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		const isEnabled = this.workbenchExtensionEnablementService.isEnabled(this.extension.local);
 		const isRunning = this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier));
 
-		if (isEnabled && isRunning) {
+		if (!this.extension.isWorkspaceScoped && isEnabled && isRunning) {
 			if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
 				this.updateStatus({ message: new MarkdownString(localize('workspace enabled', "This extension is enabled for this workspace by the user.")) }, true);
 				return;

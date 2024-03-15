@@ -262,11 +262,11 @@ export class WorkbenchLanguageService extends LanguageService {
 		});
 
 		this.updateMime();
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this.updateMime();
 			}
-		});
+		}));
 		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.updateMime();
 		});

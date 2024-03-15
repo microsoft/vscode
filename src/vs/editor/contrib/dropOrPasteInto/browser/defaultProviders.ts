@@ -6,6 +6,7 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IReadonlyVSDataTransfer, UriList } from 'vs/base/common/dataTransfer';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { Schemas } from 'vs/base/common/network';
@@ -13,36 +14,46 @@ import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { DocumentOnDropEdit, DocumentOnDropEditProvider, DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
+import { DocumentOnDropEdit, DocumentOnDropEditProvider, DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, DocumentPasteTriggerKind } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-const builtInLabel = localize('builtIn', 'Built-in');
 
 abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvider {
 
-	abstract readonly id: string;
+	abstract readonly kind: HierarchicalKind;
 	abstract readonly dropMimeTypes: readonly string[] | undefined;
 	abstract readonly pasteMimeTypes: readonly string[];
 
-	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
+	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
-		return edit ? { insertText: edit.insertText, label: edit.label, detail: edit.detail, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo } : undefined;
+		if (!edit) {
+			return undefined;
+		}
+
+		return {
+			dispose() { },
+			edits: [{ insertText: edit.insertText, title: edit.title, kind: edit.kind, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo }]
+		};
 	}
 
-	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
+	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit[] | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
-		return edit ? { insertText: edit.insertText, label: edit.label, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo } : undefined;
+		return edit ? [{ insertText: edit.insertText, title: edit.title, kind: edit.kind, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo }] : undefined;
 	}
 
 	protected abstract getEdit(dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
-class DefaultTextProvider extends SimplePasteAndDropProvider {
+export class DefaultTextPasteOrDropEditProvider extends SimplePasteAndDropProvider {
 
-	readonly id = 'text';
+	static readonly id = 'text';
+	static readonly kind = new HierarchicalKind('text.plain');
+
+	readonly id = DefaultTextPasteOrDropEditProvider.id;
+	readonly kind = DefaultTextPasteOrDropEditProvider.kind;
 	readonly dropMimeTypes = [Mimes.text];
 	readonly pasteMimeTypes = [Mimes.text];
 
@@ -61,16 +72,16 @@ class DefaultTextProvider extends SimplePasteAndDropProvider {
 		const insertText = await textEntry.asString();
 		return {
 			handledMimeType: Mimes.text,
-			label: localize('text.label', "Insert Plain Text"),
-			detail: builtInLabel,
-			insertText
+			title: localize('text.label', "Insert Plain Text"),
+			insertText,
+			kind: this.kind,
 		};
 	}
 }
 
 class PathProvider extends SimplePasteAndDropProvider {
 
-	readonly id = 'uri';
+	readonly kind = new HierarchicalKind('uri.absolute');
 	readonly dropMimeTypes = [Mimes.uriList];
 	readonly pasteMimeTypes = [Mimes.uriList];
 
@@ -108,15 +119,15 @@ class PathProvider extends SimplePasteAndDropProvider {
 		return {
 			handledMimeType: Mimes.uriList,
 			insertText,
-			label,
-			detail: builtInLabel,
+			title: label,
+			kind: this.kind,
 		};
 	}
 }
 
 class RelativePathProvider extends SimplePasteAndDropProvider {
 
-	readonly id = 'relativePath';
+	readonly kind = new HierarchicalKind('uri.relative');
 	readonly dropMimeTypes = [Mimes.uriList];
 	readonly pasteMimeTypes = [Mimes.uriList];
 
@@ -144,24 +155,24 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 		return {
 			handledMimeType: Mimes.uriList,
 			insertText: relativeUris.join(' '),
-			label: entries.length > 1
+			title: entries.length > 1
 				? localize('defaultDropProvider.uriList.relativePaths', "Insert Relative Paths")
 				: localize('defaultDropProvider.uriList.relativePath', "Insert Relative Path"),
-			detail: builtInLabel,
+			kind: this.kind,
 		};
 	}
 }
 
 class PasteHtmlProvider implements DocumentPasteEditProvider {
 
-	public readonly id = 'html';
+	public readonly kind = new HierarchicalKind('html');
 
 	public readonly pasteMimeTypes = ['text/html'];
 
 	private readonly _yieldTo = [{ mimeType: Mimes.text }];
 
-	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
-		if (context.trigger !== 'explicit' && context.only !== this.id) {
+	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
+		if (context.triggerKind !== DocumentPasteTriggerKind.PasteAs && !context.only?.contains(this.kind)) {
 			return;
 		}
 
@@ -172,10 +183,13 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 		}
 
 		return {
-			insertText: htmlText,
-			yieldTo: this._yieldTo,
-			label: localize('pasteHtmlLabel', 'Insert HTML'),
-			detail: builtInLabel,
+			dispose() { },
+			edits: [{
+				insertText: htmlText,
+				yieldTo: this._yieldTo,
+				title: localize('pasteHtmlLabel', 'Insert HTML'),
+				kind: this.kind,
+			}],
 		};
 	}
 }
@@ -205,7 +219,7 @@ export class DefaultDropProvidersFeature extends Disposable {
 	) {
 		super();
 
-		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultTextProvider()));
+		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultTextPasteOrDropEditProvider()));
 		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new PathProvider()));
 		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
 	}
@@ -218,7 +232,7 @@ export class DefaultPasteProvidersFeature extends Disposable {
 	) {
 		super();
 
-		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextProvider()));
+		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextPasteOrDropEditProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PathProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PasteHtmlProvider()));

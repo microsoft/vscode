@@ -7,8 +7,10 @@ import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
@@ -19,6 +21,7 @@ import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/co
 import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatContributionService, IChatParticipantContribution, IChatProviderContribution, IRawChatParticipantContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatProviderContribution[]>({
@@ -81,6 +84,13 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					markdownDescription: localize('chatParticipantIsDefaultDescription', "**Only** allowed for extensions that have the `defaultChatParticipant` proposal."),
 					type: 'boolean',
 				},
+				defaultImplicitVariables: {
+					markdownDescription: 'The names of the variables that are invoked by default',
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				},
 				commands: {
 					markdownDescription: localize('chatCommandsDescription', "Commands available for this Chat Participant, which the user can invoke with a `/`."),
 					type: 'array',
@@ -88,7 +98,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 						additionalProperties: false,
 						type: 'object',
 						defaultSnippets: [{ body: { name: '', description: '' } }],
-						required: ['name', 'description'],
+						required: ['name'],
 						properties: {
 							name: {
 								description: localize('chatCommand', "A short name by which this command is referred to in the UI, e.g. `fix` or * `explain` for commands that fix an issue or explain code. The name should be unique among the commands provided by this participant."),
@@ -110,8 +120,25 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 								description: localize('chatCommandDescription', "A description of this command."),
 								type: 'boolean'
 							},
+							defaultImplicitVariables: {
+								markdownDescription: localize('defaultImplicitVariables', "The names of the variables that are invoked by default"),
+								type: 'array',
+								items: {
+									type: 'string'
+								}
+							},
 						}
 					}
+				},
+				locations: {
+					markdownDescription: localize('chatLocationsDescription', "Locations in which this Chat Participant is available."),
+					type: 'array',
+					default: ['panel'],
+					items: {
+						type: 'string',
+						enum: ['panel', 'terminal', 'notebook']
+					}
+
 				}
 			}
 		}
@@ -127,14 +154,56 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatExtensionPointHandler';
 
+	private readonly disposables = new DisposableStore();
+	private _welcomeViewDescriptor?: IViewDescriptor;
 	private _viewContainer: ViewContainer;
 	private _registrationDisposables = new Map<string, IDisposable>();
 
 	constructor(
-		@IChatContributionService readonly _chatContributionService: IChatContributionService
+		@IChatContributionService readonly _chatContributionService: IChatContributionService,
+		@IProductService readonly productService: IProductService,
+		@IContextKeyService readonly contextService: IContextKeyService,
+		@ILogService readonly logService: ILogService,
 	) {
 		this._viewContainer = this.registerViewContainer();
+		this.registerListeners();
 		this.handleAndRegisterChatExtensions();
+	}
+
+	private registerListeners() {
+		this.contextService.onDidChangeContext(e => {
+
+			if (!this.productService.chatWelcomeView) {
+				return;
+			}
+
+			const showWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
+			const keys = new Set([showWelcomeViewConfigKey]);
+			if (e.affectsSome(keys)) {
+				const contextKeyExpr = ContextKeyExpr.equals(showWelcomeViewConfigKey, true);
+				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+				if (this.contextService.contextMatchesRules(contextKeyExpr)) {
+					const viewId = this._chatContributionService.getViewIdForProvider(this.productService.chatWelcomeView.welcomeViewId);
+
+					this._welcomeViewDescriptor = {
+						id: viewId,
+						name: { original: this.productService.chatWelcomeView.welcomeViewTitle, value: this.productService.chatWelcomeView.welcomeViewTitle },
+						containerIcon: this._viewContainer.icon,
+						ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: this.productService.chatWelcomeView.welcomeViewId }]),
+						canToggleVisibility: false,
+						canMoveView: true,
+						order: 100
+					};
+					viewsRegistry.registerViews([this._welcomeViewDescriptor], this._viewContainer);
+
+					viewsRegistry.registerViewWelcomeContent(viewId, {
+						content: this.productService.chatWelcomeView.welcomeViewContent,
+					});
+				} else if (this._welcomeViewDescriptor) {
+					viewsRegistry.deregisterViews([this._welcomeViewDescriptor], this._viewContainer);
+				}
+			}
+		}, null, this.disposables);
 	}
 
 	private handleAndRegisterChatExtensions(): void {
@@ -164,6 +233,16 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		chatParticipantExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
 				for (const providerDescriptor of extension.value) {
+					if (providerDescriptor.isDefault && !isProposedApiEnabled(extension.description, 'defaultChatParticipant')) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: defaultChatParticipant.`);
+						continue;
+					}
+
+					if (providerDescriptor.defaultImplicitVariables && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
+						continue;
+					}
+
 					this._chatContributionService.registerChatParticipant({ ...providerDescriptor, extensionId: extension.description.identifier });
 				}
 			}

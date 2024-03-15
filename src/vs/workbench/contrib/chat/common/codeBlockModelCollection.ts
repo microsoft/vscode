@@ -8,6 +8,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 
 export class CodeBlockModelCollection extends Disposable {
@@ -25,18 +26,18 @@ export class CodeBlockModelCollection extends Disposable {
 		this.clear();
 	}
 
-	get(sessionId: string, responseId: string, codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> | undefined {
-		const uri = this.getUri(sessionId, responseId, codeBlockIndex);
+	get(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> | undefined {
+		const uri = this.getUri(sessionId, chat, codeBlockIndex);
 		return this._models.get(uri);
 	}
 
-	getOrCreate(sessionId: string, responseId: string, codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> {
-		const existing = this.get(sessionId, responseId, codeBlockIndex);
+	getOrCreate(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> {
+		const existing = this.get(sessionId, chat, codeBlockIndex);
 		if (existing) {
 			return existing;
 		}
 
-		const uri = this.getUri(sessionId, responseId, codeBlockIndex);
+		const uri = this.getUri(sessionId, chat, codeBlockIndex);
 		const ref = this.textModelService.createModelReference(uri);
 		this._models.set(uri, ref);
 		return ref;
@@ -47,7 +48,34 @@ export class CodeBlockModelCollection extends Disposable {
 		this._models.clear();
 	}
 
-	private getUri(sessionId: string, responseId: string, index: number): URI {
-		return URI.from({ scheme: Schemas.vscodeChatCodeBlock, authority: sessionId, path: `/${responseId}/${index}` });
+	private getUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
+		const metadata = this.getUriMetaData(chat);
+		return URI.from({
+			scheme: Schemas.vscodeChatCodeBlock,
+			authority: sessionId,
+			path: `/${chat.id}/${index}`,
+			fragment: metadata ? JSON.stringify(metadata) : undefined,
+		});
+	}
+
+	private getUriMetaData(chat: IChatRequestViewModel | IChatResponseViewModel) {
+		if (!isResponseVM(chat)) {
+			return undefined;
+		}
+
+		return {
+			references: chat.contentReferences.map(ref => {
+				if (URI.isUri(ref.reference)) {
+					return {
+						uri: ref.reference.toJSON()
+					};
+				}
+
+				return {
+					uri: ref.reference.uri.toJSON(),
+					range: ref.reference.range,
+				};
+			})
+		};
 	}
 }
