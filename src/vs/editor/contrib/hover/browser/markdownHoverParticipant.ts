@@ -223,13 +223,13 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		let newHover: Hover | null | undefined;
 		try {
 			newHover = await Promise.resolve(provider.provideHover(model, this._position, CancellationToken.None, context));
-			this._hoverData[focusedIndex] = new VerboseMarkdownHover(newHover ?? hover, provider, this, currentHoverData.range, false, currentHoverData.ordinal);
 		} catch (e) {
 			onUnexpectedExternalError(e);
 		}
 		if (!newHover) {
 			return;
 		}
+		this._hoverData[focusedIndex] = new VerboseMarkdownHover(newHover, provider, this, currentHoverData.range, false, currentHoverData.ordinal);
 		const renderedMarkdown = this._renderMarkdownHoversAndActions(
 			newHover.contents,
 			focusedIndex,
