@@ -239,6 +239,24 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(quickpick.selectedItems.length, 0);
 	});
 
+	test('activeItems - verify onDidChangeActive is triggered after setting items', async () => {
+		const quickpick = store.add(controller.createQuickPick());
+
+		// Setup listener for verification
+		const activeItemsFromEvent: IQuickPickItem[] = [];
+		store.add(quickpick.onDidChangeActive(items => activeItemsFromEvent.push(...items)));
+
+		quickpick.show();
+
+		const item = { label: 'step 1' };
+		quickpick.items = [item];
+
+		assert.strictEqual(activeItemsFromEvent.length, 1);
+		assert.strictEqual(activeItemsFromEvent[0], item);
+		assert.strictEqual(quickpick.activeItems.length, 1);
+		assert.strictEqual(quickpick.activeItems[0], item);
+	});
+
 	test('activeItems - verify setting itemActivation to None still triggers onDidChangeActive after selection #207832', async () => {
 		const quickpick = store.add(controller.createQuickPick());
 		const item = { label: 'step 1' };
@@ -246,13 +264,12 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		quickpick.show();
 		assert.strictEqual(quickpick.activeItems[0], item);
 
-		// setting itemActivation to None
-		quickpick.itemActivation = ItemActivation.NONE;
-
+		// Setup listener for verification
 		const activeItemsFromEvent: IQuickPickItem[] = [];
 		store.add(quickpick.onDidChangeActive(items => activeItemsFromEvent.push(...items)));
 
 		// Trigger a change
+		quickpick.itemActivation = ItemActivation.NONE;
 		quickpick.items = [item];
 
 		assert.strictEqual(activeItemsFromEvent.length, 0);
