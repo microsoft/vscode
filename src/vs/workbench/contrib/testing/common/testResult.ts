@@ -5,7 +5,6 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -25,7 +24,7 @@ export interface ITestRunTaskResults extends ITestRunTask {
 	/**
 	 * Contains test coverage for the result, if it's available.
 	 */
-	readonly coverage: IObservable<undefined | ((tkn: CancellationToken) => Promise<TestCoverage>)>;
+	readonly coverage: IObservable<TestCoverage | undefined>;
 
 	/**
 	 * Messages from the task not associated with any specific test.

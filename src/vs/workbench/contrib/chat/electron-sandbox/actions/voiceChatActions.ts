@@ -462,10 +462,12 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 
 	const holdMode = keybindingService.enableKeybindingHoldMode(id);
 
+	let session: IVoiceChatSession | undefined = undefined;
+
 	let acceptVoice = false;
 	const handle = disposableTimeout(() => {
 		acceptVoice = true;
-		session.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for VOICE_KEY_HOLD_THRESHOLD
+		session?.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for VOICE_KEY_HOLD_THRESHOLD
 	}, VOICE_KEY_HOLD_THRESHOLD);
 
 	const controller = await VoiceChatSessionControllerFactory.create(accessor, target);
@@ -474,7 +476,7 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 		return;
 	}
 
-	const session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
+	session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 
 	await holdMode;
 	handle.dispose();

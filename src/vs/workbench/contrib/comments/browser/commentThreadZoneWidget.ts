@@ -31,6 +31,12 @@ function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState |
 	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
 }
 
+export enum CommentWidgetFocus {
+	None = 0,
+	Widget = 1,
+	Editor = 2
+}
+
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	const range = e.target.range;
 
@@ -181,7 +187,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		// we don't do anything here as we always do the reveal ourselves.
 	}
 
-	public reveal(commentUniqueId?: number, focus: boolean = false) {
+	public reveal(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
 		if (!this._isExpanded) {
 			this.show(this.arrowPosition(this._commentThread.range), 2);
 		}
@@ -197,16 +203,20 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
 				}
 				this.editor.setScrollTop(scrollTop);
-				if (focus) {
+				if (focus === CommentWidgetFocus.Widget) {
 					this._commentThreadWidget.focus();
+				} else if (focus === CommentWidgetFocus.Editor) {
+					this._commentThreadWidget.focusCommentEditor();
 				}
 				return;
 			}
 		}
 
 		this.editor.revealRangeInCenter(this._commentThread.range ?? new Range(1, 1, 1, 1));
-		if (focus) {
+		if (focus === CommentWidgetFocus.Widget) {
 			this._commentThreadWidget.focus();
+		} else if (focus === CommentWidgetFocus.Editor) {
+			this._commentThreadWidget.focusCommentEditor();
 		}
 	}
 

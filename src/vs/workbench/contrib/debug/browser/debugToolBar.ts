@@ -194,9 +194,9 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this._register(this.layoutService.onDidChangeActiveContainer(() => {
 			this._yRange = undefined;
 
-			// note: we intentionally don't read the activeContainer before the
+			// note: we intentionally don't keep the activeContainer before the
 			// `then` clause to avoid any races due to quickly switching windows.
-			this.layoutService.whenActiveContainerStylesLoaded.then(() => {
+			this.layoutService.whenContainerStylesLoaded(dom.getWindow(this.layoutService.activeContainer)).then(() => {
 				if (this.isBuilt) {
 					this.doShowInActiveContainer();
 					this.setCoordinates();

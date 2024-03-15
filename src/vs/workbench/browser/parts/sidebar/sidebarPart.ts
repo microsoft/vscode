@@ -112,13 +112,19 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	private onDidChangeActivityBarLocation(): void {
+		this.acitivityBarPart.hide();
+
 		this.updateCompositeBar();
 
 		const id = this.getActiveComposite()?.getId();
 		if (id) {
 			this.onTitleAreaUpdate(id);
 		}
-		this.updateActivityBarVisiblity();
+
+		if (this.shouldShowActivityBar()) {
+			this.acitivityBarPart.show();
+		}
+
 		this.rememberActivityBarVisiblePosition();
 	}
 
@@ -168,7 +174,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
-				position: () => this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.BOTTOM ? HoverPosition.ABOVE : HoverPosition.BELOW,
+				position: () => this.getCompositeBarPosition() === CompositeBarPosition.BOTTOM ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
 			fillExtraContextMenuActions: actions => {
 				const viewsSubmenuAction = this.getViewsSubmenuAction();
@@ -179,7 +185,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			},
 			compositeSize: 0,
 			iconSize: 16,
-			overflowActionSize: 44,
+			overflowActionSize: 30,
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
 				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
@@ -230,14 +236,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			case ActivityBarPosition.TOP: return ActivityBarPosition.TOP;
 			case ActivityBarPosition.BOTTOM: return ActivityBarPosition.BOTTOM;
 			default: return ActivityBarPosition.DEFAULT;
-		}
-	}
-
-	private updateActivityBarVisiblity(): void {
-		if (this.shouldShowActivityBar()) {
-			this.acitivityBarPart.show();
-		} else {
-			this.acitivityBarPart.hide();
 		}
 	}
 

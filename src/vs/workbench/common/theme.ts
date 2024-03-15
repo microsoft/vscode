@@ -700,28 +700,42 @@ export const ACTIVITY_BAR_TOP_FOREGROUND = registerColor('activityBarTop.foregro
 	light: '#424242',
 	hcDark: Color.white,
 	hcLight: editorForeground
-}, localize('activityBarTop', "Active foreground color of the item in the Activity bar when it is on top. The activity allows to switch between views of the side bar."));
+}, localize('activityBarTop', "Active foreground color of the item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_TOP_ACTIVE_BORDER = registerColor('activityBarTop.activeBorder', {
 	dark: ACTIVITY_BAR_TOP_FOREGROUND,
 	light: ACTIVITY_BAR_TOP_FOREGROUND,
 	hcDark: contrastBorder,
 	hcLight: '#B5200D'
-}, localize('activityBarTopActiveFocusBorder', "Focus border color for the active item in the Activity bar when it is on top. The activity allows to switch between views of the side bar."));
+}, localize('activityBarTopActiveFocusBorder', "Focus border color for the active item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_ACTIVE_BACKGROUND = registerColor('activityBarTop.activeBackground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('activityBarTopActiveBackground', "Background color for the active item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND = registerColor('activityBarTop.inactiveForeground', {
 	dark: transparent(ACTIVITY_BAR_TOP_FOREGROUND, 0.6),
 	light: transparent(ACTIVITY_BAR_TOP_FOREGROUND, 0.75),
 	hcDark: Color.white,
 	hcLight: editorForeground
-}, localize('activityBarTopInActiveForeground', "Inactive foreground color of the item in the Activity bar when it is on top. The activity allows to switch between views of the side bar."));
+}, localize('activityBarTopInActiveForeground', "Inactive foreground color of the item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER = registerColor('activityBarTop.dropBorder', {
 	dark: ACTIVITY_BAR_TOP_FOREGROUND,
 	light: ACTIVITY_BAR_TOP_FOREGROUND,
 	hcDark: ACTIVITY_BAR_TOP_FOREGROUND,
 	hcLight: ACTIVITY_BAR_TOP_FOREGROUND
-}, localize('activityBarTopDragAndDropBorder', "Drag and drop feedback color for the items in the Activity bar when it is on top. The activity allows to switch between views of the side bar."));
+}, localize('activityBarTopDragAndDropBorder', "Drag and drop feedback color for the items in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_BACKGROUND = registerColor('activityBarTop.background', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null,
+}, localize('activityBarTopBackground', "Background color of the activity bar when set to top / bottom."));
 
 
 // < --- Profiles --- >
@@ -871,6 +885,12 @@ export const SIDE_BAR_SECTION_HEADER_BORDER = registerColor('sideBarSectionHeade
 	hcLight: contrastBorder
 }, localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
 
+export const ACTIVITY_BAR_TOP_BORDER = registerColor('sideBarActivityBarTop.border', {
+	dark: SIDE_BAR_SECTION_HEADER_BORDER,
+	light: SIDE_BAR_SECTION_HEADER_BORDER,
+	hcDark: SIDE_BAR_SECTION_HEADER_BORDER,
+	hcLight: SIDE_BAR_SECTION_HEADER_BORDER
+}, localize('sideBarActivityBarTopBorder', "Border color between the activity bar at the top/bottom and the views."));
 
 // < --- Title Bar --- >
 

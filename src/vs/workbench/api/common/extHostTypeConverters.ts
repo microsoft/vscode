@@ -14,12 +14,12 @@ import { marked } from 'vs/base/common/marked/marked';
 import { parse, revive } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
+import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { basename } from 'vs/base/common/resources';
-import { isEmptyObject, isNumber, isString, isUndefinedOrNull } from 'vs/base/common/types';
+import { isDefined, isEmptyObject, isNumber, isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IOffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -37,16 +37,17 @@ import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { IViewBadge } from 'vs/workbench/common/views';
-import { IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
+import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTreeData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 import { IInlineChatCommandFollowup, IInlineChatFollowup, IInlineChatReplyFollowup, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -1956,18 +1957,15 @@ export namespace TestTag {
 }
 
 export namespace TestResults {
-	const convertTestResultItem = (item: TestResultItem.Serialized, byInternalId: Map<string, TestResultItem.Serialized>): vscode.TestResultSnapshot => {
-		const children: TestResultItem.Serialized[] = [];
-		for (const [id, item] of byInternalId) {
-			if (TestId.compare(item.item.extId, id) === TestPosition.IsChild) {
-				byInternalId.delete(id);
-				children.push(item);
-			}
+	const convertTestResultItem = (node: IPrefixTreeNode<TestResultItem.Serialized>, parent?: vscode.TestResultSnapshot): vscode.TestResultSnapshot | undefined => {
+		const item = node.value;
+		if (!item) {
+			return undefined; // should be unreachable
 		}
 
 		const snapshot: vscode.TestResultSnapshot = ({
 			...TestItem.toPlain(item.item),
-			parent: undefined,
+			parent,
 			taskStates: item.tasks.map(t => ({
 				state: t.state as number as types.TestResultState,
 				duration: t.duration,
@@ -1975,30 +1973,43 @@ export namespace TestResults {
 					.filter((m): m is ITestErrorMessage.Serialized => m.type === TestMessageType.Error)
 					.map(TestMessage.to),
 			})),
-			children: children.map(c => convertTestResultItem(c, byInternalId))
+			children: [],
 		});
 
-		for (const child of snapshot.children) {
-			(child as any).parent = snapshot;
+		if (node.children) {
+			for (const child of node.children.values()) {
+				const c = convertTestResultItem(child, snapshot);
+				if (c) {
+					snapshot.children.push(c);
+				}
+			}
 		}
 
 		return snapshot;
 	};
 
 	export function to(serialized: ISerializedTestResults): vscode.TestRunResult {
-		const roots: TestResultItem.Serialized[] = [];
-		const byInternalId = new Map<string, TestResultItem.Serialized>();
+		const tree = new WellDefinedPrefixTree<TestResultItem.Serialized>();
 		for (const item of serialized.items) {
-			byInternalId.set(item.item.extId, item);
-			const controllerId = TestId.root(item.item.extId);
-			if (serialized.request.targets.some(t => t.controllerId === controllerId && t.testIds.includes(item.item.extId))) {
-				roots.push(item);
+			tree.insert(TestId.fromString(item.item.extId).path, item);
+		}
+
+		// Get the first node with a value in each subtree of IDs.
+		const queue = [tree.nodes];
+		const roots: IPrefixTreeNode<TestResultItem.Serialized>[] = [];
+		while (queue.length) {
+			for (const node of queue.pop()!) {
+				if (node.value) {
+					roots.push(node);
+				} else if (node.children) {
+					queue.push(node.children.values());
+				}
 			}
 		}
 
 		return {
 			completedAt: serialized.completedAt,
-			results: roots.map(r => convertTestResultItem(r, byInternalId)),
+			results: roots.map(r => convertTestResultItem(r)).filter(isDefined),
 		};
 	}
 }
@@ -2012,7 +2023,7 @@ export namespace TestCoverage {
 		return 'line' in location ? Position.from(location) : Range.from(location);
 	}
 
-	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails.Serialized {
+	export function fromDetails(coverage: vscode.FileCoverageDetail): CoverageDetails.Serialized {
 		if ('branches' in coverage) {
 			return {
 				count: coverage.executed,
@@ -2032,13 +2043,13 @@ export namespace TestCoverage {
 		}
 	}
 
-	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage.Serialized {
+	export function fromFile(id: string, coverage: vscode.FileCoverage): IFileCoverage.Serialized {
 		return {
+			id,
 			uri: coverage.uri,
 			statement: fromCoveredCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
 			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
-			details: coverage.detailedCoverage?.map(fromDetailed),
 		};
 	}
 }
@@ -2603,16 +2614,27 @@ export namespace ChatAgentRequest {
 		return {
 			prompt: request.message,
 			command: request.command,
-			variables: request.variables.variables.map(ChatAgentResolvedVariable.to)
+			variables: request.variables.variables.map(ChatAgentResolvedVariable.to),
+			location: ChatLocation.to(request.location),
 		};
 	}
 }
 
+export namespace ChatLocation {
+	export function to(loc: ChatAgentLocation): types.ChatLocation {
+		switch (loc) {
+			case ChatAgentLocation.Notebook: return types.ChatLocation.Notebook;
+			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
+			case ChatAgentLocation.Panel: return types.ChatLocation.Panel;
+		}
+	}
+}
+
 export namespace ChatAgentResolvedVariable {
-	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatResolvedVariable {
+	export function to(request: IChatRequestVariableEntry): vscode.ChatResolvedVariable {
 		return {
 			name: request.name,
-			range: [request.range.start, request.range.endExclusive],
+			range: request.range && [request.range.start, request.range.endExclusive],
 			values: request.values.map(ChatVariable.to)
 		};
 	}

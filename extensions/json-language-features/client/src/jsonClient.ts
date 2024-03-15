@@ -11,7 +11,7 @@ import {
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
 import {
-	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
+	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions, DocumentDiagnosticReportKind,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
@@ -230,6 +230,21 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 		}
 	}));
 
+	function filterSchemaErrorDiagnostics(uri: Uri, diagnostics: Diagnostic[]): Diagnostic[] {
+		const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
+		if (schemaErrorIndex !== -1) {
+			const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+			fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+			if (!schemaDownloadEnabled) {
+				diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
+			}
+			if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
+				schemaResolutionErrorStatusBarItem.show();
+			}
+		}
+		return diagnostics;
+	}
+
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
@@ -248,25 +263,17 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 			workspace: {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
 			},
+			provideDiagnostics: async (uriOrDoc, previousResolutId, token, next) => {
+				const diagnostics = await next(uriOrDoc, previousResolutId, token);
+				console.log('provideDiagnostics', diagnostics, uriOrDoc);
+				if (diagnostics && diagnostics.kind === DocumentDiagnosticReportKind.Full) {
+					const uri = uriOrDoc instanceof Uri ? uriOrDoc : uriOrDoc.uri;
+					diagnostics.items = filterSchemaErrorDiagnostics(uri, diagnostics.items);
+				}
+				return diagnostics;
+			},
 			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
-				const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
-
-				if (schemaErrorIndex === -1) {
-					fileSchemaErrors.delete(uri.toString());
-					return next(uri, diagnostics);
-				}
-
-				const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-				fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
-
-				if (!schemaDownloadEnabled) {
-					diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
-				}
-
-				if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
-					schemaResolutionErrorStatusBarItem.show();
-				}
-
+				diagnostics = filterSchemaErrorDiagnostics(uri, diagnostics);
 				next(uri, diagnostics);
 			},
 			// testing the replace / insert mode

@@ -30,7 +30,7 @@ import { ILinesDiffComputerOptions, MovedText } from 'vs/editor/common/diff/line
 import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { SectionHeader, FindSectionHeaderOptions } from 'vs/editor/common/services/findSectionHeaders';
-import { $window } from 'vs/base/browser/window';
+import { mainWindow } from 'vs/base/browser/window';
 import { WindowIntervalTimer } from 'vs/base/browser/dom';
 
 /**
@@ -288,7 +288,7 @@ class WorkerManager extends Disposable {
 		this._lastWorkerUsedTime = (new Date()).getTime();
 
 		const stopWorkerInterval = this._register(new WindowIntervalTimer());
-		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2), $window);
+		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2), mainWindow);
 
 		this._register(this._modelService.onModelRemoved(_ => this._checkStopEmptyWorker()));
 	}

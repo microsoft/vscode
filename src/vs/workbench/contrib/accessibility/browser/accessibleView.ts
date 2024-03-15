@@ -42,6 +42,7 @@ import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQui
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
@@ -171,7 +172,8 @@ export class AccessibleView extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService
 	) {
 		super();
 
@@ -338,6 +340,9 @@ export class AccessibleView extends Disposable {
 			// only cache a provider with an ID so that it will eventually be cleared.
 			this._lastProvider = provider;
 		}
+		if (provider.id === AccessibleViewProviderId.Chat) {
+			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
+		}
 	}
 
 	previous(): void {
@@ -362,7 +367,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	calculateCodeBlocks(markdown: string): void {
-		if (!this._currentProvider || this._currentProvider.options.id !== AccessibleViewProviderId.Chat) {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
 			return;
 		}
 		if (this._currentProvider.options.language && this._currentProvider.options.language !== 'markdown') {
@@ -374,8 +379,8 @@ export class AccessibleView extends Disposable {
 		let inBlock = false;
 		let startLine = 0;
 
+		let languageId: string | undefined;
 		lines.forEach((line, i) => {
-			let languageId: string | undefined;
 			if (!inBlock && line.startsWith('```')) {
 				inBlock = true;
 				startLine = i + 1;
@@ -519,9 +524,7 @@ export class AccessibleView extends Disposable {
 		const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
 		const newContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
-		if (newContent && newContent !== this._currentContent && provider.options.type !== AccessibleViewType.Help && !provider.options.language || provider.options.language === 'markdown') {
-			this.calculateCodeBlocks(newContent);
-		}
+		this.calculateCodeBlocks(newContent);
 		this._currentContent = newContent;
 		this._updateContextKeys(provider, true);
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
@@ -577,6 +580,7 @@ export class AccessibleView extends Disposable {
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
 			this._lastProvider = undefined;
+			this._currentContent = undefined;
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {

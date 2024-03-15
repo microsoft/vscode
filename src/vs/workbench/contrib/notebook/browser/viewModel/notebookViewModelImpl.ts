@@ -177,6 +177,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _instanceId: string;
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
+	private _onDidFoldingStateChanged = new Emitter<void>();
+	onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
 	private _hiddenRanges: ICellRange[] = [];
 	private _focused: boolean = true;
 
@@ -470,6 +472,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		if (updateHiddenAreas || k < this._hiddenRanges.length) {
 			this._hiddenRanges = newHiddenAreas;
+			this._onDidFoldingStateChanged.fire();
 		}
 
 		this._viewCells.forEach(cell => {

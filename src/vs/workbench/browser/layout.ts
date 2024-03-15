@@ -47,7 +47,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { CustomTitleBarVisibility } from '../../platform/window/common/window';
 
 //#region Layout Implementation
@@ -194,6 +194,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	private readonly containerStylesLoaded = new Map<number /* window ID */, Promise<void>>();
+	whenContainerStylesLoaded(window: CodeWindow): Promise<void> {
+		return this.containerStylesLoaded.get(window.vscodeWindowId) ?? Promise.resolve();
+	}
+
 	private _mainContainerDimension!: IDimension;
 	get mainContainerDimension(): IDimension { return this._mainContainerDimension; }
 
@@ -217,11 +222,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	get activeContainerOffset() {
 		return this.computeContainerOffset(getWindow(this.activeContainer));
-	}
-
-	get whenActiveContainerStylesLoaded() {
-		const active = this.activeContainer;
-		return this.auxWindowStylesLoaded.get(active) || Promise.resolve();
 	}
 
 	private computeContainerOffset(targetWindow: Window) {
@@ -252,7 +252,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	//#endregion
 
 	private readonly parts = new Map<string, Part>();
-	private readonly auxWindowStylesLoaded = new Map</* container */ HTMLElement, Promise<void>>();
 
 	private initialized = false;
 	private workbenchGrid!: SerializableGrid<ISerializableView>;
@@ -408,12 +407,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Auxiliary windows
 		this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
+			const windowId = window.window.vscodeWindowId;
+			this.containerStylesLoaded.set(windowId, window.whenStylesHaveLoaded);
+			disposables.add(toDisposable(() => this.containerStylesLoaded.delete(windowId)));
+
 			const eventDisposables = disposables.add(new DisposableStore());
-			this.auxWindowStylesLoaded.set(window.container, window.whenStylesHaveLoaded);
 			this._onDidAddContainer.fire({ container: window.container, disposables: eventDisposables });
 
 			disposables.add(window.onDidLayout(dimension => this.handleContainerDidLayout(window.container, dimension)));
-			disposables.add(toDisposable(() => this.auxWindowStylesLoaded.delete(window.container)));
 		}));
 	}
 
