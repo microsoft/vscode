@@ -7,6 +7,9 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
+  - name: PUBLISH_TASK_NAME
+    type: string
+    default: PublishPipelineArtifact@0
 
 steps:
   - script: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
@@ -197,10 +200,7 @@ steps:
       condition: succeededOrFailed()
 
   - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - task: PublishPipelineArtifact@0
-    - ${{ else }}:
-      - task: 1ES.PublishPipelineArtifact@1
+    - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build/crashes
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -216,7 +216,7 @@ steps:
 
     # In order to properly symbolify above crash reports
     # (if any), we need the compiled native modules too
-    - task: ${{ variables.PUBLISH_TASK_NAME }}
+    - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: node_modules
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -230,7 +230,7 @@ steps:
       continueOnError: true
       condition: failed()
 
-    - task: ${{ variables.PUBLISH_TASK_NAME }}
+    - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build/logs
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
