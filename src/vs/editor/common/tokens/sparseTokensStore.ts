@@ -123,18 +123,6 @@ export class SparseTokensStore {
 		return this._isComplete;
 	}
 
-	public hasSemanticTokensForLine(lineNumber: number): boolean {
-		const pieces = this._pieces;
-
-		if (pieces.length === 0) {
-			return false;
-		}
-
-		const pieceIndex = SparseTokensStore._findFirstPieceWithLine(pieces, lineNumber);
-		const lineTokens = pieces[pieceIndex];
-		return lineTokens.startLineNumber <= lineNumber && lineNumber <= lineTokens.endLineNumber;
-	}
-
 	public addSparseTokens(lineNumber: number, aTokens: LineTokens): LineTokens {
 		if (aTokens.getLineContent().length === 0) {
 			// Don't do anything for empty lines

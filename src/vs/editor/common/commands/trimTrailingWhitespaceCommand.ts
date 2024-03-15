@@ -100,10 +100,10 @@ export function trimTrailingWhitespace(model: ITextModel, cursors: Position[], t
 		}
 
 		if (!trimInRegexesAndStrings) {
-			if (!model.tokenization.hasSemanticTokensForLine(lineNumber)) {
+			if (!model.tokenization.hasAccurateTokensForLine(lineNumber)) {
 				// We don't want to force line tokenization, as that can be expensive, but we also don't want to trim
 				// trailing whitespace in lines that are not tokenized yet, as that can be wrong and trim whitespace from
-				// lines that the user requested we don't. So we bail out if there are no semantic tokens for this line.
+				// lines that the user requested we don't. So we bail out if the tokens are not accurate for this line.
 				continue;
 			}
 

@@ -33,12 +33,6 @@ export interface ITokenizationTextModelPart {
 	hasCompleteSemanticTokens(): boolean;
 
 	/**
-	 * Returns true if `getLineTokens` will return accurate tokens for `lineNumber`.
-	 * @internal
-	 */
-	hasSemanticTokensForLine(lineNumber: number): boolean;
-
-	/**
 	 * @internal
 	 */
 	hasSomeSemanticTokens(): boolean;
@@ -61,6 +55,12 @@ export interface ITokenizationTextModelPart {
 	 * @internal
 	 */
 	tokenizeIfCheap(lineNumber: number): void;
+
+	/**
+	 * Check if tokenization information is accurate for `lineNumber`.
+	 * @internal
+	 */
+	hasAccurateTokensForLine(lineNumber: number): boolean;
 
 	/**
 	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
