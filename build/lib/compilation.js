@@ -101,7 +101,7 @@ function transpileTask(src, out, swc) {
 }
 function compileTask(src, out, build, options = {}) {
     const task = () => {
-        if (os.totalmem() < 4000000000) {
+        if (os.totalmem() < 4_000_000_000) {
             throw new Error('compilation requires 4GB of RAM');
         }
         const compile = createCompile(src, build, true, false);
