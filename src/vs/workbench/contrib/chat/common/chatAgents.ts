@@ -28,10 +28,10 @@ export interface IChatAgentHistoryEntry {
 }
 
 export enum ChatAgentLocation {
-	Panel = 1,
-	Terminal = 2,
-	Notebook = 3,
-	// Editor = 4
+	Panel = 'panel',
+	Terminal = 'terminal',
+	Notebook = 'notebook',
+	Editor = 'editor'
 }
 
 export namespace ChatAgentLocation {

@@ -287,7 +287,11 @@ declare module 'vscode' {
 		/**
 		 * Notebook inline chat
 		 */
-		Notebook = 3
+		Notebook = 3,
+		/**
+		 * Code editor inline chat
+		 */
+		Editor = 4
 	}
 
 	export interface ChatRequest {
