@@ -857,7 +857,6 @@ export interface IListAccessibilityProvider<T> extends IListViewAccessibilityPro
 	getAriaLevel?(element: T): number | undefined;
 	onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
-	onDidChangeAriaLabel?: Event<T>;
 }
 
 export class DefaultStyleController implements IStyleController {
@@ -1372,7 +1371,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private styleController: IStyleController;
 	private typeNavigationController?: TypeNavigationController<T>;
 	private accessibilityProvider?: IListAccessibilityProvider<T>;
-	private accessibilityRenderer?: AccessibiltyRenderer<T>;
 	private keyboardController: KeyboardController<T> | undefined;
 	private mouseController: MouseController<T>;
 	private _ariaLabel: string = '';
@@ -1463,8 +1461,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.accessibilityProvider = _options.accessibilityProvider;
 
 		if (this.accessibilityProvider) {
-			this.accessibilityRenderer = new AccessibiltyRenderer<T>(this.accessibilityProvider);
-			baseRenderers.push(this.accessibilityRenderer);
+			baseRenderers.push(new AccessibiltyRenderer<T>(this.accessibilityProvider));
 
 			this.accessibilityProvider.onDidChangeActiveDescendant?.(this.onDidChangeActiveDescendant, this, this.disposables);
 		}
