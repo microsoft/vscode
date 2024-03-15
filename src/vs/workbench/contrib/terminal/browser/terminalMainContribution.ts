@@ -68,19 +68,19 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 			await lifecycleService.when(LifecyclePhase.Restored);
 		}
 
-		embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
+		this._register(embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
 			const terminal = await terminalService.createTerminal({
 				config: embedderTerminal,
 				location: TerminalLocation.Panel
 			});
 			terminalService.setActiveInstance(terminal);
 			await terminalService.revealActiveTerminal();
-		});
+		}));
 
 		await lifecycleService.when(LifecyclePhase.Restored);
 
 		// Register terminal editors
-		editorResolverService.registerEditor(
+		this._register(editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
 				id: terminalEditorId,
@@ -128,15 +128,15 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 					};
 				}
 			}
-		);
+		));
 
 		// Register a resource formatter for terminal URIs
-		labelService.registerFormatter({
+		this._register(labelService.registerFormatter({
 			scheme: Schemas.vscodeTerminal,
 			formatting: {
 				label: '${path}',
 				separator: ''
 			}
-		});
+		}));
 	}
 }
