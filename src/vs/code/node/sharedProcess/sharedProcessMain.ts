@@ -151,11 +151,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 	async init(): Promise<void> {
 
-		console.log('started services')
 		// Services
 		const instantiationService = await this.initServices();
-
-		console.log('finished services')
 
 		// Config
 		registerUserDataSyncConfiguration();
@@ -266,14 +263,12 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IStorageService, storageService);
 		this._register(toDisposable(() => storageService.flush()));
 
-		console.log('start storage')
 		// Initialize config & storage in parallel
-		await configurationService.initialize(),
+		await Promise.all([
+			configurationService.initialize(),
+			storageService.initialize()
+		]);
 
-			console.log('finish config')
-		await storageService.initialize()
-
-		console.log('finish storage')
 		// Request
 		const requestService = new RequestChannelClient(mainProcessService.getChannel('request'));
 		services.set(IRequestService, requestService);
@@ -532,8 +527,16 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 		await sharedProcess.init();
 
 		process.parentPort.postMessage(SharedProcessLifecycle.initDone);
+	} catch (error) {
+		process.parentPort.postMessage({ error: error.toString() });
 	}
+}
+
+const handle = setTimeout(() => {
+	process.parentPort.postMessage({ warning: '[SharedProcess] did not receive configuration within 30s...' });
+}, 30000);
 
 process.parentPort.once('message', (e: Electron.MessageEvent) => {
-		main(e.data as ISharedProcessConfiguration);
-	});
+	clearTimeout(handle);
+	main(e.data as ISharedProcessConfiguration);
+});
