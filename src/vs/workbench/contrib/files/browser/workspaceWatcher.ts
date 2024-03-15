@@ -73,7 +73,7 @@ export class WorkspaceWatcher extends Disposable {
 		if (msg.indexOf('ENOSPC') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('enospcError', "Unable to watch for file changes in this large workspace folder. Please follow the instructions link to resolve this issue."),
+				localize('enospcError', "Unable to watch for file changes. Please follow the instructions link to resolve this issue."),
 				[{
 					label: localize('learnMore', "Instructions"),
 					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
@@ -109,7 +109,7 @@ export class WorkspaceWatcher extends Disposable {
 		const config = this.configurationService.getValue<IFilesConfiguration>({ resource: workspace.uri });
 		if (config.files?.watcherExclude) {
 			for (const key in config.files.watcherExclude) {
-				if (config.files.watcherExclude[key] === true) {
+				if (key && config.files.watcherExclude[key] === true) {
 					excludes.push(key);
 				}
 			}

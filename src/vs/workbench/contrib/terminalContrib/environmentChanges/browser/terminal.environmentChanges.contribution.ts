@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentVariableMutator, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -19,7 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 registerActiveInstanceAction({
 	id: TerminalCommandId.ShowEnvironmentContributions,
-	title: { value: localize('workbench.action.terminal.showEnvironmentContributions', "Show Environment Contributions"), original: 'Show Environment Contributions' },
+	title: localize2('workbench.action.terminal.showEnvironmentContributions', 'Show Environment Contributions'),
 	run: async (activeInstance, c, accessor, arg) => {
 		const collection = activeInstance.extEnvironmentVariableCollection;
 		if (collection) {

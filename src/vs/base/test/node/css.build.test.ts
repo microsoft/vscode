@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CSSPluginUtilities, rewriteUrls } from 'vs/css.build';
 
 suite('CSSPlugin', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Utilities.pathOf', () => {
 		assert.strictEqual(CSSPluginUtilities.pathOf(''), '');

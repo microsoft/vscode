@@ -532,3 +532,13 @@ suite('Strings', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
+
+test('htmlAttributeEncodeValue', () => {
+	assert.strictEqual(strings.htmlAttributeEncodeValue(''), '');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('abc'), 'abc');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('<script>alert("Hello")</script>'), '&lt;script&gt;alert(&quot;Hello&quot;)&lt;/script&gt;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('Hello & World'), 'Hello &amp; World');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('"Hello"'), '&quot;Hello&quot;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('\'Hello\''), '&apos;Hello&apos;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('<>&\'"'), '&lt;&gt;&amp;&apos;&quot;');
+});

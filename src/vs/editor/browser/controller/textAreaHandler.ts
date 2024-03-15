@@ -490,7 +490,7 @@ export class TextAreaHandler extends ViewPart {
 	private _getAndroidWordAtPosition(position: Position): [string, number] {
 		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
-		const wordSeparators = getMapForWordSeparators(ANDROID_WORD_SEPARATORS);
+		const wordSeparators = getMapForWordSeparators(ANDROID_WORD_SEPARATORS, []);
 
 		let goingLeft = true;
 		let startColumn = position.column;
@@ -530,7 +530,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private _getWordBeforePosition(position: Position): string {
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
-		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators));
+		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators), []);
 
 		let column = position.column;
 		let distance = 0;

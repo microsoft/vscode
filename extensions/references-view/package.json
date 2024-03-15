@@ -22,9 +22,6 @@
   "bugs": {
     "url": "https://github.com/Microsoft/vscode-references-view/issues"
   },
-  "categories": [
-    "Programming Languages"
-  ],
   "activationEvents": [
     "onCommand:references-view.find",
     "onCommand:editor.action.showReferences"

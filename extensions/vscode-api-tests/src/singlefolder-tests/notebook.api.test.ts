@@ -230,6 +230,30 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 		await closeAllEditors();
 	});
 
+	test('#207742 - New Untitled notebook failed if previous untilted notebook is modified', async function () {
+		await vscode.commands.executeCommand('ipynb.newUntitledIpynb');
+		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
+		const document = vscode.window.activeNotebookEditor!.notebook;
+
+		// open another text editor
+		const textDocument = await vscode.workspace.openTextDocument({ language: 'javascript', content: 'let abc = 0;' });
+		await vscode.window.showTextDocument(textDocument);
+
+		// insert a new cell to notebook document
+		const edit = new vscode.WorkspaceEdit();
+		const notebookEdit = new vscode.NotebookEdit(new vscode.NotebookRange(1, 1), [new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'print(1)', 'python')]);
+		edit.set(document.uri, [notebookEdit]);
+		await vscode.workspace.applyEdit(edit);
+
+		// switch to the notebook editor
+		await vscode.window.showNotebookDocument(document);
+		await closeAllEditors();
+		await vscode.commands.executeCommand('ipynb.newUntitledIpynb');
+		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
+
+		await closeAllEditors();
+	});
+
 	// TODO: Skipped due to notebook content provider removal
 	test.skip('#115855 onDidSaveNotebookDocument', async function () {
 		const resource = await createRandomNotebookFile();

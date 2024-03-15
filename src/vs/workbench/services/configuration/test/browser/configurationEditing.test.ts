@@ -193,7 +193,7 @@ suite('ConfigurationEditing', () => {
 	test('do not notify error', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, doNotDisturbMode: false, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, onDidChangeDoNotDisturbMode: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, filter: false, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, onDidChangeFilter: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null!, getFilter: null!, getFilters: null!, removeFilter: null! });
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {

@@ -16,15 +16,15 @@ import { autorun, IObservable, IReader, ITransaction, observableSignal, observab
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 export class TextModelDiffs extends Disposable {
-	private recomputeCount = 0;
+	private _recomputeCount = 0;
 	private readonly _state = observableValue<TextModelDiffState, TextModelDiffChangeReason>(this, TextModelDiffState.initializing);
 	private readonly _diffs = observableValue<DetailedLineRangeMapping[], TextModelDiffChangeReason>(this, []);
 
-	private readonly barrier = new ReentrancyBarrier();
-	private isDisposed = false;
+	private readonly _barrier = new ReentrancyBarrier();
+	private _isDisposed = false;
 
 	public get isApplyingChange() {
-		return this.barrier.isActive;
+		return this._barrier.isActive;
 	}
 
 	constructor(
@@ -39,25 +39,25 @@ export class TextModelDiffs extends Disposable {
 		this._register(autorun(reader => {
 			/** @description Update diff state */
 			recomputeSignal.read(reader);
-			this.recompute(reader);
+			this._recompute(reader);
 		}));
 
 		this._register(
 			baseTextModel.onDidChangeContent(
-				this.barrier.makeExclusive(() => {
+				this._barrier.makeExclusive(() => {
 					recomputeSignal.trigger(undefined);
 				})
 			)
 		);
 		this._register(
 			textModel.onDidChangeContent(
-				this.barrier.makeExclusive(() => {
+				this._barrier.makeExclusive(() => {
 					recomputeSignal.trigger(undefined);
 				})
 			)
 		);
 		this._register(toDisposable(() => {
-			this.isDisposed = true;
+			this._isDisposed = true;
 		}));
 	}
 
@@ -72,20 +72,20 @@ export class TextModelDiffs extends Disposable {
 		return this._diffs;
 	}
 
-	private isInitializing = true;
+	private _isInitializing = true;
 
-	private recompute(reader: IReader): void {
-		this.recomputeCount++;
-		const currentRecomputeIdx = this.recomputeCount;
+	private _recompute(reader: IReader): void {
+		this._recomputeCount++;
+		const currentRecomputeIdx = this._recomputeCount;
 
 		if (this._state.get() === TextModelDiffState.initializing) {
-			this.isInitializing = true;
+			this._isInitializing = true;
 		}
 
 		transaction(tx => {
 			/** @description Starting Diff Computation. */
 			this._state.set(
-				this.isInitializing ? TextModelDiffState.initializing : TextModelDiffState.updating,
+				this._isInitializing ? TextModelDiffState.initializing : TextModelDiffState.updating,
 				tx,
 				TextModelDiffChangeReason.other
 			);
@@ -94,11 +94,11 @@ export class TextModelDiffs extends Disposable {
 		const result = this.diffComputer.computeDiff(this.baseTextModel, this.textModel, reader);
 
 		result.then((result) => {
-			if (this.isDisposed) {
+			if (this._isDisposed) {
 				return;
 			}
 
-			if (currentRecomputeIdx !== this.recomputeCount) {
+			if (currentRecomputeIdx !== this._recomputeCount) {
 				// There is a newer recompute call
 				return;
 			}
@@ -111,7 +111,7 @@ export class TextModelDiffs extends Disposable {
 				} else {
 					this._state.set(TextModelDiffState.error, tx, TextModelDiffChangeReason.textChange);
 				}
-				this.isInitializing = false;
+				this._isInitializing = false;
 			});
 		});
 	}
@@ -138,7 +138,7 @@ export class TextModelDiffs extends Disposable {
 				throw new BugIndicatingError();
 			}
 
-			this.barrier.runExclusivelyOrThrow(() => {
+			this._barrier.runExclusivelyOrThrow(() => {
 				const edits = diffToRemove.getReverseLineEdit().toEdits(this.textModel.getLineCount());
 				this.textModel.pushEditOperations(null, edits, () => null, group);
 			});
@@ -193,7 +193,7 @@ export class TextModelDiffs extends Disposable {
 			newDiffs.push(editMapping.addOutputLineDelta(delta));
 		}
 
-		this.barrier.runExclusivelyOrThrow(() => {
+		this._barrier.runExclusivelyOrThrow(() => {
 			const edits = new LineRangeEdit(edit.range.delta(delta), edit.newLines).toEdits(this.textModel.getLineCount());
 			this.textModel.pushEditOperations(null, edits, () => null, group);
 		});

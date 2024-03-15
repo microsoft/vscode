@@ -81,7 +81,11 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 					contents
 				});
 			}
-			throw new Error(`Request ${ansiColors.magenta(url)} failed with status code: ${response.status}`);
+			let err = `Request ${ansiColors.magenta(url)} failed with status code: ${response.status}`;
+			if (response.status === 403) {
+				err += ' (you may be rate limited)';
+			}
+			throw new Error(err);
 		} finally {
 			clearTimeout(timeout);
 		}

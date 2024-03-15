@@ -26,7 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -55,7 +55,8 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IRequestAddInstanceToGroupEvent, ITerminalContribution, ITerminalInstance, IXtermColorProvider, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -117,6 +118,7 @@ const shellIntegrationSupportedShellTypes = [
 	PosixShellType.Bash,
 	PosixShellType.Zsh,
 	PosixShellType.PowerShell,
+	PosixShellType.Python,
 	WindowsShellType.PowerShell
 ];
 
@@ -184,6 +186,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _usedShellIntegrationInjection: boolean = false;
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
+	private readonly _scopedContextKeyService: IContextKeyService;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -325,8 +328,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidRunText = this._register(new Emitter<void>());
-	readonly onDidRunText = this._onDidRunText.event;
+	private readonly _onDidExecuteText = this._register(new Emitter<void>());
+	readonly onDidExecuteText = this._onDidExecuteText.event;
 	private readonly _onDidChangeTarget = this._register(new Emitter<TerminalLocation | undefined>());
 	readonly onDidChangeTarget = this._onDidChangeTarget.event;
 	private readonly _onDidSendText = this._register(new Emitter<string>());
@@ -361,7 +364,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
@@ -409,6 +412,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const scopedContextKeyService = this._register(_contextKeyService.createScoped(this._wrapperElement));
+		this._scopedContextKeyService = scopedContextKeyService;
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService]
 		));
@@ -750,15 +754,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// starts up or reconnects
 		disposableTimeout(() => {
 			this._register(xterm.raw.onBell(() => {
-				if (this._configHelper.config.enableBell) {
+				if (this._configurationService.getValue(TerminalSettingId.EnableBell) || this._configurationService.getValue(TerminalSettingId.EnableVisualBell)) {
 					this.statusList.add({
 						id: TerminalStatus.Bell,
 						severity: Severity.Warning,
 						icon: Codicon.bell,
 						tooltip: nls.localize('bellStatus', "Bell")
 					}, this._configHelper.config.bellDuration);
-					this._audioCueService.playSound(AudioCue.terminalBell.sound.getSound());
 				}
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalBell);
 			}));
 		}, 1000, this._store);
 		this._register(xterm.raw.onSelectionChange(async () => this._onSelectionChange()));
@@ -1186,10 +1190,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		const currentText: string = value;
+		let currentText = value;
 		const shouldPasteText = await this._scopedInstantiationService.invokeFunction(shouldPasteTerminalText, currentText, this.xterm?.raw.modes.bracketedPasteMode);
 		if (!shouldPasteText) {
 			return;
+		}
+
+		if (typeof shouldPasteText === 'object') {
+			currentText = shouldPasteText.modifiedText;
 		}
 
 		this.focus();
@@ -1214,7 +1222,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onDidInputData.fire(this);
 		this._onDidSendText.fire(text);
 		this.xterm?.scrollToBottom();
-		this._onDidRunText.fire();
+		if (shouldExecute) {
+			this._onDidExecuteText.fire();
+		}
 	}
 
 	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
@@ -1431,8 +1441,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public registerMarker(): IMarker | undefined {
-		return this.xterm?.raw.registerMarker();
+	public registerMarker(offset?: number): IMarker | undefined {
+		return this.xterm?.raw.registerMarker(offset);
 	}
 
 	public addBufferMarker(properties: IMarkProperties): void {
@@ -2217,6 +2227,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	resetScrollbarVisibility(): void {
 		this._wrapperElement.classList.remove('force-scrollbar');
+	}
+
+	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
+		this._scopedContextKeyService.updateParent(parentContextKeyService);
 	}
 }
 

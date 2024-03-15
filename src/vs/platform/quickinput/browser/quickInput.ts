@@ -8,29 +8,29 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
+import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
-import { QuickInputList, QuickInputListFocus } from './quickInputList';
-import { getIconClass, renderQuickInputDescription } from './quickInputUtils';
+import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { QuickInputListFocus, QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -40,14 +40,11 @@ export interface IQuickInputOptions {
 	setContextKey(id?: string): void;
 	linkOpenerDelegate(content: string): void;
 	returnFocus(): void;
-	createList<T>(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
-		options: IListOptions<T>,
-	): List<T>;
-	hoverDelegate?: IHoverDelegate;
+	/**
+	 * @todo With IHover in vs/editor, can we depend on the service directly
+	 * instead of passing it through a hover delegate?
+	 */
+	hoverDelegate: IHoverDelegate;
 	styles: IQuickInputStyles;
 }
 
@@ -103,7 +100,7 @@ export interface QuickInputUI {
 	customButtonContainer: HTMLElement;
 	customButton: Button;
 	progressBar: ProgressBar;
-	list: QuickInputList;
+	list: QuickInputTree;
 	onDidAccept: Event<void>;
 	onDidCustom: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;
@@ -157,6 +154,7 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _lastSeverity: Severity | undefined;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
+	private readonly onWillHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
 	private readonly onDisposeEmitter = this._register(new Emitter<void>());
 
 	protected readonly visibleDisposables = this._register(new DisposableStore());
@@ -347,6 +345,11 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	readonly onDidHide = this.onDidHideEmitter.event;
 
+	willHide(reason = QuickInputHideReason.Other): void {
+		this.onWillHideEmitter.fire({ reason });
+	}
+	readonly onWillHide = this.onWillHideEmitter.event;
+
 	protected update() {
 		if (!this.visible) {
 			return;
@@ -388,23 +391,23 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (this.buttonsUpdated) {
 			this.buttonsUpdated = false;
 			this.ui.leftActionBar.clear();
-			const leftButtons = this.buttons.filter(button => button === backButton);
-			this.ui.leftActionBar.push(leftButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
-					this.onDidTriggerButtonEmitter.fire(button);
-				});
-				action.tooltip = button.tooltip || '';
-				return action;
-			}), { icon: true, label: false });
+			const leftButtons = this.buttons
+				.filter(button => button === backButton)
+				.map((button, index) => quickInputButtonToAction(
+					button,
+					`id-${index}`,
+					async () => this.onDidTriggerButtonEmitter.fire(button)
+				));
+			this.ui.leftActionBar.push(leftButtons, { icon: true, label: false });
 			this.ui.rightActionBar.clear();
-			const rightButtons = this.buttons.filter(button => button !== backButton);
-			this.ui.rightActionBar.push(rightButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
-					this.onDidTriggerButtonEmitter.fire(button);
-				});
-				action.tooltip = button.tooltip || '';
-				return action;
-			}), { icon: true, label: false });
+			const rightButtons = this.buttons
+				.filter(button => button !== backButton)
+				.map((button, index) => quickInputButtonToAction(
+					button,
+					`id-${index}`,
+					async () => this.onDidTriggerButtonEmitter.fire(button)
+				));
+			this.ui.rightActionBar.push(rightButtons, { icon: true, label: false });
 		}
 		if (this.togglesUpdated) {
 			this.togglesUpdated = false;
@@ -508,7 +511,6 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	private _matchOnLabel = true;
 	private _matchOnLabelMode: 'fuzzy' | 'contiguous' = 'fuzzy';
 	private _sortByLabel = true;
-	private _autoFocusOnList = true;
 	private _keepScrollPosition = false;
 	private _itemActivation = ItemActivation.FIRST;
 	private _activeItems: T[] = [];
@@ -672,15 +674,6 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		this.update();
 	}
 
-	get autoFocusOnList() {
-		return this._autoFocusOnList;
-	}
-
-	set autoFocusOnList(autoFocusOnList: boolean) {
-		this._autoFocusOnList = autoFocusOnList;
-		this.update();
-	}
-
 	get keepScrollPosition() {
 		return this._keepScrollPosition;
 	}
@@ -814,10 +807,8 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	onDidTriggerSeparatorButton = this.onDidTriggerSeparatorButtonEmitter.event;
 
 	private trySelectFirst() {
-		if (this.autoFocusOnList) {
-			if (!this.canSelectMany) {
-				this.ui.list.focus(QuickInputListFocus.First);
-			}
+		if (!this.canSelectMany) {
+			this.ui.list.focus(QuickInputListFocus.First);
 		}
 	}
 
@@ -827,25 +818,25 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				this.ui.inputBox.onDidChange(value => {
 					this.doSetValue(value, true /* skip update since this originates from the UI */);
 				}));
-			this.visibleDisposables.add(this.ui.inputBox.onMouseDown(event => {
-				if (!this.autoFocusOnList) {
-					this.ui.list.clearFocus();
-				}
-			}));
+			// Keybindings for the input box or list if there is no input box
 			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
-						this.ui.list.focus(QuickInputListFocus.Next);
+						if (isMacintosh ? event.metaKey : event.altKey) {
+							this.ui.list.focus(QuickInputListFocus.NextSeparator);
+						} else {
+							this.ui.list.focus(QuickInputListFocus.Next);
+						}
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
 						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.UpArrow:
-						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus(QuickInputListFocus.Previous);
+						if (isMacintosh ? event.metaKey : event.altKey) {
+							this.ui.list.focus(QuickInputListFocus.PreviousSeparator);
 						} else {
-							this.ui.list.focus(QuickInputListFocus.Last);
+							this.ui.list.focus(QuickInputListFocus.Previous);
 						}
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
@@ -1267,5 +1258,36 @@ export class QuickWidget extends QuickInput implements IQuickWidget {
 
 		this.ui.setVisibilities(visibilities);
 		super.update();
+	}
+}
+
+export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService
+	) {
+		super('element', false, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+	}
+
+	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
+		// Only show the hover hint if the content is of a decent size
+		const showHoverHint = (
+			options.content instanceof HTMLElement
+				? options.content.textContent ?? ''
+				: typeof options.content === 'string'
+					? options.content
+					: options.content.value
+		).includes('\n');
+
+		return {
+			persistence: {
+				hideOnKeyDown: false,
+			},
+			appearance: {
+				showHoverHint,
+				skipFadeInAnimation: true,
+			},
+		};
 	}
 }

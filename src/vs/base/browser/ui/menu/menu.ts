@@ -14,7 +14,8 @@ import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/u
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, getCodiconFontCharacters } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { getCodiconFontCharacters } from 'vs/base/common/codiconsUtil';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
@@ -259,10 +260,22 @@ export class Menu extends ActionBar {
 		const window = getWindow(container);
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
 
-		actions = actions.filter(a => {
+		actions = actions.filter((a, idx) => {
 			if (options.submenuIds?.has(a.id)) {
 				console.warn(`Found submenu cycle: ${a.id}`);
 				return false;
+			}
+
+			// Filter out consecutive or useless separators
+			if (a instanceof Separator) {
+				if (idx === actions.length - 1 || idx === 0) {
+					return false;
+				}
+
+				const prevAction = actions[idx - 1];
+				if (prevAction instanceof Separator) {
+					return false;
+				}
 			}
 
 			return true;
@@ -1042,10 +1055,6 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar .action-item.disabled {
 	cursor: default;
-}
-
-.monaco-menu .monaco-action-bar.animated .action-item.active {
-	transform: scale(1.272019649, 1.272019649); /* 1.272019649 = √φ */
 }
 
 .monaco-menu .monaco-action-bar .action-item .icon,

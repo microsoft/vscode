@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from 'vs/base/common/arrays';
+import { splitLines } from 'vs/base/common/strings';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ColumnRange, applyEdits } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
+import { ColumnRange } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
 export class GhostText {
 	constructor(
@@ -23,13 +27,12 @@ export class GhostText {
 	 * Only used for testing/debugging.
 	*/
 	render(documentText: string, debug: boolean = false): string {
-		const l = this.lineNumber;
-		return applyEdits(documentText, [
-			...this.parts.map(p => ({
-				range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column },
-				text: debug ? `[${p.lines.join('\n')}]` : p.lines.join('\n')
-			})),
-		]);
+		return new TextEdit([
+			...this.parts.map(p => new SingleTextEdit(
+				Range.fromPositions(new Position(this.lineNumber, p.column)),
+				debug ? `[${p.lines.join('\n')}]` : p.lines.join('\n')
+			)),
+		]).applyToString(documentText);
 	}
 
 	renderForScreenReader(lineText: string): string {
@@ -39,12 +42,12 @@ export class GhostText {
 		const lastPart = this.parts[this.parts.length - 1];
 
 		const cappedLineText = lineText.substr(0, lastPart.column - 1);
-		const text = applyEdits(cappedLineText,
-			this.parts.map(p => ({
-				range: { startLineNumber: 1, endLineNumber: 1, startColumn: p.column, endColumn: p.column },
-				text: p.lines.join('\n')
-			}))
-		);
+		const text = new TextEdit([
+			...this.parts.map(p => new SingleTextEdit(
+				Range.fromPositions(new Position(1, p.column)),
+				p.lines.join('\n')
+			)),
+		]).applyToString(cappedLineText);
 
 		return text.substring(this.parts[0].column - 1);
 	}
@@ -61,13 +64,15 @@ export class GhostText {
 export class GhostTextPart {
 	constructor(
 		readonly column: number,
-		readonly lines: readonly string[],
+		readonly text: string,
 		/**
 		 * Indicates if this part is a preview of an inline suggestion when a suggestion is previewed.
 		*/
 		readonly preview: boolean,
 	) {
 	}
+
+	readonly lines = splitLines(this.text);;
 
 	equals(other: GhostTextPart): boolean {
 		return this.column === other.column &&
@@ -80,7 +85,7 @@ export class GhostTextReplacement {
 	public readonly parts: ReadonlyArray<GhostTextPart> = [
 		new GhostTextPart(
 			this.columnRange.endColumnExclusive,
-			this.newLines,
+			this.text,
 			false
 		),
 	];
@@ -88,9 +93,11 @@ export class GhostTextReplacement {
 	constructor(
 		readonly lineNumber: number,
 		readonly columnRange: ColumnRange,
-		readonly newLines: readonly string[],
+		readonly text: string,
 		public readonly additionalReservedLineCount: number = 0,
 	) { }
+
+	readonly newLines = splitLines(this.text);
 
 	renderForScreenReader(_lineText: string): string {
 		return this.newLines.join('\n');
@@ -100,14 +107,14 @@ export class GhostTextReplacement {
 		const replaceRange = this.columnRange.toRange(this.lineNumber);
 
 		if (debug) {
-			return applyEdits(documentText, [
-				{ range: Range.fromPositions(replaceRange.getStartPosition()), text: `(` },
-				{ range: Range.fromPositions(replaceRange.getEndPosition()), text: `)[${this.newLines.join('\n')}]` }
-			]);
+			return new TextEdit([
+				new SingleTextEdit(Range.fromPositions(replaceRange.getStartPosition()), '('),
+				new SingleTextEdit(Range.fromPositions(replaceRange.getEndPosition()), `)[${this.newLines.join('\n')}]`),
+			]).applyToString(documentText);
 		} else {
-			return applyEdits(documentText, [
-				{ range: replaceRange, text: this.newLines.join('\n') }
-			]);
+			return new TextEdit([
+				new SingleTextEdit(replaceRange, this.newLines.join('\n')),
+			]).applyToString(documentText);
 		}
 	}
 
@@ -129,6 +136,10 @@ export class GhostTextReplacement {
 }
 
 export type GhostTextOrReplacement = GhostText | GhostTextReplacement;
+
+export function ghostTextsOrReplacementsEqual(a: readonly GhostTextOrReplacement[] | undefined, b: readonly GhostTextOrReplacement[] | undefined): boolean {
+	return equals(a, b, ghostTextOrReplacementEquals);
+}
 
 export function ghostTextOrReplacementEquals(a: GhostTextOrReplacement | undefined, b: GhostTextOrReplacement | undefined): boolean {
 	if (a === b) {

@@ -12,7 +12,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto, VariablesResult } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
@@ -25,6 +25,7 @@ import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/no
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as vscode from 'vscode';
+import { variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier;
@@ -89,7 +90,25 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				})
 			],
 			ApiCommandResult.Void);
+
+		const requestKernelVariablesApiCommand = new ApiCommand(
+			'vscode.executeNotebookVariableProvider',
+			'_executeNotebookVariableProvider',
+			'Execute notebook variable provider',
+			[ApiCommandArgument.Uri],
+			new ApiCommandResult<VariablesResult[], vscode.Variable[]>('A promise that resolves to an array of variables', (value, apiArgs) => {
+				return value.map(variable => {
+					return {
+						name: variable.name,
+						value: variable.value,
+						type: variable.type,
+						editable: false
+					};
+				});
+			})
+		);
 		this._commands.registerApiCommand(selectKernelApiCommand);
+		this._commands.registerApiCommand(requestKernelVariablesApiCommand);
 	}
 
 	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
@@ -415,7 +434,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 	}
 
-	async $provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void> {
+	private id = 0;
+	private variableStore: Record<string, vscode.Variable> = {};
+
+	async $provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void> {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			return;
@@ -427,14 +449,44 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			return;
 		}
 
-		const parent = parentName ? { name: parentName, value: '' } : undefined;
+		let parent: vscode.Variable | undefined = undefined;
+		if (parentId !== undefined) {
+			parent = this.variableStore[parentId];
+			if (!parent) {
+				// request for unknown parent
+				return;
+			}
+		} else {
+			// root request, clear store
+			this.variableStore = {};
+		}
+
+
 		const requestKind = kind === 'named' ? NotebookVariablesRequestKind.Named : NotebookVariablesRequestKind.Indexed;
-		const variables = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
-		for await (const variable of variables) {
+		const variableResults = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
+
+		let resultCount = 0;
+		for await (const result of variableResults) {
 			if (token.isCancellationRequested) {
 				return;
 			}
+			const variable = {
+				id: this.id++,
+				name: result.variable.name,
+				value: result.variable.value,
+				type: result.variable.type,
+				language: result.variable.language,
+				expression: result.variable.expression,
+				hasNamedChildren: result.hasNamedChildren,
+				indexedChildrenCount: result.indexedChildrenCount,
+				extensionId: obj.extensionId.value,
+			};
+			this.variableStore[variable.id] = result.variable;
 			this._proxy.$receiveVariable(requestId, variable);
+
+			if (resultCount++ >= variablePageSize) {
+				return;
+			}
 		}
 	}
 
@@ -650,7 +702,7 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			end(success: boolean | undefined, endTime?: number): void {
+			end(success: boolean | undefined, endTime?: number, executionError?: vscode.CellExecutionError): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved) {
 					throw new Error('Cannot call resolve twice');
 				}
@@ -662,9 +714,22 @@ class NotebookCellExecutionTask extends Disposable {
 				// so we use updateSoon and immediately flush.
 				that._collector.flush();
 
+				const error = executionError ? {
+					message: executionError.message,
+					stack: executionError.stack,
+					location: executionError?.location ? {
+						startLineNumber: executionError.location.start.line,
+						startColumn: executionError.location.start.character,
+						endLineNumber: executionError.location.end.line,
+						endColumn: executionError.location.end.character
+					} : undefined,
+					uri: executionError.uri
+				} : undefined;
+
 				that._proxy.$completeExecution(that._handle, new SerializableObjectWithBuffers({
 					runEndTime: endTime,
-					lastRunSuccess: success
+					lastRunSuccess: success,
+					error
 				}));
 			},
 

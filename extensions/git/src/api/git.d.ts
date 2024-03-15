@@ -143,6 +143,7 @@ export interface LogOptions {
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
 	readonly shortStats?: boolean;
+	readonly author?: string;
 }
 
 export interface CommitOptions {
@@ -193,6 +194,8 @@ export interface Repository {
 	readonly inputBox: InputBox;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
+
+	readonly onDidCommit: Event<void>;
 
 	getConfigs(): Promise<{ key: string; value: string; }[]>;
 	getConfig(key: string): Promise<string>;
@@ -257,6 +260,8 @@ export interface Repository {
 	log(options?: LogOptions): Promise<Commit[]>;
 
 	commit(message: string, opts?: CommitOptions): Promise<void>;
+	merge(ref: string): Promise<void>;
+	mergeAbort(): Promise<void>;
 }
 
 export interface RemoteSource {

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/e0f2c26cdc94a9439acc565215c7bdbf379afb1f",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/c863108952ce5c695c066ea8dc498135abb19e0a",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -155,8 +155,8 @@
 			]
 		},
 		{
-			"begin": "(^\\s*)?\\\\begin\\{(lstlisting|minted|pyglist)\\}(?=\\[|\\{)",
-			"end": "\\\\end\\{(?:minted|lstlisting|pyglist)\\}",
+			"begin": "(?:^\\s*)?\\\\begin\\{(lstlisting|minted|pyglist)\\}(?=\\[|\\{)",
+			"end": "\\\\end\\{\\1\\}",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -1064,9 +1064,10 @@
 			]
 		},
 		{
-			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code|lstlisting|minted|pyglist)(?:\\*)?\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
+			"begin": "\\s*\\\\begin\\{([a-zA-Z]*code|lstlisting|minted|pyglist)\\*?\\}(?:\\[.*\\])?(?:\\{.*\\})?",
+			"end": "\\\\end\\{\\1\\}(?:\\s*\\n)?",
 			"captures": {
-				"1": {
+				"0": {
 					"patterns": [
 						{
 							"include": "#begin-env-tokenizer"
@@ -1074,9 +1075,43 @@
 					]
 				}
 			},
-			"end": "(\\\\end\\{\\2\\}(?:\\s*\\n)?)",
 			"contentName": "meta.function.embedded.latex",
 			"name": "meta.embedded.block.generic.latex"
+		},
+		{
+			"begin": "(?:^\\s*)?\\\\begin\\{(terminal\\*?)\\}(?=\\[|\\{)",
+			"end": "\\\\end\\{\\1\\}",
+			"captures": {
+				"0": {
+					"patterns": [
+						{
+							"include": "#begin-env-tokenizer"
+						}
+					]
+				}
+			},
+			"patterns": [
+				{
+					"include": "#multiline-optional-arg-no-highlight"
+				},
+				{
+					"begin": "(?:\\G|(?<=\\]))(\\{)([a-zA-Z]*)(\\})",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						},
+						"2": {
+							"name": "variable.parameter.function.latex"
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.end.latex"
+						}
+					},
+					"contentName": "meta.function.embedded.latex",
+					"end": "^\\s*(?=\\\\end\\{terminal\\*?\\})",
+					"name": "meta.embedded.block.generic.latex"
+				}
+			]
 		},
 		{
 			"begin": "((\\\\)addplot)(?:\\+?)((?:\\[[^\\[]*\\]))*\\s*(gnuplot)\\s*((?:\\[[^\\[]*\\]))*\\s*(\\{)",

@@ -448,6 +448,7 @@ export class ExplorerService implements IExplorerService {
 					// Remove Element from Parent (Model)
 					const parent = modelElement.parent;
 					parent.removeChild(modelElement);
+					this.view?.focusNext();
 
 					const oldNestedParent = modelElement.nestedParent;
 					if (oldNestedParent) {
@@ -456,6 +457,10 @@ export class ExplorerService implements IExplorerService {
 					}
 					// Refresh Parent (View)
 					await this.view?.refresh(shouldDeepRefresh, parent);
+
+					if (this.view?.getFocus().length === 0) {
+						this.view?.focusLast();
+					}
 				}
 			}));
 		}

@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { decodeKeybinding, createSimpleKeybinding, KeyCodeChord } from 'vs/base/common/keybindings';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { OS } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ContextKeyExpr, ContextKeyExpression, IContext } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -22,6 +23,8 @@ function createContext(ctx: any) {
 }
 
 suite('KeybindingResolver', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function kbItem(keybinding: number | number[], command: string, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean): ResolvedKeybindingItem {
 		const resolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS);

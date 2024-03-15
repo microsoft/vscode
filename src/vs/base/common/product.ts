@@ -113,7 +113,7 @@ export interface IProductConfiguration {
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
-	readonly trustedExtensionAuthAccess?: readonly string[];
+	readonly trustedExtensionAuthAccess?: string[] | IStringDictionary<string[]>;
 	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
 	readonly commandPaletteSuggestedCommandIds?: string[];
@@ -189,6 +189,7 @@ export interface IProductConfiguration {
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 	readonly gitHubEntitlement?: IGitHubEntitlement;
+	readonly chatWelcomeView?: IChatWelcomeView;
 }
 
 export interface ITunnelApplicationConfig {
@@ -301,4 +302,10 @@ export interface IGitHubEntitlement {
 	enablementKey: string;
 	confirmationMessage: string;
 	confirmationAction: string;
+}
+
+export interface IChatWelcomeView {
+	welcomeViewId: string;
+	welcomeViewTitle: string;
+	welcomeViewContent: string;
 }

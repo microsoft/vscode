@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { officeScript, vscodeNotebookCell } from '../configuration/fileSchemes';
+import * as fileSchemes from '../configuration/fileSchemes';
 import * as languageModeIds from '../configuration/languageIds';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
@@ -227,7 +227,7 @@ class SyncedBuffer {
 			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;
 		}
 
-		return resource.scheme === officeScript ? '/' : undefined;
+		return resource.scheme === fileSchemes.officeScript || resource.scheme === fileSchemes.chatCodeBlock ? '/' : undefined;
 	}
 
 	public get resource(): vscode.Uri {
@@ -395,7 +395,7 @@ class TabResourceTracker extends Disposable {
 	}
 
 	public has(resource: vscode.Uri): boolean {
-		if (resource.scheme === vscodeNotebookCell) {
+		if (resource.scheme === fileSchemes.vscodeNotebookCell) {
 			const notebook = vscode.workspace.notebookDocuments.find(doc =>
 				doc.getCells().some(cell => cell.document.uri.toString() === resource.toString()));
 
@@ -725,6 +725,13 @@ export default class BufferSyncSupport extends Disposable {
 			orderedFileSet.set(buffer.resource, undefined);
 		}
 
+		for (const { resource } of orderedFileSet.entries()) {
+			const buffer = this.syncedBuffers.get(resource);
+			if (buffer && !this.shouldValidate(buffer)) {
+				orderedFileSet.delete(resource);
+			}
+		}
+
 		if (orderedFileSet.size) {
 			const getErr = this.pendingGetErr = GetErrRequest.executeGetErrRequest(this.client, orderedFileSet, () => {
 				if (this.pendingGetErr === getErr) {
@@ -745,6 +752,10 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	private shouldValidate(buffer: SyncedBuffer): boolean {
+		if (buffer.resource.scheme === fileSchemes.chatCodeBlock) {
+			return false;
+		}
+
 		if (!this.client.configuration.enableProjectDiagnostics && !this._tabResources.has(buffer.resource)) { // Only validate resources that are showing to the user
 			return false;
 		}

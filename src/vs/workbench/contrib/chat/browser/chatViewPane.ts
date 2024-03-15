@@ -45,6 +45,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	private memento: Memento;
 	private readonly viewState: IViewPaneState;
 	private didProviderRegistrationFail = false;
+	private didUnregisterProvider = false;
 
 	constructor(
 		private readonly chatViewOptions: IChatViewOptions,
@@ -78,10 +79,18 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 				try {
 					this._widget.setVisible(false);
 					this.updateModel(model);
+					this.didProviderRegistrationFail = false;
+					this.didUnregisterProvider = false;
 					this._onDidChangeViewWelcomeState.fire();
 				} finally {
 					this.widget.setVisible(true);
 				}
+			}
+		}));
+		this._register(this.chatService.onDidUnregisterProvider(({ providerId }) => {
+			if (providerId === this.chatViewOptions.providerId) {
+				this.didUnregisterProvider = true;
+				this._onDidChangeViewWelcomeState.fire();
 			}
 		}));
 	}
@@ -102,7 +111,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 
 	override shouldShowWelcome(): boolean {
 		const noPersistedSessions = !this.chatService.hasSessions(this.chatViewOptions.providerId);
-		return !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail);
+		return this.didUnregisterProvider || !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail);
 	}
 
 	private getSessionId() {

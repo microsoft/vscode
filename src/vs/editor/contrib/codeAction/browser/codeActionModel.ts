@@ -10,19 +10,22 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, ShowAiIconMode } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { getCodeActions } from './codeAction';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
+
+export const APPLY_FIX_ALL_COMMAND_ID = '_typescript.applyFixAllCodeAction';
 
 type TriggeredCodeAction = {
 	readonly selection: Selection;
@@ -66,18 +69,26 @@ class CodeActionOracle extends Disposable {
 		if (!this._editor.hasModel()) {
 			return undefined;
 		}
-
-		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
+		if (trigger.type === CodeActionTriggerType.Invoke) {
+			return selection;
+		}
+		const enabled = this._editor.getOption(EditorOption.lightbulb).enabled;
+		if (enabled === ShowLightbulbIconMode.Off) {
+			return undefined;
+		} else if (enabled === ShowLightbulbIconMode.On) {
+			return selection;
+		} else if (enabled === ShowLightbulbIconMode.OnCode) {
+			const isSelectionEmpty = selection.isEmpty();
+			if (!isSelectionEmpty) {
+				return selection;
+			}
+			const model = this._editor.getModel();
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
 				// empty line
-				const showAiIconOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).experimental?.showAiIcon === ShowAiIconMode.On;
-				if (!showAiIconOnEmptyLines) {
-					return undefined;
-				}
+				return undefined;
 			} else if (column === 1) {
 				// look only right
 				if (/\s/.test(line[0])) {
@@ -168,7 +179,11 @@ export class CodeActionModel extends Disposable {
 		this._register(this._editor.onDidChangeModel(() => this._update()));
 		this._register(this._editor.onDidChangeModelLanguage(() => this._update()));
 		this._register(this._registry.onDidChange(() => this._update()));
-
+		this._register(this._editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.lightbulb)) {
+				this._update();
+			}
+		}));
 		this._update();
 	}
 
@@ -221,11 +236,16 @@ export class CodeActionModel extends Disposable {
 						}
 
 						// Search for quickfixes in the curret code action set.
-						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new CodeActionKind(action.action.kind)) : false);
-
-						if (!foundQuickfix) {
-							const allMarkers = this._markerService.read({ resource: model.uri });
-
+						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) : false);
+						const allMarkers = this._markerService.read({ resource: model.uri });
+						if (foundQuickfix) {
+							for (const action of codeActionSet.validActions) {
+								if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
+									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+								}
+							}
+							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+						} else if (!foundQuickfix) {
 							// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
 							if (allMarkers.length > 0) {
 								const currPosition = trigger.selection.getPosition();
@@ -254,7 +274,9 @@ export class CodeActionModel extends Disposable {
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
-												action.highlightRange = action.action.isPreferred;
+												if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
+													action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+												}
 											}
 
 											if (codeActionSet.allActions.length === 0) {
@@ -299,7 +321,20 @@ export class CodeActionModel extends Disposable {
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
-				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
+				const newState = new CodeActionsState.Triggered(trigger.trigger, startPosition, actions);
+				let isManualToAutoTransition = false;
+				if (this._state.type === CodeActionsState.Type.Triggered) {
+					// Check if the current state is manual and the new state is automatic
+					isManualToAutoTransition = this._state.trigger.type === CodeActionTriggerType.Invoke &&
+						newState.type === CodeActionsState.Type.Triggered &&
+						newState.trigger.type === CodeActionTriggerType.Auto &&
+						this._state.position !== newState.position;
+				}
+
+				// Do not trigger state if current state is manual and incoming state is automatic
+				if (!isManualToAutoTransition) {
+					this.setState(newState);
+				}
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {

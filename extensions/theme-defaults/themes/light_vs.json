@@ -31,7 +31,8 @@
 		"list.focusAndSelectionOutline": "#90C2F9",
 		"terminal.inactiveSelectionBackground": "#E5EBF1",
 		"widget.border": "#d4d4d4",
-		"actionBar.toggledBackground": "#dddddd"
+		"actionBar.toggledBackground": "#dddddd",
+		"diffEditor.unchangedRegionBackground": "#f8f8f8"
 	},
 	"tokenColors": [
 		{

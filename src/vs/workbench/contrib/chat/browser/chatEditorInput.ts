@@ -12,11 +12,14 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import type { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+
+const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
 export class ChatEditorInput extends EditorInput {
 	static readonly countsInUse = new Set<number>();
@@ -84,7 +87,7 @@ export class ChatEditorInput extends EditorInput {
 	}
 
 	override getIcon(): ThemeIcon {
-		return Codicon.commentDiscussion;
+		return ChatEditorIcon;
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
@@ -180,16 +183,12 @@ interface ISerializedChatEditorInput {
 }
 
 export class ChatEditorInputSerializer implements IEditorSerializer {
-	canSerialize(input: EditorInput): boolean {
-		return input instanceof ChatEditorInput;
+	canSerialize(input: EditorInput): input is ChatEditorInput & { readonly sessionId: string } {
+		return input instanceof ChatEditorInput && typeof input.sessionId === 'string';
 	}
 
 	serialize(input: EditorInput): string | undefined {
-		if (!(input instanceof ChatEditorInput)) {
-			return undefined;
-		}
-
-		if (typeof input.sessionId !== 'string') {
+		if (!this.canSerialize(input)) {
 			return undefined;
 		}
 

@@ -6,13 +6,13 @@
 import * as path from 'vs/base/common/path';
 import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { IMenu } from 'vs/platform/actions/common/actions';
+import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Action, IAction } from 'vs/base/common/actions';
 import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/languages';
@@ -58,7 +58,8 @@ export function isSCMHistoryItemGroupTreeElement(element: any): element is SCMHi
 }
 
 export function isSCMHistoryItemTreeElement(element: any): element is SCMHistoryItemTreeElement {
-	return (element as SCMHistoryItemTreeElement).type === 'historyItem';
+	return (element as SCMHistoryItemTreeElement).type === 'allChanges' ||
+		(element as SCMHistoryItemTreeElement).type === 'historyItem';
 }
 
 export function isSCMHistoryItemChangeTreeElement(element: any): element is SCMHistoryItemChangeTreeElement {
@@ -84,7 +85,13 @@ export function toDiffEditorArguments(uri: URI, originalUri: URI, modifiedUri: U
 	return [originalUri, modifiedUri, `${basename} (${originalShortRef}) ↔ ${basename} (${modifiedShortRef})`, null];
 }
 
-const compareActions = (a: IAction, b: IAction) => a.id === b.id && a.enabled === b.enabled;
+const compareActions = (a: IAction, b: IAction) => {
+	if (a instanceof MenuItemAction && b instanceof MenuItemAction) {
+		return a.id === b.id && a.enabled === b.enabled && a.hideActions?.isHidden === b.hideActions?.isHidden;
+	}
+
+	return a.id === b.id && a.enabled === b.enabled;
+};
 
 export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string): IDisposable {
 	let cachedPrimary: IAction[] = [];
@@ -142,8 +149,8 @@ export class StatusBarAction extends Action {
 
 class StatusBarActionViewItem extends ActionViewItem {
 
-	constructor(action: StatusBarAction) {
-		super(null, action, {});
+	constructor(action: StatusBarAction, options: IBaseActionViewItemOptions) {
+		super(null, action, { ...options, icon: false, label: true });
 	}
 
 	protected override updateLabel(): void {
@@ -154,11 +161,11 @@ class StatusBarActionViewItem extends ActionViewItem {
 }
 
 export function getActionViewItemProvider(instaService: IInstantiationService): IActionViewItemProvider {
-	return action => {
+	return (action, options) => {
 		if (action instanceof StatusBarAction) {
-			return new StatusBarActionViewItem(action);
+			return new StatusBarActionViewItem(action, options);
 		}
 
-		return createActionViewItem(instaService, action);
+		return createActionViewItem(instaService, action, options);
 	};
 }

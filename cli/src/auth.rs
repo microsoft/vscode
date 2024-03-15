@@ -404,7 +404,10 @@ impl Auth {
 		let mut keyring_storage = KeyringStorage::default();
 		#[cfg(target_os = "linux")]
 		let mut keyring_storage = ThreadKeyringStorage::default();
-		let mut file_storage = FileStorage(PersistedState::new(self.file_storage_path.clone()));
+		let mut file_storage = FileStorage(PersistedState::new_with_mode(
+			self.file_storage_path.clone(),
+			0o600,
+		));
 
 		let native_storage_result = if std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN").is_ok()
 			|| self.file_storage_path.exists()
