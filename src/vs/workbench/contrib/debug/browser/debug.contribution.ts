@@ -445,6 +445,18 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allow setting breakpoints in any file."),
 			default: false
 		},
+		'debug.gutterMiddleClickAction': {
+			type: 'string',
+			enum: ['logpoint', 'conditionalBreakpoint', 'triggeredBreakpoint', 'none'],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'gutterMiddleClickAction' }, 'Controls the action to perform when clicking the editor gutter with the middle mouse button.'),
+			enumDescriptions: [
+				nls.localize('debug.gutterMiddleClickAction.logpoint', "Add Logpoint."),
+				nls.localize('debug.gutterMiddleClickAction.conditionalBreakpoint', "Add Conditional Breakpoint."),
+				nls.localize('debug.gutterMiddleClickAction.triggeredBreakpoint', "Add Triggered Breakpoint."),
+				nls.localize('debug.gutterMiddleClickAction.none', "Don't perform any action."),
+			],
+			default: 'logpoint',
+		},
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session."),

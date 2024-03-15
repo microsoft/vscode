@@ -3103,6 +3103,13 @@ declare namespace monaco.editor {
 		 */
 		rulers?: (number | IRulerOption)[];
 		/**
+		 * Locales used for segmenting lines into words when doing word related navigations or operations.
+		 *
+		 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
+		 * Defaults to empty array
+		 */
+		wordSegmenterLocales?: string | string[];
+		/**
 		 * A string containing the word separators used when doing word navigation.
 		 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
 		 */
@@ -3818,6 +3825,10 @@ declare namespace monaco.editor {
 		 * Default to true.
 		 */
 		renderMarginRevertIcon?: boolean;
+		/**
+		 * Indicates if the gutter menu should be rendered.
+		*/
+		renderGutterMenu?: boolean;
 		/**
 		 * Original model should be editable?
 		 * Defaults to false.
@@ -4928,25 +4939,26 @@ declare namespace monaco.editor {
 		useShadowDOM = 127,
 		useTabStops = 128,
 		wordBreak = 129,
-		wordSeparators = 130,
-		wordWrap = 131,
-		wordWrapBreakAfterCharacters = 132,
-		wordWrapBreakBeforeCharacters = 133,
-		wordWrapColumn = 134,
-		wordWrapOverride1 = 135,
-		wordWrapOverride2 = 136,
-		wrappingIndent = 137,
-		wrappingStrategy = 138,
-		showDeprecated = 139,
-		inlayHints = 140,
-		editorClassName = 141,
-		pixelRatio = 142,
-		tabFocusMode = 143,
-		layoutInfo = 144,
-		wrappingInfo = 145,
-		defaultColorDecorators = 146,
-		colorDecoratorsActivatedOn = 147,
-		inlineCompletionsAccessibilityVerbose = 148
+		wordSegmenterLocales = 130,
+		wordSeparators = 131,
+		wordWrap = 132,
+		wordWrapBreakAfterCharacters = 133,
+		wordWrapBreakBeforeCharacters = 134,
+		wordWrapColumn = 135,
+		wordWrapOverride1 = 136,
+		wordWrapOverride2 = 137,
+		wrappingIndent = 138,
+		wrappingStrategy = 139,
+		showDeprecated = 140,
+		inlayHints = 141,
+		editorClassName = 142,
+		pixelRatio = 143,
+		tabFocusMode = 144,
+		layoutInfo = 145,
+		wrappingInfo = 146,
+		defaultColorDecorators = 147,
+		colorDecoratorsActivatedOn = 148,
+		inlineCompletionsAccessibilityVerbose = 149
 	}
 
 	export const EditorOptions: {
@@ -5084,6 +5096,7 @@ declare namespace monaco.editor {
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
+		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, {}>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
@@ -6957,6 +6970,22 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	 * Info provided on partial acceptance.
+	 */
+	export interface PartialAcceptInfo {
+		kind: PartialAcceptTriggerKind;
+	}
+
+	/**
+	 * How a partial acceptance was triggered.
+	 */
+	export enum PartialAcceptTriggerKind {
+		Word = 0,
+		Line = 1,
+		Suggest = 2
+	}
+
+	/**
 	 * How a suggest provider was triggered.
 	 */
 	export enum CompletionTriggerKind {
@@ -7102,7 +7131,7 @@ declare namespace monaco.languages {
 		/**
 		 * Will be called when an item is partially accepted.
 		 */
-		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
@@ -7822,7 +7851,7 @@ declare namespace monaco.languages {
 		body: string;
 		range: IRange | undefined;
 		uri: Uri;
-		owner: string;
+		uniqueOwner: string;
 		isReply: boolean;
 	}
 

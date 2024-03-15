@@ -197,3 +197,9 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 		})
 	};
 }
+
+export function extractAgentAndCommand(parsed: IParsedChatRequest): { agentPart: ChatRequestAgentPart | undefined; commandPart: ChatRequestAgentSubcommandPart | undefined } {
+	const agentPart = parsed.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
+	const commandPart = parsed.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
+	return { agentPart, commandPart };
+}

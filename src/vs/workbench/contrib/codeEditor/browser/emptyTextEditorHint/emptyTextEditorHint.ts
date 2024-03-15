@@ -226,7 +226,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 				id: 'inlineChat.hintAction',
 				from: 'hint'
 			});
-			void this.commandService.executeCommand(inlineChatId, { from: 'hint' });
+			this.commandService.executeCommand(inlineChatId, { from: 'hint' });
 		};
 
 		const hintHandler: IContentActionHandler = {
@@ -254,7 +254,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 					const hintPart = $('a', undefined, fragment);
 					hintPart.style.fontStyle = 'italic';
 					hintPart.style.cursor = 'pointer';
-					hintPart.onclick = handleClick;
+					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
 					return hintPart;
 				} else {
 					const hintPart = $('span', undefined, fragment);
@@ -272,7 +272,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 
 			if (this.options.clickable) {
 				label.element.style.cursor = 'pointer';
-				label.element.onclick = handleClick;
+				this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
 			}
 
 			hintElement.appendChild(after);

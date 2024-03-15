@@ -5,14 +5,12 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, observableValue } from 'vs/base/common/observable';
 import { language } from 'vs/base/common/platform';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
@@ -25,7 +23,7 @@ export interface ITestRunTaskResults extends ITestRunTask {
 	/**
 	 * Contains test coverage for the result, if it's available.
 	 */
-	readonly coverage: IObservable<undefined | ((tkn: CancellationToken) => Promise<TestCoverage>)>;
+	readonly coverage: IObservable<TestCoverage | undefined>;
 
 	/**
 	 * Messages from the task not associated with any specific test.
@@ -366,7 +364,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		const { offset, length } = task.output.append(output, marker);
 		const message: ITestOutputMessage = {
 			location,
-			message: removeAnsiEscapeCodes(preview),
+			message: preview,
 			offset,
 			length,
 			marker,

@@ -9,7 +9,7 @@ import * as languages from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IActionRunner, IAction, Separator, ActionRunner } from 'vs/base/common/actions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -50,6 +50,7 @@ import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/c
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MarshalledCommentThread } from 'vs/workbench/common/comments';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -60,6 +61,7 @@ class CommentsActionRunner extends ActionRunner {
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
+	private _avatar: HTMLElement;
 	private _md: HTMLElement | undefined;
 	private _plainText: HTMLElement | undefined;
 	private _clearTimeout: any;
@@ -129,12 +131,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentMenus = this.commentService.getCommentMenus(this.owner);
 
 		this._domNode.tabIndex = -1;
-		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
-		if (comment.userIconPath) {
-			const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
-			img.src = FileAccess.uriToBrowserUri(URI.revive(comment.userIconPath)).toString(true);
-			img.onerror = _ => img.remove();
-		}
+		this._avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
+		this.updateCommentUserIcon(this.comment.userIconPath);
+
 		this._commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
 		this.createHeader(this._commentDetailsContainer);
@@ -223,6 +222,15 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
+	private updateCommentUserIcon(userIconPath: UriComponents | undefined) {
+		this._avatar.textContent = '';
+		if (userIconPath) {
+			const img = <HTMLImageElement>dom.append(this._avatar, dom.$('img.avatar'));
+			img.src = FileAccess.uriToBrowserUri(URI.revive(userIconPath)).toString(true);
+			img.onerror = _ => img.remove();
+		}
+	}
+
 	public get onDidClick(): Event<CommentNode<T>> {
 		return this._onDidClick.event;
 	}
@@ -286,7 +294,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		return result;
 	}
 
-	private get commentNodeContext() {
+	private get commentNodeContext(): [any, MarshalledCommentThread] {
 		return [{
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,
@@ -699,6 +707,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		if (newComment.body !== this.comment.body) {
 			this.updateCommentBody(newComment.body);
+		}
+
+		if (this.comment.userIconPath && newComment.userIconPath && (URI.from(this.comment.userIconPath).toString() !== URI.from(newComment.userIconPath).toString())) {
+			this.updateCommentUserIcon(newComment.userIconPath);
 		}
 
 		const isChangingMode: boolean = newComment.mode !== undefined && newComment.mode !== this.comment.mode;
