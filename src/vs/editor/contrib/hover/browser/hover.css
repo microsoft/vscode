@@ -42,6 +42,7 @@
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions .codicon {
 	cursor: pointer;
+	font-size: 11px;
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions .codicon.enabled {

@@ -33,8 +33,8 @@ import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateF
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
-const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.chevronUp, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
-const decreaseHoverVerbosityIcon = registerIcon('hover-decrease-verbosity', Codicon.chevronDown, nls.localize('decreaseHoverVerbosity', 'Icon for decreasing hover verbosity.'));
+const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
+const decreaseHoverVerbosityIcon = registerIcon('hover-decrease-verbosity', Codicon.remove, nls.localize('decreaseHoverVerbosity', 'Icon for decreasing hover verbosity.'));
 
 export class MarkdownHover implements IHoverPart {
 
