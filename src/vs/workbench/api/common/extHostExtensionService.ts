@@ -89,9 +89,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _onDidChangeRemoteConnectionData = this._register(new Emitter<void>());
 	public readonly onDidChangeRemoteConnectionData = this._onDidChangeRemoteConnectionData.event;
 
-	private readonly _onDidChangeExtensions = this._register(new Emitter<void>());
-	public readonly onDidChangeExtensions = this._onDidChangeExtensions.event;
-
 	protected readonly _hostUtils: IHostUtils;
 	protected readonly _initData: IExtensionHostInitData;
 	protected readonly _extHostContext: IExtHostRpcService;
@@ -989,14 +986,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return result;
 	}
 
-	public $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
+		const newSearchTree = await this._createExtensionPathIndex(myExtensions);
+		const extensionsPaths = await this.getExtensionPathIndex();
+		extensionsPaths.setSearchTree(newSearchTree);
 		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
 		this._myRegistry.set(myExtensions);
-		this._extensionPathIndex = null;
-		this._onDidChangeExtensions.fire();
 
 		if (isCI) {
 			this._logService.info(`$startExtensionHost: global extensions: ${printExtIds(this._globalRegistry)}`);
@@ -1044,8 +1042,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._logService.info(`$deltaExtensions: local extensions: ${printExtIds(this._myRegistry)}`);
 		}
 
-		this._extensionPathIndex = null;
-		this._onDidChangeExtensions.fire();
 		return Promise.resolve(undefined);
 	}
 
