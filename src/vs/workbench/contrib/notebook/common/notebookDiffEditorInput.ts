@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { INotebookEditorInputFactory, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditorModel {
@@ -24,9 +24,8 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 
 export class NotebookDiffEditorInput extends DiffEditorInput {
 	static create(instantiationService: IInstantiationService, resource: URI, name: string | undefined, description: string | undefined, originalResource: URI, viewType: string) {
-		const factor = instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory));
-		const original = factor.getOrCreate(originalResource, undefined, viewType);
-		const modified = factor.getOrCreate(resource, undefined, viewType);
+		const original = NotebookEditorInput.getOrCreate(instantiationService, originalResource, undefined, viewType);
+		const modified = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, viewType);
 		return instantiationService.createInstance(NotebookDiffEditorInput, name, description, original, modified, viewType);
 	}
 
