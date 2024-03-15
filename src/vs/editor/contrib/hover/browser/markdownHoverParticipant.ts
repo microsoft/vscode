@@ -82,7 +82,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _context: IEditorHoverRenderContext | undefined;
 	private _focusInfo: FocusedHoverInfo | undefined;
 
-	private _hoverData: VerboseMarkdownHover[] = [];
+	private _hoverData: (MarkdownHover | VerboseMarkdownHover)[] = [];
 	private _verbosityLevelsByHoverIdx: number[] = [];
 
 	constructor(
@@ -171,22 +171,27 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			});
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: VerboseMarkdownHover[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: (MarkdownHover | VerboseMarkdownHover)[]): IDisposable {
 		this._context = context;
 		this._context.disposables?.add(toDisposable(() => {
 			this._hoverData.forEach(hoverData => {
-				hoverData.hover.dispose();
+				if (hoverData instanceof VerboseMarkdownHover) {
+					hoverData.hover.dispose();
+				}
 			});
 		}));
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 		this._hoverData = hoverParts;
 		const disposables = new DisposableStore();
 		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
+			const isInstanceOfVerboseHover = hoverPart instanceof VerboseMarkdownHover;
+			const canIncreaseVerbosity = isInstanceOfVerboseHover && hoverPart.hover.canIncreaseVerbosity;
+			const canDecreaseVerbosity = isInstanceOfVerboseHover && hoverPart.hover.canDecreaseVerbosity;
 			const renderedMarkdown = this._renderMarkdownHoversAndActions(
 				hoverPart.contents,
 				hoverIndex,
-				hoverPart.hover?.canIncreaseVerbosity,
-				hoverPart.hover?.canDecreaseVerbosity,
+				canIncreaseVerbosity,
+				canDecreaseVerbosity,
 				disposables
 			);
 			this._context.fragment.appendChild(renderedMarkdown);
@@ -208,6 +213,9 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 		const focusedIndex = this._focusInfo.index;
 		const currentHoverData = this._hoverData[focusedIndex];
+		if (!(currentHoverData instanceof VerboseMarkdownHover)) {
+			return;
+		}
 		const provider = currentHoverData.sourceProvider;
 		const hover = currentHoverData.hover;
 		this._verbosityLevelsByHoverIdx[focusedIndex] += (action === HoverVerbosityAction.Increase ? 1 : -1);
