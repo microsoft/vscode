@@ -187,6 +187,8 @@ steps:
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
+        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
