@@ -152,10 +152,6 @@
 		"editor.wordWrap": "on"
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
-<<<<<<< HEAD
-	"inlineChat.mode": "live"
-=======
 	"inlineChat.mode": "live",
-	"typescript.enablePromptUseWorkspaceTsdk": true,
->>>>>>> origin/main
+	"typescript.enablePromptUseWorkspaceTsdk": true
 }
