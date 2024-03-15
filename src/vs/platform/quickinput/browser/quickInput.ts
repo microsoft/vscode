@@ -1083,7 +1083,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 					// it sets the focus to no elements. So we need to set & fire the active items
 					// accordingly to reflect the state change after setting the items.
 					if (currentActiveItems.length > 0) {
-						this._activeItems = new Array<T>();
+						this._activeItems = [];
 						this.onDidChangeActiveEmitter.fire(this._activeItems);
 					}
 					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
