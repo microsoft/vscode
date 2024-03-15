@@ -84,8 +84,8 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					markdownDescription: localize('chatParticipantIsDefaultDescription', "**Only** allowed for extensions that have the `defaultChatParticipant` proposal."),
 					type: 'boolean',
 				},
-				defaultImplicitTools: {
-					markdownDescription: 'The names of the tools that are invoked by default',
+				defaultImplicitVariables: {
+					markdownDescription: 'The names of the variables that are invoked by default',
 					type: 'array',
 					items: {
 						type: 'string'
