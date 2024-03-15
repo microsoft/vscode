@@ -715,7 +715,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			token
 		);
 
-		if (!session) {
+		if (!session || typeof session === 'string') {
 			return;
 		}
 

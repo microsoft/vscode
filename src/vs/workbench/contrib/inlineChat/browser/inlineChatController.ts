@@ -278,7 +278,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._session === undefined);
 		assertType(this._editor.hasModel());
 
-		let session: Session | undefined = options.existingSession;
+		let session: Session | string | undefined = options.existingSession;
 
 
 		let initPosition: Position | undefined;
@@ -315,7 +315,7 @@ export class InlineChatController implements IEditorContribution {
 			msgListener.dispose();
 
 			if (createSessionCts.token.isCancellationRequested) {
-				if (session) {
+				if (session && typeof session !== 'string') {
 					this._inlineChatSessionService.releaseSession(session);
 				}
 				return State.CANCEL;
@@ -325,9 +325,9 @@ export class InlineChatController implements IEditorContribution {
 		delete options.initialRange;
 		delete options.existingSession;
 
-		if (!session) {
-			MessageController.get(this._editor)?.showMessage(localize('create.fail', "Failed to start editor chat"), widgetPosition);
-			this._log('Failed to start editor chat');
+		if (typeof session === 'string') {
+			MessageController.get(this._editor)?.showMessage(session, widgetPosition);
+			this._log(session);
 			return State.CANCEL;
 		}
 

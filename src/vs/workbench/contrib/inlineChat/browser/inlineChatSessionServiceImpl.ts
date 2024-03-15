@@ -26,6 +26,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { localize } from 'vs/nls';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -71,12 +72,12 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._sessions.clear();
 	}
 
-	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
-
+	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | string> {
+		const defaultSessionFailureMessage = localize('create.fail', "Failed to start editor chat");
 		const provider = Iterable.first(this._inlineChatService.getAllProvider());
 		if (!provider) {
 			this._logService.trace('[IE] NO provider found');
-			return undefined;
+			return defaultSessionFailureMessage;
 		}
 
 		this._onWillStartSession.fire(editor);
@@ -92,11 +93,16 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		} catch (error) {
 			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
 			this._logService.error(error);
-			return undefined;
+			switch (error.name) {
+				case 'IgnoreError':
+					return localize('create.ignore', "File is ignored due to content exclusions");
+				default:
+					return defaultSessionFailureMessage;
+			}
 		}
 		if (!rawSession) {
 			this._logService.trace('[IE] NO session', provider.debugName);
-			return undefined;
+			return defaultSessionFailureMessage;
 		}
 		this._logService.trace('[IE] NEW session', provider.debugName);
 
@@ -150,7 +156,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		if (token.isCancellationRequested) {
 			store.dispose();
-			return undefined;
+			return defaultSessionFailureMessage;
 		}
 
 		const session = new Session(
