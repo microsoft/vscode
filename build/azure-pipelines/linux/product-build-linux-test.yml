@@ -8,13 +8,6 @@ parameters:
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
 
-variables:
-  - name: PUBLISH_TASK_NAME
-    ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      value: PublishPipelineArtifact@0
-    ${{ else }}:
-      value: 1ES.PublishPipelineArtifact@1
-
 steps:
   - script: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
@@ -204,7 +197,10 @@ steps:
       condition: succeededOrFailed()
 
   - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - task: ${{ variables.PUBLISH_TASK_NAME }}
+    - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+      - task: PublishPipelineArtifact@0
+    - ${{ else }}:
+      - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: .build/crashes
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
