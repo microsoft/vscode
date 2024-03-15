@@ -179,6 +179,44 @@ suite('WordOperations', () => {
 		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
+	test('cursorWordLeft - Recognize words', () => {
+		const EXPECTED = [
+			'|/* |これ|は|テスト|です |/*',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => cursorWordLeft(ed, true),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1)),
+			{
+				wordSegmenterLocales: 'ja'
+			}
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordLeft - Does not recognize words', () => {
+		const EXPECTED = [
+			'|/* |これはテストです |/*',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => cursorWordLeft(ed, true),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1)),
+			{
+				wordSegmenterLocales: ''
+			}
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
 	test('cursorWordLeftSelect - issue #74369: cursorWordLeft and cursorWordLeftSelect do not behave consistently', () => {
 		const EXPECTED = [
 			'|this.|is.|a.|test',
@@ -322,6 +360,44 @@ suite('WordOperations', () => {
 			ed => cursorWordRight(ed),
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 17))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordRight - Recognize words', () => {
+		const EXPECTED = [
+			'/*| これ|は|テスト|です|/*|',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => cursorWordRight(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 14)),
+			{
+				wordSegmenterLocales: 'ja'
+			}
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordRight - Does not recognize words', () => {
+		const EXPECTED = [
+			'/*| これはテストです|/*|',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => cursorWordRight(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 14)),
+			{
+				wordSegmenterLocales: ''
+			}
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
