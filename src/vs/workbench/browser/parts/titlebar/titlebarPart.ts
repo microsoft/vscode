@@ -111,7 +111,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 
 		// Focus action
 		const that = this;
-		registerAction2(class FocusTitleBar extends Action2 {
+		this._register(registerAction2(class FocusTitleBar extends Action2 {
 
 			constructor() {
 				super({
@@ -125,7 +125,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 			run(): void {
 				that.getPartByDocument(getActiveDocument()).focus();
 			}
-		});
+		}));
 	}
 
 	//#region Auxiliary Titlebar Parts
