@@ -17,11 +17,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { getActiveWindow } from 'vs/base/browser/dom';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -38,9 +38,10 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(window, container, stylesHaveLoaded, configurationService, hostService);
+		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService);
 	}
 
 	protected override async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {
@@ -68,10 +69,10 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@IDialogService dialogService: IDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(layoutService, dialogService, configurationService, telemetryService, hostService);
+		super(layoutService, dialogService, configurationService, telemetryService, hostService, environmentService);
 	}
 
 	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {
@@ -97,29 +98,8 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		return super.createContainer(auxiliaryWindow, disposables);
 	}
 
-	protected override patchMethods(auxiliaryWindow: NativeCodeWindow): void {
-		super.patchMethods(auxiliaryWindow);
-
-		// Enable `window.focus()` to work in Electron by
-		// asking the main process to focus the window.
-		// https://github.com/electron/electron/issues/25578
-		const that = this;
-		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
-		auxiliaryWindow.focus = function () {
-			if (that.environmentService.extensionTestsLocationURI) {
-				return; // no focus when we are running tests from CLI
-			}
-
-			originalWindowFocus();
-
-			if (!auxiliaryWindow.document.hasFocus()) {
-				that.nativeHostService.focusWindow({ targetWindowId: auxiliaryWindow.vscodeWindowId });
-			}
-		};
-	}
-
 	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier,): AuxiliaryWindow {
-		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService);
+		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService);
 	}
 }
 

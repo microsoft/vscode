@@ -181,6 +181,11 @@ export interface IPartialViewLinesViewportData {
 	 * The last completely visible line number.
 	 */
 	readonly completelyVisibleEndLineNumber: number;
+
+	/**
+	 * The height of a line.
+	 */
+	readonly lineHeight: number;
 }
 
 export interface IViewWhitespaceViewportData {

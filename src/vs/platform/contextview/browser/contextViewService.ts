@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContextView, ContextViewDOMPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IContextViewDelegate, IContextViewService } from './contextView';
 import { getWindow } from 'vs/base/browser/dom';
@@ -12,7 +12,7 @@ import { getWindow } from 'vs/base/browser/dom';
 
 export class ContextViewHandler extends Disposable implements IContextViewProvider {
 
-	private currentViewDisposable: IDisposable = Disposable.None;
+	private currentViewDisposable = this._register(new MutableDisposable<IDisposable>());
 	protected readonly contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
 
 	constructor(
@@ -50,7 +50,7 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 			}
 		});
 
-		this.currentViewDisposable = disposable;
+		this.currentViewDisposable.value = disposable;
 		return disposable;
 	}
 
@@ -60,13 +60,6 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 
 	hideContextView(data?: any): void {
 		this.contextView.hide(data);
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		this.currentViewDisposable.dispose();
-		this.currentViewDisposable = Disposable.None;
 	}
 }
 

@@ -12,6 +12,8 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
 import { revive } from 'vs/base/common/marshalling';
+import * as Constants from 'vs/workbench/contrib/search/common/constants';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -24,6 +26,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService _configurationService: IConfigurationService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSearch);
 		this._proxy.$enableExtensionHostSearch();
@@ -39,6 +42,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	}
 
 	$registerAITextSearchProvider(handle: number, scheme: string): void {
+		Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(true);
 		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.aiText, scheme, handle, this._proxy));
 	}
 
