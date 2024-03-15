@@ -24,7 +24,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -42,23 +42,11 @@ export interface NotebookEditorInputOptions {
 
 export class NotebookEditorInput extends AbstractResourceEditorInput {
 
-	private static EditorCache: Record<string, NotebookEditorInput> = {};
-
 	static getOrCreate(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
-		const cacheId = `${resource.toString()}|${viewType}|${options._workingCopy?.typeId}`;
-		let editor = NotebookEditorInput.EditorCache[cacheId];
-
-		if (!editor) {
-			editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
-			NotebookEditorInput.EditorCache[cacheId] = editor;
-
-			editor.onWillDispose(() => {
-				delete NotebookEditorInput.EditorCache[cacheId];
-			});
-		} else if (preferredResource) {
+		const editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
+		if (preferredResource) {
 			editor.setPreferredResource(preferredResource);
 		}
-
 		return editor;
 	}
 
@@ -129,7 +117,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.AuxWindowUnsupported;
+		let capabilities = EditorInputCapabilities.None;
 
 		if (this.resource.scheme === Schemas.untitled) {
 			capabilities |= EditorInputCapabilities.Untitled;
@@ -181,7 +169,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		// if a short auto save is configured, treat this as being saved
-		return this.filesConfigurationService.getAutoSaveMode(this) === AutoSaveMode.AFTER_SHORT_DELAY;
+		return this.filesConfigurationService.hasShortAutoSaveDelay(this);
 	}
 
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
@@ -373,4 +361,10 @@ export function isCompositeNotebookEditorInput(thing: unknown): thing is ICompos
 		&& typeof thing === 'object'
 		&& Array.isArray((<ICompositeNotebookEditorInput>thing).editorInputs)
 		&& ((<ICompositeNotebookEditorInput>thing).editorInputs.every(input => input instanceof NotebookEditorInput));
+}
+
+export function isNotebookEditorInput(thing: unknown): thing is NotebookEditorInput {
+	return !!thing
+		&& typeof thing === 'object'
+		&& thing instanceof NotebookEditorInput;
 }

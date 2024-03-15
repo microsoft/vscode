@@ -184,7 +184,7 @@ function computeChecksum(filename) {
 	const contents = fs.readFileSync(filename);
 
 	const hash = crypto
-		.createHash('md5')
+		.createHash('sha256')
 		.update(contents)
 		.digest('base64')
 		.replace(/=+$/, '');
@@ -281,7 +281,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
-				'**/node-vsce-sign/bin/*',
+				'**/@vscode/vsce-sign/bin/*',
 			], 'node_modules.asar'));
 
 		let all = es.merge(

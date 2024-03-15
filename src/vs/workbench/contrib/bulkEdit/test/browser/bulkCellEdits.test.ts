@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { mockObject } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -35,7 +35,7 @@ suite('BulkCellEdits', function () {
 		const edits = [
 			new ResourceNotebookCellEdit(inputUri, { index: 0, count: 1, editType: CellEditType.Replace, cells: [] })
 		];
-		const bce = new BulkCellEdits(new UndoRedoGroup(), new UndoRedoSource(), progress, new CancellationTokenSource().token, edits, editorService, notebookService as any);
+		const bce = new BulkCellEdits(new UndoRedoGroup(), new UndoRedoSource(), progress, CancellationToken.None, edits, editorService, notebookService as any);
 		await bce.apply();
 
 		const resolveArgs = notebookService.resolve.args[0];

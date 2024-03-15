@@ -5,8 +5,11 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -24,7 +27,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -144,7 +147,7 @@ export class TestingExplorerView extends ViewPane {
 	 * Gets include/exclude items in the tree, based either on visible tests
 	 * or a use selection.
 	 */
-	public getTreeIncludeExclude(profile?: ITestRunProfile, filterToType: 'visible' | 'selected' = 'visible') {
+	public getTreeIncludeExclude(withinItems?: InternalTestItem[], profile?: ITestRunProfile, filterToType: 'visible' | 'selected' = 'visible') {
 		const projection = this.viewModel.projection.value;
 		if (!projection) {
 			return { include: [], exclude: [] };
@@ -215,7 +218,7 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		for (const root of this.testService.collection.rootItems) {
+		for (const root of withinItems || this.testService.collection.rootItems) {
 			const element = projection.getElementByTestId(root.item.extId);
 			if (!element) {
 				continue;
@@ -285,18 +288,18 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	/** @override  */
-	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	public override getActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TestCommandId.FilterAction:
-				this.filter.value = this.instantiationService.createInstance(TestingExplorerFilter, action);
+				this.filter.value = this.instantiationService.createInstance(TestingExplorerFilter, action, options);
 				this.filterFocusListener.value = this.filter.value.onDidFocus(() => this.lastFocusState = LastFocusState.Input);
 				return this.filter.value;
 			case TestCommandId.RunSelectedAction:
-				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
+				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action, options);
 			case TestCommandId.DebugSelectedAction:
-				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action);
+				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action, options);
 			default:
-				return super.getActionViewItem(action);
+				return super.getActionViewItem(action, options);
 		}
 	}
 
@@ -328,7 +331,7 @@ export class TestingExplorerView extends ViewPane {
 					undefined,
 					undefined,
 					() => {
-						const { include, exclude } = this.getTreeIncludeExclude(profile);
+						const { include, exclude } = this.getTreeIncludeExclude(undefined, profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
 							targets: [{
@@ -380,10 +383,10 @@ export class TestingExplorerView extends ViewPane {
 		super.saveState();
 	}
 
-	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction) {
+	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction, options: IActionViewItemOptions) {
 		const dropdownActions = this.getTestConfigGroupActions(group);
 		if (dropdownActions.length < 2) {
-			return super.getActionViewItem(defaultAction);
+			return super.getActionViewItem(defaultAction, options);
 		}
 
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
@@ -401,13 +404,13 @@ export class TestingExplorerView extends ViewPane {
 			primaryAction, dropdownAction, dropdownActions,
 			'',
 			this.contextMenuService,
-			{}
+			options
 		);
 	}
 
 	private createFilterActionBar() {
 		const bar = new ActionBar(this.treeHeader, {
-			actionViewItemProvider: action => this.getActionViewItem(action),
+			actionViewItemProvider: (action, options) => this.getActionViewItem(action, options),
 			triggerKeys: { keyDown: false, keys: [] },
 		});
 		bar.push(new Action(TestCommandId.FilterAction));
@@ -442,6 +445,7 @@ class ResultSummaryView extends Disposable {
 	private elementsWereAttached = false;
 	private badgeType: TestingCountBadge;
 	private lastBadge?: NumberBadge | IconBadge;
+	private countHover: ICustomHover;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly renderLoop = this._register(new RunOnceScheduler(() => this.render(), SUMMARY_RENDER_INTERVAL));
 	private readonly elements = dom.h('div.result-summary', [
@@ -472,8 +476,10 @@ class ResultSummaryView extends Disposable {
 			}
 		}));
 
+		this.countHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
+
 		const ab = this._register(new ActionBar(this.elements.rerun, {
-			actionViewItemProvider: action => createActionViewItem(instantiationService, action),
+			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
 		}));
 		ab.push(instantiationService.createInstance(MenuItemAction,
 			{ ...new ReRunLastRun().desc, icon: icons.testingRerunIcon },
@@ -518,7 +524,7 @@ class ResultSummaryView extends Disposable {
 		}
 
 		count.textContent = `${counts.passed}/${counts.totalWillBeRun}`;
-		count.title = getTestProgressText(counts);
+		this.countHover.update(getTestProgressText(counts));
 		this.renderActivityBadge(counts);
 
 		if (!this.elementsWereAttached) {
@@ -1301,6 +1307,7 @@ class IdentityProvider implements IIdentityProvider<TestExplorerTreeElement> {
 
 interface IErrorTemplateData {
 	label: HTMLElement;
+	disposable: DisposableStore;
 }
 
 class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, IErrorTemplateData> {
@@ -1318,7 +1325,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 
 	renderTemplate(container: HTMLElement): IErrorTemplateData {
 		const label = dom.append(container, dom.$('.error'));
-		return { label };
+		return { label, disposable: new DisposableStore() };
 	}
 
 	renderElement({ element }: ITreeNode<TestTreeErrorMessage, FuzzyScore>, _: number, data: IErrorTemplateData): void {
@@ -1330,12 +1337,11 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 			const result = this.renderer.render(element.message, { inline: true });
 			data.label.appendChild(result.element);
 		}
-
-		data.label.title = element.description;
+		data.disposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
 	}
 
-	disposeTemplate(): void {
-		// noop
+	disposeTemplate(data: IErrorTemplateData): void {
+		data.disposable.dispose();
 	}
 }
 
@@ -1383,9 +1389,9 @@ class TestItemRenderer extends Disposable
 		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(icons.testingHiddenIcon)));
 		const actionBar = disposable.add(new ActionBar(wrapper, {
 			actionRunner: this.actionRunner,
-			actionViewItemProvider: action =>
+			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
-					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
+					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
 					: undefined
 		}));
 
@@ -1451,7 +1457,7 @@ class TestItemRenderer extends Disposable
 			data.icon.className += ' retired';
 		}
 
-		data.label.title = getLabelForTestTreeElement(node.element);
+		data.elementDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
 		if (node.element.test.item.label.trim()) {
 			dom.reset(data.label, ...renderLabelWithIcons(node.element.test.item.label));
 		} else {

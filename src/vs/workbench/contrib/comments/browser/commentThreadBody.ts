@@ -15,7 +15,7 @@ import { CommentNode } from 'vs/workbench/contrib/comments/browser/commentNode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -60,7 +60,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS_IN, e => {
 			// TODO @rebornix, limit T to IRange | ICellRange
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.setActiveEditingCommentThread(this._commentThread);
 		}));
 
 		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
@@ -261,7 +261,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this._parentEditor,
 			this._commentThread,
 			comment,
-			this._pendingEdits ? this._pendingEdits[comment.uniqueIdInThread!] : undefined,
+			this._pendingEdits ? this._pendingEdits[comment.uniqueIdInThread] : undefined,
 			this.owner,
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,

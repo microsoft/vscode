@@ -6,10 +6,13 @@
 import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
 import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { FallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/fallbackKeyboardMapper';
 import { IResolvedKeybinding, assertResolveKeyboardEvent, assertResolveKeybinding } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
 
 suite('keyboardMapper - MAC fallback', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Macintosh);
 
@@ -228,6 +231,8 @@ suite('keyboardMapper - MAC fallback', () => {
 });
 
 suite('keyboardMapper - LINUX fallback', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Linux);
 

@@ -12,6 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { terminalColorSchema, terminalIconSchema } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import product from 'vs/platform/product/common/product';
+import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -29,6 +30,8 @@ terminalTitle += terminalDescriptors;
 
 let terminalDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
 terminalDescription += terminalDescriptors;
+
+export const defaultTerminalFontSize = isMacintosh ? 12 : 14;
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -176,7 +179,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',
-			default: isMacintosh ? 12 : 14,
+			default: defaultTerminalFontSize,
 			minimum: 6,
 			maximum: 100
 		},
@@ -362,7 +365,12 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {
-			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled. This shows up as a visual bell next to the terminal's name."),
+			markdownDeprecationMessage: localize('terminal.integrated.enableBell', "This is now deprecated. Instead use the `terminal.integrated.enableVisualBell` and `accessibility.signals.terminalBell` settings."),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.EnableVisualBell]: {
+			description: localize('terminal.integrated.enableVisualBell', "Controls whether the visual terminal bell is enabled. This shows up next to the terminal's name."),
 			type: 'boolean',
 			default: false
 		},
@@ -552,6 +560,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.RescaleOverlappingGlyphs]: {
+			markdownDescription: localize('terminal.integrated.rescaleOverlappingGlyphs', "Whether to rescale glyphs horizontally that are a single cell wide but have glyphs that would overlap following cell(s). This typically happens for ambiguous width characters (eg. the roman numeral characters U+2160+) which aren't featured in monospace fonts. Emoji glyphs are never rescaled."),
+			type: 'boolean',
+			default: true
+		},
 		[TerminalSettingId.AutoReplies]: {
 			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that, when encountered in the terminal, will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "Y\\r"`', '`"\\r"`'),
 			type: 'object',
@@ -593,7 +606,8 @@ const terminalConfiguration: IConfigurationNode = {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
 			type: 'boolean',
-			default: false
+			default: false,
+			markdownDeprecationMessage: localize('suggestEnabled.deprecated', 'This is an experimental setting and may break the terminal! Use at your own risk.')
 		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
@@ -643,6 +657,18 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 5,
 			minimum: 1,
 			maximum: 10
+		},
+		[TerminalSettingId.MouseWheelZoom]: {
+			markdownDescription: isMacintosh
+				? localize('terminal.integrated.mouseWheelZoom.mac', "Zoom the font of the terminal when using mouse wheel and holding `Cmd`.")
+				: localize('terminal.integrated.mouseWheelZoom', "Zoom the font of the terminal when using mouse wheel and holding `Ctrl`."),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.ExperimentalInlineChat]: {
+			markdownDescription: localize('terminal.integrated.experimentalInlineChat', "Whether to enable the upcoming experimental inline terminal chat UI."),
+			type: 'boolean',
+			default: false
 		}
 	}
 };
@@ -651,3 +677,19 @@ export function registerTerminalConfiguration() {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(terminalConfiguration);
 }
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: TerminalSettingId.EnableBell,
+		migrateFn: (enableBell, accessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			let announcement = accessor('accessibility.signals.terminalBell')?.announcement ?? accessor('accessibility.alert.terminalBell');
+			if (announcement !== undefined && typeof announcement !== 'string') {
+				announcement = announcement ? 'auto' : 'off';
+			}
+			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);
+			configurationKeyValuePairs.push([TerminalSettingId.EnableBell, { value: undefined }]);
+			configurationKeyValuePairs.push([TerminalSettingId.EnableVisualBell, { value: enableBell }]);
+			return configurationKeyValuePairs;
+		}
+	}]);

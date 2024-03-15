@@ -15,9 +15,8 @@ import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
-
-/* hot-reload:patch-prototype-methods */
+import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
+import { singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
@@ -58,7 +57,7 @@ export class InlineCompletionsSource extends Disposable {
 			const shouldDebounce = updateOngoing || context.triggerKind === InlineCompletionTriggerKind.Automatic;
 			if (shouldDebounce) {
 				// This debounces the operation
-				await wait(this._debounceValue.get(this.textModel));
+				await wait(this._debounceValue.get(this.textModel), source.token);
 			}
 
 			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {
@@ -284,7 +283,7 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	public isVisible(model: ITextModel, cursorPosition: Position, reader: IReader | undefined): boolean {
-		const minimizedReplacement = this._toFilterTextReplacement(reader).removeCommonPrefix(model);
+		const minimizedReplacement = singleTextRemoveCommonPrefix(this._toFilterTextReplacement(reader), model);
 
 		if (
 			!this._isValid

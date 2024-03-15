@@ -204,6 +204,7 @@ export interface ITerminalConfiguration {
 	enableImages: boolean;
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
+	rescaleOverlappingGlyphs: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -451,9 +452,11 @@ export const enum TerminalCommandId {
 	ScrollDownLine = 'workbench.action.terminal.scrollDown',
 	ScrollDownPage = 'workbench.action.terminal.scrollDownPage',
 	ScrollToBottom = 'workbench.action.terminal.scrollToBottom',
+	ScrollToBottomAccessibleView = 'workbench.action.terminal.scrollToBottomAccessibleView',
 	ScrollUpLine = 'workbench.action.terminal.scrollUp',
 	ScrollUpPage = 'workbench.action.terminal.scrollUpPage',
 	ScrollToTop = 'workbench.action.terminal.scrollToTop',
+	ScrollToTopAccessibleView = 'workbench.action.terminal.scrollToTopAccessibleView',
 	Clear = 'workbench.action.terminal.clear',
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
@@ -481,6 +484,7 @@ export const enum TerminalCommandId {
 	DetachSession = 'workbench.action.terminal.detachSession',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
+	MoveIntoNewWindow = 'workbench.action.terminal.moveIntoNewWindow',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
 	SelectPrevSuggestion = 'workbench.action.terminal.selectPrevSuggestion',
@@ -492,6 +496,11 @@ export const enum TerminalCommandId {
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
+	StartVoice = 'workbench.action.terminal.startVoice',
+	StopVoice = 'workbench.action.terminal.stopVoice',
+	FontZoomIn = 'workbench.action.terminal.fontZoomIn',
+	FontZoomOut = 'workbench.action.terminal.fontZoomOut',
+	FontZoomReset = 'workbench.action.terminal.fontZoomReset',
 
 	// Developer commands
 
@@ -641,7 +650,18 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel',
 	'notification.acceptPrimaryAction',
-	'runCommands'
+	'runCommands',
+	'workbench.action.terminal.chat.start',
+	'workbench.action.terminal.chat.close',
+	'workbench.action.terminal.chat.discard',
+	'workbench.action.terminal.chat.makeRequest',
+	'workbench.action.terminal.chat.cancel',
+	'workbench.action.terminal.chat.feedbackHelpful',
+	'workbench.action.terminal.chat.feedbackUnhelpful',
+	'workbench.action.terminal.chat.feedbackReportIssue',
+	'workbench.action.terminal.chat.runCommand',
+	'workbench.action.terminal.chat.insertCommand',
+	'workbench.action.terminal.chat.viewInChat',
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {

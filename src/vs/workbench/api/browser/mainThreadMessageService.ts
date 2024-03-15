@@ -9,24 +9,33 @@ import { IAction, toAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, MainThreadMessageOptions } from '../common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationSource } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
+
+	private extensionsListener: IDisposable;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		//
+		this.extensionsListener = extensionService.onDidChangeExtensions(e => {
+			for (const extension of e.removed) {
+				this._notificationService.removeFilter(extension.identifier.value);
+			}
+		});
 	}
 
 	dispose(): void {
-		//
+		this.extensionsListener.dispose();
 	}
 
 	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number }[]): Promise<number | undefined> {
@@ -51,10 +60,10 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				}
 			}));
 
-			let source: string | { label: string; id: string } | undefined;
+			let source: string | INotificationSource | undefined;
 			if (options.source) {
 				source = {
-					label: nls.localize('extensionSource', "{0} (Extension)", options.source.label),
+					label: options.source.label,
 					id: options.source.identifier.value
 				};
 			}

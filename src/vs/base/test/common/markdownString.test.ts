@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('MarkdownString', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Escape leading whitespace', function () {
 		const mds = new MarkdownString();

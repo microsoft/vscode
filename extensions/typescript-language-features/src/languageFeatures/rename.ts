@@ -85,7 +85,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 				}
 
 				if (renameInfo.fileToRename) {
-					const edits = await this.renameFile(renameInfo.fileToRename, newName, token);
+					const edits = await this.renameFile(renameInfo.fileToRename, renameInfo.fullDisplayName, newName, token);
 					if (edits) {
 						return edits;
 					} else {
@@ -170,12 +170,16 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 
 	private async renameFile(
 		fileToRename: string,
+		fullDisplayName: string,
 		newName: string,
 		token: vscode.CancellationToken,
 	): Promise<vscode.WorkspaceEdit | undefined> {
-		// Make sure we preserve file extension if none provided
+		// Make sure we preserve file extension if extension is unchanged or none provided
 		if (!path.extname(newName)) {
 			newName += path.extname(fileToRename);
+		}
+		else if (path.extname(newName) === path.extname(fullDisplayName)) {
+			newName = newName.slice(0, newName.length - path.extname(newName).length) + path.extname(fileToRename);
 		}
 
 		const dirname = path.dirname(fileToRename);

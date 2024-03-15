@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { memoize } from 'vs/base/common/decorators';
 import { FileAccess } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as env from 'vs/base/common/platform';
@@ -66,20 +67,20 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 
 		return new Promise<void>((c, e) => {
 			const env = getSanitizedEnvironment(process);
-			const child = spawner.spawn(command, cmdArgs, { cwd, env });
+			const child = spawner.spawn(command, cmdArgs, { cwd, env, detached: true });
 			child.on('error', e);
 			child.on('exit', () => c());
 		});
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public async runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 		const exec = 'windowsExec' in settings && settings.windowsExec ? settings.windowsExec : WindowsExternalTerminalService.getDefaultTerminalWindows();
+		const wt = await WindowsExternalTerminalService.getWtExePath();
 
 		return new Promise<number | undefined>((resolve, reject) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
-			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
-
+			const command = `"${args.join('" "')}" & pause`; // use '|' to only pause on non-zero exit code
 
 			// merge environment variables into a copy of the process.env
 			const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
@@ -101,9 +102,14 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 				// inside it
 				spawnExec = exec;
 				cmdArgs = ['-d', '.', WindowsExternalTerminalService.CMD, '/c', command];
+			} else if (wt) {
+				// prefer to use the window terminal to spawn if it's available instead
+				// of start, since that allows ctrl+c handling (#81322)
+				spawnExec = wt;
+				cmdArgs = ['-d', '.', exec, '/c', command];
 			} else {
 				spawnExec = WindowsExternalTerminalService.CMD;
-				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', command];
+				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', `"${command}"`];
 			}
 
 			const cmd = cp.spawn(spawnExec, cmdArgs, options);
@@ -122,6 +128,16 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 			WindowsExternalTerminalService._DEFAULT_TERMINAL_WINDOWS = `${process.env.windir ? process.env.windir : 'C:\\Windows'}\\${isWoW64 ? 'Sysnative' : 'System32'}\\cmd.exe`;
 		}
 		return WindowsExternalTerminalService._DEFAULT_TERMINAL_WINDOWS;
+	}
+
+	@memoize
+	private static async getWtExePath() {
+		try {
+			const wtPath = await processes.win32.findExecutable('wt');
+			return await pfs.Promises.exists(wtPath) ? wtPath : undefined;
+		} catch {
+			return undefined;
+		}
 	}
 }
 

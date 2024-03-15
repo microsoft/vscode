@@ -33,6 +33,7 @@ steps:
       set -e
       rustup default $RUSTUP_TOOLCHAIN
       rustup update $RUSTUP_TOOLCHAIN
+      rustup component add clippy
     env:
       RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
     displayName: "Set Rust version"

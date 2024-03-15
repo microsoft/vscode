@@ -135,7 +135,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
-				this.setState(State.Downloading(update));
+				this.setState(State.Downloading);
 
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
@@ -144,26 +144,22 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								return Promise.resolve(updatePackagePath);
 							}
 
-							const url = update.url;
-							const hash = update.hash;
 							const downloadPath = `${updatePackagePath}.tmp`;
 
-							return this.requestService.request({ url }, CancellationToken.None)
+							return this.requestService.request({ url: update.url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
-								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
+								.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
 								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
-						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-
 						this.availableUpdate = { packagePath };
+						this.setState(State.Downloaded(update));
 
+						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 						if (fastUpdatesEnabled) {
 							if (this.productService.target === 'user') {
 								this.doApplyUpdate();
-							} else {
-								this.setState(State.Downloaded(update));
 							}
 						} else {
 							this.setState(State.Ready(update));
@@ -211,7 +207,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async doApplyUpdate(): Promise<void> {
-		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
+		if (this.state.type !== StateType.Downloaded) {
 			return Promise.resolve(undefined);
 		}
 
@@ -275,14 +271,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
-		this.setState(State.Downloading(update));
+		this.setState(State.Downloading);
 		this.availableUpdate = { packagePath };
+		this.setState(State.Downloaded(update));
 
 		if (fastUpdatesEnabled) {
 			if (this.productService.target === 'user') {
 				this.doApplyUpdate();
-			} else {
-				this.setState(State.Downloaded(update));
 			}
 		} else {
 			this.setState(State.Ready(update));

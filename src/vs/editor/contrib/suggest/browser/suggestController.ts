@@ -45,6 +45,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
 import { WindowIdleValue, getWindow } from 'vs/base/browser/dom';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -53,7 +54,12 @@ const _sticky = false
 
 class LineSuffix {
 
-	private readonly _marker: string[] | undefined;
+	private readonly _decorationOptions = ModelDecorationOptions.register({
+		description: 'suggest-line-suffix',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	});
+
+	private _marker: string | undefined;
 
 	constructor(private readonly _model: ITextModel, private readonly _position: IPosition) {
 		// spy on what's happening right of the cursor. two cases:
@@ -63,16 +69,21 @@ class LineSuffix {
 		if (maxColumn !== _position.column) {
 			const offset = _model.getOffsetAt(_position);
 			const end = _model.getPositionAt(offset + 1);
-			this._marker = _model.deltaDecorations([], [{
-				range: Range.fromPositions(_position, end),
-				options: { description: 'suggest-line-suffix', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
-			}]);
+			_model.changeDecorations(accessor => {
+				if (this._marker) {
+					accessor.removeDecoration(this._marker);
+				}
+				this._marker = accessor.addDecoration(Range.fromPositions(_position, end), this._decorationOptions);
+			});
 		}
 	}
 
 	dispose(): void {
 		if (this._marker && !this._model.isDisposed()) {
-			this._model.deltaDecorations(this._marker, []);
+			this._model.changeDecorations(accessor => {
+				accessor.removeDecoration(this._marker!);
+				this._marker = undefined;
+			});
 		}
 	}
 
@@ -84,7 +95,7 @@ class LineSuffix {
 		// read the marker (in case suggest was triggered at line end) or compare
 		// the cursor to the line end.
 		if (this._marker) {
-			const range = this._model.getDecorationRange(this._marker[0]);
+			const range = this._model.getDecorationRange(this._marker);
 			const end = this._model.getOffsetAt(range!.getStartPosition());
 			return end - this._model.getOffsetAt(position);
 		} else {

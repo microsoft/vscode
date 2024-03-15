@@ -20,7 +20,7 @@ lazy_static! {
 	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
 	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
 		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 18);
+	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 19);
 	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
 }
 
@@ -52,12 +52,19 @@ impl PreReqChecker {
 
 	#[cfg(target_os = "linux")]
 	pub async fn verify(&self) -> Result<Platform, CodeError> {
-		let (is_nixos, gnu_a, gnu_b, or_musl) = tokio::join!(
+		let (is_nixos, skip_glibc_checks, or_musl) = tokio::join!(
 			check_is_nixos(),
-			check_glibc_version(),
-			check_glibcxx_version(),
+			skip_requirements_check(),
 			check_musl_interpreter()
 		);
+
+		let (gnu_a, gnu_b) = if !skip_glibc_checks {
+			tokio::join!(check_glibc_version(), check_glibcxx_version())
+		} else {
+			println!("!!! WARNING: Skipping server pre-requisite check !!!");
+			println!("!!! Server stability is not guaranteed. Proceed at your own risk. !!!");
+			(Ok(()), Ok(()))
+		};
 
 		if (gnu_a.is_ok() && gnu_b.is_ok()) || is_nixos {
 			return Ok(if cfg!(target_arch = "x86_64") {
@@ -141,8 +148,8 @@ async fn check_glibc_version() -> Result<(), String> {
 			Ok(())
 		} else {
 			Err(format!(
-				"find GLIBC >= 2.17 (but found {} instead) for GNU environments",
-				v
+				"find GLIBC >= {} (but found {} instead) for GNU environments",
+				*MIN_LDD_VERSION, v
 			))
 		};
 	}
@@ -155,6 +162,22 @@ async fn check_glibc_version() -> Result<(), String> {
 #[allow(dead_code)]
 async fn check_is_nixos() -> bool {
 	fs::metadata(NIXOS_TEST_PATH).await.is_ok()
+}
+
+/// Do not remove this check.
+/// Provides a way to skip the server glibc requirements check from
+/// outside the install flow. A system process can create this
+/// file before the server is downloaded and installed.
+#[cfg(not(windows))]
+pub async fn skip_requirements_check() -> bool {
+	fs::metadata("/tmp/vscode-skip-server-requirements-check")
+		.await
+		.is_ok()
+}
+
+#[cfg(windows)]
+pub async fn skip_requirements_check() -> bool {
+	false
 }
 
 #[allow(dead_code)]
@@ -201,7 +224,8 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<(), String
 
 	if !all_versions.iter().any(|v| &*MIN_CXX_VERSION >= v) {
 		return Err(format!(
-			"find GLIBCXX >= 3.4.18 (but found {} instead) for GNU environments",
+			"find GLIBCXX >= {} (but found {} instead) for GNU environments",
+			*MIN_CXX_VERSION,
 			all_versions
 				.iter()
 				.map(String::from)

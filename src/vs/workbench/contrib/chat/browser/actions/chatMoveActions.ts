@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
@@ -29,8 +29,8 @@ enum MoveToNewLocation {
 const getMoveToChatActionDescriptorForViewTitle = (viewId: string, providerId: string, moveTo: MoveToNewLocation): Readonly<IAction2Options> & { viewId: string } => ({
 	id: `workbench.action.chat.${providerId}.openIn${moveTo}`,
 	title: {
-		value: moveTo === MoveToNewLocation.Editor ? localize('chat.openInEditor.label', "Open Session in Editor") : localize('chat.openInNewWindow.label', "Open Session in New Window"),
-		original: moveTo === MoveToNewLocation.Editor ? 'Open Session in Editor' : 'Open Session in New Window',
+		value: moveTo === MoveToNewLocation.Editor ? localize('chat.openInEditor.label', "Open Chat in Editor") : localize('chat.openInNewWindow.label', "Open Chat in New Window"),
+		original: moveTo === MoveToNewLocation.Editor ? 'Open Chat in Editor' : 'Open Chat in New Window',
 	},
 	category: CHAT_CATEGORY,
 	precondition: CONTEXT_PROVIDER_EXISTS,
@@ -65,9 +65,10 @@ export function getMoveToAction(viewId: string, providerId: string, moveTo: Move
 
 			const editorService = accessor.get(IEditorService);
 			const sessionId = viewModel.sessionId;
+			const viewState = view.widget.getViewState();
 			view.clear();
 
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true, viewState: viewState } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		}
 	};
 }
@@ -77,10 +78,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInEditor`,
-				title: {
-					value: localize('interactiveSession.openInEditor.label', "Open Session in Editor"),
-					original: 'Open Session in Editor'
-				},
+				title: localize2('interactiveSession.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true
@@ -97,10 +95,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInNewWindow`,
-				title: {
-					value: localize('interactiveSession.openInNewWindow.label', "Open Session in New Window"),
-					original: 'Open Session In New Window'
-				},
+				title: localize2('interactiveSession.openInNewWindow.label', "Open Chat in New Window"),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true
@@ -116,10 +111,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInSidebar`,
-				title: {
-					value: localize('interactiveSession.openInSidebar.label', "Open Session in Side Bar"),
-					original: 'Open Session in Side Bar'
-				},
+				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
@@ -158,9 +150,10 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 
 	const sessionId = viewModel.sessionId;
 	const view = await viewService.openView(widget.viewContext.viewId) as ChatViewPane;
+	const viewState = view.widget.getViewState();
 	view.clear();
 
-	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true, viewState: viewState } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {

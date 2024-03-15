@@ -67,6 +67,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'status':
 		case 'install-extension':
 		case 'uninstall-extension':
+		case 'update-extensions':
 		case 'list-extensions':
 		case 'force':
 		case 'show-versions':
@@ -217,7 +218,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	}
 
 	if (cliCommand) {
-		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions']) {
+		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions'] || parsedArgs['update-extensions']) {
 			const cmdLine: string[] = [];
 			parsedArgs['install-extension']?.forEach(id => cmdLine.push('--install-extension', id));
 			parsedArgs['uninstall-extension']?.forEach(id => cmdLine.push('--uninstall-extension', id));
@@ -227,6 +228,9 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 					cmdLine.push(`--${opt}=${value}`);
 				}
 			});
+			if (parsedArgs['update-extensions']) {
+				cmdLine.push('--update-extensions');
+			}
 
 			const cp = _cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit' });
 			cp.on('error', err => console.log(err));
@@ -265,7 +269,6 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		} else {
 			const cliCwd = dirname(cliCommand);
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-			newCommandline.unshift('--ms-enable-electron-run-as-node');
 			newCommandline.unshift('resources/app/out/cli.js');
 			if (verbose) {
 				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 "${cliCommand}" "${newCommandline.join('" "')}"`);
@@ -293,7 +296,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			return;
 		}
 
-		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions']) {
+		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions'] || parsedArgs['update-extensions']) {
 			sendToPipe({
 				type: 'extensionManagement',
 				list: parsedArgs['list-extensions'] ? { showVersions: parsedArgs['show-versions'], category: parsedArgs['category'] } : undefined,

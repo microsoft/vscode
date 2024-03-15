@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { Checkbox } from 'vs/base/browser/ui/toggle/toggle';
 import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
@@ -14,13 +15,15 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { IDimension } from 'vs/editor/common/core/dimension';
+import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -28,21 +31,22 @@ import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/b
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { defaultCheckboxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { asCssVariableWithDefault, checkboxBorder, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { ChatSubmitEditorAction, ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { ChatSubmitEditorAction, ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IPosition } from 'vs/editor/common/core/position';
 
 const $ = dom.$;
 
@@ -64,7 +68,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatReplyFollowup; response: IChatResponseViewModel | undefined }>());
+	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
 	private inputEditorHeight = 0;
@@ -72,6 +76,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private followupsContainer!: HTMLElement;
 	private followupsDisposables = this._register(new DisposableStore());
+
+	private implicitContextContainer!: HTMLElement;
+	private implicitContextLabel!: HTMLElement;
+	private implicitContextCheckbox!: Checkbox;
+	private implicitContextSettingEnabled = false;
+	get implicitContextEnabled() {
+		return this.implicitContextCheckbox.checked;
+	}
+
+	private _inputPartHeight: number = 0;
+	get inputPartHeight() {
+		return this._inputPartHeight;
+	}
 
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
@@ -82,10 +99,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
-	private history: HistoryNavigator<string>;
-	private historyStates: Map<string, any> = new Map();
+	private history: HistoryNavigator<IChatHistoryEntry>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
+	private onHistoryEntry = false;
+	private inHistoryNavigation = false;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
@@ -114,9 +132,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
+
+		this.implicitContextSettingEnabled = this.configurationService.getValue<boolean>('chat.experimental.implicitContext');
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+			}
+
+			if (e.affectsConfiguration('chat.experimental.implicitContext')) {
+				this.implicitContextSettingEnabled = this.configurationService.getValue<boolean>('chat.experimental.implicitContext');
 			}
 		}));
 	}
@@ -133,11 +157,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	setState(providerId: string, inputValue: string | undefined): void {
 		this.providerId = providerId;
 		const history = this.historyService.getHistory(providerId);
-		this.historyStates = new Map(history.map(h => [h.text, h.state]));
-		const historyTexts: string[] = [];
-		this.historyStates.forEach((_, str) => historyTexts.push(str));
-
-		this.history = new HistoryNavigator(historyTexts, 50);
+		this.history = new HistoryNavigator(history, 50);
 
 		if (typeof inputValue === 'string') {
 			this.setValue(inputValue);
@@ -157,13 +177,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private navigateHistory(previous: boolean): void {
-		const historyInput = (previous ?
+		const historyEntry = (previous ?
 			(this.history.previous() ?? this.history.first()) : this.history.next())
-			?? '';
+			?? { text: '' };
 
-		aria.status(historyInput);
-		this.setValue(historyInput);
-		this._onDidLoadInputState.fire(this.historyStates.get(historyInput));
+		this.onHistoryEntry = previous || this.history.current() !== null;
+
+		aria.status(historyEntry.text);
+
+		this.inHistoryNavigation = true;
+		this.setValue(historyEntry.text);
+		this.inHistoryNavigation = false;
+
+		this._onDidLoadInputState.fire(historyEntry.state);
 		if (previous) {
 			this._inputEditor.setPosition({ lineNumber: 1, column: 1 });
 		} else {
@@ -196,8 +222,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	async acceptInput(userQuery?: string, inputState?: any): Promise<void> {
 		if (userQuery) {
-			this.history.add(userQuery);
-			this.historyStates.set(userQuery, inputState);
+			this.history.add({ text: userQuery, state: inputState });
 		}
 
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
@@ -225,6 +250,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.container = dom.append(container, $('.interactive-input-part'));
 
 		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
+		this.implicitContextContainer = dom.append(this.container, $('.chat-implicit-context'));
+		this.initImplicitContext(this.implicitContextContainer);
 		const inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
 		const inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
 
@@ -246,7 +273,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
-		options.suggest = { showIcons: false };
+		options.suggest = {
+			showIcons: false,
+			showSnippets: false,
+			showWords: true,
+			showStatusBar: false,
+			insertMode: 'replace',
+		};
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 
 		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
@@ -266,6 +299,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._inputEditor.getModel();
 			const inputHasText = !!model && model.getValueLength() > 0;
 			this.inputEditorHasText.set(inputHasText);
+
+			// If the user is typing on a history entry, then reset the onHistoryEntry flag so that history navigation can be disabled
+			if (!this.inHistoryNavigation) {
+				this.onHistoryEntry = false;
+			}
+
+			if (!this.onHistoryEntry) {
+				this.historyNavigationForewardsEnablement.set(!inputHasText);
+				this.historyNavigationBackwardsEnablement.set(!inputHasText);
+			}
 		}));
 		this._register(this._inputEditor.onDidFocusEditorText(() => {
 			this._onDidFocus.fire();
@@ -283,15 +326,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			const atTop = e.position.column === 1 && e.position.lineNumber === 1;
-			this.historyNavigationBackwardsEnablement.set(atTop);
 			this.chatCursorAtTop.set(atTop);
-			this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
+
+			if (this.onHistoryEntry) {
+				this.historyNavigationBackwardsEnablement.set(atTop);
+				this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
+			}
 		}));
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.ChatExecute, {
 			menuOptions: {
 				shouldForwardArgs: true
 			},
+			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			actionViewItemProvider: (action, options) => {
 				if (action.id === SubmitAction.ID) {
 					return this.instantiationService.createInstance(SubmitButtonActionViewItem, { widget } satisfies IChatExecuteActionContext, action, options);
@@ -328,7 +375,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	async renderFollowups(items: IChatReplyFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
+	private initImplicitContext(container: HTMLElement) {
+		this.implicitContextCheckbox = new Checkbox('#selection', true, { ...defaultCheckboxStyles, checkboxBorder: asCssVariableWithDefault(checkboxBorder, inputBackground) });
+		container.append(this.implicitContextCheckbox.domNode);
+		this.implicitContextLabel = dom.append(container, $('span.chat-implicit-context-label'));
+		this.implicitContextLabel.textContent = '#selection';
+	}
+
+	setImplicitContextKinds(kinds: string[]) {
+		dom.setVisibility(this.implicitContextSettingEnabled && kinds.length > 0, this.implicitContextContainer);
+		this.implicitContextLabel.textContent = localize('use', "Use") + ' ' + kinds.map(k => `#${k}`).join(', ');
+	}
+
+	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
 		if (!this.options.renderFollowups) {
 			return;
 		}
@@ -336,47 +395,52 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
-			this.followupsDisposables.add(new ChatFollowups(this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response }), this.contextKeyService));
+			this.followupsDisposables.add(this.instantiationService.createInstance<typeof ChatFollowups<IChatFollowup>, ChatFollowups<IChatFollowup>>(ChatFollowups, this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response })));
 		}
 	}
 
-	layout(height: number, width: number): number {
+	layout(height: number, width: number) {
 		this.cachedDimensions = new dom.Dimension(width, height);
 
 		return this._layout(height, width);
 	}
 
-	private _layout(height: number, width: number, allowRecurse = true): number {
+	private previousInputEditorDimension: IDimension | undefined;
+	private _layout(height: number, width: number, allowRecurse = true): void {
 		const followupsHeight = this.followupsContainer.offsetHeight;
 
 		const inputPartBorder = 1;
 		const inputPartHorizontalPadding = 40;
 		const inputPartVerticalPadding = 24;
 		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartHorizontalPadding - inputPartBorder, INPUT_EDITOR_MAX_HEIGHT);
+		const implicitContextHeight = this.implicitContextContainer.offsetHeight;
 
 		const inputEditorBorder = 2;
-		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartVerticalPadding + inputPartBorder + inputEditorBorder;
+		this._inputPartHeight = followupsHeight + inputEditorHeight + inputPartVerticalPadding + inputPartBorder + inputEditorBorder + implicitContextHeight;
 
 		const editorBorder = 2;
-		const editorPadding = 8;
+		const editorPadding = 12;
 		const executeToolbarWidth = this.cachedToolbarWidth = this.toolbar.getItemsWidth();
 		const sideToolbarWidth = this.options.renderStyle === 'compact' ? 20 : 0;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		this._inputEditor.layout({ width: width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth - sideToolbarWidth, height: inputEditorHeight });
+		const newDimension = { width: width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth - sideToolbarWidth, height: inputEditorHeight };
+		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
+			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
+			// to be invoked, and we have a lot of these on this editor. Only doing a layout this when the editor size has actually changed makes it much easier to follow.
+			this._inputEditor.layout(newDimension);
+			this.previousInputEditorDimension = newDimension;
+		}
 
 		if (allowRecurse && initialEditorScrollWidth < 10) {
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
 			return this._layout(height, width, false);
 		}
-
-		return inputPartHeight;
 	}
 
 	saveState(): void {
 		const inputHistory = this.history.getHistory();
-		const historyEntries = inputHistory.map(entry => ({ text: entry, state: this.historyStates.get(entry) }));
-		this.historyService.saveHistory(this.providerId!, historyEntries);
+		this.historyService.saveHistory(this.providerId!, inputHistory);
 	}
 }
 

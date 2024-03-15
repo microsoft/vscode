@@ -13,11 +13,11 @@ import { DateTimeout, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
 import { computeMovedLines } from 'vs/editor/common/diff/defaultLinesDiffComputer/computeMovedLines';
-import { extendDiffsToEntireWordIfAppropriate, optimizeSequenceDiffs, removeVeryShortMatchingLinesBetweenDiffs, removeVeryShortMatchingTextBetweenLongDiffs, removeShortMatches } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
+import { extendDiffsToEntireWordIfAppropriate, optimizeSequenceDiffs, removeShortMatches, removeVeryShortMatchingLinesBetweenDiffs, removeVeryShortMatchingTextBetweenLongDiffs } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
+import { LineSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/lineSequence';
+import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 import { DetailedLineRangeMapping, RangeMapping } from '../rangeMapping';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
-import { LineSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/lineSequence';
 
 export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
@@ -256,8 +256,11 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[], or
 	}
 
 	assertFn(() => {
-		if (!dontAssertStartLine) {
-			if (changes.length > 0 && changes[0].original.startLineNumber !== changes[0].modified.startLineNumber) {
+		if (!dontAssertStartLine && changes.length > 0) {
+			if (changes[0].modified.startLineNumber !== changes[0].original.startLineNumber) {
+				return false;
+			}
+			if (modifiedLines.length - changes[changes.length - 1].modified.endLineNumberExclusive !== originalLines.length - changes[changes.length - 1].original.endLineNumberExclusive) {
 				return false;
 			}
 		}

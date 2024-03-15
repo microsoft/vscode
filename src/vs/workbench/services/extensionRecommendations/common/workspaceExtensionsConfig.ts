@@ -272,7 +272,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		}
 
 		const result = await this.quickInputService.pick(folderPicks, { placeHolder, canPickMany: true }) || [];
-		return result.map(r => r.workspaceOrFolder!);
+		return result.map(r => r.workspaceOrFolder);
 	}
 
 	private async resolveWorkspaceExtensionConfig(workspaceConfigurationResource: URI): Promise<IExtensionsConfigContent | undefined> {

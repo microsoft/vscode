@@ -10,9 +10,13 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
-const HELP_COMMANDS: &str = "Usage: {name} [options][paths...]
+const HELP_COMMANDS: &str = concatcp!(
+	"Usage: ",
+	constants::APPLICATION_NAME,
+	" [options][paths...]
 
-To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')";
+To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')"
+);
 
 const STANDALONE_TEMPLATE: &str = concatcp!(
 	CLI_NAME,
@@ -197,6 +201,9 @@ pub struct ServeWebArgs {
 	/// A secret that must be included with all requests.
 	#[clap(long)]
 	pub connection_token: Option<String>,
+	/// A file containing a secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token_file: Option<String>,
 	/// Run without a connection token. Only use this if the connection is secured by other means.
 	#[clap(long)]
 	pub without_connection_token: bool,
@@ -254,6 +261,8 @@ pub enum ExtensionSubcommand {
 	Install(InstallExtensionArgs),
 	/// Uninstall an extension.
 	Uninstall(UninstallExtensionArgs),
+	/// Update the installed extensions.
+	Update,
 }
 
 impl ExtensionSubcommand {
@@ -283,6 +292,9 @@ impl ExtensionSubcommand {
 				for id in args.id.iter() {
 					target.push(format!("--uninstall-extension={}", id));
 				}
+			}
+			ExtensionSubcommand::Update => {
+				target.push("--update-extensions".to_string());
 			}
 		}
 	}
@@ -643,6 +655,17 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Requests that extensions be preloaded and installed on connecting servers.
+	#[clap(long)]
+	pub install_extension: Vec<String>,
+}
+
+impl TunnelServeArgs {
+	pub fn apply_to_server_args(&self, csa: &mut CodeServerArgs) {
+		csa.install_extensions
+			.extend_from_slice(&self.install_extension);
+	}
 }
 
 #[derive(Args, Debug, Clone)]
