@@ -179,7 +179,7 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.entitlementAction',
@@ -225,7 +225,7 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 				contextKey.set(false);
 				storageService.store(accountsBadgeConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
-		});
+		}));
 	}
 }
 
