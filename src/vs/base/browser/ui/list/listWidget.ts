@@ -1264,7 +1264,7 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 	constructor(private accessibilityProvider: IListAccessibilityProvider<T>) { }
 
 	renderTemplate(container: HTMLElement): ITraitTemplateData {
-		return { container };
+		return { container, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: T, index: number, data: ITraitTemplateData): void {
