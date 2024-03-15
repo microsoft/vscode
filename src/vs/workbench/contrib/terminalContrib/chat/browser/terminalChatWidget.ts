@@ -81,7 +81,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private _doLayout(heightInPixel: number) {
 		const width = Math.min(640, this._terminalElement.clientWidth - 12/* padding */ - 2/* border */ - Constants.HorizontalMargin);
-		const height = Math.min(480, heightInPixel, this._getTerminalHeight() ?? Number.MAX_SAFE_INTEGER);
+		const height = Math.min(480, heightInPixel, this._getTerminalWrapperHeight() ?? Number.MAX_SAFE_INTEGER);
 		if (width === 0 || height === 0) {
 			return;
 		}
@@ -108,7 +108,7 @@ export class TerminalChatWidget extends Disposable {
 		if (!font?.charHeight) {
 			return;
 		}
-		const terminalWrapperHeight = this._getTerminalHeight() ?? 0;
+		const terminalWrapperHeight = this._getTerminalWrapperHeight() ?? 0;
 		const cellHeight = font.charHeight * font.lineHeight;
 		const topPadding = terminalWrapperHeight - (this._instance.rows * cellHeight);
 		const cursorY = (this._instance.xterm?.raw.buffer.active.cursorY ?? 0) + 1;
@@ -123,13 +123,8 @@ export class TerminalChatWidget extends Disposable {
 		}
 	}
 
-	private _getTerminalHeight(): number | undefined {
+	private _getTerminalWrapperHeight(): number | undefined {
 		return this._terminalElement.clientHeight;
-		// const font = this._instance.xterm?.getFont();
-		// if (!font?.charHeight) {
-		// 	return;
-		// }
-		// return font.charHeight * font.lineHeight * this._instance.rows;
 	}
 
 	hide(): void {
