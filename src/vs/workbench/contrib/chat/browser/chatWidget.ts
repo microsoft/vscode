@@ -31,7 +31,7 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -145,13 +145,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private parsedChatRequest: IParsedChatRequest | undefined;
 	get parsedInput() {
 		if (this.parsedChatRequest === undefined) {
-			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput());
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location);
 		}
 
 		return this.parsedChatRequest;
 	}
 
 	constructor(
+		readonly location: ChatAgentLocation,
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,

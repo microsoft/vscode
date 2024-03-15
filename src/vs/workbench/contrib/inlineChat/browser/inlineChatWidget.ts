@@ -51,6 +51,7 @@ import { inputEditorOptions, codeEditorWidgetOptions, defaultAriaLabel } from '.
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
@@ -158,6 +159,7 @@ export class InlineChatWidget {
 	private _chatMessage: MarkdownString | undefined;
 
 	constructor(
+		location: ChatAgentLocation,
 		options: IInlineChatWidgetConstructionOptions,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -189,6 +191,7 @@ export class InlineChatWidget {
 
 		this._chatWidget = _instantiationService.createInstance(
 			ChatWidget,
+			location,
 			{ resource: true },
 			{
 				renderStyle: 'compact',
@@ -548,7 +551,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ITextModelService textModelResolverService: ITextModelService,
 	) {
-		super(options, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService);
+		super(ChatAgentLocation.Editor, options, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService);
 
 		// preview editors
 		this._previewDiffEditor = new Lazy(() => this._store.add(instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {

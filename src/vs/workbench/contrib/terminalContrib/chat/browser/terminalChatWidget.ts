@@ -9,6 +9,7 @@ import 'vs/css!./media/terminalChatWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -46,6 +47,7 @@ export class TerminalChatWidget extends Disposable {
 
 		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
+			ChatAgentLocation.Terminal,
 			{
 				inputMenuId: MENU_TERMINAL_CHAT_INPUT,
 				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,

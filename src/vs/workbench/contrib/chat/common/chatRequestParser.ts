@@ -6,7 +6,7 @@
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -25,7 +25,7 @@ export class ChatRequestParser {
 		@IChatService private readonly chatService: IChatService
 	) { }
 
-	parseChatRequest(sessionId: string, message: string): IParsedChatRequest {
+	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
 		const model = this.chatService.getSession(sessionId)!;
@@ -40,7 +40,7 @@ export class ChatRequestParser {
 				if (char === chatVariableLeader) {
 					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts);
 				} else if (char === chatAgentLeader) {
-					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts);
+					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts, location);
 				} else if (char === chatSubcommandLeader) {
 					newPart = this.tryToParseSlashCommand(model, message.slice(i), message, i, new Position(lineNumber, column), parts);
 				}
@@ -89,7 +89,7 @@ export class ChatRequestParser {
 		};
 	}
 
-	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
+	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
 		const nextVariableMatch = message.match(agentReg);
 		if (!nextVariableMatch) {
 			return;
@@ -100,7 +100,7 @@ export class ChatRequestParser {
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
 		const agent = this.agentService.getAgent(name);
-		if (!agent) {
+		if (!agent || !agent.locations.includes(location)) {
 			return;
 		}
 

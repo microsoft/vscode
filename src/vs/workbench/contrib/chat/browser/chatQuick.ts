@@ -20,6 +20,7 @@ import { editorBackground, inputBackground, quickInputBackground, quickInputFore
 import { IChatWidgetService, IQuickChatService, IQuickChatOpenOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -226,6 +227,7 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
+				ChatAgentLocation.Panel,
 				{ resource: true },
 				{ renderInputOnTop: true, renderStyle: 'compact', menus: { inputSideToolbar: MenuId.ChatInputSide } },
 				{

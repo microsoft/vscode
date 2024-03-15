@@ -345,7 +345,9 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => !a.isDefault);
+					.filter(a => !a.isDefault)
+					.filter(a => a.locations.includes(widget.location));
+
 				return <CompletionList>{
 					suggestions: agents.map((c, i) => {
 						const withAt = `@${c.id}`;
@@ -427,7 +429,9 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const agents = this.chatAgentService.getAgents();
+				const agents = this.chatAgentService.getAgents()
+					.filter(a => a.locations.includes(widget.location));
+
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
