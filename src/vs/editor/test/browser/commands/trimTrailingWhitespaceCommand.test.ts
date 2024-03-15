@@ -36,7 +36,7 @@ function createSingleEditOp(text: string | null, positionLineNumber: number, pos
 
 function assertTrimTrailingWhitespaceCommand(text: string[], expected: ISingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
-		const op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), []);
+		const op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), [], true);
 		const actual = getEditOperation(model, op);
 		assert.deepStrictEqual(actual, expected);
 	});
@@ -44,7 +44,7 @@ function assertTrimTrailingWhitespaceCommand(text: string[], expected: ISingleEd
 
 function assertTrimTrailingWhitespace(text: string[], cursors: Position[], expected: ISingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
-		const actual = trimTrailingWhitespace(model, cursors);
+		const actual = trimTrailingWhitespace(model, cursors, true);
 		assert.deepStrictEqual(actual, expected);
 	});
 }
