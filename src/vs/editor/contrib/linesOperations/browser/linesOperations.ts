@@ -243,12 +243,12 @@ export abstract class AbstractSortLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const model = editor.getModel();
-		if (model === null) {
+		if (!editor.hasModel()) {
 			return;
 		}
 
-		let selections = editor.getSelections() || [];
+		const model = editor.getModel();
+		let selections = editor.getSelections();
 		if (selections.length === 1 && selections[0].isEmpty()) {
 			// Apply to whole document.
 			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
