@@ -4900,7 +4900,7 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 
 //#endregion
 
-//#region readonly
+//#region wordSegmenterLocales
 
 /**
  * Locales used for segmenting lines into words when doing word related navigations or operations.
@@ -4914,11 +4914,12 @@ class WordSegmenterLocales extends BaseEditorOption<EditorOption.wordSegmenterLo
 		super(
 			EditorOption.wordSegmenterLocales, 'wordSegmenterLocales', defaults,
 			{
-				description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
-				oneOf: [
+				anyOf: [
 					{
+						description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
 						type: 'string',
 					}, {
+						description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
 						type: 'array',
 						items: {
 							type: 'string'

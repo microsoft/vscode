@@ -233,7 +233,6 @@ suite('WordOperations', () => {
 		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
-
 	test('cursorWordStartLeft', () => {
 		// This is the behaviour observed in Visual Studio, please do not touch test
 		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/  '].join('\n');
