@@ -88,8 +88,11 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 				// ignore
 			}
 		}
-		const resourceExtensions = await this.workbenchExtensionManagementService.getExtensions(workspaceExtensions);
-		return resourceExtensions.map(extension => extension.location);
+		if (workspaceExtensions.length) {
+			const resourceExtensions = await this.workbenchExtensionManagementService.getExtensions(workspaceExtensions);
+			return resourceExtensions.map(extension => extension.location);
+		}
+		return [];
 	}
 
 	/**
