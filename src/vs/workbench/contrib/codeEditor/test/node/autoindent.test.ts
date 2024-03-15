@@ -16,7 +16,7 @@ import { ILanguageConfiguration, LanguageConfigurationFileHandler } from 'vs/wor
 import { parse } from 'vs/base/common/json';
 import { IRange } from 'vs/editor/common/core/range';
 
-suite('Manual Auto Indentation Evaluation', () => {
+suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	const languageId = 'ts-test';
 	const options: IRelaxedTextModelCreationOptions = {};
