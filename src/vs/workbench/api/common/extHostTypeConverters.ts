@@ -20,7 +20,6 @@ import { isDefined, isEmptyObject, isNumber, isString, isUndefinedOrNull } from 
 import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IOffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -39,6 +38,7 @@ import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateA
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { IViewBadge } from 'vs/workbench/common/views';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTreeData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
@@ -2023,7 +2023,7 @@ export namespace TestCoverage {
 		return 'line' in location ? Position.from(location) : Range.from(location);
 	}
 
-	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails.Serialized {
+	export function fromDetails(coverage: vscode.FileCoverageDetail): CoverageDetails.Serialized {
 		if ('branches' in coverage) {
 			return {
 				count: coverage.executed,
@@ -2043,13 +2043,13 @@ export namespace TestCoverage {
 		}
 	}
 
-	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage.Serialized {
+	export function fromFile(id: string, coverage: vscode.FileCoverage): IFileCoverage.Serialized {
 		return {
+			id,
 			uri: coverage.uri,
 			statement: fromCoveredCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
 			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
-			details: coverage.detailedCoverage?.map(fromDetailed),
 		};
 	}
 }
@@ -2631,10 +2631,10 @@ export namespace ChatLocation {
 }
 
 export namespace ChatAgentResolvedVariable {
-	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatResolvedVariable {
+	export function to(request: IChatRequestVariableEntry): vscode.ChatResolvedVariable {
 		return {
 			name: request.name,
-			range: [request.range.start, request.range.endExclusive],
+			range: request.range && [request.range.start, request.range.endExclusive],
 			values: request.values.map(ChatVariable.to)
 		};
 	}

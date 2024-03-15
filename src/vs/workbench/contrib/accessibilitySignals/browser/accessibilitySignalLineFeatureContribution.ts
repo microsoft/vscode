@@ -6,7 +6,8 @@
 import { CachedFunction } from 'vs/base/common/cache';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunDelta, constObservable, debouncedObservable, derived, derivedOpts, observableFromEvent, observableFromPromise, wasEventTriggeredRecently } from 'vs/base/common/observable';
+import { IObservable, IReader, autorun, autorunDelta, derived, derivedOpts, observableFromEvent, observableFromPromise, wasEventTriggeredRecently } from 'vs/base/common/observable';
+import { debouncedObservable2, observableSignalFromEvent } from 'vs/base/common/observableInternal/utils';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
@@ -32,15 +33,35 @@ export class SignalLineFeatureContribution
 		this.instantiationService.createInstance(BreakpointLineFeature),
 	];
 
-	private readonly isSoundEnabledCache = new CachedFunction<AccessibilitySignal, IObservable<boolean>>((cue) => observableFromEvent(
-		this.accessibilitySignalService.onSoundEnabledChanged(cue),
-		() => this.accessibilitySignalService.isSoundEnabled(cue)
+	private readonly isEnabledCache = new CachedFunction<AccessibilitySignal, IObservable<boolean>>((cue) => observableFromEvent(
+		Event.any(
+			this.accessibilitySignalService.onSoundEnabledChanged(cue),
+			this.accessibilitySignalService.onAnnouncementEnabledChanged(cue),
+		),
+		() => this.accessibilitySignalService.isSoundEnabled(cue) || this.accessibilitySignalService.isAnnouncementEnabled(cue)
 	));
 
-	private readonly isAnnouncmentEnabledCahce = new CachedFunction<AccessibilitySignal, IObservable<boolean>>((cue) => observableFromEvent(
-		this.accessibilitySignalService.onAnnouncementEnabledChanged(cue),
-		() => this.accessibilitySignalService.isAnnouncementEnabled(cue)
-	));
+	private readonly _someAccessibilitySignalIsEnabled = derived(this,
+		(reader) => this.features.some((feature) =>
+			this.isEnabledCache.get(feature.signal).read(reader)
+		)
+	);
+
+	private readonly _activeEditorObservable = observableFromEvent(
+		this.editorService.onDidActiveEditorChange,
+		(_) => {
+			const activeTextEditorControl =
+				this.editorService.activeTextEditorControl;
+
+			const editor = isDiffEditor(activeTextEditorControl)
+				? activeTextEditorControl.getOriginalEditor()
+				: isCodeEditor(activeTextEditorControl)
+					? activeTextEditorControl
+					: undefined;
+
+			return editor && editor.hasModel() ? { editor, model: editor.getModel() } : undefined;
+		}
+	);
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -50,38 +71,16 @@ export class SignalLineFeatureContribution
 	) {
 		super();
 
-		const someAccessibilitySignalIsEnabled = derived(
-			(reader) => /** @description someAccessibilitySignalFeatureIsEnabled */ this.features.some((feature) =>
-				this.isSoundEnabledCache.get(feature.signal).read(reader) || this.isAnnouncmentEnabledCahce.get(feature.signal).read(reader)
-			)
-		);
-
-		const activeEditorObservable = observableFromEvent(
-			this.editorService.onDidActiveEditorChange,
-			(_) => {
-				const activeTextEditorControl =
-					this.editorService.activeTextEditorControl;
-
-				const editor = isDiffEditor(activeTextEditorControl)
-					? activeTextEditorControl.getOriginalEditor()
-					: isCodeEditor(activeTextEditorControl)
-						? activeTextEditorControl
-						: undefined;
-
-				return editor && editor.hasModel() ? { editor, model: editor.getModel() } : undefined;
-			}
-		);
 
 		this._register(
 			autorun(reader => {
 				/** @description updateSignalsEnabled */
 				this.store.clear();
 
-				if (!someAccessibilitySignalIsEnabled.read(reader)) {
+				if (!this._someAccessibilitySignalIsEnabled.read(reader)) {
 					return;
 				}
-
-				const activeEditor = activeEditorObservable.read(reader);
+				const activeEditor = this._activeEditorObservable.read(reader);
 				if (activeEditor) {
 					this.registerAccessibilitySignalsForEditor(activeEditor.editor, activeEditor.model, this.store);
 				}
@@ -109,26 +108,26 @@ export class SignalLineFeatureContribution
 				return editor.getPosition();
 			}
 		);
-		const debouncedPosition = debouncedObservable(curPosition, this._configurationService.getValue('accessibility.signals.debouncePositionChanges') ? 300 : 0, store);
+		const debouncedPosition = debouncedObservable2(curPosition, this._configurationService.getValue('accessibility.signals.debouncePositionChanges') ? 300 : 0);
 		const isTyping = wasEventTriggeredRecently(
-			editorModel.onDidChangeContent.bind(editorModel),
+			e => editorModel.onDidChangeContent(e),
 			1000,
 			store
 		);
 
 		const featureStates = this.features.map((feature) => {
-			const lineFeatureState = feature.getObservableState(editor, editorModel);
+			const lineFeatureState = feature.createSource(editor, editorModel);
 			const isFeaturePresent = derivedOpts(
 				{ debugName: `isPresentInLine:${feature.signal.name}` },
 				(reader) => {
-					if (!this.isSoundEnabledCache.get(feature.signal).read(reader) && !this.isAnnouncmentEnabledCahce.get(feature.signal).read(reader)) {
+					if (!this.isEnabledCache.get(feature.signal).read(reader)) {
 						return false;
 					}
 					const position = debouncedPosition.read(reader);
 					if (!position) {
 						return false;
 					}
-					return lineFeatureState.read(reader).isPresent(position);
+					return lineFeatureState.isPresent(position, reader);
 				}
 			);
 			return derivedOpts(
@@ -161,23 +160,23 @@ export class SignalLineFeatureContribution
 						(!lastValue?.featureStates?.get(feature) || newValue.lineNumber !== lastValue.lineNumber)
 				);
 
-				this.accessibilitySignalService.playAccessibilitySignals(newFeatures.map(f => f.signal));
+				this.accessibilitySignalService.playSignals(newFeatures.map(f => f.signal));
 			})
 		);
 	}
 }
 
 interface LineFeature {
-	signal: AccessibilitySignal;
-	debounceWhileTyping?: boolean;
-	getObservableState(
+	readonly signal: AccessibilitySignal;
+	readonly debounceWhileTyping?: boolean;
+	createSource(
 		editor: ICodeEditor,
 		model: ITextModel
-	): IObservable<LineFeatureState>;
+	): LineFeatureSource;
 }
 
-interface LineFeatureState {
-	isPresent(position: Position): boolean;
+interface LineFeatureSource {
+	isPresent(position: Position, reader: IReader): boolean;
 }
 
 class MarkerLineFeature implements LineFeature {
@@ -190,53 +189,46 @@ class MarkerLineFeature implements LineFeature {
 
 	) { }
 
-	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
-		return observableFromEvent<LineFeatureState>(
-			Event.filter(this.markerService.onMarkerChanged, (changedUris) =>
-				changedUris.some((u) => u.toString() === model.uri.toString())
-			),
-			() => /** @description this.markerService.onMarkerChanged */({
-				isPresent: (position) => {
-					const lineChanged = position.lineNumber !== this._previousLine;
-					this._previousLine = position.lineNumber;
-					const hasMarker = this.markerService
-						.read({ resource: model.uri })
-						.some(
-							(m) => {
-								const onLine = m.severity === this.severity && m.startLineNumber <= position.lineNumber && position.lineNumber <= m.endLineNumber;
-								return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
-							});
-					return hasMarker;
-				},
-			})
-		);
+	createSource(editor: ICodeEditor, model: ITextModel): LineFeatureSource {
+		const obs = observableSignalFromEvent('onMarkerChanged', this.markerService.onMarkerChanged);
+		return {
+			isPresent: (position, reader) => {
+				obs.read(reader);
+				const lineChanged = position.lineNumber !== this._previousLine;
+				this._previousLine = position.lineNumber;
+				const hasMarker = this.markerService
+					.read({ resource: model.uri })
+					.some(
+						(m) => {
+							const onLine = m.severity === this.severity && m.startLineNumber <= position.lineNumber && position.lineNumber <= m.endLineNumber;
+							return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
+						});
+				return hasMarker;
+			},
+		};
 	}
 }
 
 class FoldedAreaLineFeature implements LineFeature {
 	public readonly signal = AccessibilitySignal.foldedArea;
 
-	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
+	createSource(editor: ICodeEditor, _model: ITextModel): LineFeatureSource {
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
-			return constObservable({
-				isPresent: () => false,
-			});
+			return { isPresent: () => false, };
 		}
-
-		const foldingModel = observableFromPromise(
-			foldingController.getFoldingModel() ?? Promise.resolve(undefined)
-		);
-		return foldingModel.map<LineFeatureState>((v) => ({
-			isPresent: (position) => {
-				const regionAtLine = v.value?.getRegionAtLine(position.lineNumber);
+		const foldingModel = observableFromPromise(foldingController.getFoldingModel() ?? Promise.resolve(undefined));
+		return {
+			isPresent: (position, reader) => {
+				const m = foldingModel.read(reader);
+				const regionAtLine = m.value?.getRegionAtLine(position.lineNumber);
 				const hasFolding = !regionAtLine
 					? false
 					: regionAtLine.isCollapsed &&
 					regionAtLine.startLineNumber === position.lineNumber;
 				return hasFolding;
 			},
-		}));
+		};
 	}
 }
 
@@ -245,18 +237,17 @@ class BreakpointLineFeature implements LineFeature {
 
 	constructor(@IDebugService private readonly debugService: IDebugService) { }
 
-	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
-		return observableFromEvent<LineFeatureState>(
-			this.debugService.getModel().onDidChangeBreakpoints,
-			() => /** @description debugService.getModel().onDidChangeBreakpoints */({
-				isPresent: (position) => {
-					const breakpoints = this.debugService
-						.getModel()
-						.getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
-					const hasBreakpoints = breakpoints.length > 0;
-					return hasBreakpoints;
-				},
-			})
-		);
+	createSource(editor: ICodeEditor, model: ITextModel): LineFeatureSource {
+		const signal = observableSignalFromEvent('onDidChangeBreakpoints', this.debugService.getModel().onDidChangeBreakpoints);
+		return {
+			isPresent: (position, reader) => {
+				signal.read(reader);
+				const breakpoints = this.debugService
+					.getModel()
+					.getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
+				const hasBreakpoints = breakpoints.length > 0;
+				return hasBreakpoints;
+			},
+		};
 	}
 }

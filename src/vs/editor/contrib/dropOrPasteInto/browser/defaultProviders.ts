@@ -47,9 +47,13 @@ abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider,
 	protected abstract getEdit(dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
-class DefaultTextProvider extends SimplePasteAndDropProvider {
+export class DefaultTextPasteOrDropEditProvider extends SimplePasteAndDropProvider {
 
-	readonly kind = new HierarchicalKind('text.plain');
+	static readonly id = 'text';
+	static readonly kind = new HierarchicalKind('text.plain');
+
+	readonly id = DefaultTextPasteOrDropEditProvider.id;
+	readonly kind = DefaultTextPasteOrDropEditProvider.kind;
 	readonly dropMimeTypes = [Mimes.text];
 	readonly pasteMimeTypes = [Mimes.text];
 
@@ -215,7 +219,7 @@ export class DefaultDropProvidersFeature extends Disposable {
 	) {
 		super();
 
-		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultTextProvider()));
+		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultTextPasteOrDropEditProvider()));
 		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new PathProvider()));
 		this._register(languageFeaturesService.documentOnDropEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
 	}
@@ -228,7 +232,7 @@ export class DefaultPasteProvidersFeature extends Disposable {
 	) {
 		super();
 
-		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextProvider()));
+		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextPasteOrDropEditProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PathProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PasteHtmlProvider()));

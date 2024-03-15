@@ -9,10 +9,10 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { CellEditType, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
@@ -40,68 +40,13 @@ export interface NotebookEditorInputOptions {
 	_workingCopy?: IWorkingCopyIdentifier;
 }
 
-class NotebookEditorInputReferenceCollection extends ReferenceCollection<NotebookEditorInput> {
-	private readonly _disposables = new WeakMap<NotebookEditorInput, Function>();
-	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
-		super();
-	}
-	protected override createReferencedObject(key: string, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions): NotebookEditorInput {
-		const ref = this.instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
-		// Keep track of the disposable func, as this will be overridden later.
-		this._disposables.set(ref, ref.dispose.bind(ref));
-		return ref;
-	}
-	protected override destroyReferencedObject(key: string, object: NotebookEditorInput): void {
-		this._disposables.get(object)?.();
-		this._disposables.delete(object);
-	}
-
-}
-
-
-export const INotebookEditorInputFactory = createDecorator<INotebookEditorInputFactory>('INotebookEditorInputFactory');
-
-export interface INotebookEditorInputFactory {
-	getOrCreate(resource: URI, preferredResource: URI | undefined, viewType: string, options?: NotebookEditorInputOptions): NotebookEditorInput;
-}
-
-export class NotebookEditorInputFactory implements INotebookEditorInputFactory {
-	private readonly _data: NotebookEditorInputReferenceCollection;
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
-		this._data = instantiationService.createInstance(NotebookEditorInputReferenceCollection);
-	}
-
-	getOrCreate(resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}): NotebookEditorInput {
-		const cacheId = `${resource.toString()}|${viewType}|${options._workingCopy?.typeId}`;
-		const { object, dispose } = this._data.acquire(cacheId, resource, preferredResource, viewType, options);
-		// Deref the object,
-		// Ref collection will automatically call the `dispose` on the original ref when its no longer referenced.
-		object.dispose = () => {
-			dispose();
-		};
-		return object;
-	}
-}
-
 export class NotebookEditorInput extends AbstractResourceEditorInput {
 
-	private static EditorCache: Record<string, NotebookEditorInput> = {};
-
 	static getOrCreate(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
-		const cacheId = `${resource.toString()}|${viewType}|${options._workingCopy?.typeId}`;
-		let editor = NotebookEditorInput.EditorCache[cacheId];
-
-		if (!editor) {
-			editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
-			NotebookEditorInput.EditorCache[cacheId] = editor;
-
-			editor.onWillDispose(() => {
-				delete NotebookEditorInput.EditorCache[cacheId];
-			});
-		} else if (preferredResource) {
+		const editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
+		if (preferredResource) {
 			editor.setPreferredResource(preferredResource);
 		}
-
 		return editor;
 	}
 

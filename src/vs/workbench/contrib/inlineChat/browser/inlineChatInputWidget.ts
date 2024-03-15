@@ -202,6 +202,10 @@ export class InlineChatInputWidget {
 		return new Dimension(width, height);
 	}
 
+	getLineHeight(): number {
+		return this._inputEditor.getOption(EditorOption.lineHeight);
+	}
+
 	reset() {
 		this._ctxInputEmpty.reset();
 		this._ctxInnerCursorFirst.reset();

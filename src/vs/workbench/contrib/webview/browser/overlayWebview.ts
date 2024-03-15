@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 
 /**
@@ -38,7 +38,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _owner: any = undefined;
 
 	private _windowId: number | undefined = undefined;
-	private get window() { return typeof this._windowId === 'number' ? getWindowById(this._windowId)?.window : undefined; }
+	private get window() { return getWindowById(this._windowId, true).window; }
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean> | undefined;
@@ -53,7 +53,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	public constructor(
 		initInfo: WebviewInitInfo,
-		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService
 	) {
@@ -107,7 +107,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
 			// Mount them to a high level node to avoid this.
-			this._layoutService.getContainer(this.window ?? mainWindow).appendChild(node);
+			this._layoutService.getContainer(this.window).appendChild(node);
 		}
 
 		return this._container.domNode;
@@ -179,6 +179,21 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
+		if (!this._container || !this._container.domNode.parentElement) {
+			return;
+		}
+
+		if (this.window !== mainWindow) {
+			// In floating windows, we need to ensure that the
+			// container is ready for us to compute certain
+			// layout related properties.
+			this._layoutService.whenContainerStylesLoaded(this.window).then(() => this.doLayoutWebviewOverElement(element, dimension, clippingContainer));
+		} else {
+			this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
+		}
+	}
+
+	private doLayoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
 		if (!this._container || !this._container.domNode.parentElement) {
 			return;
 		}

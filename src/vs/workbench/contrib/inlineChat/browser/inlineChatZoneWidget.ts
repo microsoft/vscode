@@ -93,11 +93,9 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 
 	protected override _doLayout(heightInPixel: number): void {
-
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
 		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation(this._indentationWidth));
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
 	}
 
@@ -108,7 +106,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	private _computeHeightInLines(): number {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-		return this.widget.getHeight() / lineHeight;
+		const widgetHeight = this.widget.getHeight();
+		return widgetHeight / lineHeight;
 	}
 
 	protected override _onWidth(_widthInPixel: number): void {
