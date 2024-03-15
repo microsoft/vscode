@@ -298,7 +298,15 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// search without prior filtering, you could not paste a file name
 		// including the `@` character to open it (e.g. /some/file@path)
 		// refs: https://github.com/microsoft/vscode/issues/93845
-		return this.doGetPicks(filter, { enableEditorSymbolSearch: lastWasFiltering, includeHelp: runOptions?.includeHelp, from: runOptions?.from }, disposables, token);
+		return this.doGetPicks(
+			filter,
+			{
+				...runOptions,
+				enableEditorSymbolSearch: lastWasFiltering
+			},
+			disposables,
+			token
+		);
 	}
 
 	private doGetPicks(
@@ -330,11 +338,16 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Otherwise return normally with history and file/symbol results
 		const historyEditorPicks = this.getEditorHistoryPicks(query);
 
-		let picks: Array<IAnythingQuickPickItem | IQuickPickSeparator>;
+		let picks = new Array<IAnythingQuickPickItem | IQuickPickSeparator>();
+		if (options.additionPicks) {
+			picks.push(...options.additionPicks);
+		}
 		if (this.pickState.isQuickNavigating) {
+			if (picks.length > 0) {
+				picks.push({ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") } as IQuickPickSeparator);
+			}
 			picks = historyEditorPicks;
 		} else {
-			picks = [];
 			if (options.includeHelp) {
 				picks.push(...this.getHelpPicks(query, token, options));
 			}
