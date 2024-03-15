@@ -212,19 +212,19 @@ registerAction2(class ViewAIResultsAction extends Action2 {
 			title: nls.localize2('ViewAIResultsAction.label', "Show AI Results"),
 			category,
 			icon: searchSparkleEmpty,
-			precondition: Constants.SearchContext.AIResultsVisibleKey.toNegated(),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey.toNegated()),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.false(), // disabled for now
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey.toNegated()),
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			searchView.setAIResultsVisible(true);
+			await searchView.setAIResultsVisible(true);
 		}
 	}
 });
@@ -236,19 +236,19 @@ registerAction2(class HideAIResultsAction extends Action2 {
 			title: nls.localize2('HideAIResultsAction.label', "Hide AI Results"),
 			category,
 			icon: searchSparkleFilled,
-			precondition: Constants.SearchContext.AIResultsVisibleKey,
+			precondition: ContextKeyExpr.and(Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.false(), // disabled for now
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.hasAISettingEnabled, Constants.SearchContext.AIResultsVisibleKey), // disabled for now
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			searchView.setAIResultsVisible(false);
+			await searchView.setAIResultsVisible(false);
 		}
 	}
 });

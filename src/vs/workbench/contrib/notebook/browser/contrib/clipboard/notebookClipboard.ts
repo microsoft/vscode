@@ -59,6 +59,11 @@ function getFocusedWebviewDelegate(accessor: ServicesAccessor): IWebview | undef
 		_log(loggerService, '[Revive Webview] Notebook editor backlayer webview is not focused, bypass');
 		return;
 	}
+	// If none of the outputs have focus, then webview is not focused
+	const view = editor.getViewModel();
+	if (view && view.viewCells.every(cell => !cell.outputIsFocused && !cell.outputIsHovered)) {
+		return;
+	}
 
 	const webview = editor.getInnerWebview();
 	_log(loggerService, '[Revive Webview] Notebook editor backlayer webview is focused');

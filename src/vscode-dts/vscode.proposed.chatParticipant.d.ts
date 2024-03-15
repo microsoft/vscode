@@ -28,7 +28,7 @@ declare module 'vscode' {
 		/**
 		 * The name of the {@link ChatCommand command} that was selected for this request.
 		 */
-		readonly command: string | undefined;
+		readonly command?: string;
 
 		/**
 		 * The variables that were referenced in this message.
@@ -263,10 +263,31 @@ declare module 'vscode' {
 		 * *Note* that the indices take the leading `#`-character into account which means they can
 		 * used to modify the prompt as-is.
 		 */
-		readonly range: [start: number, end: number];
+		readonly range?: [start: number, end: number];
 
 		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
+		/**
+		 * The values of the variable. Can be an empty array if the variable doesn't currently have a value.
+		 */
 		readonly values: ChatVariableValue[];
+	}
+
+	/**
+	 * The location at which the chat is happening.
+	 */
+	export enum ChatLocation {
+		/**
+		 * The chat panel
+		 */
+		Panel = 1,
+		/**
+		 * Terminal inline chat
+		 */
+		Terminal = 2,
+		/**
+		 * Notebook inline chat
+		 */
+		Notebook = 3
 	}
 
 	export interface ChatRequest {
@@ -296,6 +317,11 @@ declare module 'vscode' {
 		 */
 		// TODO@API Q? are there implicit variables that are not part of the prompt?
 		readonly variables: readonly ChatResolvedVariable[];
+
+		/**
+		 * The location at which the chat is happening. This will always be one of the supported values
+		 */
+		readonly location: ChatLocation;
 	}
 
 	/**

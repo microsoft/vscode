@@ -25,6 +25,12 @@ export const enum IssueType {
 	FeatureRequest
 }
 
+export enum IssueSource {
+	VSCode = 'vscode',
+	Extension = 'extension',
+	Marketplace = 'marketplace'
+}
+
 export interface IssueReporterStyles extends WindowStyles {
 	textLinkColor?: string;
 	textLinkActiveForeground?: string;
@@ -65,6 +71,7 @@ export interface IssueReporterData extends WindowData {
 	styles: IssueReporterStyles;
 	enabledExtensions: IssueReporterExtensionData[];
 	issueType?: IssueType;
+	issueSource?: IssueSource;
 	extensionId?: string;
 	experiments?: string;
 	restrictedMode: boolean;

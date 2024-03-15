@@ -270,7 +270,14 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
 		hoverPreparation = toDispose;
 	};
-	const focusDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.FOCUS, onFocus, true);
+
+	// Do not show hover when focusing an input or textarea
+	let focusDomEmitter: undefined | IDisposable;
+	const tagName = htmlElement.tagName.toLowerCase();
+	if (tagName !== 'input' && tagName !== 'textarea') {
+		focusDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.FOCUS, onFocus, true);
+	}
+
 	const hover: ICustomHover = {
 		show: focus => {
 			hideHover(false, true); // terminate a ongoing mouse over preparation
@@ -288,7 +295,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			mouseLeaveEmitter.dispose();
 			mouseDownEmitter.dispose();
 			mouseUpEmitter.dispose();
-			focusDomEmitter.dispose();
+			focusDomEmitter?.dispose();
 			hideHover(true, true);
 		}
 	};
