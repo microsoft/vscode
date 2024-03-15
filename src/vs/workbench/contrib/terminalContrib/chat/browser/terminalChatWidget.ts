@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, IFocusTracker, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
+import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/terminalChatWidget';
