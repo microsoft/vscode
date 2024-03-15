@@ -192,7 +192,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
-		const iconsStyleSheet = getIconsStyleSheet(this);
+		const iconsStyleSheet = this._register(getIconsStyleSheet(this));
 		function updateAll() {
 			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}

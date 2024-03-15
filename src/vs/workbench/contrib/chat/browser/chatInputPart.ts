@@ -80,6 +80,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private implicitContextContainer!: HTMLElement;
 	private implicitContextLabel!: HTMLElement;
 	private implicitContextCheckbox!: Checkbox;
+	private implicitContextSettingEnabled = false;
 	get implicitContextEnabled() {
 		return this.implicitContextCheckbox.checked;
 	}
@@ -131,9 +132,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
+
+		this.implicitContextSettingEnabled = this.configurationService.getValue<boolean>('chat.experimental.implicitContext');
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+			}
+
+			if (e.affectsConfiguration('chat.experimental.implicitContext')) {
+				this.implicitContextSettingEnabled = this.configurationService.getValue<boolean>('chat.experimental.implicitContext');
 			}
 		}));
 	}
@@ -376,7 +383,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	setImplicitContextKinds(kinds: string[]) {
-		dom.setVisibility(kinds.length > 0, this.implicitContextContainer);
+		dom.setVisibility(this.implicitContextSettingEnabled && kinds.length > 0, this.implicitContextContainer);
 		this.implicitContextLabel.textContent = localize('use', "Use") + ' ' + kinds.map(k => `#${k}`).join(', ');
 	}
 

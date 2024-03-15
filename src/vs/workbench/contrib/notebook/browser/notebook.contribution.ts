@@ -26,7 +26,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { INotebookEditorInputFactory, NotebookEditorInput, NotebookEditorInputFactory, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl';
 import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -209,7 +209,7 @@ class NotebookEditorSerializer implements IEditorSerializer {
 			return undefined;
 		}
 
-		const input = instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory).getOrCreate(resource, preferredResource, viewType, options));
+		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, preferredResource, viewType, options);
 		return input;
 	}
 }
@@ -659,7 +659,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
-		return this._instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory).getOrCreate(workingCopy.resource, undefined, this._getViewType(workingCopy)!));
+		return NotebookEditorInput.getOrCreate(this._instantiationService, workingCopy.resource, undefined, this._getViewType(workingCopy)!);
 	}
 
 	private async _installHandler(): Promise<void> {
@@ -755,7 +755,6 @@ registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService,
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
-registerSingleton(INotebookEditorInputFactory, NotebookEditorInputFactory, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
