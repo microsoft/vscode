@@ -685,7 +685,7 @@ class Extensions extends Disposable {
 		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
 		const all = await this.server.extensionManagementService.getInstalled(undefined, undefined, productVersion);
 		if (this.isWorkspaceServer) {
-			all.push(...await this.workbenchExtensionManagementService.getInstalledWorkspaceExtensions());
+			all.push(...await this.workbenchExtensionManagementService.getInstalledWorkspaceExtensions(true));
 		}
 
 		// dedup user and system extensions by giving priority to user extensions.
@@ -1155,17 +1155,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async getResourceExtensions(locations: URI[], isWorkspaceScoped: boolean): Promise<IExtension[]> {
-		const result: IExtension[] = [];
-		await Promise.all(locations.map(async location => {
-			const resourceExtension = await this.extensionManagementService.getExtension(location);
-			if (!resourceExtension) {
-				return;
-			}
-			const extension = this.getInstalledExtensionMatchingLocation(resourceExtension.location)
-				?? this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, undefined, { resourceExtension, isWorkspaceScoped });
-			result.push(extension);
-		}));
-		return result;
+		const resourceExtensions = await this.extensionManagementService.getExtensions(locations);
+		return resourceExtensions.map(resourceExtension => this.getInstalledExtensionMatchingLocation(resourceExtension.location)
+			?? this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, undefined, { resourceExtension, isWorkspaceScoped }));
 	}
 
 	private resolveQueryText(text: string): string {
