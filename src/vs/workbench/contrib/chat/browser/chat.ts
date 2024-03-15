@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
@@ -90,6 +91,12 @@ export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderStyle?: 'default' | 'compact';
 	supportsFileReferences?: boolean;
+	filter?: (item: ChatTreeItem) => boolean;
+	menus?: {
+		executeToolbar?: MenuId;
+		inputSideToolbar?: MenuId;
+		telemetrySource?: string;
+	};
 }
 
 export interface IChatViewViewContext {

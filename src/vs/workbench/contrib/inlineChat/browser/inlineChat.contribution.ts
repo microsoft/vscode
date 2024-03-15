@@ -48,13 +48,11 @@ registerAction2(InlineChatActions.MoveToPreviousHunk);
 registerAction2(InlineChatActions.ArrowOutUpAction);
 registerAction2(InlineChatActions.ArrowOutDownAction);
 registerAction2(InlineChatActions.FocusInlineChat);
-registerAction2(InlineChatActions.PreviousFromHistory);
-registerAction2(InlineChatActions.NextFromHistory);
 registerAction2(InlineChatActions.ViewInChatAction);
 
 registerAction2(InlineChatActions.ToggleDiffForChange);
-registerAction2(InlineChatActions.FeebackHelpfulCommand);
-registerAction2(InlineChatActions.FeebackUnhelpfulCommand);
+// registerAction2(InlineChatActions.FeebackHelpfulCommand);
+// registerAction2(InlineChatActions.FeebackUnhelpfulCommand);
 registerAction2(InlineChatActions.ReportIssueForBugCommand);
 registerAction2(InlineChatActions.AcceptChanges);
 

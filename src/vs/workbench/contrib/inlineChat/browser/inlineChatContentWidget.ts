@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inlineChatContentWidget';
+import 'vs/css!./media/inlineChatContentWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import * as dom from 'vs/base/browser/dom';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Emitter, Event } from 'vs/base/common/event';
-import { InlineChatInputWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatInputWidget';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { clamp } from 'vs/base/common/numbers';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
+import { MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -31,28 +34,39 @@ export class InlineChatContentWidget implements IContentWidget {
 
 	private _visible: boolean = false;
 	private _focusNext: boolean = false;
-
+	private readonly _widget: ChatInputPart;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _widget: InlineChatInputWidget,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
+
+		this._widget = instaService.createInstance(ChatInputPart, {
+			renderFollowups: false, renderStyle: 'compact',
+			menus: {
+				executeToolbar: MENU_INLINE_CHAT_INPUT,
+				telemetrySource: 'inlineChat'
+			}
+		});
+
+		this._widget.render(this._inputContainer, '', null!);
+		this._widget.setImplicitContextKinds([]);
+		this._store.add(this._widget);
 		this._store.add(this._widget.onDidChangeHeight(() => _editor.layoutContentWidget(this)));
 
 		this._domNode.tabIndex = -1;
-		this._domNode.className = 'inline-chat-content-widget';
+		this._domNode.className = 'inline-chat-content-widget interactive-session';
 
 		this._domNode.appendChild(this._inputContainer);
 
 		this._messageContainer.classList.add('hidden', 'message');
 		this._domNode.appendChild(this._messageContainer);
 
-		this._widget.moveTo(this._inputContainer);
 
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
 			if (this._visible) {
-				this._onDidBlur.fire();
+				// this._onDidBlur.fire();
 			}
 		}));
 		this._store.add(tracker);
@@ -83,13 +97,14 @@ export class InlineChatContentWidget implements IContentWidget {
 	beforeRender(): IDimension | null {
 
 		const contentWidth = this._editor.getLayoutInfo().contentWidth;
-		const minWidth = contentWidth * 0.33;
-		const maxWidth = contentWidth * 0.66;
+		const minWidth = Math.round(contentWidth * 0.33);
+		const maxWidth = Math.round(contentWidth * 0.66);
 
-		const dim = this._widget.getPreferredSize();
-		const width = clamp(dim.width, minWidth, maxWidth);
-		this._widget.layout(new dom.Dimension(width, dim.height));
+		const width = clamp(220, minWidth, maxWidth);
+		this._widget.layout(220, width);
 
+		// const actualHeight = this._widget.inputPartHeight;
+		// return new dom.Dimension(width, actualHeight);
 		return null;
 	}
 
@@ -102,14 +117,20 @@ export class InlineChatContentWidget implements IContentWidget {
 
 	// ---
 
+	get isVisible(): boolean {
+		return this._visible;
+	}
+
+	get value(): string {
+		return this._widget.inputEditor.getValue();
+	}
+
 	show(position: IPosition) {
 		if (!this._visible) {
 			this._visible = true;
 			this._focusNext = true;
 
-
-			this._widget.moveTo(this._inputContainer);
-			this._widget.reset();
+			this._widget.setValue('');
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
 
@@ -125,10 +146,20 @@ export class InlineChatContentWidget implements IContentWidget {
 		}
 	}
 
-	updateMessage(message: string) {
+	setSession(model: Session): void {
+		this._widget.setState(model.chatModel.providerId, '');
+		this._updateMessage(model.session.message ?? '');
+	}
+
+	private _updateMessage(message: string) {
 		this._messageContainer.classList.toggle('hidden', !message);
 		const renderedMessage = renderLabelWithIcons(message);
 		dom.reset(this._messageContainer, ...renderedMessage);
 		this._editor.layoutContentWidget(this);
+	}
+
+	acceptInput(): void {
+		this._widget.acceptInput(this._widget.inputEditor.getValue());
+		this._widget.saveState();
 	}
 }

@@ -228,6 +228,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.inputPart.inputUri;
 	}
 
+	get contentHeight(): number {
+		console.log('Chat#contentHeight', this.inputPart.inputPartHeight + this.tree.contentHeight, this.inputPart.inputPartHeight, this.tree.contentHeight);
+		return this.inputPart.inputPartHeight + this.tree.contentHeight;
+	}
+
 	render(parent: HTMLElement): void {
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
@@ -240,7 +245,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
-			this.createInput(this.container);
+			this.createInput(this.container, { renderFollowups: true, renderStyle });
 		}
 
 		this.createList(this.listContainer, { renderStyle });
@@ -407,6 +412,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				accessibilityProvider: this._instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: ChatTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
+				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions), } : undefined,
 				overrideStyles: {
 					listFocusBackground: this.styles.listBackground,
 					listInactiveFocusBackground: this.styles.listBackground,
@@ -476,6 +482,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart, {
 			renderFollowups: options?.renderFollowups ?? true,
 			renderStyle: options?.renderStyle,
+			menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus }
 		}));
 		this.inputPart.render(container, '', this);
 
@@ -532,6 +539,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private updateImplicitContextKinds() {
+		if (!this.viewModel) {
+			return;
+		}
 		this.parsedChatRequest = undefined;
 		const agentAndSubcommand = extractAgentAndCommand(this.parsedInput);
 		const currentAgent = agentAndSubcommand.agentPart?.agent ?? this.chatAgentService.getDefaultAgent();

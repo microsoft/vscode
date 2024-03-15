@@ -626,7 +626,7 @@ export class StartVoiceChatAction extends Action2 {
 			}, {
 				id: MENU_INLINE_CHAT_INPUT,
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
-				group: 'main',
+				group: 'navigation',
 				order: -1
 			},
 			{
@@ -678,7 +678,7 @@ export class InstallVoiceChatAction extends Action2 {
 			}, {
 				id: MENU_INLINE_CHAT_INPUT,
 				when: HasSpeechProvider.negate(),
-				group: 'main',
+				group: 'navigation',
 				order: -1
 			}, {
 				id: MenuId.for('terminalChatInput'),
@@ -777,7 +777,7 @@ export class StopListeningInInlineChatAction extends BaseStopListeningAction {
 	static readonly ID = 'workbench.action.chat.stopListeningInInlineChat';
 
 	constructor() {
-		super({ id: StopListeningInInlineChatAction.ID, icon: spinningLoading }, 'inline', CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS, MENU_INLINE_CHAT_INPUT, 'main');
+		super({ id: StopListeningInInlineChatAction.ID, icon: spinningLoading }, 'inline', CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS, MENU_INLINE_CHAT_INPUT, 'navigation');
 	}
 }
 

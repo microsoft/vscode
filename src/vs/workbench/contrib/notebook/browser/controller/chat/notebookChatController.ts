@@ -89,7 +89,7 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		super();
 
 		this._register(inlineChatWidget.onDidChangeHeight(() => {
-			this.heightInPx = inlineChatWidget.getHeight() + WIDGET_MARGIN_BOTTOM;
+			this.heightInPx = inlineChatWidget.getContentHeight() + WIDGET_MARGIN_BOTTOM;
 			this._notebookEditor.changeViewZones(accessor => {
 				accessor.layoutZone(id);
 			});

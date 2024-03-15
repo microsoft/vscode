@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { EditMode, IInlineChatSession, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSession, IInlineChatService, IInlineChatSessionProvider, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -26,6 +26,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -37,16 +38,18 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
+	private readonly _store = new DisposableStore();
+
+	private readonly _onWillStartSession = this._store.add(new Emitter<IActiveCodeEditor>());
 	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
 
-	private readonly _onDidMoveSession = new Emitter<IInlineChatSessionEvent>();
+	private readonly _onDidMoveSession = this._store.add(new Emitter<IInlineChatSessionEvent>());
 	readonly onDidMoveSession: Event<IInlineChatSessionEvent> = this._onDidMoveSession.event;
 
-	private readonly _onDidEndSession = new Emitter<IInlineChatSessionEndEvent>();
+	private readonly _onDidEndSession = this._store.add(new Emitter<IInlineChatSessionEndEvent>());
 	readonly onDidEndSession: Event<IInlineChatSessionEndEvent> = this._onDidEndSession.event;
 
-	private readonly _onDidStashSession = new Emitter<IInlineChatSessionEvent>();
+	private readonly _onDidStashSession = this._store.add(new Emitter<IInlineChatSessionEvent>());
 	readonly onDidStashSession: Event<IInlineChatSessionEvent> = this._onDidStashSession.event;
 
 	private readonly _sessions = new Map<string, SessionData>();
@@ -62,13 +65,46 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-	) { }
+		@IChatService private readonly _chatService: IChatService,
+	) {
+
+		const mapping = this._store.add(new DisposableMap<IInlineChatSessionProvider>());
+
+		const registerFakeChatProvider = (provider: IInlineChatSessionProvider) => {
+			const d = this._chatService.registerProvider({
+				id: this._asChatProviderBrigdeName(provider),
+				prepareSession() {
+					return {
+						id: Math.random()
+					};
+				}
+			});
+			mapping.set(provider, d);
+		};
+
+		this._store.add(_inlineChatService.onDidChangeProviders(e => {
+			if (e.added) {
+				registerFakeChatProvider(e.added);
+			}
+			if (e.removed) {
+				mapping.deleteAndDispose(e.removed);
+			}
+		}));
+
+		for (const provider of _inlineChatService.getAllProvider()) {
+			registerFakeChatProvider(provider);
+		}
+
+	}
 
 	dispose() {
-		this._onWillStartSession.dispose();
-		this._onDidEndSession.dispose();
+		this._store.dispose();
 		this._sessions.forEach(x => x.store.dispose());
 		this._sessions.clear();
+	}
+
+	private _asChatProviderBrigdeName(provider: IInlineChatSessionProvider) {
+		return `editor-inline-chat:${provider.debugName}`;
 	}
 
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
@@ -78,6 +114,19 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			this._logService.trace('[IE] NO provider found');
 			return undefined;
 		}
+
+		const chatModel = this._chatService.startSession(this._asChatProviderBrigdeName(provider), token);
+		if (!chatModel) {
+			this._logService.trace('[IE] NO chatModel found');
+			return undefined;
+		}
+
+		const store = new DisposableStore();
+
+		store.add(toDisposable(() => {
+			this._chatService.clearSession(chatModel.sessionId);
+			chatModel.dispose();
+		}));
 
 		this._onWillStartSession.fire(editor);
 
@@ -98,10 +147,29 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return undefined;
 		}
-		this._logService.trace('[IE] NEW session', provider.debugName);
 
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${provider.debugName}`);
-		const store = new DisposableStore();
+
+
+		this._store.add(this._chatService.onDidPerformUserAction(e => {
+			if (e.sessionId !== chatModel.sessionId) {
+				return;
+			}
+			if (e.action.kind !== 'vote') {
+				return;
+			}
+
+			// TODO@jrieken VALIDATE candidate is proper, e.g check with `session.exchanges`
+			const request = chatModel.getRequests().find(request => request.id === e.requestId);
+			const candidate = request?.response?.result?.metadata?.inlineChatResponse;
+			if (candidate) {
+				provider.handleInlineChatResponseFeedback?.(
+					rawSession,
+					candidate,
+					e.action.direction === InteractiveSessionVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful
+				);
+			}
+		}));
 
 		store.add(this._inlineChatService.onDidChangeProviders(e => {
 			if (e.removed === provider) {
@@ -160,7 +228,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			textModelN,
 			provider, rawSession,
 			store.add(new SessionWholeRange(textModelN, wholeRange)),
-			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN))
+			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN)),
+			chatModel
 		);
 
 		// store: key -> session
