@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
@@ -38,16 +37,16 @@ import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/ed
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IPeekViewService, PeekViewWidget, peekViewResultsBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
 import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -80,13 +79,13 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { DetachedProcessInfo } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
 import { IDetachedTerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
+import { colorizeTestMessageInEditor, renderTestMessageAsText } from 'vs/workbench/contrib/testing/browser/testMessageColorizer';
 import { testingMessagePeekBorder, testingPeekBorder, testingPeekHeaderBackground, testingPeekMessageHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -104,6 +103,7 @@ import { IShowResultOptions, ITestingPeekOpener } from 'vs/workbench/contrib/tes
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { ParsedTestUri, TestUriType, buildTestUri, parseTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 const getMessageArgs = (test: TestResultItem, message: ITestMessage): ITestMessageMenuArgs => ({
 	$mid: MarshalledId.TestMessageMenuArgs,
@@ -591,7 +591,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}
 
 		if (subject instanceof MessageSubject) {
-			alert(renderStringAsPlaintext(subject.message.message));
+			alert(renderTestMessageAsText(subject.message.message));
 		}
 
 		this.peek.value.setModel(subject);
@@ -1038,7 +1038,7 @@ class TestResultsPeek extends PeekViewWidget {
 	public async showInPlace(subject: InspectSubject) {
 		if (subject instanceof MessageSubject) {
 			const message = subject.message;
-			this.setTitle(firstLine(renderStringAsPlaintext(message.message)), stripIcons(subject.test.label));
+			this.setTitle(firstLine(renderTestMessageAsText(message.message)), stripIcons(subject.test.label));
 		} else {
 			this.setTitle(localize('testOutputTitle', 'Test Output'));
 		}
@@ -1318,6 +1318,7 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 }
 
 class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
+	private readonly widgetDecorations = this._register(new MutableDisposable());
 	private readonly widget = this._register(new MutableDisposable<CodeEditorWidget>());
 	private readonly model = this._register(new MutableDisposable());
 	private dimension?: dom.IDimension;
@@ -1363,11 +1364,13 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 
 		this.widget.value.setModel(modelRef.object.textEditorModel);
 		this.widget.value.updateOptions(commonEditorOptions);
+		this.widgetDecorations.value = colorizeTestMessageInEditor(message.message, this.widget.value);
 	}
 
 	private clear() {
-		this.model.clear();
+		this.widgetDecorations.clear();
 		this.widget.clear();
+		this.model.clear();
 	}
 
 	public layout(dimensions: dom.IDimension) {
@@ -1856,7 +1859,7 @@ class TestMessageElement implements ITreeElement {
 
 		this.id = this.uri.toString();
 
-		const asPlaintext = renderStringAsPlaintext(m.message);
+		const asPlaintext = renderTestMessageAsText(m.message);
 		const lines = count(asPlaintext.trimEnd(), '\n');
 		this.label = firstLine(asPlaintext);
 		if (lines > 0) {
