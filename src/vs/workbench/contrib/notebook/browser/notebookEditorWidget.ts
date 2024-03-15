@@ -74,7 +74,7 @@ import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser
 import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookOverviewRuler';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, INotebookSearchOptions, NotebookCellExecutionState, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUPTUT_INPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -300,7 +300,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
-		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService readonly logService: INotebookLoggingService,
 		@IKeybindingService readonly keybindingService: IKeybindingService,
@@ -951,14 +951,27 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					listInactiveFocusOutline: notebookEditorBackground,
 				},
 				accessibilityProvider: {
-					getAriaLabel: (element: CellViewModel) => {
+					getAriaLabel: (element: CellViewModel, updateCallback: (label: string) => void, disposables: DisposableStore) => {
+						const getLabel = (index: number, cellKind: CellKind) => {
+							const executing = this.notebookExecutionStateService.getCellExecution(element.uri)?.state === NotebookCellExecutionState.Executing
+								? ', executing'
+								: '';
+							return `Cell ${index}, ${element.cellKind === CellKind.Markup ? 'markdown' : 'code'} cell${executing}`;
+						};
+
 						if (!this.viewModel) {
 							return '';
 						}
 						const index = this.viewModel.getCellIndex(element);
 
+						disposables.add(this.notebookExecutionStateService.onDidChangeExecution(e => {
+							if ('affectsCell' in e && e.affectsCell(element.uri)) {
+								updateCallback(getLabel(index, element.cellKind));
+							}
+						}));
+
 						if (index >= 0) {
-							return `Cell ${index}, ${element.cellKind === CellKind.Markup ? 'markdown' : 'code'}  cell`;
+							return getLabel(index, element.cellKind);
 						}
 
 						return '';

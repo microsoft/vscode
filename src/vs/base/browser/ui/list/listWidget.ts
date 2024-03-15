@@ -34,7 +34,10 @@ interface ITraitChangeEvent {
 	browserEvent?: UIEvent;
 }
 
-type ITraitTemplateData = HTMLElement;
+type ITraitTemplateData = {
+	container: HTMLElement;
+	disposables?: DisposableStore;
+};
 
 interface IRenderedContainer {
 	templateData: ITraitTemplateData;
@@ -51,7 +54,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 	}
 
 	renderTemplate(container: HTMLElement): ITraitTemplateData {
-		return container;
+		return { container };
 	}
 
 	renderElement(element: T, index: number, templateData: ITraitTemplateData): void {
@@ -59,14 +62,14 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 
 		if (renderedElementIndex >= 0) {
 			const rendered = this.renderedElements[renderedElementIndex];
-			this.trait.unrender(templateData);
+			this.trait.unrender(templateData.container);
 			rendered.index = index;
 		} else {
 			const rendered = { index, templateData };
 			this.renderedElements.push(rendered);
 		}
 
-		this.trait.renderIndex(index, templateData);
+		this.trait.renderIndex(index, templateData.container);
 	}
 
 	splice(start: number, deleteCount: number, insertCount: number): void {
@@ -90,7 +93,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 	renderIndexes(indexes: number[]): void {
 		for (const { index, templateData } of this.renderedElements) {
 			if (indexes.indexOf(index) > -1) {
-				this.trait.renderIndex(index, templateData);
+				this.trait.renderIndex(index, templateData.container);
 			}
 		}
 	}
@@ -848,12 +851,13 @@ export interface IStyleController {
 }
 
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
-	getAriaLabel(element: T): string | null;
+	getAriaLabel(element: T, updateCallback?: (label: string) => void, disposables?: DisposableStore): string | null;
 	getWidgetAriaLabel(): string;
 	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
 	onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
+	onDidChangeAriaLabel?: Event<T>;
 }
 
 export class DefaultStyleController implements IStyleController {
@@ -1254,32 +1258,40 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 	}
 }
 
-class AccessibiltyRenderer<T> implements IListRenderer<T, HTMLElement> {
+class AccessibiltyRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 
 	templateId: string = 'a18n';
 
 	constructor(private accessibilityProvider: IListAccessibilityProvider<T>) { }
 
-	renderTemplate(container: HTMLElement): HTMLElement {
-		return container;
+	renderTemplate(container: HTMLElement): ITraitTemplateData {
+		return { container };
 	}
 
-	renderElement(element: T, index: number, container: HTMLElement): void {
-		const ariaLabel = this.accessibilityProvider.getAriaLabel(element);
+	renderElement(element: T, index: number, data: ITraitTemplateData): void {
+		const ariaLabel = this.accessibilityProvider.getAriaLabel(element, (label) => this.setAriaLabel(label, data.container), data.disposables);
 
-		if (ariaLabel) {
-			container.setAttribute('aria-label', ariaLabel);
-		} else {
-			container.removeAttribute('aria-label');
-		}
+		this.setAriaLabel(ariaLabel, data.container);
 
 		const ariaLevel = this.accessibilityProvider.getAriaLevel && this.accessibilityProvider.getAriaLevel(element);
 
 		if (typeof ariaLevel === 'number') {
-			container.setAttribute('aria-level', `${ariaLevel}`);
+			data.container.setAttribute('aria-level', `${ariaLevel}`);
 		} else {
-			container.removeAttribute('aria-level');
+			data.container.removeAttribute('aria-level');
 		}
+	}
+
+	private setAriaLabel(ariaLabel: string | null, element: HTMLElement): void {
+		if (ariaLabel) {
+			element.setAttribute('aria-label', ariaLabel);
+		} else {
+			element.removeAttribute('aria-label');
+		}
+	}
+
+	disposeElement(element: T, index: number, templateData: ITraitTemplateData, height: number | undefined): void {
+		templateData.disposables?.clear();
 	}
 
 	disposeTemplate(templateData: any): void {
@@ -1360,6 +1372,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private styleController: IStyleController;
 	private typeNavigationController?: TypeNavigationController<T>;
 	private accessibilityProvider?: IListAccessibilityProvider<T>;
+	private accessibilityRenderer?: AccessibiltyRenderer<T>;
 	private keyboardController: KeyboardController<T> | undefined;
 	private mouseController: MouseController<T>;
 	private _ariaLabel: string = '';
@@ -1450,7 +1463,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.accessibilityProvider = _options.accessibilityProvider;
 
 		if (this.accessibilityProvider) {
-			baseRenderers.push(new AccessibiltyRenderer<T>(this.accessibilityProvider));
+			this.accessibilityRenderer = new AccessibiltyRenderer<T>(this.accessibilityProvider);
+			baseRenderers.push(this.accessibilityRenderer);
 
 			this.accessibilityProvider.onDidChangeActiveDescendant?.(this.onDidChangeActiveDescendant, this, this.disposables);
 		}
