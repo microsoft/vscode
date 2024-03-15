@@ -28,8 +28,6 @@ const ext = require('./lib/extensions');
 // 	ignore: ['**/out/**', '**/node_modules/**']
 // });
 const compilations = [
-	['extensions', 'authentication-proxy/tsconfig.json'],
-	['extensions', 'configuration-editing/build/tsconfig.json'],
 	['extensions', 'configuration-editing/tsconfig.json'],
 	['extensions', 'css-language-features/client/tsconfig.json'],
 	['extensions', 'css-language-features/server/tsconfig.json'],
@@ -39,8 +37,8 @@ const compilations = [
 	['extensions', 'extension-editing/tsconfig.json'],
 	['extensions', 'git/tsconfig.json'],
 	['extensions', 'git-base/tsconfig.json'],
-	['extensions', 'github-authentication/tsconfig.json'],
 	['extensions', 'github/tsconfig.json'],
+	['extensions', 'github-authentication/tsconfig.json'],
 	['extensions', 'grunt/tsconfig.json'],
 	['extensions', 'gulp/tsconfig.json'],
 	['extensions', 'html-language-features/client/tsconfig.json'],
@@ -59,8 +57,8 @@ const compilations = [
 	['extensions', 'notebook-renderers/tsconfig.json'],
 	['extensions', 'npm/tsconfig.json'],
 	['extensions', 'php-language-features/tsconfig.json'],
-	['extensions', 'search-result/tsconfig.json'],
 	['extensions', 'references-view/tsconfig.json'],
+	['extensions', 'search-result/tsconfig.json'],
 	['extensions', 'simple-browser/tsconfig.json'],
 	['extensions', 'tunnel-forwarding/tsconfig.json'],
 	['extensions', 'typescript-language-features/test-workspace/tsconfig.json'],
