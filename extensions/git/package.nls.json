@@ -23,6 +23,8 @@
 	"command.stageSelectedRanges": "Stage Selected Ranges",
 	"command.revertSelectedRanges": "Revert Selected Ranges",
 	"command.stageChange": "Stage Change",
+	"command.stageSelection": "Stage Selection",
+	"command.stageBlock": "Stage Block",
 	"command.revertChange": "Revert Change",
 	"command.unstage": "Unstage Changes",
 	"command.unstageAll": "Unstage All Changes",

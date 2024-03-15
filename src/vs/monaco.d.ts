@@ -3819,6 +3819,10 @@ declare namespace monaco.editor {
 		 */
 		renderMarginRevertIcon?: boolean;
 		/**
+		 * Indicates if the gutter menu should be rendered.
+		*/
+		renderGutterMenu?: boolean;
+		/**
 		 * Original model should be editable?
 		 * Defaults to false.
 		 */
