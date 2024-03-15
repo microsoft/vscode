@@ -953,10 +953,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				accessibilityProvider: {
 					getAriaLabel: (element: CellViewModel, updateCallback: (label: string) => void, disposables: DisposableStore) => {
 						const getLabel = (index: number, cellKind: CellKind) => {
-							const executing = this.notebookExecutionStateService.getCellExecution(element.uri)?.state === NotebookCellExecutionState.Executing
-								? ', executing'
-								: '';
-							return `Cell ${index}, ${element.cellKind === CellKind.Markup ? 'markdown' : 'code'} cell${executing}`;
+							const executionState = this.notebookExecutionStateService.getCellExecution(element.uri)?.state;
+							const executionLabel =
+								executionState === NotebookCellExecutionState.Executing
+									? ', executing'
+									: executionState === NotebookCellExecutionState.Pending
+										? ', pending'
+										: '';
+							return `Cell ${index}, ${element.cellKind === CellKind.Markup ? 'markdown' : 'code'} cell${executionLabel}`;
 						};
 
 						if (!this.viewModel) {

@@ -1294,7 +1294,7 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 	}
 
 	disposeTemplate(templateData: any): void {
-		// noop
+		templateData.disposables?.dispose();
 	}
 }
 
