@@ -3272,6 +3272,11 @@ export enum CommentThreadState {
 	Resolved = 1
 }
 
+export enum CommentThreadApplicability {
+	Current = 0,
+	Outdated = 1
+}
+
 //#endregion
 
 //#region Semantic Coloring
@@ -4032,7 +4037,7 @@ const validateCC = (cc?: vscode.CoveredCount) => {
 };
 
 export class FileCoverage implements vscode.FileCoverage {
-	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
+	public static fromDetails(uri: vscode.Uri, details: vscode.FileCoverageDetail[]): vscode.FileCoverage {
 		const statements = new CoveredCount(0, 0);
 		const branches = new CoveredCount(0, 0);
 		const decl = new CoveredCount(0, 0);
@@ -4064,7 +4069,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		return coverage;
 	}
 
-	detailedCoverage?: vscode.DetailedCoverage[];
+	detailedCoverage?: vscode.FileCoverageDetail[];
 
 	constructor(
 		public readonly uri: vscode.Uri,
@@ -4199,6 +4204,10 @@ export class InteractiveWindowInput {
 export class ChatEditorTabInput {
 	constructor(readonly providerId: string) { }
 }
+
+export class TextMultiDiffTabInput {
+	constructor(readonly textDiffs: TextDiffTabInput[]) { }
+}
 //#endregion
 
 //#region Chat
@@ -4313,6 +4322,12 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 		readonly participant: { extensionId: string; name: string },
 		readonly command?: string
 	) { }
+}
+
+export enum ChatLocation {
+	Panel = 1,
+	Terminal = 2,
+	Notebook = 3
 }
 
 export class LanguageModelChatSystemMessage {

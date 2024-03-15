@@ -349,10 +349,15 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	readonly context?: EditorCloseContext;
 }
 
-export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
+export interface IInternalEditorMoveCopyOpenOptions extends IInternalEditorOpenOptions {
 
 	/**
 	 * Whether to close the editor at the source or keep it.
 	 */
 	readonly keepCopy?: boolean;
+
+	/**
+	 * The source group an editor is moved or copied from.
+	 */
+	readonly sourceGroup?: IEditorGroupView;
 }

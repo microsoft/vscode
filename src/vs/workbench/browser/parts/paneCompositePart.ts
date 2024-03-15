@@ -545,7 +545,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private layoutCompositeBar(): void {
 		if (this.contentDimension && this.dimension && this.paneCompositeBar.value) {
-			let availableWidth = this.contentDimension.width - 16; // take padding into account
+			const padding = this.compositeBarPosition === CompositeBarPosition.TITLE ? 16 : 8;
+			const borderWidth = this.partId === Parts.PANEL_PART ? 0 : 1;
+			let availableWidth = this.contentDimension.width - padding - borderWidth;
 			availableWidth = Math.max(AbstractPaneCompositePart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
 			this.paneCompositeBar.value.layout(availableWidth, this.dimension.height);
 		}
@@ -571,14 +573,14 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		const activePane = this.getActivePaneComposite();
-		if (!activePane || !this.toolBar) {
+		if (!activePane) {
 			return 0;
 		}
 
-		// Each toolbar item has 4px margin in the panel toolbar
+		// Each toolbar item has 4px margin
 		const toolBarWidth = this.toolBar.getItemsWidth() + this.toolBar.getItemsLength() * 4;
 		const globalToolBarWidth = this.globalToolBar ? this.globalToolBar.getItemsWidth() + this.globalToolBar.getItemsLength() * 4 : 0;
-		return 5 + toolBarWidth + globalToolBarWidth; // 5px toolBar padding-left
+		return toolBarWidth + globalToolBarWidth + 5; // 5px padding left
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {

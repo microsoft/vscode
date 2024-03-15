@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getClientArea, getDomNodePagePosition, getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -12,9 +12,10 @@ import * as arrays from 'vs/base/common/arrays';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertType, isDefined } from 'vs/base/common/types';
 import 'vs/css!./renameInputField';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -54,12 +55,25 @@ export interface RenameInputFieldResult {
 	nRenameSuggestions: number;
 }
 
-export class RenameInputField implements IContentWidget {
+interface IRenameInputField {
+	/**
+	 * @returns a `boolean` standing for `shouldFocusEditor`, if user didn't pick a new name, or a {@link RenameInputFieldResult}
+	 */
+	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean>;
+
+	acceptInput(wantsPreview: boolean): void;
+	cancelInput(focusEditor: boolean, caller: string): void;
+
+	focusNextRenameSuggestion(): void;
+	focusPreviousRenameSuggestion(): void;
+}
+
+export class RenameInputField implements IRenameInputField, IContentWidget, IDisposable {
 
 	private _position?: Position;
 	private _domNode?: HTMLElement;
 	private _input?: HTMLInputElement;
-	private _candidatesView?: CandidatesView;
+	private _renameCandidateListView?: RenameCandidateListView;
 	private _label?: HTMLDivElement;
 	private _visible?: boolean;
 	private _nPxAvailableAbove?: number;
@@ -110,12 +124,12 @@ export class RenameInputField implements IContentWidget {
 			this._input.className = 'rename-input';
 			this._input.type = 'text';
 			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
-			this._disposables.add(addDisposableListener(this._input, 'focus', () => { this._focusedContextKey.set(true); }));
-			this._disposables.add(addDisposableListener(this._input, 'blur', () => { this._focusedContextKey.reset(); }));
+			this._disposables.add(dom.addDisposableListener(this._input, 'focus', () => { this._focusedContextKey.set(true); }));
+			this._disposables.add(dom.addDisposableListener(this._input, 'blur', () => { this._focusedContextKey.reset(); }));
 			this._domNode.appendChild(this._input);
 
-			this._candidatesView = this._disposables.add(
-				new CandidatesView(this._domNode, {
+			this._renameCandidateListView = this._disposables.add(
+				new RenameCandidateListView(this._domNode, {
 					fontInfo: this._editor.getOption(EditorOption.fontInfo),
 					onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
 				}));
@@ -151,17 +165,12 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	private _updateFont(): void {
-		if (!this._input || !this._label || !this._candidatesView) {
+		if (this._domNode === undefined) {
 			return;
 		}
-
+		this._editor.applyFontInfo(this._domNode);
 		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
-		this._input.style.fontFamily = fontInfo.fontFamily;
-		this._input.style.fontWeight = fontInfo.fontWeight;
-		this._input.style.fontSize = `${fontInfo.fontSize}px`;
-
-		this._candidatesView.updateFont(fontInfo);
-
+		assertType(this._label !== undefined, 'RenameInputField#_updateFont: _label must not be undefined given _domNode is defined');
 		this._label.style.fontSize = `${this._computeLabelFontSize(fontInfo.fontSize)}px`;
 	}
 
@@ -180,8 +189,8 @@ export class RenameInputField implements IContentWidget {
 			return null;
 		}
 
-		const bodyBox = getClientArea(this.getDomNode().ownerDocument.body);
-		const editorBox = getDomNodePagePosition(this._editor.getDomNode());
+		const bodyBox = dom.getClientArea(this.getDomNode().ownerDocument.body);
+		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
 
 		const cursorBoxTop = this._getTopForPosition();
 
@@ -189,7 +198,7 @@ export class RenameInputField implements IContentWidget {
 		this._nPxAvailableBelow = bodyBox.height - this._nPxAvailableAbove;
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const { totalHeight: candidateViewHeight } = CandidateView.getLayoutInfo({ lineHeight });
+		const { totalHeight: candidateViewHeight } = RenameCandidateView.getLayoutInfo({ lineHeight });
 
 		const positionPreference = this._nPxAvailableBelow > candidateViewHeight * 6 /* approximate # of candidates to fit in (inclusive of rename input box & rename label) */
 			? [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
@@ -224,13 +233,13 @@ export class RenameInputField implements IContentWidget {
 			return;
 		}
 
-		assertType(this._candidatesView);
+		assertType(this._renameCandidateListView);
 		assertType(this._nPxAvailableAbove !== undefined);
 		assertType(this._nPxAvailableBelow !== undefined);
 
-		const inputBoxHeight = getTotalHeight(this._input!);
+		const inputBoxHeight = dom.getTotalHeight(this._input!);
 
-		const labelHeight = getTotalHeight(this._label!);
+		const labelHeight = dom.getTotalHeight(this._label!);
 
 		let totalHeightAvailable: number;
 		if (position === ContentWidgetPositionPreference.BELOW) {
@@ -239,9 +248,9 @@ export class RenameInputField implements IContentWidget {
 			totalHeightAvailable = this._nPxAvailableAbove;
 		}
 
-		this._candidatesView!.layout({
+		this._renameCandidateListView!.layout({
 			height: totalHeightAvailable - labelHeight - inputBoxHeight,
-			width: getTotalWidth(this._input!),
+			width: dom.getTotalWidth(this._input!),
 		});
 	}
 
@@ -260,18 +269,15 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	focusNextRenameSuggestion() {
-		this._candidatesView?.focusNext();
+		this._renameCandidateListView?.focusNext();
 	}
 
 	focusPreviousRenameSuggestion() {
-		if (!this._candidatesView?.focusPrevious()) {
+		if (!this._renameCandidateListView?.focusPrevious()) {
 			this._input!.focus();
 		}
 	}
 
-	/**
-	 * @returns a `boolean` standing for `shouldFocusEditor`, if user didn't pick a new name, or a {@link RenameInputFieldResult}
-	 */
 	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean> {
 
 		this._domNode!.classList.toggle('preview', supportPreview);
@@ -294,7 +300,7 @@ export class RenameInputField implements IContentWidget {
 				this._trace('invoking _currentCancelInput');
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
-				this._candidatesView?.clearCandidates();
+				this._renameCandidateListView?.clearCandidates();
 				resolve(focusEditor);
 				return true;
 			};
@@ -302,13 +308,13 @@ export class RenameInputField implements IContentWidget {
 			this._currentAcceptInput = (wantsPreview) => {
 				this._trace('invoking _currentAcceptInput');
 				assertType(this._input !== undefined);
-				assertType(this._candidatesView !== undefined);
+				assertType(this._renameCandidateListView !== undefined);
 
-				const nRenameSuggestions = this._candidatesView.nCandidates;
+				const nRenameSuggestions = this._renameCandidateListView.nCandidates;
 
 				let newName: string;
 				let source: 'inputField' | 'renameSuggestion';
-				const focusedCandidate = this._candidatesView.focusedCandidate;
+				const focusedCandidate = this._renameCandidateListView.focusedCandidate;
 				if (focusedCandidate !== undefined) {
 					this._trace('using new name from renameSuggestion');
 					newName = focusedCandidate;
@@ -326,7 +332,7 @@ export class RenameInputField implements IContentWidget {
 
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
-				this._candidatesView.clearCandidates();
+				this._renameCandidateListView.clearCandidates();
 
 				resolve({
 					newName,
@@ -396,7 +402,7 @@ export class RenameInputField implements IContentWidget {
 
 		// show the candidates
 		trace('setting candidates');
-		this._candidatesView!.setCandidates(validDistinctNames);
+		this._renameCandidateListView!.setCandidates(validDistinctNames);
 
 		// ask editor to re-layout given that the widget is now of a different size after rendering rename candidates
 		trace('asking editor to re-layout');
@@ -427,10 +433,11 @@ export class RenameInputField implements IContentWidget {
 	}
 }
 
-class CandidatesView {
+class RenameCandidateListView {
 
-	private readonly _listWidget: List<NewSymbolName>;
+	/** Parent node of the list widget; needed to control # of list elements visible */
 	private readonly _listContainer: HTMLDivElement;
+	private readonly _listWidget: List<NewSymbolName>;
 
 	private _lineHeight: number;
 	private _availableHeight: number;
@@ -450,60 +457,23 @@ class CandidatesView {
 		this._typicalHalfwidthCharacterWidth = opts.fontInfo.typicalHalfwidthCharacterWidth;
 
 		this._listContainer = document.createElement('div');
-		this._listContainer.style.fontFamily = opts.fontInfo.fontFamily;
-		this._listContainer.style.fontWeight = opts.fontInfo.fontWeight;
-		this._listContainer.style.fontSize = `${opts.fontInfo.fontSize}px`;
 		parent.appendChild(this._listContainer);
 
-		const that = this;
+		this._listWidget = RenameCandidateListView._createListWidget(this._listContainer, this._candidateViewHeight, opts.fontInfo);
 
-		const virtualDelegate = new class implements IListVirtualDelegate<NewSymbolName> {
-			getTemplateId(element: NewSymbolName): string {
-				return 'candidate';
-			}
-
-			getHeight(element: NewSymbolName): number {
-				return that._candidateViewHeight;
-			}
-		};
-
-		const renderer = new class implements IListRenderer<NewSymbolName, CandidateView> {
-			readonly templateId = 'candidate';
-
-			renderTemplate(container: HTMLElement): CandidateView {
-				return new CandidateView(container, { lineHeight: that._lineHeight });
-			}
-
-			renderElement(candidate: NewSymbolName, index: number, templateData: CandidateView): void {
-				templateData.model = candidate;
-			}
-
-			disposeTemplate(templateData: CandidateView): void {
-				templateData.dispose();
-			}
-		};
-
-		this._listWidget = new List(
-			'NewSymbolNameCandidates',
-			this._listContainer,
-			virtualDelegate,
-			[renderer],
-			{
-				keyboardSupport: false, // @ulugbekna: because we handle keyboard events through proper commands & keybinding service, see `rename.ts`
-				mouseSupport: true,
-				multipleSelectionSupport: false,
-			}
+		this._disposables.add(
+			this._listWidget.onDidChangeSelection(e => {
+				if (e.elements.length > 0) {
+					opts.onSelectionChange();
+				}
+			})
 		);
 
-		this._disposables.add(this._listWidget.onDidChangeSelection(e => {
-			if (e.elements.length > 0) {
-				opts.onSelectionChange();
-			}
-		}));
-
-		this._disposables.add(this._listWidget.onDidBlur(e => {
-			this._listWidget.setFocus([]);
-		}));
+		this._disposables.add(
+			this._listWidget.onDidBlur(e => { // @ulugbekna: because list widget otherwise remembers last focused element and returns it as focused element
+				this._listWidget.setFocus([]);
+			})
+		);
 
 		this._listWidget.style(defaultListStyles);
 	}
@@ -562,16 +532,6 @@ class CandidatesView {
 		return;
 	}
 
-	public updateFont(fontInfo: FontInfo): void {
-		this._listContainer.style.fontFamily = fontInfo.fontFamily;
-		this._listContainer.style.fontWeight = fontInfo.fontWeight;
-		this._listContainer.style.fontSize = `${fontInfo.fontSize}px`;
-
-		this._lineHeight = fontInfo.lineHeight;
-
-		this._listWidget.rerender();
-	}
-
 	public focusNext(): void {
 		if (this._listWidget.length === 0) {
 			return;
@@ -602,7 +562,7 @@ class CandidatesView {
 	}
 
 	private get _candidateViewHeight(): number {
-		const { totalHeight } = CandidateView.getLayoutInfo({ lineHeight: this._lineHeight });
+		const { totalHeight } = RenameCandidateView.getLayoutInfo({ lineHeight: this._lineHeight });
 		return totalHeight;
 	}
 
@@ -622,62 +582,98 @@ class CandidatesView {
 		return width;
 	}
 
+	private static _createListWidget(container: HTMLElement, candidateViewHeight: number, fontInfo: FontInfo) {
+		const virtualDelegate = new class implements IListVirtualDelegate<NewSymbolName> {
+			getTemplateId(element: NewSymbolName): string {
+				return 'candidate';
+			}
+
+			getHeight(element: NewSymbolName): number {
+				return candidateViewHeight;
+			}
+		};
+
+		const renderer = new class implements IListRenderer<NewSymbolName, RenameCandidateView> {
+			readonly templateId = 'candidate';
+
+			renderTemplate(container: HTMLElement): RenameCandidateView {
+				return new RenameCandidateView(container, fontInfo);
+			}
+
+			renderElement(candidate: NewSymbolName, index: number, templateData: RenameCandidateView): void {
+				templateData.populate = candidate;
+			}
+
+			disposeTemplate(templateData: RenameCandidateView): void {
+				templateData.dispose();
+			}
+		};
+
+		return new List(
+			'NewSymbolNameCandidates',
+			container,
+			virtualDelegate,
+			[renderer],
+			{
+				keyboardSupport: false, // @ulugbekna: because we handle keyboard events through proper commands & keybinding service, see `rename.ts`
+				mouseSupport: true,
+				multipleSelectionSupport: false,
+			}
+		);
+	}
 }
 
-class CandidateView {
-
-	// TODO@ulugbekna: accessibility
+class RenameCandidateView {
 
 	private static _PADDING: number = 2;
 
-	public readonly domNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
 	private readonly _icon: HTMLElement;
 	private readonly _label: HTMLElement;
 
-	constructor(parent: HTMLElement, { lineHeight }: { lineHeight: number }) {
+	constructor(parent: HTMLElement, fontInfo: FontInfo) {
 
-		this.domNode = document.createElement('div');
-		this.domNode.style.display = `flex`;
-		this.domNode.style.alignItems = `center`;
-		this.domNode.style.height = `${lineHeight}px`;
-		this.domNode.style.padding = `${CandidateView._PADDING}px`;
+		this._domNode = document.createElement('div');
+		this._domNode.style.display = `flex`;
+		this._domNode.style.columnGap = `5px`;
+		this._domNode.style.alignItems = `center`;
+		this._domNode.style.height = `${fontInfo.lineHeight}px`;
+		this._domNode.style.padding = `${RenameCandidateView._PADDING}px`;
 
-		this._icon = document.createElement('div');
-		this._icon.style.display = `flex`;
-		this._icon.style.alignItems = `center`;
-		this._icon.style.width = this._icon.style.height = `${lineHeight * 0.8}px`;
-		this.domNode.appendChild(this._icon);
+		// @ulugbekna: needed to keep space when the `icon.style.display` is set to `none`
+		const iconContainer = document.createElement('div');
+		iconContainer.style.display = `flex`;
+		iconContainer.style.alignItems = `center`;
+		iconContainer.style.width = iconContainer.style.height = `${fontInfo.lineHeight * 0.8}px`;
+		this._domNode.appendChild(iconContainer);
+
+		this._icon = renderIcon(Codicon.sparkle);
+		this._icon.style.display = `none`;
+		iconContainer.appendChild(this._icon);
 
 		this._label = document.createElement('div');
-		this._icon.style.display = `flex`;
-		this._icon.style.alignItems = `center`;
-		this._label.style.marginLeft = '5px';
-		this.domNode.appendChild(this._label);
+		applyFontInfo(this._label, fontInfo);
+		this._domNode.appendChild(this._label);
 
-		parent.appendChild(this.domNode);
+		parent.appendChild(this._domNode);
 	}
 
-	public set model(value: NewSymbolName) {
+	public set populate(value: NewSymbolName) {
+		this._updateIcon(value);
+		this._updateLabel(value);
+	}
 
-		// @ulugbekna: a hack to always include sparkle for now
-		const alwaysIncludeSparkle = true;
+	private _updateIcon(value: NewSymbolName) {
+		const isAIGenerated = !!value.tags?.includes(NewSymbolNameTag.AIGenerated);
+		this._icon.style.display = isAIGenerated ? 'inherit' : 'none';
+	}
 
-		// update icon
-		if (alwaysIncludeSparkle || value.tags?.includes(NewSymbolNameTag.AIGenerated)) {
-			if (this._icon.children.length === 0) {
-				this._icon.appendChild(renderIcon(Codicon.sparkle));
-			}
-		} else {
-			if (this._icon.children.length === 1) {
-				this._icon.removeChild(this._icon.children[0]);
-			}
-		}
-
+	private _updateLabel(value: NewSymbolName) {
 		this._label.innerText = value.newSymbolName;
 	}
 
 	public static getLayoutInfo({ lineHeight }: { lineHeight: number }): { totalHeight: number } {
-		const totalHeight = lineHeight + CandidateView._PADDING * 2 /* top & bottom padding */;
+		const totalHeight = lineHeight + RenameCandidateView._PADDING * 2 /* top & bottom padding */;
 		return { totalHeight };
 	}
 
