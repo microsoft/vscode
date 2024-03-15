@@ -348,6 +348,7 @@ export class CallStackView extends ViewPane {
 			}
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
+				this.selectionNeedsUpdate = true;
 				return;
 			}
 			if (this.onCallStackChangeScheduler.isScheduled()) {

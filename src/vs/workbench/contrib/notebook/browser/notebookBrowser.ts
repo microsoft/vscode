@@ -449,6 +449,7 @@ export interface INotebookViewModel {
 	layoutInfo: NotebookLayoutInfo | null;
 	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	onDidChangeSelection: Event<string>;
+	onDidFoldingStateChanged: Event<void>;
 	getNearestVisibleCellIndexUpwards(index: number): number;
 	getTrackedRange(id: string): ICellRange | null;
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null;
@@ -628,6 +629,11 @@ export interface INotebookEditor {
 	 * Reveal cell into viewport center if cell is currently out of the viewport.
 	 */
 	revealInCenterIfOutsideViewport(cell: ICellViewModel): Promise<void>;
+
+	/**
+	 * Reveal the first line of the cell into the view if the cell is outside of the viewport.
+	 */
+	revealFirstLineIfOutsideViewport(cell: ICellViewModel): Promise<void>;
 
 	/**
 	 * Reveal a line in notebook cell into viewport with minimal scrolling.

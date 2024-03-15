@@ -12,6 +12,15 @@ declare module 'vscode' {
 		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
+	export interface ChatRequesterInformation {
+		name: string;
+
+		/**
+		 * A full URI for the icon of the request.
+		 */
+		icon?: Uri;
+	}
+
 	export interface ChatParticipant {
 		/**
 		 * When true, this participant is invoked by default when no other participant is being invoked
@@ -45,5 +54,6 @@ declare module 'vscode' {
 		helpTextPostfix?: string | MarkdownString;
 
 		welcomeMessageProvider?: ChatWelcomeMessageProvider;
+		requester?: ChatRequesterInformation;
 	}
 }
