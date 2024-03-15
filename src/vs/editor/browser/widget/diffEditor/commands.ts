@@ -18,6 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import './registrations.contribution';
+import { DiffEditorSelectionHunkToolbarContext } from 'vs/editor/browser/widget/diffEditor/features/gutterFeature';
 
 export class ToggleCollapseUnchangedRegions extends Action2 {
 	constructor() {
@@ -162,6 +163,26 @@ export class ShowAllUnchangedRegions extends EditorAction2 {
 		if (diffEditor instanceof DiffEditorWidget) {
 			diffEditor.showAllUnchangedRegions();
 		}
+	}
+}
+
+export class RevertHunkOrSelection extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'diffEditor.revert',
+			title: localize2('revert', 'Revert'),
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
+			f1: false,
+			category: diffEditorCategory,
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg: DiffEditorSelectionHunkToolbarContext): unknown {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor instanceof DiffEditorWidget) {
+			diffEditor.revertRangeMappings(arg.mapping.innerChanges ?? []);
+		}
+		return undefined;
 	}
 }
 
