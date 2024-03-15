@@ -28,67 +28,68 @@ const ext = require('./lib/extensions');
 // 	ignore: ['**/out/**', '**/node_modules/**']
 // });
 const compilations = [
-	'extensions/authentication-proxy/tsconfig.json',
-	'extensions/configuration-editing/build/tsconfig.json',
-	'extensions/configuration-editing/tsconfig.json',
-	'extensions/css-language-features/client/tsconfig.json',
-	'extensions/css-language-features/server/tsconfig.json',
-	'extensions/debug-auto-launch/tsconfig.json',
-	'extensions/debug-server-ready/tsconfig.json',
-	'extensions/emmet/tsconfig.json',
-	'extensions/extension-editing/tsconfig.json',
-	'extensions/git/tsconfig.json',
-	'extensions/git-base/tsconfig.json',
-	'extensions/github-authentication/tsconfig.json',
-	'extensions/github/tsconfig.json',
-	'extensions/grunt/tsconfig.json',
-	'extensions/gulp/tsconfig.json',
-	'extensions/html-language-features/client/tsconfig.json',
-	'extensions/html-language-features/server/tsconfig.json',
-	'extensions/ipynb/tsconfig.json',
-	'extensions/jake/tsconfig.json',
-	'extensions/json-language-features/client/tsconfig.json',
-	'extensions/json-language-features/server/tsconfig.json',
-	'extensions/markdown-language-features/preview-src/tsconfig.json',
-	'extensions/markdown-language-features/server/tsconfig.json',
-	'extensions/markdown-language-features/tsconfig.json',
-	'extensions/markdown-math/tsconfig.json',
-	'extensions/media-preview/tsconfig.json',
-	'extensions/merge-conflict/tsconfig.json',
-	'extensions/microsoft-authentication/tsconfig.json',
-	'extensions/notebook-renderers/tsconfig.json',
-	'extensions/npm/tsconfig.json',
-	'extensions/php-language-features/tsconfig.json',
-	'extensions/search-result/tsconfig.json',
-	'extensions/references-view/tsconfig.json',
-	'extensions/simple-browser/tsconfig.json',
-	'extensions/tunnel-forwarding/tsconfig.json',
-	'extensions/typescript-language-features/test-workspace/tsconfig.json',
-	'extensions/typescript-language-features/web/tsconfig.json',
-	'extensions/typescript-language-features/tsconfig.json',
-	'extensions/vscode-api-tests/tsconfig.json',
-	'extensions/vscode-colorize-tests/tsconfig.json',
-	'extensions/vscode-test-resolver/tsconfig.json'
+	['extensions', 'authentication-proxy/tsconfig.json'],
+	['extensions', 'configuration-editing/build/tsconfig.json'],
+	['extensions', 'configuration-editing/tsconfig.json'],
+	['extensions', 'css-language-features/client/tsconfig.json'],
+	['extensions', 'css-language-features/server/tsconfig.json'],
+	['extensions', 'debug-auto-launch/tsconfig.json'],
+	['extensions', 'debug-server-ready/tsconfig.json'],
+	['extensions', 'emmet/tsconfig.json'],
+	['extensions', 'extension-editing/tsconfig.json'],
+	['extensions', 'git/tsconfig.json'],
+	['extensions', 'git-base/tsconfig.json'],
+	['extensions', 'github-authentication/tsconfig.json'],
+	['extensions', 'github/tsconfig.json'],
+	['extensions', 'grunt/tsconfig.json'],
+	['extensions', 'gulp/tsconfig.json'],
+	['extensions', 'html-language-features/client/tsconfig.json'],
+	['extensions', 'html-language-features/server/tsconfig.json'],
+	['extensions', 'ipynb/tsconfig.json'],
+	['extensions', 'jake/tsconfig.json'],
+	['extensions', 'json-language-features/client/tsconfig.json'],
+	['extensions', 'json-language-features/server/tsconfig.json'],
+	['extensions', 'markdown-language-features/preview-src/tsconfig.json'],
+	['extensions', 'markdown-language-features/server/tsconfig.json'],
+	['extensions', 'markdown-language-features/tsconfig.json'],
+	['extensions', 'markdown-math/tsconfig.json'],
+	['extensions', 'media-preview/tsconfig.json'],
+	['extensions', 'merge-conflict/tsconfig.json'],
+	['extensions', 'microsoft-authentication/tsconfig.json'],
+	['extensions', 'notebook-renderers/tsconfig.json'],
+	['extensions', 'npm/tsconfig.json'],
+	['extensions', 'php-language-features/tsconfig.json'],
+	['extensions', 'search-result/tsconfig.json'],
+	['extensions', 'references-view/tsconfig.json'],
+	['extensions', 'simple-browser/tsconfig.json'],
+	['extensions', 'tunnel-forwarding/tsconfig.json'],
+	['extensions', 'typescript-language-features/test-workspace/tsconfig.json'],
+	['extensions', 'typescript-language-features/web/tsconfig.json'],
+	['extensions', 'typescript-language-features/tsconfig.json'],
+	['extensions', 'vscode-api-tests/tsconfig.json'],
+	['extensions', 'vscode-colorize-tests/tsconfig.json'],
+	['extensions', 'vscode-test-resolver/tsconfig.json'],
 ];
 
 const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;
 
-const tasks = compilations.map(function (tsconfigFile) {
-	const absolutePath = path.join(root, tsconfigFile);
+const tasks = compilations.map(function ([extensionsDir, tsconfigFile]) {
+	const absolutePath = path.join(root, extensionsDir, tsconfigFile);
+	const relativeDirname = path.dirname(tsconfigFile);
 
 	const overrideOptions = {};
 	overrideOptions.sourceMap = true;
 
-	const srcRoot = path.dirname(absolutePath);
+	const name = relativeDirname.replace(/\//g, '-');
+
+	const srcRoot = path.join(extensionsDir, relativeDirname);
 	const srcBase = path.join(srcRoot, 'src');
 	const src = path.join(srcBase, '**');
-	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase, dot: true };
+	const srcOpts = { cwd: root, base: srcBase, dot: true };
 
 	const out = path.join(srcRoot, 'out');
 	const baseUrl = getBaseUrl(out);
 
-	const relativeDirname = path.dirname(tsconfigFile.substring(tsconfigFile.indexOf('extensions/') + 11));
-	const name = relativeDirname.replace(/\//g, '-');
 	let headerId, headerOut;
 	const index = relativeDirname.indexOf('/');
 	if (index < 0) {
