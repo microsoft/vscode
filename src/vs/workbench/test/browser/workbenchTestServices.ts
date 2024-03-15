@@ -2104,6 +2104,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
 	onDidChangeProfile = Event.None;
+	onDidEnableExtensions = Event.None;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
@@ -2153,8 +2154,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
 	getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]> { throw new Error('Method not implemented.'); }
 	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
-	getAllExtensions(location: URI): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
-	getExtension(location: URI): Promise<IResourceExtension | null> { throw new Error('Method not implemented.'); }
+	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {
