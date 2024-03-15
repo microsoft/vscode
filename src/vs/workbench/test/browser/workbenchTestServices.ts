@@ -852,7 +852,6 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 
-	readonly activePart = this;
 	readonly mainPart = this;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
@@ -1774,7 +1773,6 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly activePart = this;
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
 
