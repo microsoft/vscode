@@ -40,7 +40,7 @@ export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
 	stableUrl: string;
-	canSwitch: boolean;
+	canSwitch?: boolean;
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
 };
 
@@ -113,7 +113,7 @@ export interface IProductConfiguration {
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
-	readonly trustedExtensionAuthAccess?: readonly string[];
+	readonly trustedExtensionAuthAccess?: string[] | IStringDictionary<string[]>;
 	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
 	readonly commandPaletteSuggestedCommandIds?: string[];
@@ -189,6 +189,7 @@ export interface IProductConfiguration {
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 	readonly gitHubEntitlement?: IGitHubEntitlement;
+	readonly chatWelcomeView?: IChatWelcomeView;
 }
 
 export interface ITunnelApplicationConfig {
@@ -203,7 +204,7 @@ export interface IExtensionRecommendations {
 }
 
 export interface ISettingsEditorOpenCondition {
-	readonly prerelease: boolean | string;
+	readonly prerelease?: boolean | string;
 }
 
 export interface IExtensionRecommendationCondition {
@@ -226,8 +227,11 @@ export type IFileContentCondition = (IFileLanguageCondition | IFilePathCondition
 
 export interface IAppCenterConfiguration {
 	readonly 'win32-x64': string;
+	readonly 'win32-arm64': string;
 	readonly 'linux-x64': string;
 	readonly 'darwin': string;
+	readonly 'darwin-universal': string;
+	readonly 'darwin-arm64': string;
 }
 
 export interface IConfigBasedExtensionTip {
@@ -298,4 +302,10 @@ export interface IGitHubEntitlement {
 	enablementKey: string;
 	confirmationMessage: string;
 	confirmationAction: string;
+}
+
+export interface IChatWelcomeView {
+	welcomeViewId: string;
+	welcomeViewTitle: string;
+	welcomeViewContent: string;
 }

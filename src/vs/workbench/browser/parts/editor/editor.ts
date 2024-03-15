@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -17,7 +17,7 @@ import { isObject } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerifier, verifyObject } from 'vs/base/common/verifier';
-import product from 'vs/platform/product/common/product';
+import { IAuxiliaryWindowOpenOptions } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -50,7 +50,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	labelFormat: 'default',
 	splitSizing: 'auto',
 	splitOnDragAndDrop: true,
-	dragToOpenWindow: product.quality !== 'stable',
+	dragToOpenWindow: true,
 	centeredLayoutFixedWidth: false,
 	doubleClickTabToToggleEditorGroupSizes: 'expand',
 	editorActionsLocation: 'default',
@@ -174,16 +174,17 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
  */
 export interface IEditorPartsView {
 
-	/**
-	 * An array of all editor groups across all editor parts.
-	 */
-	readonly groups: IEditorGroupView[];
+	readonly mainPart: IEditorGroupsView;
+	registerPart(part: IEditorPart): IDisposable;
 
-	/**
-	 * Get the group based on an identifier across all opened
-	 * editor parts.
-	 */
+	readonly activeGroup: IEditorGroupView;
+	readonly groups: IEditorGroupView[];
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
+	getGroups(order?: GroupsOrder): IEditorGroupView[];
+
+	readonly count: number;
+
+	createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart>;
 }
 
 /**
@@ -191,7 +192,7 @@ export interface IEditorPartsView {
  */
 export interface IEditorGroupsView {
 
-	readonly isAuxiliary: boolean;
+	readonly windowId: number;
 
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
@@ -243,7 +244,9 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly onDidFocus: Event<void>;
 
+	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
 	readonly onDidOpenEditorFail: Event<EditorInput>;
+
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	readonly groupsView: IEditorGroupsView;
@@ -346,10 +349,15 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	readonly context?: EditorCloseContext;
 }
 
-export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
+export interface IInternalEditorMoveCopyOpenOptions extends IInternalEditorOpenOptions {
 
 	/**
 	 * Whether to close the editor at the source or keep it.
 	 */
 	readonly keepCopy?: boolean;
+
+	/**
+	 * The source group an editor is moved or copied from.
+	 */
+	readonly sourceGroup?: IEditorGroupView;
 }

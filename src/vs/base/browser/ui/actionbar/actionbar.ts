@@ -6,7 +6,8 @@
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -46,7 +47,6 @@ export interface IActionBarOptions {
 	readonly actionRunner?: IActionRunner;
 	readonly ariaLabel?: string;
 	readonly ariaRole?: string;
-	readonly animated?: boolean;
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
@@ -67,6 +67,7 @@ export interface IActionOptions extends IActionViewItemOptions {
 export class ActionBar extends Disposable implements IActionRunner {
 
 	private readonly options: IActionBarOptions;
+	private readonly _hoverDelegate: IHoverDelegate;
 
 	private _actionRunner: IActionRunner;
 	private readonly _actionRunnerDisposables = this._register(new DisposableStore());
@@ -117,6 +118,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 			keys: this.options.triggerKeys?.keys ?? [KeyCode.Enter, KeyCode.Space]
 		};
 
+		this._hoverDelegate = options.hoverDelegate ?? this._register(createInstantHoverDelegate());
+
 		if (this.options.actionRunner) {
 			this._actionRunner = this.options.actionRunner;
 		} else {
@@ -132,10 +135,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-action-bar';
-
-		if (options.animated !== false) {
-			this.domNode.classList.add('animated');
-		}
 
 		let previousKeys: KeyCode[];
 		let nextKeys: KeyCode[];
@@ -201,7 +200,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			}
 
 			// Recompute focused item
-			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
+			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab) || event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow) || event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow)) {
 				this.updateFocusedItem();
 			}
 		}));
@@ -235,7 +234,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	private refreshRole(): void {
-		if (this.length() >= 2) {
+		if (this.length() >= 1) {
 			this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
 		} else {
 			this.actionsList.setAttribute('role', 'presentation');
@@ -358,7 +357,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			let item: IActionViewItem | undefined;
 
-			const viewItemOptions = { hoverDelegate: this.options.hoverDelegate, ...options };
+			const viewItemOptions = { hoverDelegate: this._hoverDelegate, ...options };
 			if (this.options.actionViewItemProvider) {
 				item = this.options.actionViewItemProvider(action, viewItemOptions);
 			}
@@ -561,15 +560,15 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (actionViewItem.action.id === Separator.ID) {
 				focusItem = false;
 			}
-			if (focusItem) {
-				actionViewItem.showHover?.();
-			}
 			if (!focusItem) {
 				this.actionsList.focus({ preventScroll });
 				this.previouslyFocusedItem = undefined;
 			} else if (forceFocus || this.previouslyFocusedItem !== this.focusedItem) {
 				actionViewItem.focus(fromRight);
 				this.previouslyFocusedItem = this.focusedItem;
+			}
+			if (focusItem) {
+				actionViewItem.showHover?.();
 			}
 		}
 	}

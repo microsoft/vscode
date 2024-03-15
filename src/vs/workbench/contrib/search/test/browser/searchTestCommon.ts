@@ -57,12 +57,14 @@ export function stubModelService(instantiationService: TestInstantiationService,
 export function stubNotebookEditorService(instantiationService: TestInstantiationService, addDisposable: (e: IDisposable) => void): INotebookEditorService {
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
-	instantiationService.stub(IEditorService, new TestEditorService());
+	const es = new TestEditorService();
+	addDisposable(es);
+	instantiationService.stub(IEditorService, es);
 	const notebookEditorWidgetService = instantiationService.createInstance(NotebookEditorWidgetService);
 	addDisposable(notebookEditorWidgetService);
 	return notebookEditorWidgetService;
 }
 
 export function addToSearchResult(searchResult: SearchResult, allRaw: IFileMatch[], searchInstanceID = '') {
-	searchResult.add(allRaw, searchInstanceID);
+	searchResult.add(allRaw, searchInstanceID, false);
 }

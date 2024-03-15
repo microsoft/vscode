@@ -16,6 +16,10 @@ export class LineRange {
 		return new LineRange(range.startLineNumber, range.endLineNumber);
 	}
 
+	public static fromRangeInclusive(range: Range): LineRange {
+		return new LineRange(range.startLineNumber, range.endLineNumber + 1);
+	}
+
 	public static subtract(a: LineRange, b: LineRange | undefined): LineRange[] {
 		if (!b) {
 			return [a];
@@ -46,6 +50,19 @@ export class LineRange {
 			result = result.getUnion(new LineRangeSet(lineRanges[i].slice()));
 		}
 		return result.ranges;
+	}
+
+	public static join(lineRanges: LineRange[]): LineRange {
+		if (lineRanges.length === 0) {
+			throw new BugIndicatingError('lineRanges cannot be empty');
+		}
+		let startLineNumber = lineRanges[0].startLineNumber;
+		let endLineNumberExclusive = lineRanges[0].endLineNumberExclusive;
+		for (let i = 1; i < lineRanges.length; i++) {
+			startLineNumber = Math.min(startLineNumber, lineRanges[i].startLineNumber);
+			endLineNumberExclusive = Math.max(endLineNumberExclusive, lineRanges[i].endLineNumberExclusive);
+		}
+		return new LineRange(startLineNumber, endLineNumberExclusive);
 	}
 
 	public static ofLength(startLineNumber: number, length: number): LineRange {

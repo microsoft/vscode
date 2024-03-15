@@ -45,6 +45,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
 import { WindowIdleValue, getWindow } from 'vs/base/browser/dom';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -53,7 +54,12 @@ const _sticky = false
 
 class LineSuffix {
 
-	private readonly _marker: string[] | undefined;
+	private readonly _decorationOptions = ModelDecorationOptions.register({
+		description: 'suggest-line-suffix',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	});
+
+	private _marker: string | undefined;
 
 	constructor(private readonly _model: ITextModel, private readonly _position: IPosition) {
 		// spy on what's happening right of the cursor. two cases:
@@ -63,16 +69,21 @@ class LineSuffix {
 		if (maxColumn !== _position.column) {
 			const offset = _model.getOffsetAt(_position);
 			const end = _model.getPositionAt(offset + 1);
-			this._marker = _model.deltaDecorations([], [{
-				range: Range.fromPositions(_position, end),
-				options: { description: 'suggest-line-suffix', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
-			}]);
+			_model.changeDecorations(accessor => {
+				if (this._marker) {
+					accessor.removeDecoration(this._marker);
+				}
+				this._marker = accessor.addDecoration(Range.fromPositions(_position, end), this._decorationOptions);
+			});
 		}
 	}
 
 	dispose(): void {
 		if (this._marker && !this._model.isDisposed()) {
-			this._model.deltaDecorations(this._marker, []);
+			this._model.changeDecorations(accessor => {
+				accessor.removeDecoration(this._marker!);
+				this._marker = undefined;
+			});
 		}
 	}
 
@@ -84,7 +95,7 @@ class LineSuffix {
 		// read the marker (in case suggest was triggered at line end) or compare
 		// the cursor to the line end.
 		if (this._marker) {
-			const range = this._model.getDecorationRange(this._marker[0]);
+			const range = this._model.getDecorationRange(this._marker);
 			const end = this._model.getOffsetAt(range!.getStartPosition());
 			return end - this._model.getOffsetAt(position);
 		} else {
@@ -246,7 +257,12 @@ export class SuggestController implements IEditorContribution {
 			if (index === -1) {
 				index = 0;
 			}
-
+			if (this.model.state === State.Idle) {
+				// selecting an item can "pump" out selection/cursor change events
+				// which can cancel suggest halfway through this function. therefore
+				// we need to check again and bail if the session has been canceled
+				return;
+			}
 			let noFocus = false;
 			if (e.triggerOptions.auto) {
 				// don't "focus" item when configured to do
@@ -353,7 +369,17 @@ export class SuggestController implements IEditorContribution {
 			const scrollState = StableEditorScrollState.capture(this.editor);
 			this.editor.executeEdits(
 				'suggestController.additionalTextEdits.sync',
-				item.completion.additionalTextEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text))
+				item.completion.additionalTextEdits.map(edit => {
+					let range = Range.lift(edit.range);
+					if (range.startLineNumber === item.position.lineNumber && range.startColumn > item.position.column) {
+						// shift additional edit when it is "after" the completion insertion position
+						const columnDelta = this.editor.getPosition()!.column - item.position.column;
+						const startColumnDelta = columnDelta;
+						const endColumnDelta = Range.spansMultipleLines(range) ? 0 : columnDelta;
+						range = new Range(range.startLineNumber, range.startColumn + startColumnDelta, range.endLineNumber, range.endColumn + endColumnDelta);
+					}
+					return EditOperation.replaceMove(range, edit.text);
+				})
 			);
 			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 

@@ -39,7 +39,7 @@ import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidget';
+import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidget';
 
 /**
  * Create a new editor under `domElement`.
@@ -102,7 +102,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneD
 
 export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices) {
 	const instantiationService = StandaloneServices.initialize(override || {});
-	return new MultiDiffEditorWidget(domElement, instantiationService);
+	return new MultiDiffEditorWidget(domElement, {}, instantiationService);
 }
 
 /**
@@ -564,6 +564,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		InjectedTextCursorStops: standaloneEnums.InjectedTextCursorStops,
 		PositionAffinity: standaloneEnums.PositionAffinity,
+		ShowLightbulbIconMode: standaloneEnums.ShowLightbulbIconMode,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,

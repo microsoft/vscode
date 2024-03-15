@@ -66,7 +66,7 @@ interface IProcessRowTemplateData {
 	readonly name: HTMLElement;
 }
 
-class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError>  {
+class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
 	hasChildren(element: ProcessTree | ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError): boolean {
 		if (isRemoteDiagnosticError(element)) {
 			return false;
@@ -245,7 +245,7 @@ class ProcessExplorer {
 		this.setEventHandlers(data);
 
 		ipcRenderer.on('vscode:pidToNameResponse', (event: unknown, pidToNames: [number, string][]) => {
-			this.mapPidToName = new Map<number, string>();
+			this.mapPidToName.clear();
 
 			for (const [pid, name] of pidToNames) {
 				this.mapPidToName.set(pid, name);
@@ -288,12 +288,12 @@ class ProcessExplorer {
 
 			// Cmd/Ctrl + zooms in
 			if (cmdOrCtrlKey && e.keyCode === 187) {
-				zoomIn();
+				zoomIn(mainWindow);
 			}
 
 			// Cmd/Ctrl - zooms out
 			if (cmdOrCtrlKey && e.keyCode === 189) {
-				zoomOut();
+				zoomOut(mainWindow);
 			}
 		};
 	}
@@ -595,7 +595,7 @@ export function startup(configuration: ProcessExplorerWindowConfiguration): void
 	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
 	mainWindow.document.body.classList.add(platformClass); // used by our fonts
 	createCodiconStyleSheet();
-	applyZoom(configuration.data.zoomLevel);
+	applyZoom(configuration.data.zoomLevel, mainWindow);
 
 	new ProcessExplorer(configuration.windowId, configuration.data);
 }

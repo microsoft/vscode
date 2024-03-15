@@ -31,6 +31,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { generateUuid } from 'vs/base/common/uuid';
 
 interface CommandHandler {
 	callback: Function;
@@ -342,7 +343,7 @@ export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostComma
 
 export class CommandsConverter implements extHostTypeConverter.Command.ICommandsConverter {
 
-	readonly delegatingCommandId: string = `__vsc${Date.now().toString(36)} `;
+	readonly delegatingCommandId: string = `__vsc${generateUuid()}`;
 	private readonly _cache = new Map<string, vscode.Command>();
 	private _cachIdPool = 0;
 

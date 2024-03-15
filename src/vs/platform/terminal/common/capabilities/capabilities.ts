@@ -242,6 +242,7 @@ interface IBaseTerminalCommand {
 	command: string;
 	isTrusted: boolean;
 	timestamp: number;
+	duration: number;
 
 	// Optional serializable
 	cwd: string | undefined;
@@ -254,12 +255,12 @@ interface IBaseTerminalCommand {
 
 export interface ITerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable
-	promptStartMarker?: IMarker;
-	marker?: IXtermMarker;
+	readonly promptStartMarker?: IMarker;
+	readonly marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
-	executedMarker?: IXtermMarker;
-	aliases?: string[][];
-	wasReplayed?: boolean;
+	readonly executedMarker?: IXtermMarker;
+	readonly aliases?: string[][];
+	readonly wasReplayed?: boolean;
 
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;

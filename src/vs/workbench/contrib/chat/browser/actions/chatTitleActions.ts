@@ -8,14 +8,14 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { marked } from 'vs/base/common/marked/marked';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -28,10 +28,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.markHelpful',
-				title: {
-					value: localize('interactive.helpful.label', "Helpful"),
-					original: 'Helpful'
-				},
+				title: localize2('interactive.helpful.label', "Helpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
@@ -57,6 +54,7 @@ export function registerChatTitleActions() {
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Up,
@@ -70,10 +68,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.markUnhelpful',
-				title: {
-					value: localize('interactive.unhelpful.label', "Unhelpful"),
-					original: 'Unhelpful'
-				},
+				title: localize2('interactive.unhelpful.label', "Unhelpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
@@ -99,6 +94,7 @@ export function registerChatTitleActions() {
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Down,
@@ -108,14 +104,48 @@ export function registerChatTitleActions() {
 		}
 	});
 
+	registerAction2(class ReportIssueForBugAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.reportIssueForBug',
+				title: localize2('interactive.reportIssueForBug.label', "Report Issue"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.report,
+				menu: {
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE)
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			const item = args[0];
+			if (!isResponseVM(item)) {
+				return;
+			}
+
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction({
+				providerId: item.providerId,
+				agentId: item.agent?.id,
+				sessionId: item.sessionId,
+				requestId: item.requestId,
+				result: item.result,
+				action: {
+					kind: 'bug'
+				}
+			});
+		}
+	});
+
 	registerAction2(class InsertToNotebookAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNotebook',
-				title: {
-					value: localize('interactive.insertIntoNotebook.label', "Insert into Notebook"),
-					original: 'Insert into Notebook'
-				},
+				title: localize2('interactive.insertIntoNotebook.label', "Insert into Notebook"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -188,10 +218,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.remove',
-				title: {
-					value: localize('chat.remove.label', "Remove Request and Response"),
-					original: 'Remove Request and Response'
-				},
+				title: localize2('chat.remove.label', "Remove Request and Response"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,

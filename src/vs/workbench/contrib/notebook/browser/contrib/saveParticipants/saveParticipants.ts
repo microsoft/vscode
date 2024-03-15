@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -22,6 +22,7 @@ import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/edito
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -36,7 +37,7 @@ import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/comm
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { IStoredFileWorkingCopySaveParticipant, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -47,7 +48,7 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
-	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
 			return;
 		}
@@ -108,7 +109,7 @@ class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 	) { }
 
-	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		const trimTrailingWhitespaceOption = this.configurationService.getValue<boolean>('files.trimTrailingWhitespace');
 		const trimInRegexAndStrings = this.configurationService.getValue<boolean>('files.trimTrailingWhitespaceInRegexAndStrings');
 		if (trimTrailingWhitespaceOption) {
@@ -177,7 +178,7 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 	) { }
 
-	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		if (this.configurationService.getValue<boolean>('files.trimFinalNewlines')) {
 			await this.doTrimFinalNewLines(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
@@ -226,8 +227,11 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 				const textBuffer = cell.textBuffer;
 				const lastNonEmptyLine = this.findLastNonEmptyLine(textBuffer);
 				const deleteFromLineNumber = Math.max(lastNonEmptyLine + 1, cannotTouchLineNumber + 1);
-				const deletionRange = new Range(deleteFromLineNumber, 1, textBuffer.getLineCount(), textBuffer.getLineLastNonWhitespaceColumn(textBuffer.getLineCount()));
+				if (deleteFromLineNumber > textBuffer.getLineCount()) {
+					return;
+				}
 
+				const deletionRange = new Range(deleteFromLineNumber, 1, textBuffer.getLineCount(), textBuffer.getLineLastNonWhitespaceColumn(textBuffer.getLineCount()));
 				if (deletionRange.isEmpty()) {
 					return;
 				}
@@ -246,7 +250,7 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 	}
 }
 
-class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
+class InsertFinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -254,7 +258,7 @@ class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
-	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		// waiting on notebook-specific override before this feature can sync with 'files.insertFinalNewline'
 		// if (this.configurationService.getValue('files.insertFinalNewline')) {
 
@@ -319,7 +323,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 	) {
 	}
 
-	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		const nbDisposable = new DisposableStore();
 		const isTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		if (!isTrusted) {
@@ -421,8 +425,8 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		}
 	}
 
-	private createCodeActionsOnSave(settingItems: readonly string[]): CodeActionKind[] {
-		const kinds = settingItems.map(x => new CodeActionKind(x));
+	private createCodeActionsOnSave(settingItems: readonly string[]): HierarchicalKind[] {
+		const kinds = settingItems.map(x => new HierarchicalKind(x));
 
 		// Remove subsets
 		return kinds.filter(kind => {
@@ -430,7 +434,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		});
 	}
 
-	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly HierarchicalKind[], excludes: readonly HierarchicalKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		const getActionProgress = new class implements IProgress<CodeActionProvider> {
 			private _names = new Set<string>();
@@ -493,7 +497,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		}
 	}
 
-	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
+	private getActionsToRun(model: ITextModel, codeActionKind: HierarchicalKind, excludes: readonly HierarchicalKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
 		return getCodeActions(this.languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Invoke,
 			triggerAction: CodeActionTriggerSource.OnSave,
@@ -522,7 +526,7 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimWhitespaceParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(CodeActionOnSaveParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FormatOnSaveParticipant)));
-		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FinalNewLineParticipant)));
+		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(InsertFinalNewLineParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimFinalNewLinesParticipant)));
 	}
 }

@@ -5,9 +5,10 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixExecuteTerminalCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixTerminalCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 export const GitCommandLineRegex = /git/;
+export const GitPullOutputRegex = /and can be fast-forwarded/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
 export const GitSimilarOutputRegex = /(?:(most similar commands? (is|are)))/;
@@ -50,12 +51,36 @@ export function gitSimilar(): ITerminalQuickFixInternalOptions {
 						id: 'Git Similar',
 						type: TerminalQuickFixType.TerminalCommand,
 						terminalCommand: matchResult.commandLine.replace(/git\s+[^\s]+/, () => `git ${fixedCommand}`),
-						addNewLine: true,
+						shouldExecute: true,
 						source: QuickFixSource.Builtin
 					});
 				}
 			}
 			return actions;
+		}
+	};
+}
+
+export function gitPull(): ITerminalQuickFixInternalOptions {
+	return {
+		id: 'Git Pull',
+		type: 'internal',
+		commandLineMatcher: GitCommandLineRegex,
+		outputMatcher: {
+			lineMatcher: GitPullOutputRegex,
+			anchor: 'bottom',
+			offset: 0,
+			length: 8
+		},
+		commandExitResult: 'success',
+		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
+			return {
+				type: TerminalQuickFixType.TerminalCommand,
+				id: 'Git Pull',
+				terminalCommand: `git pull`,
+				shouldExecute: true,
+				source: QuickFixSource.Builtin
+			};
 		}
 	};
 }
@@ -81,7 +106,7 @@ export function gitTwoDashes(): ITerminalQuickFixInternalOptions {
 				type: TerminalQuickFixType.TerminalCommand,
 				id: 'Git Two Dashes',
 				terminalCommand: matchResult.commandLine.replace(` -${problemArg}`, () => ` --${problemArg}`),
-				addNewLine: true,
+				shouldExecute: true,
 				source: QuickFixSource.Builtin
 			};
 		}
@@ -175,7 +200,7 @@ export function gitPushSetUpstream(): ITerminalQuickFixInternalOptions {
 					type: TerminalQuickFixType.TerminalCommand,
 					id: 'Git Push Set Upstream',
 					terminalCommand: fixedCommand,
-					addNewLine: true,
+					shouldExecute: true,
 					source: QuickFixSource.Builtin
 				});
 				return actions;
@@ -265,7 +290,7 @@ export function pwshGeneralError(): ITerminalQuickFixInternalOptions {
 			if (!suggestions) {
 				return;
 			}
-			const result: ITerminalQuickFixExecuteTerminalCommandAction[] = [];
+			const result: ITerminalQuickFixTerminalCommandAction[] = [];
 			for (const suggestion of suggestions) {
 				result.push({
 					id: 'Pwsh General Error',
@@ -311,7 +336,7 @@ export function pwshUnixCommandNotFoundError(): ITerminalQuickFixInternalOptions
 			}
 
 			// Always remove the first element as it's the "Suggestion [cmd-not-found]"" line
-			const result: ITerminalQuickFixExecuteTerminalCommandAction[] = [];
+			const result: ITerminalQuickFixTerminalCommandAction[] = [];
 			let inSuggestions = false;
 			for (; i < lines.length; i++) {
 				const line = lines[i].trim();

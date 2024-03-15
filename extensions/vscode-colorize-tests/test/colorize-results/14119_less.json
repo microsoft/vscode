@@ -45,28 +45,28 @@
 		"c": "@",
 		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
 		"r": {
-			"dark_plus": "source.css.less variable.other: #9CDCFE",
-			"light_plus": "source.css.less variable.other: #E50000",
-			"dark_vs": "source.css.less variable.other: #9CDCFE",
-			"light_vs": "source.css.less variable.other: #E50000",
-			"hc_black": "source.css.less variable.other: #D4D4D4",
-			"dark_modern": "source.css.less variable.other: #9CDCFE",
-			"hc_light": "source.css.less variable.other: #264F78",
-			"light_modern": "source.css.less variable.other: #E50000"
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
 		}
 	},
 	{
 		"c": "hm",
 		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
 		"r": {
-			"dark_plus": "source.css.less variable.other: #9CDCFE",
-			"light_plus": "source.css.less variable.other: #E50000",
-			"dark_vs": "source.css.less variable.other: #9CDCFE",
-			"light_vs": "source.css.less variable.other: #E50000",
-			"hc_black": "source.css.less variable.other: #D4D4D4",
-			"dark_modern": "source.css.less variable.other: #9CDCFE",
-			"hc_light": "source.css.less variable.other: #264F78",
-			"light_modern": "source.css.less variable.other: #E50000"
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
 		}
 	},
 	{

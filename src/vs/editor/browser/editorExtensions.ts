@@ -181,7 +181,7 @@ export abstract class Command {
 /**
  * Potential override for a command.
  *
- * @return `true` if the command was successfully run. This stops other overrides from being executed.
+ * @return `true` or a Promise if the command was successfully run. This stops other overrides from being executed.
  */
 export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
 
@@ -466,7 +466,7 @@ export abstract class EditorAction2 extends Action2 {
 				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
 				return;
 			}
-			return this.runEditorCommand(editorAccessor, editor!, ...args);
+			return this.runEditorCommand(editorAccessor, editor, ...args);
 		});
 	}
 

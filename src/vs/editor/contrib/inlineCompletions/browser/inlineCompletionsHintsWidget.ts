@@ -40,7 +40,7 @@ export class InlineCompletionsHintsWidget extends Disposable {
 	private sessionPosition: Position | undefined = undefined;
 
 	private readonly position = derived(this, reader => {
-		const ghostText = this.model.read(reader)?.ghostText.read(reader);
+		const ghostText = this.model.read(reader)?.primaryGhostText.read(reader);
 
 		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
 			this.sessionPosition = undefined;
@@ -287,6 +287,10 @@ class ActionViewItemWithClassName extends ActionViewItem {
 			container.classList.add(this._className);
 		}
 	}
+
+	protected override updateTooltip(): void {
+		// NOOP, disable tooltip
+	}
 }
 
 class StatusBarViewItem extends MenuEntryActionViewItem {
@@ -298,12 +302,16 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 		if (this.label) {
 			const div = h('div.keybinding').root;
 
-			const k = new KeybindingLabel(div, OS, { disableTitle: true, ...unthemedKeybindingLabelOptions });
+			const k = this._register(new KeybindingLabel(div, OS, { disableTitle: true, ...unthemedKeybindingLabelOptions }));
 			k.set(kb);
 			this.label.textContent = this._action.label;
 			this.label.appendChild(div);
 			this.label.classList.add('inlineSuggestionStatusBarItemLabel');
 		}
+	}
+
+	protected override updateTooltip(): void {
+		// NOOP, disable tooltip
 	}
 }
 

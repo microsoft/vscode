@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
+import { WindowIdleValue } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
+import { Schemas, matchesScheme } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOpenerService, matchesScheme, OpenOptions } from 'vs/platform/opener/common/opener';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { configureOpenerTrustedDomainsHandler, readAuthenticationTrustedDomains, readStaticTrustedDomains, readWorkspaceTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { mainWindow } from 'vs/base/browser/window';
-import { WindowIdleValue } from 'vs/base/browser/dom';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 

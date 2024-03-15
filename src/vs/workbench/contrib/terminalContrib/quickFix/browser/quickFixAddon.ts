@@ -20,7 +20,7 @@ import type { IDecoration, Terminal } from '@xterm/xterm';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
@@ -28,7 +28,7 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixExecuteTerminalCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType, ITerminalQuickFixCommandAction } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixTerminalCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType, ITerminalQuickFixCommandAction } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
 import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
@@ -45,7 +45,7 @@ const quickFixClasses = [
 
 export interface ITerminalQuickFixAddon {
 	showMenu(): void;
-	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
+	onDidRequestRerunCommand: Event<{ command: string; shouldExecute?: boolean }>;
 	/**
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression and provides a callback to be executed for commands that match.
@@ -54,7 +54,7 @@ export interface ITerminalQuickFixAddon {
 }
 
 export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon, ITerminalQuickFixAddon {
-	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; addNewLine?: boolean }>();
+	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; shouldExecute?: boolean }>();
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
 
 	private _terminal: Terminal | undefined;
@@ -77,7 +77,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@ITerminalQuickFixService private readonly _quickFixService: ITerminalQuickFixService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -122,6 +122,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			documentation,
 			allActions: actions,
 			hasAutoFix: false,
+			hasAIFix: false,
+			allAIFixes: false,
 			validActions: actions,
 			dispose: () => { }
 		} as ActionSet<TerminalQuickFixItem>;
@@ -185,14 +187,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		if (command.command !== '' && this._lastQuickFixId) {
 			this._disposeQuickFix(this._lastQuickFixId, false);
-		}
-
-
-		// Wait for the next command to start to ensure the quick fix marker is created on the next
-		// prompt line
-		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
-		if (commandDetection) {
-			await Event.toPromise(commandDetection.onCommandStarted);
 		}
 
 		const resolver = async (selector: ITerminalQuickFixOptions, lines?: string[]) => {
@@ -290,7 +284,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			e.classList.add(...ThemeIcon.asClassNameArray(isExplainOnly ? Codicon.sparkle : Codicon.lightBulb));
 
 			updateLayout(this._configurationService, e);
-			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalQuickFix);
 
 			const parentElement = (e.closest('.xterm') as HTMLElement).parentElement;
 			if (!parentElement) {
@@ -311,6 +305,7 @@ export interface ITerminalAction extends IAction {
 	source: string;
 	uri?: URI;
 	command?: string;
+	shouldExecute?: boolean;
 }
 
 export async function getQuickFixesForCommand(
@@ -321,7 +316,7 @@ export async function getQuickFixesForCommand(
 	commandService: ICommandService,
 	openerService: IOpenerService,
 	labelService: ILabelService,
-	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
+	onDidRequestRerunCommand?: Emitter<{ command: string; shouldExecute?: boolean }>,
 	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ITerminalQuickFix | ITerminalQuickFix[] | undefined>
 ): Promise<ITerminalAction[] | undefined> {
 	// Prevent duplicates by tracking added entries
@@ -366,7 +361,7 @@ export async function getQuickFixesForCommand(
 					if ('type' in quickFix) {
 						switch (quickFix.type) {
 							case TerminalQuickFixType.TerminalCommand: {
-								const fix = quickFix as ITerminalQuickFixExecuteTerminalCommandAction;
+								const fix = quickFix as ITerminalQuickFixTerminalCommandAction;
 								if (commandQuickFixSet.has(fix.terminalCommand)) {
 									continue;
 								}
@@ -383,11 +378,12 @@ export async function getQuickFixesForCommand(
 									run: () => {
 										onDidRequestRerunCommand?.fire({
 											command: fix.terminalCommand,
-											addNewLine: fix.addNewLine ?? true
+											shouldExecute: fix.shouldExecute ?? true
 										});
 									},
 									tooltip: label,
-									command: fix.terminalCommand
+									command: fix.terminalCommand,
+									shouldExecute: fix.shouldExecute
 								};
 								break;
 							}

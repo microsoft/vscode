@@ -53,6 +53,7 @@ use crate::{
 		app_lock::AppMutex,
 		command::new_std_command,
 		errors::{wrap, AnyError, CodeError},
+		machine::canonical_exe,
 		prereqs::PreReqChecker,
 	},
 };
@@ -230,8 +231,7 @@ pub async fn service(
 			// likewise for license consent
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
-			let current_exe =
-				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+			let current_exe = canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 
 			manager
 				.register(
@@ -407,7 +407,8 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
-	let csa = (&args).into();
+	let mut csa = (&args).into();
+	gateway_args.apply_to_server_args(&mut csa);
 	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
 	drop(no_sleep);
 
@@ -533,7 +534,7 @@ async fn serve_with_csa(
 	{
 		vec.push(ShutdownRequest::ParentProcessKilled(p));
 	}
-	let shutdown = ShutdownRequest::create_rx(vec);
+	let mut shutdown = ShutdownRequest::create_rx(vec);
 
 	let server = loop {
 		if shutdown.is_open() {
@@ -576,12 +577,10 @@ async fn serve_with_csa(
 		{
 			dt.start_existing_tunnel(t).await
 		} else {
-			dt.start_new_launcher_tunnel(
-				gateway_args.name.as_deref(),
-				gateway_args.random_name,
-				&[CONTROL_PORT],
-			)
-			.await
+			tokio::select! {
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT]) => t,
+				_ = shutdown.wait() => return Ok(1),
+			}
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));

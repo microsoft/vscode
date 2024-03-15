@@ -93,6 +93,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 			const xtermCtorEventually = TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
 			this._overlay.value = this._instantiationService.createInstance(
 				TerminalStickyScrollOverlay,
+				this._instance,
 				this._xterm!,
 				this._instantiationService.createInstance(TerminalInstanceColorProvider, this._instance),
 				this._instance.capabilities.get(TerminalCapability.CommandDetection)!,

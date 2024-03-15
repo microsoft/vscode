@@ -108,7 +108,7 @@ export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitled
 
 export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
-export type DiffListEditorInputFactoryFunction = (diffEditorInput: IResourceMultiDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
+export type MultiDiffEditorInputFactoryFunction = (multiDiffEditorInput: IResourceMultiDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
 export type MergeEditorInputFactoryFunction = (mergeEditorInput: IResourceMergeEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
@@ -116,7 +116,7 @@ type EditorInputFactories = {
 	createEditorInput?: EditorInputFactoryFunction;
 	createUntitledEditorInput?: UntitledEditorInputFactoryFunction;
 	createDiffEditorInput?: DiffEditorInputFactoryFunction;
-	createMultiDiffEditorInput?: DiffListEditorInputFactoryFunction;
+	createMultiDiffEditorInput?: MultiDiffEditorInputFactoryFunction;
 	createMergeEditorInput?: MergeEditorInputFactoryFunction;
 };
 

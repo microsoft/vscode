@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import { isURLDomainTrusted } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
 import { URI } from 'vs/base/common/uri';
 import { extractGitHubRemotesFromGitConfig } from 'vs/workbench/contrib/url/browser/trustedDomains';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function linkAllowedByRules(link: string, rules: string[]) {
 	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be allowed by rules\n${JSON.stringify(rules)}`);
@@ -17,6 +18,7 @@ function linkNotAllowedByRules(link: string, rules: string[]) {
 }
 
 suite('GitHub remote extraction', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('All known formats', () => {
 		assert.deepStrictEqual(
 			extractGitHubRemotesFromGitConfig(
@@ -39,6 +41,7 @@ suite('GitHub remote extraction', () => {
 });
 
 suite('Link protection domain matching', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('simple', () => {
 		linkNotAllowedByRules('https://x.org', []);
 

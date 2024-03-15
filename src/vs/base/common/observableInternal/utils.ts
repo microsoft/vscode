@@ -6,8 +6,9 @@
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun } from 'vs/base/common/observableInternal/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setRecomputeInitiallyAndOnChange, getDebugName, getFunctionName, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
-import { derived } from 'vs/base/common/observableInternal/derived';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
+import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
+import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 /**
@@ -48,32 +49,6 @@ export function observableFromPromise<T>(promise: Promise<T>): IObservable<{ val
 		observable.set({ value }, undefined);
 	});
 	return observable;
-}
-
-export function waitForState<T, TState extends T>(observable: IObservable<T>, predicate: (state: T) => state is TState): Promise<TState>;
-export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T>;
-export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T> {
-	return new Promise(resolve => {
-		let didRun = false;
-		let shouldDispose = false;
-		const stateObs = observable.map(state => ({ isFinished: predicate(state), state }));
-		const d = autorun(reader => {
-			/** @description waitForState */
-			const { isFinished, state } = stateObs.read(reader);
-			if (isFinished) {
-				if (!didRun) {
-					shouldDispose = true;
-				} else {
-					d.dispose();
-				}
-				resolve(state);
-			}
-		});
-		didRun = true;
-		if (shouldDispose) {
-			d.dispose();
-		}
-	});
 }
 
 export function observableFromEvent<T, TArgs = unknown>(
@@ -249,7 +224,7 @@ export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
 
 class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements IObservableSignal<TChange> {
 	public get debugName() {
-		return getDebugName(this, this._debugName, undefined, this._owner, this) ?? 'Observable Signal';
+		return new DebugNameData(this._owner, this._debugName, undefined).getDebugName(this) ?? 'Observable Signal';
 	}
 
 	constructor(
@@ -278,6 +253,9 @@ class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements
 	}
 }
 
+/**
+ * @deprecated Use `debouncedObservable2` instead.
+ */
 export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
 	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
 
@@ -299,6 +277,48 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 	}));
 
 	return debouncedObservable;
+}
+
+/**
+ * Creates an observable that debounces the input observable.
+ */
+export function debouncedObservable2<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
+	let hasValue = false;
+	let lastValue: T | undefined;
+
+	let timeout: any = undefined;
+
+	return observableFromEvent<T, void>(cb => {
+		const d = autorun(reader => {
+			const value = observable.read(reader);
+
+			if (!hasValue) {
+				hasValue = true;
+				lastValue = value;
+			} else {
+				if (timeout) {
+					clearTimeout(timeout);
+				}
+				timeout = setTimeout(() => {
+					lastValue = value;
+					cb();
+				}, debounceMs);
+			}
+		});
+		return {
+			dispose() {
+				d.dispose();
+				hasValue = false;
+				lastValue = undefined;
+			},
+		};
+	}, () => {
+		if (hasValue) {
+			return lastValue!;
+		} else {
+			return observable.get();
+		}
+	});
 }
 
 export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, disposableStore: DisposableStore): IObservable<boolean> {
@@ -331,6 +351,8 @@ export function keepObserved<T>(observable: IObservable<T>): IDisposable {
 	});
 }
 
+_setKeepObserved(keepObserved);
+
 /**
  * This converts the given observable into an autorun.
  */
@@ -350,7 +372,7 @@ export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>, han
 
 _setRecomputeInitiallyAndOnChange(recomputeInitiallyAndOnChange);
 
-class KeepAliveObserver implements IObserver {
+export class KeepAliveObserver implements IObserver {
 	private _counter = 0;
 
 	constructor(
@@ -405,4 +427,70 @@ export function derivedObservableWithWritableCache<T>(owner: object, computeFn: 
 			counter.set(counter.get() + 1, transaction);
 		},
 	});
+}
+
+/**
+ * When the items array changes, referential equal items are not mapped again.
+ */
+export function mapObservableArrayCached<TIn, TOut, TKey = TIn>(owner: Owner, items: IObservable<readonly TIn[]>, map: (input: TIn, store: DisposableStore) => TOut, keySelector?: (input: TIn) => TKey): IObservable<readonly TOut[]> {
+	let m = new ArrayMap(map, keySelector);
+	const self = derivedOpts({
+		debugReferenceFn: map,
+		owner,
+		onLastObserverRemoved: () => {
+			m.dispose();
+			m = new ArrayMap(map);
+		}
+	}, (reader) => {
+		m.setItems(items.read(reader));
+		return m.getItems();
+	});
+	return self;
+}
+
+class ArrayMap<TIn, TOut, TKey> implements IDisposable {
+	private readonly _cache = new Map<TKey, { out: TOut; store: DisposableStore }>();
+	private _items: TOut[] = [];
+	constructor(
+		private readonly _map: (input: TIn, store: DisposableStore) => TOut,
+		private readonly _keySelector?: (input: TIn) => TKey,
+	) {
+	}
+
+	public dispose(): void {
+		this._cache.forEach(entry => entry.store.dispose());
+		this._cache.clear();
+	}
+
+	public setItems(items: readonly TIn[]): void {
+		const newItems: TOut[] = [];
+		const itemsToRemove = new Set(this._cache.keys());
+
+		for (const item of items) {
+			const key = this._keySelector ? this._keySelector(item) : item as unknown as TKey;
+
+			let entry = this._cache.get(key);
+			if (!entry) {
+				const store = new DisposableStore();
+				const out = this._map(item, store);
+				entry = { out, store };
+				this._cache.set(key, entry);
+			} else {
+				itemsToRemove.delete(key);
+			}
+			newItems.push(entry.out);
+		}
+
+		for (const item of itemsToRemove) {
+			const entry = this._cache.get(item)!;
+			entry.store.dispose();
+			this._cache.delete(item);
+		}
+
+		this._items = newItems;
+	}
+
+	public getItems(): TOut[] {
+		return this._items;
+	}
 }

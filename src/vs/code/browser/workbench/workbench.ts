@@ -17,9 +17,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import product from 'vs/platform/product/common/product';
 import { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
-import type { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
+import type { IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
 import { AuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
-import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 import { create } from 'vs/workbench/workbench.web.main';
 
@@ -222,9 +221,9 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 
 		const authAccount = JSON.stringify({ extensionId: 'vscode.github-authentication', key: 'github.auth' });
 		record[authAccount] = JSON.stringify(authSessionInfo.scopes.map(scopes => ({
-			id: authSessionInfo!.id,
+			id: authSessionInfo.id,
 			scopes,
-			accessToken: authSessionInfo!.accessToken
+			accessToken: authSessionInfo.accessToken
 		})));
 
 		return record;

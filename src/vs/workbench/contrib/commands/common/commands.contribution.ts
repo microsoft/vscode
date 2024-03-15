@@ -22,7 +22,7 @@ class RunCommands extends Action2 {
 	constructor() {
 		super({
 			id: 'runCommands',
-			title: { value: nls.localize('runCommands', "Run Commands"), original: 'Run Commands' },
+			title: nls.localize2('runCommands', "Run Commands"),
 			f1: false,
 			metadata: {
 				description: nls.localize('runCommands.description', "Run several commands"),

@@ -371,7 +371,11 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				clearTimeout(handle);
 
 				const onMessage = new BufferedEmitter<VSBuffer>();
-				port.onmessage = ((e) => onMessage.fire(VSBuffer.wrap(e.data)));
+				port.onmessage = ((e) => {
+					if (e.data) {
+						onMessage.fire(VSBuffer.wrap(e.data));
+					}
+				});
 				port.start();
 
 				resolve({
@@ -496,6 +500,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			telemetryInfo: {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
+				sqmId: this._telemetryService.sqmId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},

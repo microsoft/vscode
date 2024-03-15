@@ -19,6 +19,7 @@ import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 import { UTF16be } from 'vs/workbench/services/textfile/common/encoding';
 import { isWeb } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -428,7 +429,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		// verify that we do not mark the model as saved when undoing once because
 		// we never really had a saved state
-		await model.textEditorModel!.undo();
+		await model.textEditorModel.undo();
 		assert.ok(model.isDirty());
 
 		model.dispose();
@@ -500,7 +501,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.revert({ soft: true });
 		assert.strictEqual(model.isDirty(), false);
 		assert.strictEqual(model.isModified(), false);
-		assert.strictEqual(model.textEditorModel!.getValue(), 'foo');
+		assert.strictEqual(model.textEditorModel.getValue(), 'foo');
 		assert.strictEqual(eventCounter, 1);
 
 		assert.ok(workingCopyEvent);
@@ -514,7 +515,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.updateTextEditorModel(createTextBufferFactory('Hello Text'));
 		assert.ok(model.isDirty());
 
-		await model.textEditorModel!.undo();
+		await model.textEditorModel.undo();
 		assert.ok(!model.isDirty());
 	});
 
@@ -848,6 +849,32 @@ suite('Files - TextFileEditorModel', () => {
 		const savePromise = model.save(force ? { force } : undefined);
 		await savePromise;
 	}
+
+	test('Save Participant carries context', async function () {
+		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
+
+		const from = URI.file('testFrom');
+		let e: Error | undefined = undefined;
+		disposables.add(accessor.textFileService.files.addSaveParticipant({
+			participate: async (wc, context) => {
+				try {
+					assert.strictEqual(context.reason, SaveReason.EXPLICIT);
+					assert.strictEqual(context.savedFrom?.toString(), from.toString());
+				} catch (error) {
+					e = error;
+				}
+			}
+		}));
+
+		await model.resolve();
+		model.updateTextEditorModel(createTextBufferFactory('foo'));
+
+		await model.save({ force: true, from });
+
+		if (e) {
+			throw e;
+		}
+	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -30,7 +30,7 @@ export interface ILocalizeInfo {
 	comment: string[];
 }
 
-interface ILocalizedString {
+export interface ILocalizedString {
 	original: string;
 	value: string;
 }

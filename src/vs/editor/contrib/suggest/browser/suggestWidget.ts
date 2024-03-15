@@ -16,7 +16,7 @@ import { clamp } from 'vs/base/common/numbers';
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./media/suggest';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/browser/suggestWidgetStatus';
@@ -281,6 +281,9 @@ export class SuggestWidget implements IDisposable {
 			if (e.hasChanged(EditorOption.suggest)) {
 				applyStatusBarStyle();
 				applyIconStyle();
+			}
+			if (this._completionModel && (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight))) {
+				this._list.splice(0, this._list.length, this._completionModel.items);
 			}
 		}));
 
@@ -718,9 +721,13 @@ export class SuggestWidget implements IDisposable {
 			} else {
 				this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
 			}
-			this._positionDetails();
+			if (!this._details.widget.isEmpty) {
+				this._positionDetails();
+				this.element.domNode.classList.add('shows-details');
+			} else {
+				this._details.hide();
+			}
 			this.editor.focus();
-			this.element.domNode.classList.add('shows-details');
 		});
 	}
 
@@ -772,7 +779,7 @@ export class SuggestWidget implements IDisposable {
 			// no special positioning when widget isn't showing list
 			return;
 		}
-		if (this._isDetailsVisible()) {
+		if (this._isDetailsVisible() && !this._details.widget.isEmpty) {
 			this._details.show();
 		}
 		this._positionDetails();

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IInlineChatSession, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInlineChatShape, IInlineChatResponseDto, IMainContext, MainContext, MainThreadInlineChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { IInlineChatFollowup, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import type * as vscode from 'vscode';
-import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IRange } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
-import { raceCancellation } from 'vs/base/common/async';
 
 class ProviderWrapper {
 
@@ -28,7 +28,7 @@ class ProviderWrapper {
 
 	constructor(
 		readonly extension: Readonly<IRelaxedExtensionDescription>,
-		readonly provider: vscode.InteractiveEditorSessionProvider,
+		readonly provider: vscode.InteractiveEditorSessionProvider
 	) { }
 }
 
@@ -83,7 +83,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 				return {
 					initialRange: v.initialRange ? typeConvert.Range.from(v.initialRange) : undefined,
-					initialSelection: v.initialSelection ? typeConvert.Selection.from(v.initialSelection) : undefined,
+					initialSelection: extHostTypes.Selection.isSelection(v.initialSelection) ? typeConvert.Selection.from(v.initialSelection) : undefined,
 					message: v.message,
 					autoSend: v.autoSend,
 					position: v.position ? typeConvert.Position.from(v.position) : undefined,
@@ -93,10 +93,10 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		));
 	}
 
-	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider, metadata: vscode.InteractiveEditorSessionProviderMetadata): vscode.Disposable {
+	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider, metadata?: vscode.InteractiveEditorSessionProviderMetadata): vscode.Disposable {
 		const wrapper = new ProviderWrapper(extension, provider);
 		this._inputProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata.label, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function');
+		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata?.label ?? extension.displayName ?? extension.name, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function', typeof provider.provideFollowups === 'function', metadata?.supportReportIssue ?? false);
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveEditorProvider(wrapper.handle);
 			this._inputProvider.delete(wrapper.handle);
@@ -150,6 +150,8 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			wholeRange: typeConvert.Range.to(request.wholeRange),
 			attempt: request.attempt,
 			live: request.live,
+			previewDocument: this._documents.getDocument(URI.revive(request.previewDocument)),
+			withIntentDetection: request.withIntentDetection,
 		};
 
 
@@ -193,35 +195,50 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			placeholder: res.placeholder,
 		};
 
-		if (ExtHostInteractiveEditor._isEditResponse(res)) {
-			const { edits, contents } = res;
-			const message = contents !== undefined ? typeConvert.MarkdownString.from(contents) : undefined;
-			if (edits instanceof extHostTypes.WorkspaceEdit) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.BulkEdit,
-					edits: typeConvert.WorkspaceEdit.from(edits),
-					message
-				};
-
-			} else {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.EditorEdit,
-					edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
-					message
-				};
-			}
+		if (!ExtHostInteractiveEditor._isEditResponse(res)) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.EditorEdit,
+				message: typeConvert.MarkdownString.from(res.contents),
+				edits: []
+			};
 		}
-		return {
-			...stub,
-			id,
-			type: InlineChatResponseType.Message,
-			message: typeConvert.MarkdownString.from(res.contents),
-		};
+
+		const { edits, contents } = res;
+		const message = contents !== undefined ? typeConvert.MarkdownString.from(contents) : undefined;
+		if (edits instanceof extHostTypes.WorkspaceEdit) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.BulkEdit,
+				edits: typeConvert.WorkspaceEdit.from(edits),
+				message
+			};
+
+		} else {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.EditorEdit,
+				edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
+				message
+			};
+		}
 	}
+
+	async $provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IInlineChatFollowup[] | undefined> {
+		const entry = this._inputProvider.get(handle);
+		const sessionData = this._inputSessions.get(sessionId);
+		const response = sessionData?.responses[responseId];
+		if (entry && response && entry.provider.provideFollowups) {
+			const task = Promise.resolve(entry.provider.provideFollowups(sessionData.session, response, token));
+			const followups = await raceCancellation(task, token);
+			return followups?.map(typeConvert.ChatInlineFollowup.from);
+		}
+		return undefined;
+	}
+
 
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
 		const entry = this._inputProvider.get(handle);

@@ -22,6 +22,7 @@ export interface ITelemetryService {
 
 	readonly sessionId: string;
 	readonly machineId: string;
+	readonly sqmId: string;
 	readonly firstSessionDate: string;
 	readonly msftInternal?: boolean;
 

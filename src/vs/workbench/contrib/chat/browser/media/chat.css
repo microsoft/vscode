@@ -29,6 +29,11 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	position: relative;
+}
+
+.interactive-item-container .header.hidden {
+	display: none;
 }
 
 .interactive-item-container .header .user {
@@ -48,7 +53,12 @@
 	opacity: 0.7;
 }
 
-.interactive-item-container:not(.show-progress) .chat-animated-ellipsis {
+.interactive-item-container .chat-animated-ellipsis {
+	display: inline-block;
+	width: 11px;
+}
+
+.interactive-item-container:not(.show-detail-progress) .chat-animated-ellipsis {
 	display: none;
 }
 
@@ -70,7 +80,7 @@
 	}
 }
 
-.chat-animated-ellipsis::after {
+.interactive-item-container .chat-animated-ellipsis::after {
 	content: '';
 	white-space: nowrap;
 	overflow: hidden;
@@ -106,6 +116,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
+	background-color: var(--vscode-chat-list-background);
 }
 
 .interactive-item-container .header .avatar .codicon {
@@ -149,6 +160,12 @@
 	padding: 2px;
 }
 
+.interactive-item-container .header .monaco-toolbar {
+	position: absolute;
+	right: 0px;
+	background-color: var(--vscode-chat-list-background);
+}
+
 .interactive-item-container .header .monaco-toolbar .checked.action-label,
 .interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
@@ -190,13 +207,6 @@
 	color: var(--vscode-textPreformat-foreground);
 }
 
-.hc-black .interactive-item-container .value .rendered-markdown a:hover,
-.hc-black .interactive-item-container .value .rendered-markdown a:active,
-.hc-light .interactive-item-container .value .rendered-markdown a:hover,
-.hc-light .interactive-item-container .value .rendered-markdown a:active {
-	color: var(--vscode-textPreformat-foreground);
-}
-
 .interactive-list {
 	overflow: hidden;
 }
@@ -204,6 +214,13 @@
 .interactive-request {
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	border-top: 1px solid var(--vscode-chat-requestBorder);
+	background-color: var(--vscode-chat-requestBackground);
+}
+
+.hc-black .interactive-request,
+.hc-light .interactive-request {
+	border-left: 3px solid var(--vscode-chat-requestBorder);
+	border-right: 3px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-item-container .value {
@@ -265,6 +282,11 @@
 	padding: 8px 20px;
 }
 
+.interactive-item-container.interactive-item-compact.no-padding {
+	padding: unset;
+	gap: unset;
+}
+
 .interactive-item-container.interactive-item-compact .header {
 	height: 16px;
 }
@@ -316,14 +338,13 @@
 	display: flex;
 	box-sizing: border-box;
 	cursor: text;
-	margin: 0px 20px;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	position: relative;
 	padding: 0 6px;
 	margin-bottom: 4px;
-	align-items: center;
+	align-items: flex-end;
 	justify-content: space-between;
 }
 
@@ -337,6 +358,10 @@
 	border-color: var(--vscode-focusBorder);
 }
 
+.interactive-session .interactive-input-and-execute-toolbar .monaco-editor .mtk1 {
+	color: var(--vscode-input-foreground);
+}
+
 .interactive-session .interactive-input-and-execute-toolbar .monaco-editor,
 .interactive-session .interactive-input-and-execute-toolbar .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-input-background) !important;
@@ -348,6 +373,14 @@
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	height: 22px;
+
+	/* It's bottom-aligned, make it appear centered within the container */
+	margin-bottom: 7px;
+}
+
+.interactive-session .interactive-input-part .interactive-execute-toolbar .monaco-action-bar .actions-container {
+	display: flex;
+	gap: 4px;
 }
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
@@ -391,9 +424,17 @@
 }
 
 .interactive-session .interactive-input-part {
+	margin: 0px 20px;
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
+}
+
+.interactive-session .chat-implicit-context {
+	padding: 8px 8px 13px;
+	margin-bottom: -5px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
+	border-radius: 6px 6px 0px 0px;
 }
 
 .interactive-session-followups {
@@ -415,10 +456,6 @@
 
 .interactive-item-container .interactive-response-followups .monaco-button {
 	padding: 4px 8px;
-}
-
-.interactive-session .interactive-input-part .interactive-input-followups {
-	margin: 0px 20px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
@@ -455,8 +492,9 @@
 }
 
 .interactive-item-container.filtered-response .value > .rendered-markdown {
-	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
-	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
+	pointer-events: none;
+	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
+	mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
 }
 
 /* #region Quick Chat */
@@ -466,7 +504,7 @@
 }
 
 .quick-input-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
-	bottom: 1px;
+	margin-bottom: 1px;
 }
 
 .quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
@@ -505,6 +543,11 @@
 .interactive-item-container .value .interactive-response-placeholder-content {
 	color: var(--vscode-editorGhostText-foreground);
 	font-size: 12px;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .value .interactive-response-placeholder-content p {
+	margin: 0;
 }
 
 .interactive-response  .interactive-response-codicon-details {
@@ -580,4 +623,44 @@
 
 .interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
 	margin: 0 0 0 4px;
+}
+
+.interactive-item-container .rendered-markdown.progress-step {
+	display: flex;
+	margin-left: 4px;
+	white-space: normal;
+}
+
+.interactive-item-container .rendered-markdown.progress-step > p {
+	display: flex;
+	gap: 5px;
+	align-items: center;
+	opacity: 0.7;
+	margin-bottom: 4px;
+}
+
+.interactive-item-container .rendered-markdown.progress-step > p .codicon {
+	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.interactive-item-container .rendered-markdown.progress-step > p .codicon.codicon-check {
+	font-size: 14px;
+	color: var(--vscode-debugIcon-startForeground) !important;
+}
+
+.interactive-item-container .chat-command-button {
+	display: flex;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .chat-command-button .monaco-button {
+	text-align: left;
+	width: initial;
+	padding: 4px 8px;
+}
+
+.interactive-item-container .chat-command-button .monaco-button .codicon {
+	margin-left: 0;
+	margin-top: 1px;
 }

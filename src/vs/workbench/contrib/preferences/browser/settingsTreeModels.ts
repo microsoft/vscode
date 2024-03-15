@@ -866,7 +866,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		viewState: ISettingsEditorViewState,
 		settingsOrderByTocIndex: Map<string, number> | null,
 		isWorkspaceTrusted: boolean,
-		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
+		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
@@ -884,18 +884,13 @@ export class SearchResultModel extends SettingsTreeModel {
 			}
 		}
 
-		const tocHiddenDuringSearch = this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide';
-		if (!tocHiddenDuringSearch) {
-			// Sort the settings according to internal order if indexed.
-			if (this.settingsOrderByTocIndex) {
-				filterMatches.sort((a, b) => compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder));
-			}
-			return filterMatches;
+		// The search only has filters, so we can sort by the order in the TOC.
+		if (!this._viewState.query) {
+			return filterMatches.sort((a, b) => compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder));
 		}
 
-		// The table of contents is hidden during the search.
-		// The settings could appear in a more haphazard order.
-		// Sort the settings according to their score.
+		// Sort the settings according to their relevancy.
+		// https://github.com/microsoft/vscode/issues/197773
 		filterMatches.sort((a, b) => {
 			if (a.matchType !== b.matchType) {
 				// Sort by match type if the match types are not the same.

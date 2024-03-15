@@ -25,10 +25,10 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 
 	private registerListeners(): void {
 
-		addMatchMediaChangeListener('(prefers-color-scheme: dark)', () => {
+		addMatchMediaChangeListener(mainWindow, '(prefers-color-scheme: dark)', () => {
 			this._onDidSchemeChangeEvent.fire();
 		});
-		addMatchMediaChangeListener('(forced-colors: active)', () => {
+		addMatchMediaChangeListener(mainWindow, '(forced-colors: active)', () => {
 			this._onDidSchemeChangeEvent.fire();
 		});
 	}

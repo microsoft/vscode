@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { alert, status } from 'vs/base/browser/ui/aria/aria';
 import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -55,12 +55,6 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 	private initReducedMotionListeners(reduceMotionMatcher: MediaQueryList) {
 
-		if (!this._layoutService.hasContainer) {
-			// we can't use `ILayoutService.container` because the application
-			// doesn't have a single container
-			return;
-		}
-
 		this._register(addDisposableListener(reduceMotionMatcher, 'change', () => {
 			this._systemMotionReduced = reduceMotionMatcher.matches;
 			if (this._configMotionReduced === 'auto') {
@@ -70,8 +64,8 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 		const updateRootClasses = () => {
 			const reduce = this.isMotionReduced();
-			this._layoutService.container.classList.toggle('reduce-motion', reduce);
-			this._layoutService.container.classList.toggle('enable-motion', !reduce);
+			this._layoutService.mainContainer.classList.toggle('reduce-motion', reduce);
+			this._layoutService.mainContainer.classList.toggle('enable-motion', !reduce);
 		};
 
 		updateRootClasses();
@@ -115,5 +109,9 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 	alert(message: string): void {
 		alert(message);
+	}
+
+	status(message: string): void {
+		status(message);
 	}
 }

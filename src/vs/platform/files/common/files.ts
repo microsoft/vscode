@@ -246,14 +246,6 @@ export interface IFileService {
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
 	 *
-	 * The watcher runs correlated and thus, file events will be reported on the returned
-	 * `IFileSystemWatcher` and not on the generic `IFileService.onDidFilesChange` event.
-	 */
-	watch(resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
-
-	/**
-	 * Allows to start a watcher that reports file/folder change events on the provided resource.
-	 *
 	 * The watcher runs uncorrelated and thus will report all events from `IFileService.onDidFilesChange`.
 	 * This means, most listeners in the application will receive your events. It is encouraged to
 	 * use correlated watchers (via `IWatchOptionsWithCorrelation`) to limit events to your listener.
@@ -1453,25 +1445,29 @@ export interface IGlobPatterns {
 }
 
 export interface IFilesConfiguration {
-	files: {
-		associations: { [filepattern: string]: string };
-		exclude: IExpression;
-		watcherExclude: IGlobPatterns;
-		watcherInclude: string[];
-		encoding: string;
-		autoGuessEncoding: boolean;
-		defaultLanguage: string;
-		trimTrailingWhitespace: boolean;
-		autoSave: string;
-		autoSaveDelay: number;
-		eol: string;
-		enableTrash: boolean;
-		hotExit: string;
-		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
-		readonlyInclude: IGlobPatterns;
-		readonlyExclude: IGlobPatterns;
-		readonlyFromPermissions: boolean;
-	};
+	files: IFilesConfigurationNode;
+}
+
+export interface IFilesConfigurationNode {
+	associations: { [filepattern: string]: string };
+	exclude: IExpression;
+	watcherExclude: IGlobPatterns;
+	watcherInclude: string[];
+	encoding: string;
+	autoGuessEncoding: boolean;
+	defaultLanguage: string;
+	trimTrailingWhitespace: boolean;
+	autoSave: string;
+	autoSaveDelay: number;
+	autoSaveWorkspaceFilesOnly: boolean;
+	autoSaveWhenNoErrors: boolean;
+	eol: string;
+	enableTrash: boolean;
+	hotExit: string;
+	saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
+	readonlyInclude: IGlobPatterns;
+	readonlyExclude: IGlobPatterns;
+	readonlyFromPermissions: boolean;
 }
 
 //#endregion

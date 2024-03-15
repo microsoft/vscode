@@ -58,11 +58,6 @@
 	opacity: 0 !important;
 }
 
-.monaco-workbench .terminal-tab::before {
-	font-family: 'codicon' !important;
-	font-size: 16px !important;
-}
-
 .monaco-workbench .terminal-tab:not(.terminal-uri-icon)::before {
 	background-image: none !important;
 }
@@ -477,6 +472,28 @@
 	border-left: 5px solid #ffffff;
 	border-left-width: 5px !important;
 	pointer-events: none;
+}
+
+.terminal-range-highlight {
+	outline: 1px solid var(--vscode-focusBorder);
+	pointer-events: none;
+}
+
+.terminal-command-guide {
+	left: 0;
+	border: 1.5px solid #ffffff;
+	width: 0px !important;
+	border-color: var(--vscode-notebook-inactiveFocusedCellBorder);
+	box-sizing: border-box;
+	transform: translateX(3px);
+}
+.terminal-command-guide.top {
+	border-top-left-radius: 1px;
+	border-top-right-radius: 1px;
+}
+.terminal-command-guide.bottom {
+	border-bottom-left-radius: 1px;
+	border-bottom-right-radius: 1px;
 }
 
 .terminal-scroll-highlight-outline {

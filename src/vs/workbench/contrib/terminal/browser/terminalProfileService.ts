@@ -52,7 +52,9 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		return this._availableProfiles || [];
 	}
 	get contributedProfiles(): IExtensionTerminalProfile[] {
-		return this._contributedProfiles || [];
+		const userConfiguredProfileNames = this._availableProfiles?.map(p => p.profileName) || [];
+		// Allow a user defined profile to override an extension contributed profile with the same name
+		return this._contributedProfiles?.filter(p => !userConfiguredProfileNames.includes(p.title)) || [];
 	}
 
 	constructor(
@@ -87,7 +89,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private async _setupConfigListener(): Promise<void> {
 		const platformKey = await this.getPlatformKey();
 
-		this._configurationService.onDidChangeConfiguration(async e => {
+		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingPrefix.AutomationProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
@@ -101,7 +103,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 					this._platformConfigJustRefreshed = true;
 				}
 			}
-		});
+		}));
 	}
 
 	getDefaultProfileName(): string | undefined {

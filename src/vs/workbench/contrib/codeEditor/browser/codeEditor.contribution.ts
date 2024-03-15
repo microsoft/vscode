@@ -23,3 +23,4 @@ import './toggleWordWrap';
 import './emptyTextEditorHint/emptyTextEditorHint';
 import './workbenchReferenceSearch';
 import './editorLineNumberMenu';
+import './dictation/editorDictation';

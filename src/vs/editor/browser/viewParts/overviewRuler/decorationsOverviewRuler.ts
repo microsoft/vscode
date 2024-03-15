@@ -249,7 +249,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			}
 		});
 
-		this._cursorPositions = [];
+		this._cursorPositions = [new Position(1, 1)];
 	}
 
 	public override dispose(): void {

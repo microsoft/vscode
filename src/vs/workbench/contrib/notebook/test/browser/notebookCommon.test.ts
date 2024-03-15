@@ -305,6 +305,8 @@ suite('NotebookCommon', () => {
 
 suite('CellUri', function () {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('parse, generate (file-scheme)', function () {
 
 		const nb = URI.parse('file:///bar/følder/file.nb');
@@ -347,6 +349,8 @@ suite('CellUri', function () {
 
 
 suite('CellRange', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Cell range to index', function () {
 		assert.deepStrictEqual(cellRangesToIndexes([]), []);
@@ -395,9 +399,16 @@ suite('CellRange', function () {
 			{ start: 0, end: 4 }
 		]);
 	});
+
+	test('Reduce ranges 2, empty ranges', function () {
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 0 }, { start: 0, end: 0 }]), [{ start: 0, end: 0 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 0 }, { start: 1, end: 2 }]), [{ start: 1, end: 2 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 2, end: 2 }]), [{ start: 2, end: 2 }]);
+	});
 });
 
 suite('NotebookWorkingCopyTypeIdentifier', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('works', function () {
 		const viewType = 'testViewType';

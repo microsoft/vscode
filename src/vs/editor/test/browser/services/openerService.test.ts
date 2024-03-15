@@ -11,7 +11,7 @@ import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { NullCommandService } from 'vs/platform/commands/test/common/nullCommandService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { matchesScheme, matchesSomeScheme } from 'vs/base/common/network';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('OpenerService', function () {

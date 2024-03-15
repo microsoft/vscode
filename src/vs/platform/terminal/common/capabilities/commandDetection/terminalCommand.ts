@@ -14,6 +14,7 @@ export interface ITerminalCommandProperties {
 	command: string;
 	isTrusted: boolean;
 	timestamp: number;
+	duration: number;
 	marker: IXtermMarker | undefined;
 	cwd: string | undefined;
 	exitCode: number | undefined;
@@ -34,9 +35,11 @@ export class TerminalCommand implements ITerminalCommand {
 	get command() { return this._properties.command; }
 	get isTrusted() { return this._properties.isTrusted; }
 	get timestamp() { return this._properties.timestamp; }
+	get duration() { return this._properties.duration; }
 	get promptStartMarker() { return this._properties.promptStartMarker; }
 	get marker() { return this._properties.marker; }
 	get endMarker() { return this._properties.endMarker; }
+	set endMarker(value: IXtermMarker | undefined) { this._properties.endMarker = value; }
 	get executedMarker() { return this._properties.executedMarker; }
 	get aliases() { return this._properties.aliases; }
 	get wasReplayed() { return this._properties.wasReplayed; }
@@ -76,6 +79,7 @@ export class TerminalCommand implements ITerminalCommand {
 			executedMarker,
 			executedX: serialized.executedX,
 			timestamp: serialized.timestamp,
+			duration: serialized.duration,
 			cwd: serialized.cwd,
 			commandStartLineContent: serialized.commandStartLineContent,
 			exitCode: serialized.exitCode,
@@ -100,6 +104,7 @@ export class TerminalCommand implements ITerminalCommand {
 			exitCode: this.exitCode,
 			commandStartLineContent: this.commandStartLineContent,
 			timestamp: this.timestamp,
+			duration: this.duration,
 			markProperties: this.markProperties,
 		};
 	}
@@ -199,8 +204,6 @@ export class TerminalCommand implements ITerminalCommand {
 }
 
 export interface ICurrentPartialCommand {
-	previousCommandMarker?: IMarker;
-
 	promptStartMarker?: IMarker;
 
 	commandStartMarker?: IMarker;
@@ -238,8 +241,6 @@ export interface ICurrentPartialCommand {
 }
 
 export class PartialTerminalCommand implements ICurrentPartialCommand {
-	previousCommandMarker?: IMarker;
-
 	promptStartMarker?: IMarker;
 
 	commandStartMarker?: IMarker;
@@ -253,6 +254,9 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 
 	commandExecutedMarker?: IMarker;
 	commandExecutedX?: number;
+
+	private commandExecutedTimestamp?: number;
+	private commandDuration?: number;
 
 	commandFinishedMarker?: IMarker;
 
@@ -287,6 +291,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 			exitCode: undefined,
 			commandStartLineContent: undefined,
 			timestamp: 0,
+			duration: 0,
 			markProperties: undefined
 		};
 	}
@@ -308,6 +313,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 				executedMarker: this.commandExecutedMarker,
 				executedX: this.commandExecutedX,
 				timestamp: Date.now(),
+				duration: this.commandDuration || 0,
 				cwd,
 				exitCode,
 				commandStartLineContent: this.commandStartLineContent,
@@ -316,6 +322,18 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 		}
 
 		return undefined;
+	}
+
+	markExecutedTime() {
+		if (this.commandExecutedTimestamp === undefined) {
+			this.commandExecutedTimestamp = Date.now();
+		}
+	}
+
+	markFinishedTime() {
+		if (this.commandDuration === undefined && this.commandExecutedTimestamp !== undefined) {
+			this.commandDuration = Date.now() - this.commandExecutedTimestamp;
+		}
 	}
 
 	getPromptRowCount(): number {

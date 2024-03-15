@@ -50,11 +50,11 @@ function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
 	[regex]::Replace($value, '[\\\n;]', { param($match)
-		# Encode the (ascii) matches as `\x<hex>`
-		-Join (
-			[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
-		)
-	})
+			# Encode the (ascii) matches as `\x<hex>`
+			-Join (
+				[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
+			)
+		})
 }
 
 function Global:Prompt() {
@@ -67,18 +67,20 @@ function Global:Prompt() {
 	if ($Global:__LastHistoryId -ne -1) {
 		if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
 			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
-			$Result  = "$([char]0x1b)]633;E`a"
+			$Result = "$([char]0x1b)]633;E`a"
 			$Result += "$([char]0x1b)]633;D`a"
-		} else {
+		}
+		else {
 			# Command finished command line
 			# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
-			$Result  = "$([char]0x1b)]633;E;"
+			$Result = "$([char]0x1b)]633;E;"
 			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
 			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
 			# to only be composed of _printable_ characters as per the spec.
 			if ($LastHistoryEntry.CommandLine) {
 				$CommandLine = $LastHistoryEntry.CommandLine
-			} else {
+			}
+			else {
 				$CommandLine = ""
 			}
 			$Result += $(__VSCode-Escape-Value $CommandLine)
@@ -94,7 +96,7 @@ function Global:Prompt() {
 	$Result += "$([char]0x1b)]633;A`a"
 	# Current working directory
 	# OSC 633 ; <Property>=<Value> ST
-	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"$([char]0x1b)]633;P;Cwd=$(__VSCode-Escape-Value $pwd.ProviderPath)`a"}
+	$Result += if ($pwd.Provider.Name -eq 'FileSystem') { "$([char]0x1b)]633;P;Cwd=$(__VSCode-Escape-Value $pwd.ProviderPath)`a" }
 	# Before running the original prompt, put $? back to what it was:
 	if ($FakeCode -ne 0) {
 		Write-Error "failure" -ea ignore
@@ -123,7 +125,8 @@ if (Get-Module -Name PSReadLine) {
 if ($PSVersionTable.PSVersion -lt "6.0") {
 	# Windows PowerShell is only available on Windows
 	[Console]::Write("$([char]0x1b)]633;P;IsWindows=$true`a")
-} else {
+}
+else {
 	[Console]::Write("$([char]0x1b)]633;P;IsWindows=$IsWindows`a")
 }
 
@@ -132,7 +135,8 @@ function Set-MappedKeyHandler {
 	param ([string[]] $Chord, [string[]]$Sequence)
 	try {
 		$Handler = Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1
-	} catch [System.Management.Automation.ParameterBindingException] {
+	}
+ catch [System.Management.Automation.ParameterBindingException] {
 		# PowerShell 5.1 ships with PSReadLine 2.0.0 which does not have -Chord,
 		# so we check what's bound and filter it.
 		$Handler = Get-PSReadLineKeyHandler -Bound | Where-Object -FilterScript { $_.Key -eq $Chord } | Select-Object -First 1
@@ -142,6 +146,7 @@ function Set-MappedKeyHandler {
 	}
 }
 
+$Global:__VSCodeHaltCompletions = $false
 function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Ctrl+Spacebar -Sequence 'F12,a'
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
@@ -160,7 +165,17 @@ function Set-MappedKeyHandlers {
 		# Suggest trigger characters
 		Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
 			[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
-			Send-Completions
+			if (!$Global:__VSCodeHaltCompletions) {
+				Send-Completions
+			}
+		}
+
+		Set-PSReadLineKeyHandler -Chord 'F12,y' -ScriptBlock {
+			$Global:__VSCodeHaltCompletions = $true
+		}
+
+		Set-PSReadLineKeyHandler -Chord 'F12,z' -ScriptBlock {
+			$Global:__VSCodeHaltCompletions = $false
 		}
 	}
 }

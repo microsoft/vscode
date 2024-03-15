@@ -104,7 +104,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			toggleStyles: defaultToggleStyles
 		}, contextKeyService));
 		// Find History with update delayer
-		this._updateHistoryDelayer = new Delayer<void>(500);
+		this._updateHistoryDelayer = this._register(new Delayer<void>(500));
 
 		this._register(this._findInput.onInput(async (e) => {
 			if (!options.checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
@@ -220,7 +220,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			let originalWidth = _initialMinWidth;
 
 			// sash
-			const resizeSash = new Sash(this._innerDomNode, this, { orientation: Orientation.VERTICAL, size: 1 });
+			const resizeSash = this._register(new Sash(this._innerDomNode, this, { orientation: Orientation.VERTICAL, size: 1 }));
 			this._register(resizeSash.onDidStart(() => {
 				originalWidth = parseFloat(dom.getComputedStyle(this._domNode).width);
 			}));

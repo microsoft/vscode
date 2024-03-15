@@ -18,11 +18,11 @@ import { isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
-import { QuickInputList, QuickInputListFocus } from 'vs/platform/quickinput/browser/quickInputList';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { mainWindow } from 'vs/base/browser/window';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { QuickInputListFocus, QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
 
 const $ = dom.$;
 
@@ -41,7 +41,9 @@ export class QuickInputController extends Disposable {
 
 	private controller: IQuickInput | null = null;
 
-	private parentElement: HTMLElement;
+	private _container: HTMLElement;
+	get container() { return this._container; }
+
 	private styles: IQuickInputStyles;
 
 	private onShowEmitter = this._register(new Emitter<void>());
@@ -52,12 +54,14 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
-	constructor(private options: IQuickInputOptions,
-		private readonly themeService: IThemeService,
-		private readonly layoutService: ILayoutService) {
+	constructor(
+		private options: IQuickInputOptions,
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
 		super();
 		this.idPrefix = options.idPrefix;
-		this.parentElement = options.container;
+		this._container = options.container;
 		this.styles = options.styles;
 		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window: mainWindow, disposables: this._store }));
 		this._register(dom.onWillUnregisterWindow(window => {
@@ -66,7 +70,8 @@ export class QuickInputController extends Disposable {
 				// close, so we have to make sure to reparent it back to an
 				// existing parent to not loose functionality.
 				// (https://github.com/microsoft/vscode/issues/195870)
-				this.reparentUI(this.layoutService.container);
+				this.reparentUI(this.layoutService.mainContainer);
+				this.layout(this.layoutService.mainContainerDimension, this.layoutService.mainContainerOffset.quickPickTop);
 			}
 		}));
 	}
@@ -87,15 +92,16 @@ export class QuickInputController extends Disposable {
 			// In order to support aux windows, re-parent the controller
 			// if the original event is from a different document
 			if (showInActiveContainer) {
-				if (this.parentElement.ownerDocument !== this.layoutService.activeContainer.ownerDocument) {
+				if (dom.getWindow(this._container) !== dom.getWindow(this.layoutService.activeContainer)) {
 					this.reparentUI(this.layoutService.activeContainer);
+					this.layout(this.layoutService.activeContainerDimension, this.layoutService.activeContainerOffset.quickPickTop);
 				}
 			}
 
 			return this.ui;
 		}
 
-		const container = dom.append(this.parentElement, $('.quick-input-widget.show-file-icons'));
+		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
 
@@ -103,13 +109,12 @@ export class QuickInputController extends Disposable {
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
-		const actionBarOption = this.options.hoverDelegate ? { hoverDelegate: this.options.hoverDelegate } : undefined;
-		const leftActionBar = this._register(new ActionBar(titleBar, actionBarOption));
+		const leftActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
 		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
 
 		const title = dom.append(titleBar, $('.quick-input-title'));
 
-		const rightActionBar = this._register(new ActionBar(titleBar, actionBarOption));
+		const rightActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
@@ -151,7 +156,7 @@ export class QuickInputController extends Disposable {
 		}));
 
 		const customButtonContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const customButton = this._register(new Button(customButtonContainer, this.styles.button));
+		const customButton = this._register(new Button(customButtonContainer, { ...this.styles.button, supportIcons: true }));
 		customButton.label = localize('custom', "Custom");
 		this._register(customButton.onDidClick(e => {
 			this.onDidCustomEmitter.fire();
@@ -168,7 +173,7 @@ export class QuickInputController extends Disposable {
 		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const listId = this.idPrefix + 'list';
-		const list = this._register(new QuickInputList(container, listId, this.options, this.themeService));
+		const list = this._register(this.instantiationService.createInstance(QuickInputTree, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
@@ -184,7 +189,11 @@ export class QuickInputController extends Disposable {
 		}));
 		this._register(list.onLeave(() => {
 			// Defer to avoid the input field reacting to the triggering key.
+			// TODO@TylerLeonhardt https://github.com/microsoft/vscode/issues/203675
 			setTimeout(() => {
+				if (!this.controller) {
+					return;
+				}
 				inputBox.setFocus();
 				if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
 					list.clearFocus();
@@ -211,6 +220,7 @@ export class QuickInputController extends Disposable {
 			inputBox.setFocus();
 		}));
 		// TODO: Turn into commands instead of handling KEY_DOWN
+		// Keybindings for the quickinput widget as a whole
 		this._register(dom.addStandardDisposableListener(container, dom.EventType.KEY_DOWN, (event) => {
 			if (dom.isAncestor(event.target, widget)) {
 				return; // Ignore event if target is inside widget to allow the widget to handle the event.
@@ -319,8 +329,8 @@ export class QuickInputController extends Disposable {
 
 	private reparentUI(container: HTMLElement): void {
 		if (this.ui) {
-			this.parentElement = container;
-			dom.append(this.parentElement, this.ui.container);
+			this._container = container;
+			dom.append(this._container, this.ui.container);
 		}
 	}
 
@@ -406,7 +416,6 @@ export class QuickInputController extends Disposable {
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
-			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
@@ -607,6 +616,7 @@ export class QuickInputController extends Disposable {
 		if (!controller) {
 			return;
 		}
+		controller.willHide(reason);
 
 		const container = this.ui?.container;
 		const focusChanged = container && !dom.isAncestorOfActiveElement(container);

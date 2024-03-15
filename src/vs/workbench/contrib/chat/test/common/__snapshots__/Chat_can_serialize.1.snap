@@ -9,6 +9,7 @@
       message: {
         parts: [
           {
+            kind: "agent",
             range: {
               start: 0,
               endExclusive: 28
@@ -21,11 +22,8 @@
             },
             agent: {
               id: "ChatProviderWithUsedContext",
-              metadata: {  },
-              provideSlashCommands: [Function provideSlashCommands],
-              invoke: [Function invoke]
-            },
-            kind: "agent"
+              metadata: { description: undefined }
+            }
           },
           {
             range: {
@@ -44,17 +42,26 @@
         ],
         text: "@ChatProviderWithUsedContext test request"
       },
+      variableData: { variables: [  ] },
       response: [  ],
-      responseErrorDetails: undefined,
-      followups: [  ],
+      result: { metadata: { metadataKey: "value" } },
+      followups: undefined,
       isCanceled: false,
       vote: undefined,
       agent: {
         id: "ChatProviderWithUsedContext",
-        metadata: {  }
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        metadata: { description: undefined },
+        slashCommands: [  ],
+        locations: [ 1 ],
+        isDefault: undefined
       },
       slashCommand: undefined,
-      usedContext: { documents: [
+      usedContext: {
+        documents: [
           {
             uri: {
               scheme: "file",
@@ -75,7 +82,9 @@
               }
             ]
           }
-        ] },
+        ],
+        kind: "usedContext"
+      },
       contentReferences: [  ]
     }
   ],

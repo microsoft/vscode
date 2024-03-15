@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 
 suite('GlobalStateMerge', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge when local and remote are same with one value and local is not synced yet', async () => {
 		const local = { 'a': { version: 1, value: 'a' } };
