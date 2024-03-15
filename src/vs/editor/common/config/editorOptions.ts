@@ -1671,7 +1671,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 				: stringSet<'never' | 'always' | 'selection'>(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection, ['never', 'always', 'selection']),
 			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
 				? (_input.autoFindInSelection ? 'always' : 'never')
-				: stringSet<'never' | 'always' | 'multiline' | 'selection'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
+				: stringSet<'never' | 'always' | 'multiline' | 'selection'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline', 'selection']),
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
