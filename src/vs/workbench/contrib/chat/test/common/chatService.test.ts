@@ -21,7 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChat, IChatFollowup, IChatProgress, IChatProvider, IChatRequest, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -46,8 +46,6 @@ class SimpleTestProvider extends Disposable implements IChatProvider {
 	async prepareSession(): Promise<IChat> {
 		return {
 			id: SimpleTestProvider.sessionId++,
-			responderUsername: 'test',
-			requesterUsername: 'test',
 		};
 	}
 
@@ -60,6 +58,7 @@ const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
+	locations: [ChatAgentLocation.Panel],
 	metadata: {},
 	slashCommands: [],
 	async invoke(request, progress, history, token) {
@@ -108,7 +107,7 @@ suite('Chat', () => {
 		instantiationService.stub(IChatContributionService, new MockChatContributionService(
 			[
 				{ extensionId: nullExtensionDescription.identifier, name: 'testAgent', isDefault: true },
-				{ extensionId: nullExtensionDescription.identifier, name: chatAgentWithUsedContextId, isDefault: true },
+				{ extensionId: nullExtensionDescription.identifier, name: chatAgentWithUsedContextId },
 			]));
 
 		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
@@ -120,6 +119,7 @@ suite('Chat', () => {
 			},
 		} satisfies IChatAgentImplementation;
 		testDisposables.add(chatAgentService.registerAgent('testAgent', agent));
+		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' }, fullName: 'test' });
 	});
 
 	test('retrieveSession', async () => {
@@ -210,6 +210,7 @@ suite('Chat', () => {
 
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContext.id, chatAgentWithUsedContext));
+		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' }, fullName: 'test' });
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
 

@@ -92,6 +92,12 @@ export class LineRangeMapping {
  * Also contains inner range mappings.
  */
 export class DetailedLineRangeMapping extends LineRangeMapping {
+	public static fromRangeMappings(rangeMappings: RangeMapping[]): DetailedLineRangeMapping {
+		const originalRange = LineRange.join(rangeMappings.map(r => LineRange.fromRangeInclusive(r.originalRange)));
+		const modifiedRange = LineRange.join(rangeMappings.map(r => LineRange.fromRangeInclusive(r.modifiedRange)));
+		return new DetailedLineRangeMapping(originalRange, modifiedRange, rangeMappings);
+	}
+
 	/**
 	 * If inner changes have not been computed, this is set to undefined.
 	 * Otherwise, it represents the character-level diff in this line range.
