@@ -69,11 +69,6 @@ export class VerboseMarkdownHover extends MarkdownHover {
 	}
 }
 
-interface HoverVerbosityMetadata {
-	canIncreaseVerbosity?: boolean;
-	canDecreaseVerbosity?: boolean;
-}
-
 interface FocusedHoverInfo {
 	index: number;
 	element: HTMLElement;
@@ -87,7 +82,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _context: IEditorHoverRenderContext | undefined;
 	private _focusInfo: FocusedHoverInfo | undefined;
 
-	private _hoverData: { provider: HoverProvider | undefined; hover: Hover | undefined }[] = [];
+	private _hoverData: VerboseMarkdownHover[] = [];
 	private _verbosityLevelsByHoverIdx: number[] = [];
 
 	constructor(
@@ -180,21 +175,18 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		this._context = context;
 		this._context.disposables?.add(toDisposable(() => {
 			this._hoverData.forEach(hoverData => {
-				hoverData.hover?.dispose?.();
+				hoverData.hover.dispose();
 			});
 		}));
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
-		this._hoverData = hoverParts.map(hover => { return { provider: hover.sourceProvider, hover: hover.hover }; });
+		this._hoverData = hoverParts;
 		const disposables = new DisposableStore();
 		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
-			const verbosityMetadata = {
-				canIncreaseVerbosity: hoverPart.hover?.canIncreaseVerbosity,
-				canDecreaseVerbosity: hoverPart.hover?.canDecreaseVerbosity
-			};
 			const renderedMarkdown = this._renderMarkdownHoversAndActions(
 				hoverPart.contents,
 				hoverIndex,
-				verbosityMetadata,
+				hoverPart.hover?.canIncreaseVerbosity,
+				hoverPart.hover?.canDecreaseVerbosity,
 				disposables
 			);
 			this._context.fragment.appendChild(renderedMarkdown);
@@ -204,44 +196,37 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public async updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
+		const model = this._editor.getModel();
 		if (
 			!this._focusInfo
 			|| !this._position
 			|| !this._context
 			|| !this._context.disposables
-			|| !this._verbosityLevelsByHoverIdx
+			|| !model
 		) {
 			return;
 		}
 		const focusedIndex = this._focusInfo.index;
-		const currentVerbosityLevel = this._verbosityLevelsByHoverIdx[focusedIndex];
-		const provider = this._hoverData[focusedIndex].provider;
-		const hover = this._hoverData[focusedIndex].hover;
-		const model = this._editor.getModel();
-		if (!provider || hover === undefined || !model || currentVerbosityLevel === undefined) {
-			return;
-		}
-		const verbosityLevel = currentVerbosityLevel + (action === HoverVerbosityAction.Increase ? 1 : -1);
-		this._verbosityLevelsByHoverIdx[focusedIndex] = verbosityLevel;
+		const currentHoverData = this._hoverData[focusedIndex];
+		const provider = currentHoverData.sourceProvider;
+		const hover = currentHoverData.hover;
+		this._verbosityLevelsByHoverIdx[focusedIndex] += (action === HoverVerbosityAction.Increase ? 1 : -1);
 		const context: HoverContext = { action, hover };
 		let newHover: Hover | null | undefined;
 		try {
 			newHover = await Promise.resolve(provider.provideHover(model, this._position, CancellationToken.None, context));
-			this._hoverData[focusedIndex] = { provider, hover: newHover ?? undefined };
+			this._hoverData[focusedIndex] = new VerboseMarkdownHover(newHover ?? hover, provider, this, currentHoverData.range, false, currentHoverData.ordinal);
 		} catch (e) {
 			onUnexpectedExternalError(e);
 		}
 		if (!newHover) {
 			return;
 		}
-		const verbosityMetadata: HoverVerbosityMetadata = {
-			canIncreaseVerbosity: newHover.canIncreaseVerbosity,
-			canDecreaseVerbosity: newHover.canDecreaseVerbosity
-		};
 		const renderedMarkdown = this._renderMarkdownHoversAndActions(
 			newHover.contents,
 			focusedIndex,
-			verbosityMetadata,
+			newHover.canIncreaseVerbosity,
+			newHover.canDecreaseVerbosity,
 			this._context.disposables
 		);
 		this._focusInfo.focusRemains = true;
@@ -254,7 +239,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _renderMarkdownHoversAndActions(
 		hoverContents: IMarkdownString[],
 		hoverIndex: number,
-		verbosityMetadata: HoverVerbosityMetadata | undefined,
+		canIncreaseVerbosity: boolean | undefined,
+		canDecreaseVerbosity: boolean | undefined,
 		store: DisposableStore,
 	): HTMLElement {
 
@@ -272,7 +258,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			store
 		);
 		if (
-			(!verbosityMetadata?.canIncreaseVerbosity && !verbosityMetadata?.canDecreaseVerbosity)
+			(!canIncreaseVerbosity && !canDecreaseVerbosity)
 			|| !this._context
 			|| !this._context.disposables
 			|| !this._verbosityLevelsByHoverIdx
@@ -282,8 +268,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const actionsContainer = $('div.verbosity-actions');
 		contentsWrapper.prepend(actionsContainer);
 
-		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, verbosityMetadata.canIncreaseVerbosity ?? false, store);
-		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, verbosityMetadata.canDecreaseVerbosity ?? false, store);
+		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity ?? false, store);
+		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity ?? false, store);
 
 		const focusTracker = this._context.disposables.add(dom.trackFocus(contentsWrapper));
 		this._context.disposables.add(focusTracker.onDidFocus(() => {
