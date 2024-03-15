@@ -1069,6 +1069,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		this.ui.list.sortByLabel = this.sortByLabel;
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
+			const currentActiveItems = this._activeItems;
 			this.ui.list.setElements(this.items);
 			this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
@@ -1076,6 +1077,15 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
 			switch (this._itemActivation) {
 				case ItemActivation.NONE:
+					// Handle the case where we had active items (i.e. someone chose an item)
+					// but the initial item activation is set to none. Calling clearFocus will
+					// not trigger the onDidFocus event because when the tree receives new elements,
+					// it sets the focus to no elements. So we need to set & fire the active items
+					// accordingly to reflect the state change after setting the items.
+					if (currentActiveItems.length > 0) {
+						this._activeItems = new Array<T>();
+						this.onDidChangeActiveEmitter.fire(this._activeItems);
+					}
 					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
 					break;
 				case ItemActivation.SECOND:
