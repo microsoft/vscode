@@ -5,21 +5,16 @@
 
 import { URI } from 'vs/base/common/uri';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { DropYieldTo, WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentOnDropEdit, DocumentPasteEdit, DropYieldTo, WorkspaceEdit } from 'vs/editor/common/languages';
 import { Range } from 'vs/editor/common/core/range';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-
-export interface DropOrPasteEdit {
-	readonly label: string;
-	readonly insertText: string | { readonly snippet: string };
-	readonly additionalEdit?: WorkspaceEdit;
-}
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 /**
  * Given a {@link DropOrPasteEdit} and set of ranges, creates a {@link WorkspaceEdit} that applies the insert text from
  * the {@link DropOrPasteEdit} at each range plus any additional edits.
  */
-export function createCombinedWorkspaceEdit(uri: URI, ranges: readonly Range[], edit: DropOrPasteEdit): WorkspaceEdit {
+export function createCombinedWorkspaceEdit(uri: URI, ranges: readonly Range[], edit: DocumentPasteEdit | DocumentOnDropEdit): WorkspaceEdit {
 	// If the edit insert text is empty, skip applying at each range
 	if (typeof edit.insertText === 'string' ? edit.insertText === '' : edit.insertText.snippet === '') {
 		return {
@@ -39,13 +34,15 @@ export function createCombinedWorkspaceEdit(uri: URI, ranges: readonly Range[], 
 }
 
 export function sortEditsByYieldTo<T extends {
-	readonly providerId: string | undefined;
+	readonly kind: HierarchicalKind | undefined;
 	readonly handledMimeType?: string;
 	readonly yieldTo?: readonly DropYieldTo[];
 }>(edits: readonly T[]): T[] {
 	function yieldsTo(yTo: DropYieldTo, other: T): boolean {
-		return ('providerId' in yTo && yTo.providerId === other.providerId)
-			|| ('mimeType' in yTo && yTo.mimeType === other.handledMimeType);
+		if ('mimeType' in yTo) {
+			return yTo.mimeType === other.handledMimeType;
+		}
+		return !!other.kind && yTo.kind.contains(other.kind);
 	}
 
 	// Build list of nodes each node yields to
@@ -84,7 +81,7 @@ export function sortEditsByYieldTo<T extends {
 
 		const node = nodes[0];
 		if (tempStack.includes(node)) {
-			console.warn(`Yield to cycle detected for ${node.providerId}`);
+			console.warn('Yield to cycle detected', node);
 			return nodes;
 		}
 

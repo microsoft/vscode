@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, AnyInputDto, TabInputKind, TabModelOperationKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, AnyInputDto, TabInputKind, TabModelOperationKind, TextDiffInputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -26,6 +26,7 @@ import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
+import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -196,6 +197,24 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return {
 				kind: TabInputKind.ChatEditorInput,
 				providerId: editor.providerId ?? 'unknown',
+			};
+		}
+
+		if (editor instanceof MultiDiffEditorInput) {
+			const diffEditors: TextDiffInputDto[] = [];
+			for (const resource of (editor?.initialResources ?? [])) {
+				if (resource.original && resource.modified) {
+					diffEditors.push({
+						kind: TabInputKind.TextDiffInput,
+						original: resource.original,
+						modified: resource.modified
+					});
+				}
+			}
+
+			return {
+				kind: TabInputKind.MultiDiffEditorInput,
+				diffEditors
 			};
 		}
 
@@ -553,6 +572,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 					this._onDidTabPreviewChange(groupId, event.editorIndex, event.editor);
 					break;
 				}
+			case GroupModelChangeKind.EDITOR_TRANSIENT:
+				// Currently not exposed in the API
+				break;
 			case GroupModelChangeKind.EDITOR_MOVE:
 				if (isGroupEditorMoveEvent(event) && event.editor && event.editorIndex !== undefined && event.oldEditorIndex !== undefined) {
 					this._onDidTabMove(groupId, event.editorIndex, event.oldEditorIndex, event.editor);

@@ -51,7 +51,7 @@ export class UserDataSyncServiceChannel implements IServerChannel {
 			case 'manualSync/onSynchronizeResources': return this.onManualSynchronizeResources.event;
 		}
 
-		throw new Error(`Event not found: ${event}`);
+		throw new Error(`[UserDataSyncServiceChannel] Event not found: ${event}`);
 	}
 
 	async call(context: any, command: string, args?: any): Promise<any> {

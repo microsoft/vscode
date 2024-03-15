@@ -10,7 +10,7 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
-import { ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,7 +22,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from 'vs/workbench/contrib/comments/browser/commentColors';
-import { CommentThreadState } from 'vs/editor/common/languages';
+import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
 import { Color } from 'vs/base/common/color';
 import { IMatch } from 'vs/base/common/filters';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
@@ -32,6 +32,17 @@ import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IAction } from 'vs/base/common/actions';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MarshalledCommentThread, MarshalledCommentThreadInternal } from 'vs/workbench/common/comments';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -45,6 +56,7 @@ interface IResourceTemplateData {
 
 interface ICommentThreadTemplateData {
 	threadMetadata: {
+		relevance: HTMLElement;
 		icon: HTMLElement;
 		userNames: HTMLSpanElement;
 		timestamp: TimestampWidget;
@@ -60,6 +72,7 @@ interface ICommentThreadTemplateData {
 		separator: HTMLElement;
 		timestamp: TimestampWidget;
 	};
+	actionBar: ActionBar;
 	disposables: IDisposable[];
 }
 
@@ -122,28 +135,84 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 	}
 }
 
+class CommentsMenus implements IDisposable {
+	private contextKeyService: IContextKeyService | undefined;
+
+	constructor(
+		@IMenuService private readonly menuService: IMenuService
+	) { }
+
+	getResourceActions(element: CommentNode): { menu?: IMenu; actions: IAction[] } {
+		const actions = this.getActions(MenuId.CommentsViewThreadActions, element);
+		return { menu: actions.menu, actions: actions.primary };
+	}
+
+	getResourceContextActions(element: CommentNode): IAction[] {
+		return this.getActions(MenuId.CommentsViewThreadActions, element).secondary;
+	}
+
+	public setContextKeyService(service: IContextKeyService) {
+		this.contextKeyService = service;
+	}
+
+	private getActions(menuId: MenuId, element: CommentNode): { menu?: IMenu; primary: IAction[]; secondary: IAction[] } {
+		if (!this.contextKeyService) {
+			return { primary: [], secondary: [] };
+		}
+
+		const overlay: [string, any][] = [
+			['commentController', element.owner],
+			['resourceScheme', element.resource.scheme],
+			['commentThread', element.contextValue],
+			['canReply', element.thread.canReply]
+		];
+		const contextKeyService = this.contextKeyService.createOverlay(overlay);
+
+		const menu = this.menuService.createMenu(menuId, contextKeyService);
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary, menu };
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
+		menu.dispose();
+
+		return result;
+	}
+
+	dispose() {
+		this.contextKeyService = undefined;
+	}
+}
+
 export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>, ICommentThreadTemplateData> {
 	templateId: string = 'comment-node';
 
 	constructor(
+		private actionViewItemProvider: IActionViewItemProvider,
+		private menus: CommentsMenus,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService private themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement) {
-
 		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
+		const metadata = dom.append(metadataContainer, dom.$('.comment-metadata'));
 		const threadMetadata = {
-			icon: dom.append(metadataContainer, dom.$('.icon')),
-			userNames: dom.append(metadataContainer, dom.$('.user')),
-			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp-container'))),
-			separator: dom.append(metadataContainer, dom.$('.separator')),
-			commentPreview: dom.append(metadataContainer, dom.$('.text')),
-			range: dom.append(metadataContainer, dom.$('.range'))
+			icon: dom.append(metadata, dom.$('.icon')),
+			userNames: dom.append(metadata, dom.$('.user')),
+			timestamp: new TimestampWidget(this.configurationService, dom.append(metadata, dom.$('.timestamp-container'))),
+			relevance: dom.append(metadata, dom.$('.relevance')),
+			separator: dom.append(metadata, dom.$('.separator')),
+			commentPreview: dom.append(metadata, dom.$('.text')),
+			range: dom.append(metadata, dom.$('.range'))
 		};
 		threadMetadata.separator.innerText = '\u00b7';
+
+		const actionsContainer = dom.append(metadataContainer, dom.$('.actions'));
+		const actionBar = new ActionBar(actionsContainer, {
+			actionViewItemProvider: this.actionViewItemProvider
+		});
 
 		const snippetContainer = dom.append(threadContainer, dom.$('.comment-snippet-container'));
 		const repliesMetadata = {
@@ -156,9 +225,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		};
 		repliesMetadata.separator.innerText = '\u00b7';
 		repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
-		const disposables = [threadMetadata.timestamp, repliesMetadata.timestamp];
 
-		return { threadMetadata, repliesMetadata, disposables };
+		const disposables = [threadMetadata.timestamp, repliesMetadata.timestamp];
+		return { threadMetadata, repliesMetadata, actionBar, disposables };
 	}
 
 	private getCountString(commentCount: number): string {
@@ -196,7 +265,19 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
+		templateData.actionBar.clear();
+
 		const commentCount = node.element.replies.length + 1;
+		if (node.element.threadRelevance === CommentThreadApplicability.Outdated) {
+			templateData.threadMetadata.relevance.style.display = '';
+			templateData.threadMetadata.relevance.innerText = nls.localize('outdated', "Outdated");
+			templateData.threadMetadata.separator.style.display = 'none';
+		} else {
+			templateData.threadMetadata.relevance.innerText = '';
+			templateData.threadMetadata.relevance.style.display = 'none';
+			templateData.threadMetadata.separator.style.display = '';
+		}
+
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
 		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
@@ -219,7 +300,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
-			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
+			templateData.disposables.push(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {
@@ -229,6 +310,14 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 				templateData.threadMetadata.range.textContent = nls.localize('commentRange', "[Ln {0}-{1}]", node.element.range.startLineNumber, node.element.range.endLineNumber);
 			}
 		}
+
+		const menuActions = this.menus.getResourceActions(node.element);
+		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
+		templateData.actionBar.context = {
+			commentControlHandle: node.element.controllerHandle,
+			commentThreadHandle: node.element.threadHandle,
+			$mid: MarshalledId.CommentThread
+		} as MarshalledCommentThread;
 
 		if (!node.element.hasReply()) {
 			templateData.repliesMetadata.container.style.display = 'none';
@@ -248,6 +337,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
 		templateData.disposables.forEach(disposeable => disposeable.dispose());
+		templateData.actionBar.dispose();
 	}
 }
 
@@ -345,6 +435,8 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 }
 
 export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWithCommentThreads | CommentNode, any> {
+	private readonly menus: CommentsMenus;
+
 	constructor(
 		labels: ResourceLabels,
 		container: HTMLElement,
@@ -353,12 +445,16 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 		@IListService listService: IListService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		const delegate = new CommentsModelVirualDelegate();
-
+		const actionViewItemProvider = createActionViewItem.bind(undefined, instantiationService);
+		const menus = instantiationService.createInstance(CommentsMenus);
+		menus.setContextKeyService(contextKeyService);
 		const renderers = [
 			instantiationService.createInstance(ResourceWithCommentsRenderer, labels),
-			instantiationService.createInstance(CommentNodeRenderer)
+			instantiationService.createInstance(CommentNodeRenderer, actionViewItemProvider, menus)
 		];
 
 		super(
@@ -374,10 +470,10 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 							return 'root';
 						}
 						if (element instanceof ResourceWithCommentThreads) {
-							return `${element.owner}-${element.id}`;
+							return `${element.uniqueOwner}-${element.id}`;
 						}
 						if (element instanceof CommentNode) {
-							return `${element.owner}-${element.resource.toString()}-${element.threadId}-${element.comment.uniqueIdInThread}` + (element.isRoot ? '-root' : '');
+							return `${element.uniqueOwner}-${element.resource.toString()}-${element.threadId}-${element.comment.uniqueIdInThread}` + (element.isRoot ? '-root' : '');
 						}
 						return '';
 					}
@@ -386,13 +482,55 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,
-				findWidgetEnabled: false
+				findWidgetEnabled: false,
+				multipleSelectionSupport: false,
 			},
 			instantiationService,
 			contextKeyService,
 			listService,
 			configurationService,
 		);
+		this.menus = menus;
+		this.disposables.add(this.onContextMenu(e => this.commentsOnContextMenu(e)));
+	}
+
+	private commentsOnContextMenu(treeEvent: ITreeContextMenuEvent<CommentsModel | ResourceWithCommentThreads | CommentNode | null>): void {
+		const node: CommentsModel | ResourceWithCommentThreads | CommentNode | null = treeEvent.element;
+		if (!(node instanceof CommentNode)) {
+			return;
+		}
+		const event: UIEvent = treeEvent.browserEvent;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		this.setFocus([node]);
+		const actions = this.menus.getResourceContextActions(node);
+		if (!actions.length) {
+			return;
+		}
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => treeEvent.anchor,
+			getActions: () => actions,
+			getActionViewItem: (action) => {
+				const keybinding = this.keybindingService.lookupKeybinding(action.id);
+				if (keybinding) {
+					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+				}
+				return undefined;
+			},
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					this.domFocus();
+				}
+			},
+			getActionsContext: (): MarshalledCommentThreadInternal => ({
+				commentControlHandle: node.controllerHandle,
+				commentThreadHandle: node.threadHandle,
+				$mid: MarshalledId.CommentThread,
+				thread: node.thread
+			})
+		});
 	}
 
 	filterComments(): void {

@@ -62,11 +62,13 @@ import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook
 import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
 import 'vs/workbench/contrib/notebook/browser/controller/executeActions';
+import 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
 import 'vs/workbench/contrib/notebook/browser/controller/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
 import 'vs/workbench/contrib/notebook/browser/controller/apiActions';
 import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
+import 'vs/workbench/contrib/notebook/browser/controller/chat/notebook.chat.contribution';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/editorHint/emptyCellEditorHint';
@@ -1089,7 +1091,7 @@ configurationRegistry.registerConfiguration({
 			default: 'auto'
 		},
 		[NotebookSetting.cellChat]: {
-			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental cell chat for notebooks."),
+			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental floating chat widget in notebooks."),
 			type: 'boolean',
 			default: false
 		},

@@ -40,6 +40,7 @@ import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } 
 import { generateUuid } from 'vs/base/common/uuid';
 import { getActiveWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
+import { shouldUseEnvironmentVariableCollection } from 'vs/platform/terminal/common/terminalEnvironment';
 
 const enum ProcessConstants {
 	/**
@@ -436,7 +437,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);
 		}
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
-		if (!this._isDisposed && !shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
+		if (!this._isDisposed && shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
 
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));

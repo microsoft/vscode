@@ -10,22 +10,29 @@ import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/commo
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { basename } from 'vs/base/common/resources';
-import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export interface IChatRequestVariableData {
-	/**
-	 * The user's message with variable references for extension API.
-	 */
-	message: string;
+export interface IChatPromptVariableData {
+	variables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[];
+}
 
-	variables: Record<string, IChatRequestVariableValue[]>;
+export interface IChatRequestVariableEntry {
+	name: string;
+	range?: IOffsetRange;
+	values: IChatRequestVariableValue[];
+}
+
+export interface IChatRequestVariableData {
+	variables: IChatRequestVariableEntry[];
 }
 
 export interface IChatRequestModel {
@@ -33,7 +40,7 @@ export interface IChatRequestModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
-	readonly message: IParsedChatRequest | IChatFollowup;
+	readonly message: IParsedChatRequest;
 	readonly variableData: IChatRequestVariableData;
 	readonly response?: IChatResponseModel;
 }
@@ -59,7 +66,7 @@ export interface IChatResponseModel {
 	readonly providerId: string;
 	readonly requestId: string;
 	readonly username: string;
-	readonly avatarIconUri?: URI;
+	readonly avatarIcon?: ThemeIcon | URI;
 	readonly session: IChatModel;
 	readonly agent?: IChatAgentData;
 	readonly usedContext: IChatUsedContext | undefined;
@@ -239,8 +246,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this.session.responderUsername;
 	}
 
-	public get avatarIconUri(): URI | undefined {
-		return this.session.responderAvatarIconUri;
+	public get avatarIcon(): ThemeIcon | URI | undefined {
+		return this.session.responderAvatarIcon;
 	}
 
 	private _followups?: IChatFollowup[];
@@ -397,7 +404,7 @@ export interface IExportableChatData {
 	requesterUsername: string;
 	responderUsername: string;
 	requesterAvatarIconUri: UriComponents | undefined;
-	responderAvatarIconUri: UriComponents | undefined;
+	responderAvatarIconUri: ThemeIcon | UriComponents | undefined; // Keeping Uri name for backcompat
 }
 
 export interface ISerializableChatData extends IExportableChatData {
@@ -410,8 +417,7 @@ export function isExportableSessionData(obj: unknown): obj is IExportableChatDat
 	const data = obj as IExportableChatData;
 	return typeof data === 'object' &&
 		typeof data.providerId === 'string' &&
-		typeof data.requesterUsername === 'string' &&
-		typeof data.responderUsername === 'string';
+		typeof data.requesterUsername === 'string';
 }
 
 export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
@@ -453,6 +459,14 @@ export enum ChatModelInitState {
 }
 
 export class ChatModel extends Disposable implements IChatModel {
+	static getDefaultTitle(requests: (ISerializableChatRequestData | IChatRequestModel)[]): string {
+		const firstRequestMessage = firstOrDefault(requests)?.message ?? '';
+		const message = typeof firstRequestMessage === 'string' ?
+			firstRequestMessage :
+			firstRequestMessage.text;
+		return message.split('\n')[0].substring(0, 50);
+	}
+
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
@@ -480,10 +494,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._sessionId;
 	}
 
-	get inputPlaceholder(): string | undefined {
-		return this._session?.inputPlaceholder;
-	}
-
 	get requestInProgress(): boolean {
 		const lastRequest = this._requests[this._requests.length - 1];
 		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
@@ -494,22 +504,34 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._creationDate;
 	}
 
+	private get _defaultAgent() {
+		return this.chatAgentService.getDefaultAgent();
+	}
+
 	get requesterUsername(): string {
-		return this._session?.requesterUsername ?? this.initialData?.requesterUsername ?? '';
+		return (this._defaultAgent ?
+			this._defaultAgent.metadata.requester?.name :
+			this.initialData?.requesterUsername) ?? '';
 	}
 
 	get responderUsername(): string {
-		return this._session?.responderUsername ?? this.initialData?.responderUsername ?? '';
+		return (this._defaultAgent ?
+			this._defaultAgent.metadata.fullName :
+			this.initialData?.responderUsername) ?? '';
 	}
 
 	private readonly _initialRequesterAvatarIconUri: URI | undefined;
 	get requesterAvatarIconUri(): URI | undefined {
-		return this._session ? this._session.requesterAvatarIconUri : this._initialRequesterAvatarIconUri;
+		return this._defaultAgent ?
+			this._defaultAgent.metadata.requester?.icon :
+			this._initialRequesterAvatarIconUri;
 	}
 
-	private readonly _initialResponderAvatarIconUri: URI | undefined;
-	get responderAvatarIconUri(): URI | undefined {
-		return this._session ? this._session.responderAvatarIconUri : this._initialResponderAvatarIconUri;
+	private readonly _initialResponderAvatarIconUri: ThemeIcon | URI | undefined;
+	get responderAvatarIcon(): ThemeIcon | URI | undefined {
+		return this._defaultAgent ?
+			this._defaultAgent?.metadata.themeIcon :
+			this._initialResponderAvatarIconUri;
 	}
 
 	get initState(): ChatModelInitState {
@@ -522,9 +544,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get title(): string {
-		const firstRequestMessage = firstOrDefault(this._requests)?.message;
-		const message = firstRequestMessage?.text ?? '';
-		return message.split('\n')[0].substring(0, 50);
+		return ChatModel.getDefaultTitle(this._requests);
 	}
 
 	constructor(
@@ -532,6 +552,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -541,7 +562,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._creationDate = (isSerializableSessionData(initialData) && initialData.creationDate) || Date.now();
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
-		this._initialResponderAvatarIconUri = initialData?.responderAvatarIconUri && URI.revive(initialData.responderAvatarIconUri);
+		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
 	}
 
 	private _deserialize(obj: IExportableChatData): ChatRequestModel[] {
@@ -553,7 +574,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (obj.welcomeMessage) {
 			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-			this._welcomeMessage = new ChatWelcomeMessageModel(this, content, []);
+			this._welcomeMessage = this.instantiationService.createInstance(ChatWelcomeMessageModel, content, []);
 		}
 
 		try {
@@ -563,8 +584,10 @@ export class ChatModel extends Disposable implements IChatModel {
 						? this.getParsedRequestFromString(raw.message)
 						: reviveParsedChatRequest(raw.message);
 
-				// Only old messages don't have variableData
-				const variableData: IChatRequestVariableData = raw.variableData ?? { message: parsedRequest.text, variables: {} };
+				// Old messages don't have variableData, or have it in the wrong (non-array) shape
+				const variableData: IChatRequestVariableData = raw.variableData && Array.isArray(raw.variableData.variables)
+					? raw.variableData :
+					{ variables: [] };
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
@@ -745,7 +768,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			requesterUsername: this.requesterUsername,
 			requesterAvatarIconUri: this.requesterAvatarIconUri,
 			responderUsername: this.responderUsername,
-			responderAvatarIconUri: this.responderAvatarIconUri,
+			responderAvatarIconUri: this.responderAvatarIcon,
 			welcomeMessage: this._welcomeMessage?.content.map(c => {
 				if (Array.isArray(c)) {
 					return c;
@@ -777,7 +800,10 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent ? { id: r.response.agent.id, metadata: r.response.agent.metadata } : undefined, // May actually be the full IChatAgent instance, just take the data props
+					agent: r.response?.agent ?
+						// May actually be the full IChatAgent instance, just take the data props. slashCommands don't matter here.
+						{ id: r.response.agent.id, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
+						: undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences
@@ -812,7 +838,7 @@ export interface IChatWelcomeMessageModel {
 	readonly content: IChatWelcomeMessageContent[];
 	readonly sampleQuestions: IChatFollowup[];
 	readonly username: string;
-	readonly avatarIconUri?: URI;
+	readonly avatarIcon?: ThemeIcon;
 
 }
 
@@ -825,18 +851,53 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 
 	constructor(
-		private readonly session: ChatModel,
 		public readonly content: IChatWelcomeMessageContent[],
-		public readonly sampleQuestions: IChatFollowup[]
+		public readonly sampleQuestions: IChatFollowup[],
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		this._id = 'welcome_' + ChatWelcomeMessageModel.nextId++;
 	}
 
 	public get username(): string {
-		return this.session.responderUsername;
+		return this.chatAgentService.getDefaultAgent()?.metadata.fullName ?? '';
 	}
 
-	public get avatarIconUri(): URI | undefined {
-		return this.session.responderAvatarIconUri;
+	public get avatarIcon(): ThemeIcon | undefined {
+		return this.chatAgentService.getDefaultAgent()?.metadata.themeIcon;
 	}
+}
+
+export function getHistoryEntriesFromModel(model: IChatModel): IChatAgentHistoryEntry[] {
+	const history: IChatAgentHistoryEntry[] = [];
+	for (const request of model.getRequests()) {
+		if (!request.response) {
+			continue;
+		}
+
+		const promptTextResult = getPromptText(request.message);
+		const historyRequest: IChatAgentRequest = {
+			sessionId: model.sessionId,
+			requestId: request.id,
+			agentId: request.response.agent?.id ?? '',
+			message: promptTextResult.message,
+			command: request.response.slashCommand?.name,
+			variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
+			location: ChatAgentLocation.Panel
+		};
+		history.push({ request: historyRequest, response: request.response.response.value, result: request.response.result ?? {} });
+	}
+
+	return history;
+}
+
+export function updateRanges(variableData: IChatRequestVariableData, diff: number): IChatRequestVariableData {
+	return {
+		variables: variableData.variables.map(v => ({
+			...v,
+			range: v.range && {
+				start: v.range.start - diff,
+				endExclusive: v.range.endExclusive - diff
+			}
+		}))
+	};
 }

@@ -22,7 +22,7 @@
             },
             agent: {
               id: "ChatProviderWithUsedContext",
-              metadata: {  }
+              metadata: { description: undefined }
             }
           },
           {
@@ -42,10 +42,7 @@
         ],
         text: "@ChatProviderWithUsedContext test request"
       },
-      variableData: {
-        message: "@ChatProviderWithUsedContext test request",
-        variables: {  }
-      },
+      variableData: { variables: [  ] },
       response: [  ],
       result: { metadata: { metadataKey: "value" } },
       followups: undefined,
@@ -53,7 +50,14 @@
       vote: undefined,
       agent: {
         id: "ChatProviderWithUsedContext",
-        metadata: {  }
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        metadata: { description: undefined },
+        slashCommands: [  ],
+        locations: [ 1 ],
+        isDefault: undefined
       },
       slashCommand: undefined,
       usedContext: {

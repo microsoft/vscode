@@ -92,9 +92,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 
 		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
 		for (const link of detectedLinks) {
-			links.push(this._createTerminalLink(link, async (event) => {
-				this._onDidActivateLink.fire({ link, event });
-			}));
+			links.push(this._createTerminalLink(link, async (event) => this._onDidActivateLink.fire({ link, event })));
 		}
 
 		return links;
@@ -110,6 +108,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			this._detector.xterm,
 			l.bufferRange,
 			l.text,
+			l.uri,
+			l.parsedLink,
 			l.actions,
 			this._detector.xterm.buffer.active.viewportY,
 			activateCallback,

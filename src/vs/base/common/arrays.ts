@@ -859,3 +859,36 @@ export class CallbackIterable<T> {
 		return result;
 	}
 }
+
+/**
+ * Represents a re-arrangement of items in an array.
+ */
+export class Permutation {
+	constructor(private readonly _indexMap: readonly number[]) { }
+
+	/**
+	 * Returns a permutation that sorts the given array according to the given compare function.
+	 */
+	public static createSortPermutation<T>(arr: readonly T[], compareFn: (a: T, b: T) => number): Permutation {
+		const sortIndices = Array.from(arr.keys()).sort((index1, index2) => compareFn(arr[index1], arr[index2]));
+		return new Permutation(sortIndices);
+	}
+
+	/**
+	 * Returns a new array with the elements of the given array re-arranged according to this permutation.
+	 */
+	apply<T>(arr: readonly T[]): T[] {
+		return arr.map((_, index) => arr[this._indexMap[index]]);
+	}
+
+	/**
+	 * Returns a new permutation that undoes the re-arrangement of this permutation.
+	*/
+	inverse(): Permutation {
+		const inverseIndexMap = this._indexMap.slice();
+		for (let i = 0; i < this._indexMap.length; i++) {
+			inverseIndexMap[this._indexMap[i]] = i;
+		}
+		return new Permutation(inverseIndexMap);
+	}
+}

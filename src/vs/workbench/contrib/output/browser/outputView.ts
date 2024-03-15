@@ -33,6 +33,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
+import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 
 export class OutputViewPane extends ViewPane {
 
@@ -159,10 +160,9 @@ class OutputEditor extends AbstractTextResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IFileService fileService: IFileService
 	) {
-		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
+		super(OUTPUT_VIEW_ID, editorGroupService.activeGroup /* TODO@bpasero this is wrong */, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
 
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 	}
@@ -211,6 +211,10 @@ class OutputEditor extends AbstractTextResourceEditor {
 
 	protected getAriaLabel(): string {
 		return this.input ? this.input.getAriaLabel() : nls.localize('outputViewAriaLabel', "Output panel");
+	}
+
+	protected override computeAriaLabel(): string {
+		return this.input ? computeEditorAriaLabel(this.input, undefined, undefined, this.editorGroupService.count) : this.getAriaLabel();
 	}
 
 	override async setInput(input: TextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
