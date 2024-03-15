@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OutputService } from 'vs/workbench/contrib/output/browser/outputServices';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from 'vs/workbench/services/output/common/output';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -30,6 +30,8 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from 'vs/platform/log/common/log';
+import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -99,6 +101,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerOpenActiveOutputFileInAuxWindowAction();
 		this.registerShowLogsAction();
 		this.registerOpenLogFileAction();
+		this.registerConfigureActiveOutputLogLevelAction();
 	}
 
 	private registerSwitchOutputAction(): void {
@@ -332,6 +335,78 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 		}
 		return null;
+	}
+
+	private registerConfigureActiveOutputLogLevelAction(): void {
+		const that = this;
+		const logLevelMenu = new MenuId('workbench.output.menu.logLevel');
+		this._register(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+			submenu: logLevelMenu,
+			title: nls.localize('logLevel.label', "Set Log Level..."),
+			group: 'navigation',
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID), CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE),
+			icon: Codicon.gear,
+			order: 6
+		}));
+
+		let order = 0;
+		const registerLogLevel = (logLevel: LogLevel) => {
+			this._register(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.action.output.activeOutputLogLevel.${logLevel}`,
+						title: LogLevelToLocalizedString(logLevel).value,
+						toggled: CONTEXT_ACTIVE_OUTPUT_LEVEL.isEqualTo(LogLevelToString(logLevel)),
+						menu: {
+							id: logLevelMenu,
+							order: order++,
+							group: '0_level'
+						}
+					});
+				}
+				async run(accessor: ServicesAccessor): Promise<void> {
+					const channel = that.outputService.getActiveChannel();
+					if (channel) {
+						const channelDescriptor = that.outputService.getChannelDescriptor(channel.id);
+						if (channelDescriptor?.log && channelDescriptor.file) {
+							return accessor.get(ILoggerService).setLogLevel(channelDescriptor.file, logLevel);
+						}
+					}
+				}
+			}));
+		};
+
+		registerLogLevel(LogLevel.Trace);
+		registerLogLevel(LogLevel.Debug);
+		registerLogLevel(LogLevel.Info);
+		registerLogLevel(LogLevel.Warning);
+		registerLogLevel(LogLevel.Error);
+		registerLogLevel(LogLevel.Off);
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.output.activeOutputLogLevelDefault`,
+					title: nls.localize('logLevelDefault.label', "Set As Default"),
+					menu: {
+						id: logLevelMenu,
+						order,
+						group: '1_default'
+					},
+					precondition: CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT.negate()
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const channel = that.outputService.getActiveChannel();
+				if (channel) {
+					const channelDescriptor = that.outputService.getChannelDescriptor(channel.id);
+					if (channelDescriptor?.log && channelDescriptor.file) {
+						const logLevel = accessor.get(ILoggerService).getLogLevel(channelDescriptor.file);
+						return await accessor.get(IDefaultLogLevelsService).setDefaultLogLevel(logLevel, channelDescriptor.extensionId);
+					}
+				}
+			}
+		}));
 	}
 
 	private registerShowLogsAction(): void {

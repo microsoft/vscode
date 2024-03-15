@@ -74,7 +74,7 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 	/**
 	 * Instantiates the editor pane using the provided services.
 	 */
-	instantiate(instantiationService: IInstantiationService): T;
+	instantiate(instantiationService: IInstantiationService, group: IEditorGroup): T;
 
 	/**
 	 * Whether the descriptor is for the provided editor pane.
@@ -107,6 +107,11 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeSelection?: Event<IEditorPaneSelectionChangeEvent>;
 
 	/**
+	 * An optional event to notify when the editor inside the pane scrolled
+	 */
+	readonly onDidChangeScroll?: Event<void>;
+
+	/**
 	 * The assigned input of this editor.
 	 */
 	readonly input: EditorInput | undefined;
@@ -119,7 +124,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	readonly group: IEditorGroup | undefined;
+	readonly group: IEditorGroup;
 
 	/**
 	 * The minimum width of this editor.
@@ -181,6 +186,22 @@ export interface IEditorPane extends IComposite {
 	 * selection as needed.
 	 */
 	getSelection?(): IEditorPaneSelection | undefined;
+
+	/**
+	 * An optional method to return the current scroll position
+	 * of an editor inside the pane.
+	 *
+	 * Clients of this method will typically react to the
+	 * `onDidChangeScroll` event to receive the current
+	 * scroll position as needed.
+	 */
+	getScrollPosition?(): IEditorPaneScrollPosition;
+
+	/**
+	 * An optional method to set the current scroll position
+	 * of an editor inside the pane.
+	 */
+	setScrollPosition?(scrollPosition: IEditorPaneScrollPosition): void;
 
 	/**
 	 * Finds out if this editor is visible or not.
@@ -306,6 +327,14 @@ export function isEditorPaneWithSelection(editorPane: IEditorPane | undefined): 
 }
 
 /**
+ * Scroll position of a pane
+ */
+export interface IEditorPaneScrollPosition {
+	readonly scrollTop: number;
+	readonly scrollLeft?: number;
+}
+
+/**
  * Try to retrieve the view state for the editor pane that
  * has the provided editor input opened, if at all.
  *
@@ -327,7 +356,6 @@ export function findViewStateForEditor(input: EditorInput, group: GroupIdentifie
  */
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: EditorInput;
-	readonly group: IEditorGroup;
 }
 
 /**
@@ -794,7 +822,7 @@ export const enum EditorInputCapabilities {
 
 	/**
 	 * Signals that the editor does not support opening in
-	 * auxiliary windows yet.
+	 * auxiliary windows.
 	 */
 	AuxWindowUnsupported = 1 << 10
 }

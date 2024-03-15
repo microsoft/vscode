@@ -426,6 +426,7 @@ export interface ISearchConfigurationProperties {
 	mode: 'view' | 'reuseEditor' | 'newEditor';
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide';
+		singleClickBehaviour: 'default' | 'peekDefinition';
 		reusePriorSearchConfiguration: boolean;
 		defaultNumberOfContextLines: number | null;
 		experimental: {};

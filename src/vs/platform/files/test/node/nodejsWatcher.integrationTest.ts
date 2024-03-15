@@ -9,17 +9,18 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
-import { NodeJSFileWatcherLibrary, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
+import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { FileAccess } from 'vs/base/common/network';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { Emitter, Event } from 'vs/base/common/event';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -30,27 +31,20 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
-		override async watch(requests: INonRecursiveWatchRequest[]): Promise<void> {
-			await super.watch(requests);
-			await this.whenReady();
-		}
+		protected override readonly suspendedWatchRequestPollingInterval = 100;
 
-		async whenReady(): Promise<void> {
-			for (const [, watcher] of this.watchers) {
+		private readonly _onDidWatch = this._register(new Emitter<void>());
+		readonly onDidWatch = this._onDidWatch.event;
+
+		readonly onWatchFail = this._onDidWatchFail.event;
+
+		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
+			await super.doWatch(requests);
+			for (const watcher of this.watchers) {
 				await watcher.instance.ready;
 			}
-		}
-	}
 
-	class TestNodeJSFileWatcherLibrary extends NodeJSFileWatcherLibrary {
-
-		private readonly _whenDisposed = new DeferredPromise<void>();
-		readonly whenDisposed = this._whenDisposed.p;
-
-		override dispose(): void {
-			super.dispose();
-
-			this._whenDisposed.complete();
+			this._onDidWatch.fire();
 		}
 	}
 
@@ -432,7 +426,7 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 		return basicCrudTest(join(link, 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number): Promise<void> {
+	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number, awaitWatchAfterAdd?: boolean): Promise<void> {
 		let changeFuture: Promise<unknown>;
 
 		// New file
@@ -440,6 +434,9 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId, expectedCount);
 			await Promises.writeFile(filePath, 'Hello World');
 			await changeFuture;
+			if (awaitWatchAfterAdd) {
+				await Event.toPromise(watcher.onDidWatch);
+			}
 		}
 
 		// Change file
@@ -506,27 +503,6 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: false }]);
 	});
 
-	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('deleting watched path is handled properly (folder watch)', async function () {
-		const watchedPath = join(testDir, 'deep');
-
-		const watcher = new TestNodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => { });
-		await watcher.ready;
-
-		// Delete watched path and ensure watcher is now disposed
-		Promises.rm(watchedPath, RimRafMode.UNLINK);
-		await watcher.whenDisposed;
-	});
-
-	test('deleting watched path is handled properly (file watch)', async function () {
-		const watchedPath = join(testDir, 'lorem.txt');
-		const watcher = new TestNodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => { });
-		await watcher.ready;
-
-		// Delete watched path and ensure watcher is now disposed
-		Promises.unlink(watchedPath);
-		await watcher.whenDisposed;
-	});
-
 	test('watchFileContents', async function () {
 		const watchedPath = join(testDir, 'lorem.txt');
 
@@ -547,16 +523,130 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 		return watchPromise;
 	});
 
-	test('watching same or overlapping paths supported when correlation is applied', async () => {
+	test('watching same or overlapping paths supported when correlation is applied', async function () {
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: false, correlationId: 1 }
+		]);
 
-		// same path, same options
+		await basicCrudTest(join(testDir, 'newFile_1.txt'), undefined, null, 1);
+
 		await watcher.watch([
 			{ path: testDir, excludes: [], recursive: false, correlationId: 1 },
 			{ path: testDir, excludes: [], recursive: false, correlationId: 2, },
 			{ path: testDir, excludes: [], recursive: false, correlationId: undefined }
 		]);
 
-		await basicCrudTest(join(testDir, 'newFile.txt'), undefined, null, 3);
+		await basicCrudTest(join(testDir, 'newFile_2.txt'), undefined, null, 3);
 		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, null, 3);
+	});
+
+	test('watching missing path emits watcher fail event', async function () {
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'missing');
+		watcher.watch([{ path: folderPath, excludes: [], recursive: true }]);
+
+		await onDidWatchFail;
+	});
+
+	test('deleting watched path emits watcher fail and delete event when correlated (file watch)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, 1);
+		Promises.unlink(filePath);
+		await onDidWatchFail;
+		await changeFuture;
+	});
+
+	(isMacintosh /* macOS: does not seem to report deletes on folders */ ? test.skip : test)('deleting watched path emits watcher fail and delete event when correlated (folder watch)', async function () {
+		const folderPath = join(testDir, 'deep');
+
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false }]);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
+		Promises.rm(folderPath, RimRafMode.UNLINK);
+		await onDidWatchFail;
+		await changeFuture;
+	});
+
+	test('correlated watch requests support suspend/resume (file, does not exist in beginning)', async function () {
+		const filePath = join(testDir, 'not-found.txt');
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+		await onDidWatchFail;
+
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+	});
+
+	test('correlated watch requests support suspend/resume (file, exists in beginning)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await basicCrudTest(filePath, true, 1);
+		await onDidWatchFail;
+
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
+		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'not-found');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+		await onDidWatchFail;
+
+		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		let onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, undefined, 1);
+
+		if (!isMacintosh) { // macOS does not report DELETE events for folders
+			onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+			await Promises.rmdir(folderPath);
+			await onDidWatchFail;
+
+			changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+			onDidWatch = Event.toPromise(watcher.onDidWatch);
+			await Promises.mkdir(folderPath);
+			await changeFuture;
+			await onDidWatch;
+
+			await timeout(500); // somehow needed on Linux
+
+			await basicCrudTest(filePath, undefined, 1);
+		}
+	});
+
+	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('correlated watch requests support suspend/resume (folder, exists in beginning)', async function () {
+		const folderPath = join(testDir, 'deep');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, undefined, 1);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await Promises.rm(folderPath);
+		await onDidWatchFail;
+
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		const onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		await timeout(500); // somehow needed on Linux
+
+		await basicCrudTest(filePath, undefined, 1);
 	});
 });

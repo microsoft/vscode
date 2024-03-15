@@ -41,7 +41,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ResourceMap } from 'vs/base/common/map';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { AnythingQuickAccessProviderRunOptions, DefaultQuickAccessFilterValue, Extensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { EditorViewState, IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
+import { PickerEditorState, IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
@@ -83,11 +83,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private static SYMBOL_PICKS_MERGE_DELAY = 200; // allow some time to merge fast and slow picks to reduce flickering
 
-	private readonly pickState = new class {
+	private readonly pickState = this._register(new class extends Disposable {
 
 		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
 
-		editorViewState: EditorViewState;
+		editorViewState = this._register(this.instantiationService.createInstance(PickerEditorState));
 
 		scorerCache: FuzzyScorerCache = Object.create(null);
 		fileQueryCache: FileQueryCacheState | undefined = undefined;
@@ -100,8 +100,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		isQuickNavigating: boolean | undefined = undefined;
 
-		constructor(private readonly provider: AnythingQuickAccessProvider, editorService: IEditorService) {
-			this.editorViewState = new EditorViewState(editorService);
+		constructor(
+			private readonly provider: AnythingQuickAccessProvider,
+			private readonly instantiationService: IInstantiationService
+		) {
+			super();
 		}
 
 		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
@@ -129,7 +132,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.lastGlobalPicks = undefined;
 			this.editorViewState.reset();
 		}
-	}(this, this.editorService);
+	}(this, this.instantiationService));
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -844,7 +847,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.pickState.editorViewState.set();
 
 			// open it
-			await this.editorService.openEditor({
+			await this.pickState.editorViewState.openTransientEditor({
 				resource: activeGlobalResource,
 				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true }
 			});

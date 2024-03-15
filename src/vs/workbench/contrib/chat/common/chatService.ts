@@ -19,11 +19,6 @@ import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chat
 
 export interface IChat {
 	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
-	requesterUsername: string;
-	requesterAvatarIconUri?: URI;
-	responderUsername: string;
-	responderAvatarIconUri?: URI;
-	inputPlaceholder?: string;
 	dispose?(): void;
 }
 
@@ -288,12 +283,11 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string): Promise<IChatSendRequestData | undefined>;
+	sendRequest(sessionId: string, message: string, implicitVariablesEnabled?: boolean): Promise<IChatSendRequestData | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): void;
-	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;

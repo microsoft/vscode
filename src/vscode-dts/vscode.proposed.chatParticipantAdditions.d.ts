@@ -22,9 +22,18 @@ declare module 'vscode' {
 		markdownContent: MarkdownString;
 	}
 
+	/**
+	 * Now only used for the "intent detection" API below
+	 */
+	export interface ChatCommand {
+		readonly name: string;
+		readonly description: string;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatDetectedParticipant {
 		participant: string;
+		// TODO@API validate this against statically-declared slash commands?
 		command?: ChatCommand;
 	}
 
@@ -231,20 +240,6 @@ declare module 'vscode' {
 		kind?: string;
 	}
 
-	export interface ChatCommand {
-		readonly isSticky2?: {
-			/**
-			 * Indicates that the command should be automatically repopulated.
-			 */
-			isSticky: true;
-
-			/**
-			 * This can be set to a string to use a different placeholder message in the input box when the command has been repopulated.
-			 */
-			placeholder?: string;
-		};
-	}
-
 	export interface ChatVariableResolverResponseStream {
 		/**
 		 * Push a progress part to this stream. Short-hand for
@@ -284,5 +279,13 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		resolve2?(name: string, context: ChatVariableContext, stream: ChatVariableResolverResponseStream, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
+	}
+
+	export interface ChatParticipant {
+		/**
+		 * A human-readable description explaining what this participant does.
+		 * Only allow a static description for normal participants. Here where dynamic participants are allowed, the description must be able to be set as well.
+		 */
+		description?: string;
 	}
 }

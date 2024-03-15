@@ -16,7 +16,8 @@ import * as nls from 'vs/nls';
 import {
 	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
-	InstallOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_DEP_PACK_CONTEXT, ExtensionGalleryError
+	InstallOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_DEP_PACK_CONTEXT, ExtensionGalleryError,
+	IProductVersion
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -29,7 +30,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 export type ExtensionVerificationStatus = boolean | string;
 export type InstallableExtension = { readonly manifest: IExtensionManifest; extension: IGalleryExtension | URI; options: InstallOptions };
 
-export type InstallExtensionTaskOptions = InstallOptions & { readonly profileLocation: URI };
+export type InstallExtensionTaskOptions = InstallOptions & { readonly profileLocation: URI; readonly productVersion: IProductVersion };
 export interface IInstallExtensionTask {
 	readonly identifier: IExtensionIdentifier;
 	readonly source: IGalleryExtension | URI;
@@ -124,7 +125,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		await Promise.allSettled(extensions.map(async ({ extension, options }) => {
 			try {
-				const compatible = await this.checkAndGetCompatibleVersion(extension, !!options?.installGivenVersion, !!options?.installPreReleaseVersion);
+				const compatible = await this.checkAndGetCompatibleVersion(extension, !!options?.installGivenVersion, !!options?.installPreReleaseVersion, options.productVersion ?? { version: this.productService.version, date: this.productService.date });
 				installableExtensions.push({ ...compatible, options });
 			} catch (error) {
 				results.push({ identifier: extension.identifier, operation: InstallOperation.Install, source: extension, error });
@@ -230,7 +231,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					...options,
 					installOnlyNewlyAddedFromExtensionPack: options.installOnlyNewlyAddedFromExtensionPack ?? !URI.isUri(extension) /* always true for gallery extensions */,
 					isApplicationScoped,
-					profileLocation: isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation()
+					profileLocation: isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation(),
+					productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date }
 				};
 
 				const existingInstallExtensionTask = !URI.isUri(extension) ? this.installingExtensions.get(getInstallExtensionTaskKey(extension, installExtensionTaskOptions.profileLocation)) : undefined;
@@ -248,8 +250,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					this.logService.info('Installing the extension without checking dependencies and pack', task.identifier.id);
 				} else {
 					try {
-						const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensions(task.identifier, manifest, !!task.options.installOnlyNewlyAddedFromExtensionPack, !!task.options.installPreReleaseVersion, task.options.profileLocation);
-						const installed = await this.getInstalled(undefined, task.options.profileLocation);
+						const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensions(task.identifier, manifest, !!task.options.installOnlyNewlyAddedFromExtensionPack, !!task.options.installPreReleaseVersion, task.options.profileLocation, task.options.productVersion);
+						const installed = await this.getInstalled(undefined, task.options.profileLocation, task.options.productVersion);
 						const options: InstallExtensionTaskOptions = { ...task.options, donotIncludePackAndDependencies: true, context: { ...task.options.context, [EXTENSION_INSTALL_DEP_PACK_CONTEXT]: true } };
 						for (const { gallery, manifest } of distinct(allDepsAndPackExtensionsToInstall, ({ gallery }) => gallery.identifier.id)) {
 							if (installingExtensionsMap.has(`${gallery.identifier.id.toLowerCase()}-${options.profileLocation.toString()}`)) {
@@ -405,12 +407,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return results;
 	}
 
-	private async getAllDepsAndPackExtensions(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean, installPreRelease: boolean, profile: URI | undefined): Promise<{ gallery: IGalleryExtension; manifest: IExtensionManifest }[]> {
+	private async getAllDepsAndPackExtensions(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean, installPreRelease: boolean, profile: URI | undefined, productVersion: IProductVersion): Promise<{ gallery: IGalleryExtension; manifest: IExtensionManifest }[]> {
 		if (!this.galleryService.isEnabled()) {
 			return [];
 		}
 
-		const installed = await this.getInstalled(undefined, profile);
+		const installed = await this.getInstalled(undefined, profile, productVersion);
 		const knownIdentifiers: IExtensionIdentifier[] = [];
 
 		const allDependenciesAndPacks: { gallery: IGalleryExtension; manifest: IExtensionManifest }[] = [];
@@ -442,7 +444,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
 						let compatible;
 						try {
-							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, false, installPreRelease);
+							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, false, installPreRelease, productVersion);
 						} catch (error) {
 							if (!isDependency) {
 								this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id, getErrorMessage(error));
@@ -462,7 +464,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return allDependenciesAndPacks;
 	}
 
-	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension; manifest: IExtensionManifest }> {
+	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, installPreRelease: boolean, productVersion: IProductVersion): Promise<{ extension: IGalleryExtension; manifest: IExtensionManifest }> {
 		let compatibleExtension: IGalleryExtension | null;
 
 		const extensionsControlManifest = await this.getExtensionsControlManifest();
@@ -473,7 +475,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		const deprecationInfo = extensionsControlManifest.deprecated[extension.identifier.id.toLowerCase()];
 		if (deprecationInfo?.extension?.autoMigrate) {
 			this.logService.info(`The '${extension.identifier.id}' extension is deprecated, fetching the compatible '${deprecationInfo.extension.id}' extension instead.`);
-			compatibleExtension = (await this.galleryService.getExtensions([{ id: deprecationInfo.extension.id, preRelease: deprecationInfo.extension.preRelease }], { targetPlatform: await this.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
+			compatibleExtension = (await this.galleryService.getExtensions([{ id: deprecationInfo.extension.id, preRelease: deprecationInfo.extension.preRelease }], { targetPlatform: await this.getTargetPlatform(), compatible: true, productVersion }, CancellationToken.None))[0];
 			if (!compatibleExtension) {
 				throw new ExtensionManagementError(nls.localize('notFoundDeprecatedReplacementExtension', "Can't install '{0}' extension since it was deprecated and the replacement extension '{1}' can't be found.", extension.identifier.id, deprecationInfo.extension.id), ExtensionManagementErrorCode.Deprecated);
 			}
@@ -485,7 +487,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
 			}
 
-			compatibleExtension = await this.getCompatibleVersion(extension, sameVersion, installPreRelease);
+			compatibleExtension = await this.getCompatibleVersion(extension, sameVersion, installPreRelease, productVersion);
 			if (!compatibleExtension) {
 				/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
 				if (!installPreRelease && extension.properties.isPreReleaseVersion && (await this.galleryService.getExtensions([extension.identifier], CancellationToken.None))[0]) {
@@ -508,23 +510,23 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return { extension: compatibleExtension, manifest };
 	}
 
-	protected async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
+	protected async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean, productVersion: IProductVersion): Promise<IGalleryExtension | null> {
 		const targetPlatform = await this.getTargetPlatform();
 		let compatibleExtension: IGalleryExtension | null = null;
 
 		if (!sameVersion && extension.hasPreReleaseVersion && extension.properties.isPreReleaseVersion !== includePreRelease) {
-			compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: includePreRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0] || null;
+			compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: includePreRelease }], { targetPlatform, compatible: true, productVersion }, CancellationToken.None))[0] || null;
 		}
 
-		if (!compatibleExtension && await this.galleryService.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
+		if (!compatibleExtension && await this.galleryService.isExtensionCompatible(extension, includePreRelease, targetPlatform, productVersion)) {
 			compatibleExtension = extension;
 		}
 
 		if (!compatibleExtension) {
 			if (sameVersion) {
-				compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, version: extension.version }], { targetPlatform, compatible: true }, CancellationToken.None))[0] || null;
+				compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, version: extension.version }], { targetPlatform, compatible: true, productVersion }, CancellationToken.None))[0] || null;
 			} else {
-				compatibleExtension = await this.galleryService.getCompatibleExtension(extension, includePreRelease, targetPlatform);
+				compatibleExtension = await this.galleryService.getCompatibleExtension(extension, includePreRelease, targetPlatform, productVersion);
 			}
 		}
 
@@ -718,7 +720,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
 	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	abstract installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
-	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
+	abstract getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
 	abstract copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	abstract download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
