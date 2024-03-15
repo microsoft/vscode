@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
+import { Dimension, IFocusTracker, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/terminalChatWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -59,8 +59,11 @@ export class TerminalChatWidget extends Disposable {
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
-			// TODO: Listen to this._terminalElement/terminal view resize
 		)(() => this._relayout()));
+
+		const observer = new ResizeObserver(() => this._relayout());
+		observer.observe(this._terminalElement);
+		this._register(toDisposable(() => observer.disconnect()));
 
 		this._reset();
 		this._container.appendChild(this._inlineChatWidget.domNode);
@@ -77,9 +80,11 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	private _doLayout(heightInPixel: number) {
-		// TODO: Polish margins
 		const width = Math.min(640, this._terminalElement.clientWidth - 12/* padding */ - 2/* border */ - Constants.HorizontalMargin);
 		const height = Math.min(480, heightInPixel, this._getTerminalHeight() ?? Number.MAX_SAFE_INTEGER);
+		if (width === 0 || height === 0) {
+			return;
+		}
 		this._dimension = new Dimension(width, height);
 		this._inlineChatWidget.layout(this._dimension);
 		this._updateVerticalPosition();
