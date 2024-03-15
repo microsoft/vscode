@@ -806,7 +806,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		return result;
 	}
 
-	constructor(onDidClientConnect: Event<ClientConnectionEvent>, ipcLogger: IIPCLogger | null = null, timeoutDelay: number = 1000) {
+	constructor(onDidClientConnect: Event<ClientConnectionEvent>, ipcLogger?: IIPCLogger | null, timeoutDelay?: number) {
 		this.disposables.add(onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
 			const onFirstMessage = Event.once(protocol.onMessage);
 
