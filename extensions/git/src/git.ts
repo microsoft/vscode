@@ -1161,6 +1161,10 @@ export class Repository {
 			args.push(`-n${options?.maxEntries ?? 32}`);
 		}
 
+		if (options?.author) {
+			args.push(`--author="${options.author}"`);
+		}
+
 		if (options?.path) {
 			args.push('--', options.path);
 		}

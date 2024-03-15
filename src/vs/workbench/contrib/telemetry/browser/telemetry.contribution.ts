@@ -250,7 +250,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 			return { ...cur, affectedKeys: newAffectedKeys };
 		}, 1000, true);
 
-		debouncedConfigService(event => {
+		this._register(debouncedConfigService(event => {
 			if (event.source !== ConfigurationTarget.DEFAULT) {
 				type UpdateConfigurationClassification = {
 					owner: 'sandy081';
@@ -267,7 +267,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					configurationKeys: Array.from(event.affectedKeys)
 				});
 			}
-		});
+		}));
 
 		const { user, workspace } = configurationService.keys();
 		for (const setting of user) {

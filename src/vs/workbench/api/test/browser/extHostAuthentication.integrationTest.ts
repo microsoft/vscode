@@ -19,7 +19,7 @@ import { ExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.pro
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { AuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { IAuthenticationExtensionsService, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService, nullExtensionDescription as extensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
@@ -28,6 +28,9 @@ import { TestActivityService, TestExtensionService, TestProductService, TestStor
 import type { AuthenticationProvider, AuthenticationSession } from 'vscode';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { AuthenticationAccessService, IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
+import { AuthenticationUsageService, IAuthenticationUsageService } from 'vs/workbench/services/authentication/browser/authenticationUsageService';
+import { AuthenticationExtensionsService } from 'vs/workbench/services/authentication/browser/authenticationExtensionsService';
 
 class AuthQuickPick {
 	private listener: ((e: IQuickPickDidAcceptEvent) => any) | undefined;
@@ -113,9 +116,12 @@ suite('ExtHostAuthentication', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IBrowserWorkbenchEnvironmentService, TestEnvironmentService);
 		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IAuthenticationAccessService, instantiationService.createInstance(AuthenticationAccessService));
+		instantiationService.stub(IAuthenticationUsageService, instantiationService.createInstance(AuthenticationUsageService));
 		const rpcProtocol = new TestRPCProtocol();
 
 		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));
+		instantiationService.stub(IAuthenticationExtensionsService, instantiationService.createInstance(AuthenticationExtensionsService));
 		rpcProtocol.set(MainContext.MainThreadAuthentication, instantiationService.createInstance(MainThreadAuthentication, rpcProtocol));
 		extHostAuthentication = new ExtHostAuthentication(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostAuthentication, extHostAuthentication);
