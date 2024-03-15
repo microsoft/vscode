@@ -524,23 +524,16 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 	// create shared process and signal back to main that we are
 	// ready to accept message ports as client connections
 
-	const sharedProcess = new SharedProcessMain(configuration);
-	process.parentPort.postMessage(SharedProcessLifecycle.ipcReady);
+	try {
+		const sharedProcess = new SharedProcessMain(configuration);
+		process.parentPort.postMessage(SharedProcessLifecycle.ipcReady);
 
-	console.log('before init')
+		// await initialization and signal this back to electron-main
+		await sharedProcess.init();
 
-	// await initialization and signal this back to electron-main
-	await sharedProcess.init();
-
-	console.log('shared process init done')
-
-	process.parentPort.postMessage(SharedProcessLifecycle.initDone);
-}
-
-
-console.log('hello from shared process')
+		process.parentPort.postMessage(SharedProcessLifecycle.initDone);
+	}
 
 process.parentPort.once('message', (e: Electron.MessageEvent) => {
-	console.log('shared process messaeg')
-	main(e.data as ISharedProcessConfiguration);
-});
+		main(e.data as ISharedProcessConfiguration);
+	});

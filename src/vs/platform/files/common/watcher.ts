@@ -43,6 +43,14 @@ interface IWatchRequest {
 	readonly correlationId?: number;
 }
 
+export interface IWatchRequestWithCorrelation extends IWatchRequest {
+	readonly correlationId: number;
+}
+
+export function isWatchRequestWithCorrelation(request: IWatchRequest): request is IWatchRequestWithCorrelation {
+	return typeof request.correlationId === 'number';
+}
+
 export interface INonRecursiveWatchRequest extends IWatchRequest {
 
 	/**
@@ -71,7 +79,7 @@ export function isRecursiveWatchRequest(request: IWatchRequest): request is IRec
 
 export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
-interface IWatcher {
+export interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events

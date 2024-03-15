@@ -425,7 +425,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerDeleteProfileAction(): void {
-		registerAction2(class DeleteProfileAction extends Action2 {
+		this._register(registerAction2(class DeleteProfileAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.profiles.actions.deleteProfile',
@@ -473,7 +473,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					}
 				}
 			}
-		});
+		}));
 	}
 
 	private registerHelpAction(): void {

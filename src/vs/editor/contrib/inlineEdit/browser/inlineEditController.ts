@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, constObservable, disposableObservableValue, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
+import { ISettableObservable, autorun, constObservable, disposableObservableValue, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,6 +21,7 @@ import { InlineEditHintsWidget } from 'vs/editor/contrib/inlineEdit/browser/inli
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createStyleSheet2 } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export class InlineEditWidget implements IDisposable {
 	constructor(public readonly widget: GhostTextWidget, public readonly edit: IInlineEdit) { }
@@ -49,7 +50,7 @@ export class InlineEditController extends Disposable {
 	private _currentRequestCts: CancellationTokenSource | undefined;
 
 	private _jumpBackPosition: Position | undefined;
-	private _isAccepting: boolean = false;
+	private _isAccepting: ISettableObservable<boolean> = observableValue(this, false);
 
 	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).enabled);
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).fontFamily);
@@ -76,6 +77,9 @@ export class InlineEditController extends Disposable {
 				return;
 			}
 			modelChangedSignal.read(reader);
+			if (this._isAccepting.read(reader)) {
+				return;
+			}
 			this.getInlineEdit(editor, true);
 		}));
 
@@ -111,7 +115,7 @@ export class InlineEditController extends Disposable {
 
 		//Clear suggestions on lost focus
 		const editorBlurSingal = observableSignalFromEvent('InlineEditController.editorBlurSignal', editor.onDidBlurEditorWidget);
-		this._register(autorun(reader => {
+		this._register(autorun(async reader => {
 			/** @description InlineEditController.editorBlur */
 			if (!this._enabled.read(reader)) {
 				return;
@@ -121,9 +125,9 @@ export class InlineEditController extends Disposable {
 			if (this._configurationService.getValue('editor.experimentalInlineEdit.keepOnBlur') || editor.getOption(EditorOption.inlineEdit).keepOnBlur) {
 				return;
 			}
-			this._currentRequestCts?.dispose();
+			this._currentRequestCts?.dispose(true);
 			this._currentRequestCts = undefined;
-			this.clear(false);
+			await this.clear(false);
 		}));
 
 		//Invoke provider on focus
@@ -222,8 +226,7 @@ export class InlineEditController extends Disposable {
 
 	private async getInlineEdit(editor: ICodeEditor, auto: boolean) {
 		this._isCursorAtInlineEditContext.set(false);
-		this.clear();
-		this._isAccepting = false;
+		await this.clear();
 		const edit = await this.fetchInlineEdit(editor, auto);
 		if (!edit) {
 			return;
@@ -254,8 +257,8 @@ export class InlineEditController extends Disposable {
 		this.editor.revealPositionInCenterIfOutsideViewport(this._jumpBackPosition);
 	}
 
-	public accept(): void {
-		this._isAccepting = true;
+	public async accept() {
+		this._isAccepting.set(true, undefined);
 		const data = this._currentEdit.get()?.edit;
 		if (!data) {
 			return;
@@ -269,10 +272,15 @@ export class InlineEditController extends Disposable {
 		this.editor.pushUndoStop();
 		this.editor.executeEdits('acceptCurrent', [EditOperation.replace(Range.lift(data.range), text)]);
 		if (data.accepted) {
-			this._commandService.executeCommand(data.accepted.id, ...data.accepted.arguments || []);
+			await this._commandService
+				.executeCommand(data.accepted.id, ...(data.accepted.arguments || []))
+				.then(undefined, onUnexpectedExternalError);
 		}
 		this.freeEdit(data);
-		this._currentEdit.set(undefined, undefined);
+		transaction((tx) => {
+			this._currentEdit.set(undefined, tx);
+			this._isAccepting.set(false, tx);
+		});
 	}
 
 	public jumpToCurrent(): void {
@@ -288,10 +296,12 @@ export class InlineEditController extends Disposable {
 		this.editor.revealPositionInCenterIfOutsideViewport(position);
 	}
 
-	public clear(sendRejection: boolean = true) {
+	public async clear(sendRejection: boolean = true) {
 		const edit = this._currentEdit.get()?.edit;
-		if (edit && edit?.rejected && !this._isAccepting && sendRejection) {
-			this._commandService.executeCommand(edit.rejected.id, ...edit.rejected.arguments || []);
+		if (edit && edit?.rejected && sendRejection) {
+			await this._commandService
+				.executeCommand(edit.rejected.id, ...(edit.rejected.arguments || []))
+				.then(undefined, onUnexpectedExternalError);
 		}
 		if (edit) {
 			this.freeEdit(edit);

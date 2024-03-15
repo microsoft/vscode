@@ -76,7 +76,7 @@ export class ShowSignalSoundHelp extends Action2 {
 		qp.onDidChangeActive(() => {
 			accessibilitySignalService.playSound(qp.activeItems[0].signal.sound.getSound(true), true);
 		});
-		qp.placeholder = localize('audioCues.help.placeholder', 'Select a sound to play and configure');
+		qp.placeholder = localize('sounds.help.placeholder', 'Select a sound to play and configure');
 		qp.canSelectMany = true;
 		await qp.show();
 	}
