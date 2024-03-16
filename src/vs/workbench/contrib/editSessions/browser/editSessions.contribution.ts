@@ -910,7 +910,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		if (!this.registeredCommands.has(command.id)) {
 			this.registeredCommands.add(command.id);
 
-			registerAction2(class StandaloneContinueOnOption extends Action2 {
+			this._register(registerAction2(class StandaloneContinueOnOption extends Action2 {
 				constructor() {
 					super(command);
 				}
@@ -918,7 +918,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				async run(accessor: ServicesAccessor): Promise<void> {
 					return accessor.get(ICommandService).executeCommand(continueWorkingOnCommand.id, undefined, commandId);
 				}
-			});
+			}));
 
 			if (remoteGroup !== undefined) {
 				MenuRegistry.appendMenuItem(MenuId.StatusBarRemoteIndicatorMenu, {

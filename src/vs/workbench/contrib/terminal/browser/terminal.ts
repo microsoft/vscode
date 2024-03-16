@@ -28,6 +28,7 @@ import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/mark
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -117,7 +118,7 @@ export interface IMarkTracker {
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;
-	revealCommand(command: ITerminalCommand, position?: ScrollPosition): void;
+	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position?: ScrollPosition): void;
 	revealRange(range: IBufferRange): void;
 	registerTemporaryDecoration(marker: IMarker, endMarker: IMarker | undefined, showOutline: boolean): void;
 	showCommandGuide(command: ITerminalCommand | undefined): void;

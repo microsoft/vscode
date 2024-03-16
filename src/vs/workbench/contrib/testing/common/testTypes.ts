@@ -21,6 +21,16 @@ export const enum TestResultState {
 	Errored = 6
 }
 
+export const testResultStateToContextValues: { [K in TestResultState]: string } = {
+	[TestResultState.Unset]: 'unset',
+	[TestResultState.Queued]: 'queued',
+	[TestResultState.Running]: 'running',
+	[TestResultState.Passed]: 'passed',
+	[TestResultState.Failed]: 'failed',
+	[TestResultState.Skipped]: 'skipped',
+	[TestResultState.Errored]: 'errored',
+};
+
 /** note: keep in sync with TestRunProfileKind in vscode.d.ts */
 export const enum ExtTestRunProfileKind {
 	Run = 1,
@@ -546,36 +556,35 @@ export namespace ICoveredCount {
 }
 
 export interface IFileCoverage {
+	id: string;
 	uri: URI;
 	statement: ICoveredCount;
 	branch?: ICoveredCount;
 	declaration?: ICoveredCount;
-	details?: CoverageDetails[];
 }
-
 
 export namespace IFileCoverage {
 	export interface Serialized {
+		id: string;
 		uri: UriComponents;
 		statement: ICoveredCount;
 		branch?: ICoveredCount;
 		declaration?: ICoveredCount;
-		details?: CoverageDetails.Serialized[];
 	}
 
 	export const serialize = (original: Readonly<IFileCoverage>): Serialized => ({
+		id: original.id,
 		statement: original.statement,
 		branch: original.branch,
 		declaration: original.declaration,
-		details: original.details?.map(CoverageDetails.serialize),
 		uri: original.uri.toJSON(),
 	});
 
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): IFileCoverage => ({
+		id: serialized.id,
 		statement: serialized.statement,
 		branch: serialized.branch,
 		declaration: serialized.declaration,
-		details: serialized.details?.map(CoverageDetails.deserialize),
 		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
 	});
 }
@@ -755,7 +764,7 @@ export interface ITestMessageMenuArgs {
 	/** Marshalling marker */
 	$mid: MarshalledId.TestMessageMenuArgs;
 	/** Tests ext ID */
-	extId: string;
+	test: InternalTestItem.Serialized;
 	/** Serialized test message */
 	message: ITestMessage.Serialized;
 }

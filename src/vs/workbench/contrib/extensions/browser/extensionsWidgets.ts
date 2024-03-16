@@ -42,6 +42,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -206,6 +207,14 @@ export class VerifiedPublisherWidget extends ExtensionWidget {
 		reset(this.container);
 		this.disposables.clear();
 		if (!this.extension?.publisherDomain?.verified) {
+			return;
+		}
+
+		if (this.extension.resourceExtension) {
+			return;
+		}
+
+		if (this.extension.local?.source === 'resource') {
 			return;
 		}
 
@@ -529,6 +538,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
 		super();
 	}
@@ -595,6 +605,16 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			}
 		}
 
+		const location = this.extension.resourceExtension?.location ?? (this.extension.local?.source === 'resource' ? this.extension.local?.location : undefined);
+		if (location) {
+			if (this.extension.isWorkspaceScoped && this.contextService.isInsideWorkspace(location)) {
+				markdown.appendMarkdown(localize('workspace extension', "Workspace Extension"));
+			} else {
+				markdown.appendMarkdown(localize('local extension', "Local Extension"));
+			}
+			markdown.appendText(`\n`);
+		}
+
 		if (this.extension.description) {
 			markdown.appendMarkdown(`${this.extension.description}`);
 			markdown.appendText(`\n`);
@@ -616,10 +636,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		const preReleaseMessage = ExtensionHoverWidget.getPreReleaseMessage(this.extension);
 		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
-		const reloadRequiredMessage = this.extension.reloadRequiredStatus;
+		const runtimeState = this.extension.runtimeState;
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage || preReleaseMessage) {
+		if (extensionRuntimeStatus || extensionStatus || runtimeState || recommendationMessage || preReleaseMessage) {
 
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
@@ -656,9 +676,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				markdown.appendText(`\n`);
 			}
 
-			if (reloadRequiredMessage) {
+			if (runtimeState) {
 				markdown.appendMarkdown(`$(${infoIcon.id})&nbsp;`);
-				markdown.appendMarkdown(`${reloadRequiredMessage}`);
+				markdown.appendMarkdown(`${runtimeState.reason}`);
 				markdown.appendText(`\n`);
 			}
 

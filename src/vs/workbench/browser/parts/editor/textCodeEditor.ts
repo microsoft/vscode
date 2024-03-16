@@ -17,7 +17,6 @@ import { IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { Dimension } from 'vs/base/browser/dom';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * A text editor using the code editor widget.
@@ -98,8 +97,8 @@ export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends
 		return this.editorControl?.hasTextFocus() || super.hasFocus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
 
 		if (visible) {
 			this.editorControl?.onVisible();

@@ -54,7 +54,7 @@ export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown
 export function getShellProcessTooltip(instance: ITerminalInstance, markdown: boolean): string {
 	const lines: string[] = [];
 
-	if (instance.processId) {
+	if (instance.processId && instance.processId > 0) {
 		lines.push(localize({ key: 'shellProcessTooltip.processId', comment: ['The first arg is "PID" which shouldn\'t be translated'] }, "Process ID ({0}): {1}", 'PID', instance.processId) + '\n');
 	}
 

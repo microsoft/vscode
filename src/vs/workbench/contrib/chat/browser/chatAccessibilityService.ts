@@ -15,7 +15,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	declare readonly _serviceBrand: undefined;
 
-	private _pendingCueMap: DisposableMap<number, AudioCueScheduler> = this._register(new DisposableMap());
+	private _pendingSignalMap: DisposableMap<number, AccessibilitySignalScheduler> = this._register(new DisposableMap());
 
 	private _requestId: number = 0;
 
@@ -25,11 +25,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	acceptRequest(): number {
 		this._requestId++;
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
-		this._pendingCueMap.set(this._requestId, this._instantiationService.createInstance(AudioCueScheduler));
+		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilitySignalScheduler));
 		return this._requestId;
 	}
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void {
-		this._pendingCueMap.deleteAndDispose(requestId);
+		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
 		const responseContent = typeof response === 'string' ? response : response?.response.asString();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatResponseReceived, { allowManyInParallel: true });
@@ -46,19 +46,19 @@ const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 /**
  * Schedules an audio cue to play when a chat response is pending for too long.
  */
-class AudioCueScheduler extends Disposable {
+class AccessibilitySignalScheduler extends Disposable {
 	private _scheduler: RunOnceScheduler;
-	private _audioCueLoop: IDisposable | undefined;
+	private _signalLoop: IDisposable | undefined;
 	constructor(@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService) {
 		super();
 		this._scheduler = new RunOnceScheduler(() => {
-			this._audioCueLoop = this._accessibilitySignalService.playSignalLoop(AccessibilitySignal.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+			this._signalLoop = this._accessibilitySignalService.playSignalLoop(AccessibilitySignal.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
 		}, CHAT_RESPONSE_PENDING_ALLOWANCE_MS);
 		this._scheduler.schedule();
 	}
 	override dispose(): void {
 		super.dispose();
-		this._audioCueLoop?.dispose();
+		this._signalLoop?.dispose();
 		this._scheduler.cancel();
 		this._scheduler.dispose();
 	}

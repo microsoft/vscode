@@ -308,6 +308,16 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double-clicking a result in a search editor.")
 		},
+		'search.searchEditor.singleClickBehaviour': {
+			type: 'string',
+			enum: ['default', 'peekDefinition',],
+			default: 'default',
+			enumDescriptions: [
+				nls.localize('search.searchEditor.singleClickBehaviour.default', "Single-clicking does nothing."),
+				nls.localize('search.searchEditor.singleClickBehaviour.peekDefinition', "Single-clicking opens a Peek Definition window."),
+			],
+			markdownDescription: nls.localize('search.searchEditor.singleClickBehaviour', "Configure effect of single-clicking a result in a search editor.")
+		},
 		'search.searchEditor.reusePriorSearchConfiguration': {
 			type: 'boolean',
 			default: false,

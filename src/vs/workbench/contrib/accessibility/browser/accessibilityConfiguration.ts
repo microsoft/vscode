@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
 import { AccessibilityAlertSettingId, AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
+import { ISpeechService, SPEECH_LANGUAGES, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
@@ -22,6 +22,8 @@ export const accessibleViewVerbosityEnabled = new RawContextKey<boolean>('access
 export const accessibleViewGoToSymbolSupported = new RawContextKey<boolean>('accessibleViewGoToSymbolSupported', false, true);
 export const accessibleViewOnLastLine = new RawContextKey<boolean>('accessibleViewOnLastLine', false, true);
 export const accessibleViewCurrentProviderId = new RawContextKey<string>('accessibleViewCurrentProviderId', undefined, undefined);
+export const accessibleViewInCodeBlock = new RawContextKey<boolean>('accessibleViewInCodeBlock', undefined, undefined);
+export const accessibleViewContainsCodeBlocks = new RawContextKey<boolean>('accessibleViewContainsCodeBlocks', undefined, undefined);
 
 /**
  * Miscellaneous settings tagged with accessibility and implemented in the accessibility contrib but
@@ -45,6 +47,7 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditor = 'accessibility.verbosity.diffEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
+	TerminalChat = 'accessibility.verbosity.terminalChat',
 	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook',
@@ -52,11 +55,13 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
-	Comments = 'accessibility.verbosity.comments'
+	Comments = 'accessibility.verbosity.comments',
+	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
 }
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
+	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	Chat = 'panelChat',
@@ -166,6 +171,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
 			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.DiffEditorActive]: {
+			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {
@@ -544,6 +553,30 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
+		'accessibility.signals.voiceRecordingStarted': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.voiceRecordingStarted', "Indicates when the voice recording has started."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.voiceRecordingStarted.sound', "Plays a sound when the voice recording has started."),
+					...soundFeatureBase,
+				},
+			},
+			'default': {
+				'sound': 'on'
+			}
+		},
+		'accessibility.signals.voiceRecordingStopped': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.voiceRecordingStopped', "Indicates when the voice recording has stopped."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.voiceRecordingStopped.sound', "Plays a sound when the voice recording has stopped."),
+					...soundFeatureBase,
+					default: 'off'
+				},
+			}
+		},
 		'accessibility.signals.clear': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel)."),
@@ -664,10 +697,9 @@ export function registerAccessibilityConfiguration() {
 
 export const enum AccessibilityVoiceSettingId {
 	SpeechTimeout = 'accessibility.voice.speechTimeout',
-	SpeechLanguage = 'accessibility.voice.speechLanguage'
+	SpeechLanguage = SPEECH_LANGUAGE_CONFIG
 }
 export const SpeechTimeoutDefault = 1200;
-const SpeechLanguageDefault = 'en-US';
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 
@@ -678,7 +710,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 	) {
 		super();
 
-		this._register(Event.runAndSubscribe(speechService.onDidRegisterSpeechProvider, () => this.updateConfiguration()));
+		this._register(Event.runAndSubscribe(speechService.onDidChangeHasSpeechProvider, () => this.updateConfiguration()));
 	}
 
 	private updateConfiguration(): void {
@@ -703,10 +735,10 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'tags': ['accessibility']
 				},
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
-					'markdownDescription': localize('voice.speechLanguage', "The language that voice speech recognition should recognize."),
+					'markdownDescription': localize('voice.speechLanguage', "The language that voice speech recognition should recognize. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition"),
 					'type': 'string',
 					'enum': languagesSorted,
-					'default': SpeechLanguageDefault,
+					'default': 'auto',
 					'tags': ['accessibility'],
 					'enumDescriptions': languagesSorted.map(key => languages[key].name),
 					'enumItemLabels': languagesSorted.map(key => languages[key].name)
@@ -717,84 +749,10 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 
 	private getLanguages(): { [locale: string]: { name: string } } {
 		return {
-			['da-DK']: {
-				name: localize('speechLanguage.da-DK', "Danish (Denmark)")
+			['auto']: {
+				name: localize('speechLanguage.auto', "Auto (Use Display Language)")
 			},
-			['de-DE']: {
-				name: localize('speechLanguage.de-DE', "German (Germany)")
-			},
-			['en-AU']: {
-				name: localize('speechLanguage.en-AU', "English (Australia)")
-			},
-			['en-CA']: {
-				name: localize('speechLanguage.en-CA', "English (Canada)")
-			},
-			['en-GB']: {
-				name: localize('speechLanguage.en-GB', "English (United Kingdom)")
-			},
-			['en-IE']: {
-				name: localize('speechLanguage.en-IE', "English (Ireland)")
-			},
-			['en-IN']: {
-				name: localize('speechLanguage.en-IN', "English (India)")
-			},
-			['en-NZ']: {
-				name: localize('speechLanguage.en-NZ', "English (New Zealand)")
-			},
-			[SpeechLanguageDefault]: {
-				name: localize('speechLanguage.en-US', "English (United States)")
-			},
-			['es-ES']: {
-				name: localize('speechLanguage.es-ES', "Spanish (Spain)")
-			},
-			['es-MX']: {
-				name: localize('speechLanguage.es-MX', "Spanish (Mexico)")
-			},
-			['fr-CA']: {
-				name: localize('speechLanguage.fr-CA', "French (Canada)")
-			},
-			['fr-FR']: {
-				name: localize('speechLanguage.fr-FR', "French (France)")
-			},
-			['hi-IN']: {
-				name: localize('speechLanguage.hi-IN', "Hindi (India)")
-			},
-			['it-IT']: {
-				name: localize('speechLanguage.it-IT', "Italian (Italy)")
-			},
-			['ja-JP']: {
-				name: localize('speechLanguage.ja-JP', "Japanese (Japan)")
-			},
-			['ko-KR']: {
-				name: localize('speechLanguage.ko-KR', "Korean (South Korea)")
-			},
-			['nl-NL']: {
-				name: localize('speechLanguage.nl-NL', "Dutch (Netherlands)")
-			},
-			['pt-PT']: {
-				name: localize('speechLanguage.pt-PT', "Portuguese (Portugal)")
-			},
-			['pt-BR']: {
-				name: localize('speechLanguage.pt-BR', "Portuguese (Brazil)")
-			},
-			['ru-RU']: {
-				name: localize('speechLanguage.ru-RU', "Russian (Russia)")
-			},
-			['sv-SE']: {
-				name: localize('speechLanguage.sv-SE', "Swedish (Sweden)")
-			},
-			['tr-TR']: {
-				name: localize('speechLanguage.tr-TR', "Turkish (Turkey)")
-			},
-			['zh-CN']: {
-				name: localize('speechLanguage.zh-CN', "Chinese (Simplified, China)")
-			},
-			['zh-HK']: {
-				name: localize('speechLanguage.zh-HK', "Chinese (Traditional, Hong Kong)")
-			},
-			['zh-TW']: {
-				name: localize('speechLanguage.zh-TW', "Chinese (Traditional, Taiwan)")
-			}
+			...SPEECH_LANGUAGES
 		};
 	}
 }

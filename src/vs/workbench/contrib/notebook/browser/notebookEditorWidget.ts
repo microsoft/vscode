@@ -392,7 +392,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
-		this._register(editorGroupsService.activePart.onDidScroll(e => {
+		const container = creationOptions.codeWindow ? this.layoutService.getContainer(creationOptions.codeWindow) : this.layoutService.mainContainer;
+		this._register(editorGroupsService.getPart(container).onDidScroll(e => {
 			if (!this._shadowElement || !this._isVisible) {
 				return;
 			}
@@ -409,11 +410,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.classList.add('notebook-editor');
 		this._overlayContainer.style.visibility = 'hidden';
 
-		if (creationOptions.codeWindow) {
-			this.layoutService.getContainer(creationOptions.codeWindow).appendChild(this._overlayContainer);
-		} else {
-			this.layoutService.mainContainer.appendChild(this._overlayContainer);
-		}
+		container.appendChild(this._overlayContainer);
 
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
@@ -1025,9 +1022,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		this._register(this._list.onDidScroll((e) => {
-			this._onDidScroll.fire();
-
 			if (e.scrollTop !== e.oldScrollTop) {
+				this._onDidScroll.fire();
 				this.clearActiveCellWidgets();
 			}
 		}));
@@ -2122,8 +2118,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		await this._list.revealCell(cell, CellRevealType.CenterIfOutsideViewport);
 	}
 
-	revealFirstLineIfOutsideViewport(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealType.FirstLineIfOutsideViewport);
+	async revealFirstLineIfOutsideViewport(cell: ICellViewModel) {
+		await this._list.revealCell(cell, CellRevealType.FirstLineIfOutsideViewport);
 	}
 
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
@@ -2446,7 +2442,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					this._cursorNavMode.set(true);
 					await this.revealInView(cell);
 				} else if (options?.revealBehavior === ScrollToRevealBehavior.firstLine) {
-					this.revealFirstLineIfOutsideViewport(cell);
+					await this.revealFirstLineIfOutsideViewport(cell);
 				} else if (options?.revealBehavior === ScrollToRevealBehavior.fullCell) {
 					await this.revealInView(cell);
 				} else {

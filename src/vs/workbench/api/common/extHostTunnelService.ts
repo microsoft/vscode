@@ -103,6 +103,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	registerPortsAttributesProvider(portSelector: PortAttributesSelector, provider: vscode.PortAttributesProvider): vscode.Disposable {
+		if (portSelector.portRange === undefined && portSelector.commandPattern === undefined) {
+			this.logService.error('PortAttributesProvider must specify either a portRange or a commandPattern');
+		}
 		const providerHandle = this.nextPortAttributesProviderHandle();
 		this._portAttributesProviders.set(providerHandle, { selector: portSelector, provider });
 

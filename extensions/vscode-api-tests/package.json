@@ -64,6 +64,19 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "chatParticipants": [
+      {
+        "name": "participant",
+        "description": "test",
+        "isDefault": true,
+        "commands": [
+          {
+            "name": "hello",
+            "description": "Hello"
+          }
+        ]
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "Test Config",
