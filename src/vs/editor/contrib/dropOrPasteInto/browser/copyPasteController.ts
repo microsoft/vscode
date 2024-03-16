@@ -15,12 +15,12 @@ import * as platform from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ClipboardEventUtils } from 'vs/editor/browser/controller/textAreaInput';
 import { toExternalVSDataTransfer, toVSDataTransfer } from 'vs/editor/browser/dnd';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, PastePayload } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Handler, IEditorContribution, PastePayload } from 'vs/editor/common/editorCommon';
+import { Handler, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteTriggerKind } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -290,7 +290,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		if (this._pasteAsActionContext) {
 			this.showPasteAsPick(this._pasteAsActionContext.preferred, allProviders, selections, dataTransfer, metadata);
 		} else {
-			this.doPasteInline(allProviders, selections, dataTransfer, metadata);
+			this.doPasteInline(allProviders, selections, dataTransfer, metadata, e);
 		}
 	}
 
@@ -298,7 +298,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", preference instanceof HierarchicalKind ? preference.value : preference.providerId), selections[0].getStartPosition());
 	}
 
-	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined): void {
+	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, clipboardEvent: ClipboardEvent): void {
 		const p = createCancelablePromise(async (token) => {
 			const editor = this._editor;
 			if (!editor.hasModel()) {
@@ -317,7 +317,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				if (!supportedProviders.length
 					|| (supportedProviders.length === 1 && supportedProviders[0] instanceof DefaultTextPasteOrDropEditProvider) // Only our default text provider is active
 				) {
-					return this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
+					return this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token, clipboardEvent);
 				}
 
 				const context: DocumentPasteContext = {
@@ -330,7 +330,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				// If the only edit returned is our default text edit, use the default paste handler
 				if (providerEdits.length === 1 && providerEdits[0].provider instanceof DefaultTextPasteOrDropEditProvider) {
-					return this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
+					return this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token, clipboardEvent);
 				}
 
 				if (providerEdits.length) {
@@ -344,7 +344,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					}, tokenSource.token);
 				}
 
-				await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
+				await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token, clipboardEvent);
 			} finally {
 				tokenSource.dispose();
 				if (this._currentPasteOperation === p) {
@@ -518,18 +518,15 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		return sortEditsByYieldTo(edits);
 	}
 
-	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken) {
+	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken, clipboardEvent: ClipboardEvent) {
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
-		if (!textDataTransfer) {
-			return;
-		}
-
-		const text = await textDataTransfer.asString();
+		const text = (await textDataTransfer?.asString()) ?? '';
 		if (token.isCancellationRequested) {
 			return;
 		}
 
 		const payload: PastePayload = {
+			clipboardEvent,
 			text,
 			pasteOnNewLine: metadata?.defaultPastePayload.pasteOnNewLine ?? false,
 			multicursorText: metadata?.defaultPastePayload.multicursorText ?? null,
