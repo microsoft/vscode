@@ -70,7 +70,7 @@ export interface IGlyphMarginLanesModel {
 /**
  * Position in the minimap to render the decoration.
  */
-export enum MinimapPosition {
+export const enum MinimapPosition {
 	Inline = 1,
 	Gutter = 2
 }
@@ -78,7 +78,7 @@ export enum MinimapPosition {
 /**
  * Section header style.
  */
-export enum MinimapSectionHeaderStyle {
+export const enum MinimapSectionHeaderStyle {
 	Normal = 1,
 	Underlined = 2
 }

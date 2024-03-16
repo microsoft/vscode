@@ -7,7 +7,7 @@ import { CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorMinimapLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorMinimapOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelDeltaDecoration, MinimapPosition, MinimapSectionHeaderStyle, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -32,20 +32,20 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 	) {
 		super();
 
-		this.options = this.createOptions(editor.getOption(EditorOption.layoutInfo).minimap);
+		this.options = this.createOptions(editor.getOption(EditorOption.minimap));
 		this.computePromise = null;
 		this.currentOccurrences = {};
 
 		this._register(editor.onDidChangeModel((e) => {
 			this.currentOccurrences = {};
-			this.options = this.createOptions(editor.getOption(EditorOption.layoutInfo).minimap);
+			this.options = this.createOptions(editor.getOption(EditorOption.minimap));
 			this.stop();
 			this.computeSectionHeaders.schedule(0);
 		}));
 
 		this._register(editor.onDidChangeModelLanguage((e) => {
 			this.currentOccurrences = {};
-			this.options = this.createOptions(editor.getOption(EditorOption.layoutInfo).minimap);
+			this.options = this.createOptions(editor.getOption(EditorOption.minimap));
 			this.stop();
 			this.computeSectionHeaders.schedule(0);
 		}));
@@ -55,7 +55,7 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 				return;
 			}
 
-			this.options = this.createOptions(editor.getOption(EditorOption.layoutInfo).minimap);
+			this.options = this.createOptions(editor.getOption(EditorOption.minimap));
 
 			// Remove any links (for the getting disabled case)
 			this.updateDecorations([]);
@@ -78,7 +78,7 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 		this.computeSectionHeaders.schedule(0);
 	}
 
-	private createOptions(minimap: EditorMinimapLayoutInfo): FindSectionHeaderOptions | undefined {
+	private createOptions(minimap: Readonly<Required<IEditorMinimapOptions>>): FindSectionHeaderOptions | undefined {
 		if (!minimap || !this.editor.hasModel()) {
 			return undefined;
 		}
@@ -99,8 +99,8 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 			languageId,
 			commentsConfiguration,
 			foldingRules,
-			findMarkSectionHeaders: minimap.minimapShowMarkSectionHeaders,
-			findRegionSectionHeaders: minimap.minimapShowRegionSectionHeaders,
+			findMarkSectionHeaders: minimap.showMarkSectionHeaders,
+			findRegionSectionHeaders: minimap.showRegionSectionHeaders,
 		};
 	}
 

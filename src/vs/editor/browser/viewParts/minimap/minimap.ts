@@ -95,8 +95,6 @@ class MinimapOptions {
 	public readonly fontScale: number;
 	public readonly minimapLineHeight: number;
 	public readonly minimapCharWidth: number;
-	public readonly showRegionSectionHeaders: boolean;
-	public readonly showMarkSectionHeaders: boolean;
 	public readonly sectionHeaderFontFamily: string;
 	public readonly sectionHeaderFontSize: number;
 	public readonly sectionHeaderFontColor: RGBA8;
@@ -142,10 +140,8 @@ class MinimapOptions {
 		this.fontScale = minimapLayout.minimapScale;
 		this.minimapLineHeight = minimapLayout.minimapLineHeight;
 		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
-		this.showRegionSectionHeaders = minimapLayout.minimapShowRegionSectionHeaders;
-		this.showMarkSectionHeaders = minimapLayout.minimapShowMarkSectionHeaders;
 		this.sectionHeaderFontFamily = SECTION_HEADER_FONT_FAMILY;
-		this.sectionHeaderFontSize = minimapLayout.minimapSectionHeaderFontSize;
+		this.sectionHeaderFontSize = minimapOpts.sectionHeaderFontSize;
 		this.sectionHeaderFontColor = MinimapOptions._getSectionHeaderColor(theme, tokensColorTracker.getColor(ColorId.DefaultForeground));
 
 		this.charRenderer = createSingleCallFunction(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
@@ -202,8 +198,6 @@ class MinimapOptions {
 			&& this.fontScale === other.fontScale
 			&& this.minimapLineHeight === other.minimapLineHeight
 			&& this.minimapCharWidth === other.minimapCharWidth
-			&& this.showRegionSectionHeaders === other.showRegionSectionHeaders
-			&& this.showMarkSectionHeaders === other.showMarkSectionHeaders
 			&& this.sectionHeaderFontSize === other.sectionHeaderFontSize
 			&& this.defaultBackgroundColor && this.defaultBackgroundColor.equals(other.defaultBackgroundColor)
 			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)

@@ -2257,9 +2257,6 @@ export interface EditorMinimapLayoutInfo {
 	readonly minimapIsSampling: boolean;
 	readonly minimapScale: number;
 	readonly minimapLineHeight: number;
-	readonly minimapShowRegionSectionHeaders: boolean;
-	readonly minimapShowMarkSectionHeaders: boolean;
-	readonly minimapSectionHeaderFontSize: number;
 	readonly minimapCanvasInnerWidth: number;
 	readonly minimapCanvasInnerHeight: number;
 	readonly minimapCanvasOuterWidth: number;
@@ -2387,9 +2384,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				minimapIsSampling: false,
 				minimapScale: 1,
 				minimapLineHeight: 1,
-				minimapShowRegionSectionHeaders: true,
-				minimapShowMarkSectionHeaders: true,
-				minimapSectionHeaderFontSize: 9,
 				minimapCanvasInnerWidth: 0,
 				minimapCanvasInnerHeight: Math.floor(pixelRatio * outerHeight),
 				minimapCanvasOuterWidth: 0,
@@ -2441,9 +2435,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let minimapHeightIsEditorHeight = false;
 		let minimapIsSampling = false;
 		let minimapLineHeight = baseCharHeight * minimapScale;
-		const minimapShowRegionSectionHeaders = input.minimap.showRegionSectionHeaders;
-		const minimapShowMarkSectionHeaders = input.minimap.showMarkSectionHeaders;
-		const minimapSectionLabelFontSize = input.minimap.sectionHeaderFontSize;
 		let minimapCharWidth = minimapScale / pixelRatio;
 		let minimapWidthMultiplier: number = 1;
 
@@ -2548,9 +2539,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			minimapIsSampling,
 			minimapScale,
 			minimapLineHeight,
-			minimapShowRegionSectionHeaders,
-			minimapShowMarkSectionHeaders,
-			minimapSectionHeaderFontSize: minimapSectionLabelFontSize,
 			minimapCanvasInnerWidth,
 			minimapCanvasInnerHeight,
 			minimapCanvasOuterWidth,
