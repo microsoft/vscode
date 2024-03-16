@@ -612,7 +612,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
 	getContainer(): HTMLElement { return null!; }
-	async whenContainerStylesLoaded(): Promise<void> { }
+	whenContainerStylesLoaded() { return undefined; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }

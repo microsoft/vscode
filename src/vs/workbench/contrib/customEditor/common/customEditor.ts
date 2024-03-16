@@ -57,7 +57,6 @@ export interface ICustomEditorModel extends IDisposable {
 	readonly viewType: string;
 	readonly resource: URI;
 	readonly backupId: string | undefined;
-	readonly isTextBased: boolean;
 
 	isReadonly(): boolean | IMarkdownString;
 	readonly onDidChangeReadonly: Event<void>;

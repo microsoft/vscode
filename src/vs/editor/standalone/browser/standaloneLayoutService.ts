@@ -49,7 +49,7 @@ class StandaloneLayoutService implements ILayoutService {
 		return this.activeContainer;
 	}
 
-	whenContainerStylesLoaded() { return Promise.resolve(); }
+	whenContainerStylesLoaded() { return undefined; }
 
 	focus(): void {
 		this._codeEditorService.getFocusedCodeEditor()?.focus();
