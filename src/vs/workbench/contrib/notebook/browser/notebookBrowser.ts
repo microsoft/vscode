@@ -449,6 +449,7 @@ export interface INotebookViewModel {
 	layoutInfo: NotebookLayoutInfo | null;
 	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	onDidChangeSelection: Event<string>;
+	onDidFoldingStateChanged: Event<void>;
 	getNearestVisibleCellIndexUpwards(index: number): number;
 	getTrackedRange(id: string): ICellRange | null;
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null;

@@ -160,7 +160,7 @@ import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { EnablementState, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { EnablementState, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
@@ -171,6 +171,8 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
 import { EditorPaneService } from 'vs/workbench/services/editor/browser/editorPaneService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -332,6 +334,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IPaneCompositePartService, disposables.add(new TestPaneCompositeService()));
 	instantiationService.stub(IListService, new TestListService());
+	instantiationService.stub(IContextViewService, disposables.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
@@ -581,7 +584,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainerDimension: IDimension = { width: 800, height: 600 };
 	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
-	whenActiveContainerStylesLoaded = Promise.resolve();
 
 	mainContainer: HTMLElement = mainWindow.document.body;
 	containers = [mainWindow.document.body];
@@ -610,6 +612,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
 	getContainer(): HTMLElement { return null!; }
+	async whenContainerStylesLoaded(): Promise<void> { }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }
@@ -849,7 +852,6 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 
-	readonly activePart = this;
 	readonly mainPart = this;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
@@ -918,7 +920,6 @@ export class TestEditorGroupView implements IEditorGroupView {
 	pinEditor(_editor?: EditorInput): void { }
 	stickEditor(editor?: EditorInput | undefined): void { }
 	unstickEditor(editor?: EditorInput | undefined): void { }
-	setTransient(editor: EditorInput | undefined, transient: boolean): void { }
 	lock(locked: boolean): void { }
 	focus(): void { }
 	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
@@ -1772,7 +1773,6 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly activePart = this;
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
 
@@ -2102,6 +2102,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
 	onDidChangeProfile = Event.None;
+	onDidEnableExtensions = Event.None;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
@@ -2149,6 +2150,9 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	toggleAppliationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
+	getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]> { throw new Error('Method not implemented.'); }
+	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
+	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {

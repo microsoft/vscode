@@ -19,7 +19,7 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionCh
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
@@ -114,6 +114,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					extensionId: extension,
 					metadata: revive(metadata),
 					slashCommands: [],
+					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
 				},
 				impl);
 		} else {

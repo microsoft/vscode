@@ -135,6 +135,7 @@ export type CommentThreadChanges<T = IRange> = Partial<{
 	collapseState: languages.CommentThreadCollapsibleState;
 	canReply: boolean;
 	state: languages.CommentThreadState;
+	applicability: languages.CommentThreadApplicability;
 	isTemplate: boolean;
 }>;
 
@@ -698,7 +699,8 @@ export const enum TabInputKind {
 	WebviewEditorInput,
 	TerminalEditorInput,
 	InteractiveEditorInput,
-	ChatEditorInput
+	ChatEditorInput,
+	MultiDiffEditorInput
 }
 
 export const enum TabModelOperationKind {
@@ -766,11 +768,16 @@ export interface ChatEditorInputDto {
 	providerId: string;
 }
 
+export interface MultiDiffEditorInputDto {
+	kind: TabInputKind.MultiDiffEditorInput;
+	diffEditors: TextDiffInputDto[];
+}
+
 export interface TabInputDto {
 	kind: TabInputKind.TerminalEditorInput;
 }
 
-export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | TextMergeInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | InteractiveEditorInputDto | ChatEditorInputDto | TabInputDto;
+export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | MultiDiffEditorInputDto | TextMergeInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | InteractiveEditorInputDto | ChatEditorInputDto | TabInputDto;
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
@@ -2080,7 +2087,7 @@ export interface IPasteEditDto {
 	kind: { value: string } | undefined;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
-	yieldTo?: readonly languages.DropYieldTo[];
+	yieldTo?: readonly string[];
 }
 
 export interface IDocumentDropEditProviderMetadata {
@@ -2092,7 +2099,7 @@ export interface IDocumentOnDropEditDto {
 	kind: string | undefined;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
-	yieldTo?: readonly languages.DropYieldTo[];
+	yieldTo?: readonly string[];
 }
 
 export interface ExtHostLanguageFeaturesShape {
@@ -2680,13 +2687,10 @@ export interface ExtHostTestingShape {
 	$publishTestResults(results: ISerializedTestResults[]): void;
 	/** Expands a test item's children, by the given number of levels. */
 	$expandTest(testId: string, levels: number): Promise<void>;
-	/** Requests file coverage for a test run. Errors if not available. */
-	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage.Serialized[]>;
-	/**
-	 * Requests coverage details for the file index in coverage data for the run.
-	 * Requires file coverage to have been previously requested via $provideFileCoverage.
-	 */
-	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails.Serialized[]>;
+	/** Requests coverage details for a test run. Errors if not available. */
+	$getCoverageDetails(coverageId: string, token: CancellationToken): Promise<CoverageDetails.Serialized[]>;
+	/** Disposes resources associated with a test run. */
+	$disposeRun(runId: string): void;
 	/** Configures a test run config. */
 	$configureRunProfile(controllerId: string, configId: number): void;
 	/** Asks the controller to refresh its tests */
@@ -2757,7 +2761,7 @@ export interface MainThreadTestingShape {
 	/** Appends raw output to the test run.. */
 	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer, location?: ILocationDto, testId?: string): void;
 	/** Triggered when coverage is added to test results. */
-	$signalCoverageAvailable(runId: string, taskId: string, available: boolean): void;
+	$appendCoverage(runId: string, taskId: string, coverage: IFileCoverage.Serialized): void;
 	/** Signals a task in a test run started. */
 	$startedTestRunTask(runId: string, task: ITestRunTask): void;
 	/** Signals a task in a test run ended. */

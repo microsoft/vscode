@@ -560,7 +560,20 @@ const configuration: IConfigurationNode = {
 				'sound': {
 					'description': localize('accessibility.signals.voiceRecordingStarted.sound', "Plays a sound when the voice recording has started."),
 					...soundFeatureBase,
-					'default': 'on'
+				},
+			},
+			'default': {
+				'sound': 'on'
+			}
+		},
+		'accessibility.signals.voiceRecordingStopped': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.voiceRecordingStopped', "Indicates when the voice recording has stopped."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.voiceRecordingStopped.sound', "Plays a sound when the voice recording has stopped."),
+					...soundFeatureBase,
+					default: 'off'
 				},
 			}
 		},

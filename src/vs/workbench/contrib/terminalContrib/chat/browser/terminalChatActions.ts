@@ -39,7 +39,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.reveal();
+		contr?.reveal();
 	}
 });
 
@@ -157,7 +157,7 @@ registerActiveXtermAction({
 		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsCodeBlock
 	),
-	icon: Codicon.check,
+	icon: Codicon.play,
 	keybinding: {
 		when: TerminalChatContextKeys.requestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -168,7 +168,7 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 0,
-		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate()),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate())
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -190,7 +190,6 @@ registerActiveXtermAction({
 		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsCodeBlock
 	),
-	icon: Codicon.check,
 	keybinding: {
 		when: TerminalChatContextKeys.requestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -200,7 +199,7 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 1,
-		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate()),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate())
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -360,12 +359,6 @@ registerActiveXtermAction({
 		group: 'inline',
 		order: 3
 	}],
-	//  {
-	// 	id: MENU_TERMINAL_CHAT_WIDGET,
-	// 	when: ContextKeyExpr.and(TerminalChatContextKeys.chatResponseType.notEqualsTo(undefined), TerminalChatContextKeys.chatResponseSupportsIssueReporting),
-	// 	group: 'config',
-	// 	order: 3
-	// }],
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
@@ -375,3 +368,42 @@ registerActiveXtermAction({
 	}
 });
 
+registerActiveXtermAction({
+	id: TerminalChatCommandId.PreviousFromHistory,
+	title: localize2('previousFromHistory', 'Previous From History'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined)
+	),
+	keybinding: {
+		weight: KeybindingWeight.EditorCore + 10, // win against core_command
+		primary: KeyCode.UpArrow,
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.populateHistory(true);
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.NextFromHistory,
+	title: localize2('nextFromHistory', 'Next From History'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined)
+	),
+	keybinding: {
+		weight: KeybindingWeight.EditorCore + 10, // win against core_command
+		primary: KeyCode.DownArrow,
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.populateHistory(false);
+	}
+});

@@ -103,6 +103,7 @@ export const enum TerminalSettingId {
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
 	HideOnStartup = 'terminal.integrated.hideOnStartup',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
+	RescaleOverlappingGlyphs = 'terminal.integrated.rescaleOverlappingGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
@@ -122,7 +123,7 @@ export const enum TerminalSettingId {
 	StickyScrollEnabled = 'terminal.integrated.stickyScroll.enabled',
 	StickyScrollMaxLineCount = 'terminal.integrated.stickyScroll.maxLineCount',
 	MouseWheelZoom = 'terminal.integrated.mouseWheelZoom',
-	ExperimentalInlineChat = 'workbench.action.terminal.experimentalInlineChat',
+	ExperimentalInlineChat = 'terminal.integrated.experimentalInlineChat',
 
 	// Debug settings that are hidden from user
 

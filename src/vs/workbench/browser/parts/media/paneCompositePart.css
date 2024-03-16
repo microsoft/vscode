@@ -21,6 +21,8 @@
 }
 
 .monaco-workbench .pane-composite-part > .header-or-footer {
+	padding-left: 4px;
+	padding-right: 4px;
 	background-color: var(--vscode-activityBarTop-background);
 }
 
@@ -268,6 +270,11 @@
 	width: calc(100% - 4px);
 }
 
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon.checked,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon.checked {
+	background-color: var(--vscode-activityBarTop-activeBackground);
+}
+
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
@@ -290,6 +297,7 @@
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	border-top-color: var(--vscode-focusBorder) !important;
+	border-top-width: 2px;
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,

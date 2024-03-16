@@ -139,7 +139,7 @@ export class NativeWindow extends BaseWindow {
 		this.create();
 	}
 
-	private registerListeners(): void {
+	protected registerListeners(): void {
 
 		// Layout
 		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => this.layoutService.layout()));
@@ -644,7 +644,7 @@ export class NativeWindow extends BaseWindow {
 		}
 	}
 
-	private create(): void {
+	protected create(): void {
 
 		// Handle open calls
 		this.setupOpenHandlers();
