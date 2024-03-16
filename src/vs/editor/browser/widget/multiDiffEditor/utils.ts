@@ -6,11 +6,12 @@
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 
 export class ActionRunnerWithContext extends ActionRunner {
-	constructor(private readonly _getContext: () => any) {
+	constructor(private readonly _getContext: () => unknown) {
 		super();
 	}
 
 	protected override runAction(action: IAction, _context?: unknown): Promise<void> {
-		return super.runAction(action, this._getContext());
+		const ctx = this._getContext();
+		return super.runAction(action, ctx);
 	}
 }
