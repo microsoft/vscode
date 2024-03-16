@@ -9,7 +9,7 @@ import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as arrays from 'vs/base/common/arrays';
-import { raceCancellation } from 'vs/base/common/async';
+import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -297,65 +297,67 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 
 		this._updateRenameCandidates(candidates, currentName, cts.token);
 
-		return new Promise<RenameInputFieldResult | boolean>(resolve => {
+		const inputResult = new DeferredPromise<RenameInputFieldResult | boolean>();
 
-			this._currentCancelInput = (focusEditor) => {
-				this._trace('invoking _currentCancelInput');
-				this._currentAcceptInput = undefined;
-				this._currentCancelInput = undefined;
-				this._renameCandidateListView?.clearCandidates();
-				resolve(focusEditor);
-				return true;
-			};
-
-			this._currentAcceptInput = (wantsPreview) => {
-				this._trace('invoking _currentAcceptInput');
-				assertType(this._input !== undefined);
-				assertType(this._renameCandidateListView !== undefined);
-
-				const nRenameSuggestions = this._renameCandidateListView.nCandidates;
-
-				let newName: string;
-				let source: 'inputField' | 'renameSuggestion';
-				const focusedCandidate = this._renameCandidateListView.focusedCandidate;
-				if (focusedCandidate !== undefined) {
-					this._trace('using new name from renameSuggestion');
-					newName = focusedCandidate;
-					source = 'renameSuggestion';
-				} else {
-					this._trace('using new name from inputField');
-					newName = this._input.value;
-					source = 'inputField';
-				}
-
-				if (newName === currentName || newName.trim().length === 0 /* is just whitespace */) {
-					this.cancelInput(true, '_currentAcceptInput (because newName === value || newName.trim().length === 0)');
-					return;
-				}
-
-				this._currentAcceptInput = undefined;
-				this._currentCancelInput = undefined;
-				this._renameCandidateListView.clearCandidates();
-
-				resolve({
-					newName,
-					wantsPreview: supportPreview && wantsPreview,
-					source,
-					nRenameSuggestions,
-				});
-			};
-
-			disposeOnDone.add(cts.token.onCancellationRequested(() => this.cancelInput(true, 'cts.token.onCancellationRequested')));
-			if (!_sticky) {
-				disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!this._domNode?.ownerDocument.hasFocus(), 'editor.onDidBlurEditorWidget')));
-			}
-
-			this._show();
-
-		}).finally(() => {
+		inputResult.p.finally(() => {
 			disposeOnDone.dispose();
 			this._hide();
 		});
+
+		this._currentCancelInput = (focusEditor) => {
+			this._trace('invoking _currentCancelInput');
+			this._currentAcceptInput = undefined;
+			this._currentCancelInput = undefined;
+			this._renameCandidateListView?.clearCandidates();
+			inputResult.complete(focusEditor);
+			return true;
+		};
+
+		this._currentAcceptInput = (wantsPreview) => {
+			this._trace('invoking _currentAcceptInput');
+			assertType(this._input !== undefined);
+			assertType(this._renameCandidateListView !== undefined);
+
+			const nRenameSuggestions = this._renameCandidateListView.nCandidates;
+
+			let newName: string;
+			let source: 'inputField' | 'renameSuggestion';
+			const focusedCandidate = this._renameCandidateListView.focusedCandidate;
+			if (focusedCandidate !== undefined) {
+				this._trace('using new name from renameSuggestion');
+				newName = focusedCandidate;
+				source = 'renameSuggestion';
+			} else {
+				this._trace('using new name from inputField');
+				newName = this._input.value;
+				source = 'inputField';
+			}
+
+			if (newName === currentName || newName.trim().length === 0 /* is just whitespace */) {
+				this.cancelInput(true, '_currentAcceptInput (because newName === value || newName.trim().length === 0)');
+				return;
+			}
+
+			this._currentAcceptInput = undefined;
+			this._currentCancelInput = undefined;
+			this._renameCandidateListView.clearCandidates();
+
+			inputResult.complete({
+				newName,
+				wantsPreview: supportPreview && wantsPreview,
+				source,
+				nRenameSuggestions,
+			});
+		};
+
+		disposeOnDone.add(cts.token.onCancellationRequested(() => this.cancelInput(true, 'cts.token.onCancellationRequested')));
+		if (!_sticky) {
+			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!this._domNode?.ownerDocument.hasFocus(), 'editor.onDidBlurEditorWidget')));
+		}
+
+		this._show();
+
+		return inputResult.p;
 	}
 
 	private _show(): void {
