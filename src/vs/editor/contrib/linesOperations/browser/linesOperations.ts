@@ -25,6 +25,7 @@ import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // copy lines
 
@@ -402,7 +403,11 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			return;
 		}
 
-		const command = new TrimTrailingWhitespaceCommand(selection, cursors);
+		const config = _accessor.get(IConfigurationService);
+		const model = editor.getModel();
+		const trimInRegexAndStrings = config.getValue<boolean>('files.trimTrailingWhitespaceInRegexAndStrings', { overrideIdentifier: model?.getLanguageId(), resource: model?.uri });
+
+		const command = new TrimTrailingWhitespaceCommand(selection, cursors, trimInRegexAndStrings);
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
