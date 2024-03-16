@@ -16,8 +16,6 @@ import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from
 
 export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
 
-	readonly isTextBased = true;
-
 	public static async create(
 		instantiationService: IInstantiationService,
 		viewType: string,
