@@ -12,6 +12,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
+import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertType, isDefined } from 'vs/base/common/types';
 import 'vs/css!./renameInputField';
@@ -28,12 +29,14 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
-import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import {
 	editorWidgetBackground,
 	inputBackground,
 	inputBorder,
 	inputForeground,
+	quickInputListFocusBackground,
+	quickInputListFocusForeground,
 	widgetBorder,
 	widgetShadow
 } from 'vs/platform/theme/common/colorRegistry';
@@ -71,6 +74,7 @@ interface IRenameInputField {
 export class RenameInputField implements IRenameInputField, IContentWidget, IDisposable {
 
 	private _position?: Position;
+	private _currentName?: string;
 	private _domNode?: HTMLElement;
 	private _input?: HTMLInputElement;
 	private _renameCandidateListView?: RenameCandidateListView;
@@ -131,8 +135,14 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 			this._renameCandidateListView = this._disposables.add(
 				new RenameCandidateListView(this._domNode, {
 					fontInfo: this._editor.getOption(EditorOption.fontInfo),
+					onFocusChange: (newSymbolName: string) => {
+						assertType(this._input !== undefined);
+						this._input.value = newSymbolName;
+						this._input.select();
+					},
 					onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
-				}));
+				})
+			);
 
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
@@ -272,12 +282,16 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 	}
 
 	focusNextRenameSuggestion() {
-		this._renameCandidateListView?.focusNext();
+		if (!this._renameCandidateListView?.focusNext()) {
+			this._input!.value = this._currentName!;
+			this._input!.select();
+		}
 	}
 
-	focusPreviousRenameSuggestion() {
+	focusPreviousRenameSuggestion() { // TODO@ulugbekna: this and focusNext should set the original name if no candidate is focused
 		if (!this._renameCandidateListView?.focusPrevious()) {
-			this._input!.focus();
+			this._input!.value = this._currentName!;
+			this._input!.select();
 		}
 	}
 
@@ -286,6 +300,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		this._domNode!.classList.toggle('preview', supportPreview);
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
+		this._currentName = currentName;
+
 		this._input!.value = currentName;
 		this._input!.setAttribute('selectionStart', selectionStart.toString());
 		this._input!.setAttribute('selectionEnd', selectionEnd.toString());
@@ -367,11 +383,11 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		this._visibleContextKey.set(true);
 		this._editor.layoutContentWidget(this);
 
+		// TODO@ulugbekna: could this be simply run in `afterRender`?
 		setTimeout(() => {
-			this._input!.focus();
-			this._input!.setSelectionRange(
-				parseInt(this._input!.getAttribute('selectionStart')!),
-				parseInt(this._input!.getAttribute('selectionEnd')!));
+			assertType(this._input !== undefined);
+			this._input.focus();
+			this._input.select();
 		}, 100);
 	}
 
@@ -440,6 +456,12 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 
 class RenameCandidateListView {
 
+	private readonly _onDidFocusChange = new Emitter<NewSymbolName>();
+	readonly onDidFocusChange = this._onDidFocusChange.event;
+
+	private readonly _onDidSelectionChange = new Emitter<void>();
+	readonly onDidSelectionChange = this._onDidSelectionChange.event;
+
 	/** Parent node of the list widget; needed to control # of list elements visible */
 	private readonly _listContainer: HTMLDivElement;
 	private readonly _listWidget: List<NewSymbolName>;
@@ -451,7 +473,8 @@ class RenameCandidateListView {
 
 	private _disposables: DisposableStore;
 
-	constructor(parent: HTMLElement, opts: { fontInfo: FontInfo; onSelectionChange: () => void }) {
+	// FIXME@ulugbekna: rewrite using event emitters
+	constructor(parent: HTMLElement, opts: { fontInfo: FontInfo; onFocusChange: (newSymbolName: string) => void; onSelectionChange: () => void }) {
 
 		this._disposables = new DisposableStore();
 
@@ -466,12 +489,22 @@ class RenameCandidateListView {
 
 		this._listWidget = RenameCandidateListView._createListWidget(this._listContainer, this._candidateViewHeight, opts.fontInfo);
 
-		this._disposables.add(
-			this._listWidget.onDidChangeSelection(e => {
-				if (e.elements.length > 0) {
+		this._listWidget.onDidChangeFocus(
+			e => {
+				if (e.elements.length === 1) {
+					opts.onFocusChange(e.elements[0].newSymbolName);
+				}
+			},
+			this._disposables
+		);
+
+		this._listWidget.onDidChangeSelection(
+			e => {
+				if (e.elements.length === 1) {
 					opts.onSelectionChange();
 				}
-			})
+			},
+			this._disposables
 		);
 
 		this._disposables.add(
@@ -480,7 +513,10 @@ class RenameCandidateListView {
 			})
 		);
 
-		this._listWidget.style(defaultListStyles);
+		this._listWidget.style(getListStyles({
+			listInactiveFocusForeground: quickInputListFocusForeground,
+			listInactiveFocusBackground: quickInputListFocusBackground,
+		}));
 	}
 
 	dispose() {
@@ -537,17 +573,23 @@ class RenameCandidateListView {
 		return;
 	}
 
-	public focusNext(): void {
+	public focusNext(): boolean {
 		if (this._listWidget.length === 0) {
-			return;
+			return false;
 		}
-		if (this._listWidget.isDOMFocused()) {
-			this._listWidget.focusNext();
-		} else {
-			this._listWidget.domFocus();
+		const focusedIxs = this._listWidget.getFocus();
+		if (focusedIxs.length === 0) {
 			this._listWidget.focusFirst();
+			return true;
+		} else {
+			if (focusedIxs[0] === this._listWidget.length - 1) {
+				this._listWidget.setFocus([]);
+				return false;
+			} else {
+				this._listWidget.focusNext();
+				return true;
+			}
 		}
-		this._listWidget.reveal(this._listWidget.getFocus()[0]);
 	}
 
 	/**
@@ -557,13 +599,19 @@ class RenameCandidateListView {
 		if (this._listWidget.length === 0) {
 			return false;
 		}
-		this._listWidget.domFocus();
-		const focusedIx = this._listWidget.getFocus()[0];
-		if (focusedIx !== 0) {
-			this._listWidget.focusPrevious();
-			this._listWidget.reveal(this._listWidget.getFocus()[0]);
+		const focusedIxs = this._listWidget.getFocus();
+		if (focusedIxs.length === 0) {
+			this._listWidget.focusLast();
+			return true;
+		} else {
+			if (focusedIxs[0] === 0) {
+				this._listWidget.setFocus([]);
+				return false;
+			} else {
+				this._listWidget.focusPrevious();
+				return true;
+			}
 		}
-		return focusedIx > 0;
 	}
 
 	private get _candidateViewHeight(): number {
