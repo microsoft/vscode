@@ -281,12 +281,12 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		}
 	}
 
-	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean> {
+	getInput(where: IRange, currentName: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean> {
 
 		this._domNode!.classList.toggle('preview', supportPreview);
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
-		this._input!.value = value;
+		this._input!.value = currentName;
 		this._input!.setAttribute('selectionStart', selectionStart.toString());
 		this._input!.setAttribute('selectionEnd', selectionEnd.toString());
 		this._input!.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20); // determines width
@@ -295,7 +295,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 
 		disposeOnDone.add(toDisposable(() => cts.dispose(true))); // @ulugbekna: this may result in `this.cancelInput` being called twice, but it should be safe since we set it to undefined after 1st call
 
-		this._updateRenameCandidates(candidates, value, cts.token);
+		this._updateRenameCandidates(candidates, currentName, cts.token);
 
 		return new Promise<RenameInputFieldResult | boolean>(resolve => {
 
@@ -328,7 +328,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 					source = 'inputField';
 				}
 
-				if (newName === value || newName.trim().length === 0 /* is just whitespace */) {
+				if (newName === currentName || newName.trim().length === 0 /* is just whitespace */) {
 					this.cancelInput(true, '_currentAcceptInput (because newName === value || newName.trim().length === 0)');
 					return;
 				}
