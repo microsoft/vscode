@@ -210,6 +210,9 @@ pub struct ServeWebArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+	/// Specifies the path under which the web UI and the code server is provided.
+	#[clap(long)]
+	pub server_base_path: Option<String>,
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
