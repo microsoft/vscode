@@ -346,8 +346,6 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	// this seed.
 	readonly typeId = NO_TYPE_ID;
 
-	readonly isTextBased = false;
-
 	public static async create(
 		instantiationService: IInstantiationService,
 		proxy: extHostProtocol.ExtHostCustomEditorsShape,

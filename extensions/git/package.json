@@ -15,6 +15,7 @@
     "contribEditorContentMenu",
     "contribMergeEditorMenus",
     "contribMultiDiffEditorMenus",
+    "contribDiffEditorGutterToolBarMenus",
     "contribSourceControlHistoryItemGroupMenu",
     "contribSourceControlHistoryItemMenu",
     "contribSourceControlInputBoxMenu",
@@ -187,6 +188,18 @@
         "title": "%command.stageSelectedRanges%",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.diff.stageHunk",
+        "title": "%command.stageBlock%",
+        "category": "Git",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "git.diff.stageSelection",
+        "title": "%command.stageSelection%",
+        "category": "Git",
+        "icon": "$(plus)"
       },
       {
         "command": "git.revertSelectedRanges",
@@ -2045,6 +2058,20 @@
           "command": "git.unstageFile",
           "group": "navigation",
           "when": "scmProvider == git && scmResourceGroup == index"
+        }
+      ],
+      "diffEditor/gutter/hunk": [
+        {
+          "command": "git.diff.stageHunk",
+          "group": "primary@10",
+          "when": "diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
+        }
+      ],
+      "diffEditor/gutter/selection": [
+        {
+          "command": "git.diff.stageSelection",
+          "group": "primary@10",
+          "when": "diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
         }
       ],
       "scm/change/title": [

@@ -818,13 +818,7 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor cannot be in a dirty state
 	 * and may still have unsaved changes
 	 */
-	Scratchpad = 1 << 9,
-
-	/**
-	 * Signals that the editor does not support opening in
-	 * auxiliary windows.
-	 */
-	AuxWindowUnsupported = 1 << 10
+	Scratchpad = 1 << 9
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

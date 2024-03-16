@@ -3,22 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.terminal-inline-chat {
-	position: absolute;
-	left: 0;
-	bottom: 0;
-	z-index: 100;
-	height: auto !important;
-}
-
-.terminal-inline-chat .inline-chat {
-	margin-top: 0 !important;
-}
-
-.terminal-inline-chat.hide {
-	visibility: hidden;
-}
-
-.terminal-inline-chat .chatMessageContent .value {
-	padding-top: 10px;
-}
+// empty placeholder declaration for `diffEditor/gutter/*` menus
