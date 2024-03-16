@@ -125,8 +125,8 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 
 		let mut listening = format!("Web UI available at http://{}", addr);
 		if let Some(base) = args.server_base_path {
-			if !base.starts_with("/") {
-				listening.push_str("/");
+			if !base.starts_with('/') {
+				listening.push('/');
                         }
 			listening.push_str(&base);
 		}
