@@ -127,7 +127,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		if let Some(base) = args.server_base_path {
 			if !base.starts_with('/') {
 				listening.push('/');
-                        }
+			}
 			listening.push_str(&base);
 		}
 		if let Some(ct) = args.connection_token {
@@ -696,7 +696,7 @@ impl ConnectionManager {
 		// License agreement already checked by the `server_web` function.
 		cmd.args(["--accept-server-license-terms"]);
 
-		if let Some(a) = &args.args.server_base_path{
+		if let Some(a) = &args.args.server_base_path {
 			cmd.arg("--server-base-path");
 			cmd.arg(a);
 		}
