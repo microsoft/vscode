@@ -270,6 +270,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
 		}
 	};
+	const selectOutputContents = (cellOrOutputId: string) => {
+		const selection = window.getSelection();
+		if (!selection) {
+			return;
+		}
+		const cellOutputContainer = window.document.getElementById(cellOrOutputId);
+		if (!cellOutputContainer) {
+			return;
+		}
+		selection.removeAllRanges();
+		const range = document.createRange();
+		range.selectNode(cellOutputContainer);
+		selection.addRange(range);
+
+	};
 
 	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
 		postNotebookMessage<webviewMessages.IClickedDataUrlMessage>('clicked-data-url', {
@@ -1608,6 +1623,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'focus-output':
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
+				break;
+			case 'select-output-contents':
+				selectOutputContents(event.data.cellOrOutputId);
 				break;
 			case 'decorations': {
 				let outputContainer = window.document.getElementById(event.data.cellId);
