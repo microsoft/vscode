@@ -144,6 +144,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	private _disposed = false;
 
+
 	public extension: WebviewExtensionDescription | undefined;
 	private readonly _options: WebviewOptions;
 
