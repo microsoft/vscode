@@ -190,6 +190,15 @@ export const testStatesToIconColors: { [K in TestResultState]?: string } = {
 	[TestResultState.Skipped]: testingColorIconSkipped,
 };
 
+export const testStatesToRetiredIconColors: { [K in TestResultState]?: string } = {
+	[TestResultState.Errored]: testingColorIconErrored,
+	[TestResultState.Failed]: testingColorIconFailed,
+	[TestResultState.Passed]: testingColorIconPassed,
+	[TestResultState.Queued]: testingColorIconQueued,
+	[TestResultState.Unset]: testingColorIconUnset,
+	[TestResultState.Skipped]: testingColorIconSkipped,
+};
+
 registerThemingParticipant((theme, collector) => {
 
 	const editorBg = theme.getColor(editorBackground);
