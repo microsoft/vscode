@@ -14,6 +14,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType, isDefined } from 'vs/base/common/types';
 import 'vs/css!./renameInputField';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
@@ -68,6 +69,7 @@ export type NewNameSource =
 export type RenameInputFieldStats = {
 	nRenameSuggestions: number;
 	source: NewNameSource;
+	timeBeforeFirstInputFieldEdit: number | undefined;
 };
 
 export type RenameInputFieldResult = {
@@ -116,6 +118,15 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 
 	private _visible?: boolean;
 
+	/** must be reset at session start */
+	private _beforeFirstInputFieldEditSW: StopWatch;
+
+	/**
+	 * Milliseconds before user edits the input field for the first time
+	 * @remarks must be set once per session
+	 */
+	private _timeBeforeFirstInputFieldEdit: number | undefined;
+
 	private readonly _visibleContextKey: IContextKey<boolean>;
 	private readonly _disposables = new DisposableStore();
 
@@ -130,6 +141,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 
 		this._isEditingRenameCandidate = false;
+
+		this._beforeFirstInputFieldEditSW = new StopWatch();
 
 		this._input = new RenameInput();
 		this._disposables.add(this._input);
@@ -180,6 +193,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 					if (this._renameCandidateListView?.focusedCandidate !== undefined) {
 						this._isEditingRenameCandidate = true;
 					}
+					this._timeBeforeFirstInputFieldEdit ??= this._beforeFirstInputFieldEditSW.elapsed();
 					this._renameCandidateListView?.clearFocus();
 				})
 			);
@@ -346,6 +360,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		this._input.domNode.setAttribute('selectionEnd', selectionEnd.toString());
 		this._input.domNode.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20); // determines width
 
+		this._beforeFirstInputFieldEditSW.reset();
+
 		const disposeOnDone = new DisposableStore();
 
 		disposeOnDone.add(toDisposable(() => cts.dispose(true))); // @ulugbekna: this may result in `this.cancelInput` being called twice, but it should be safe since we set it to undefined after 1st call
@@ -402,6 +418,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 				stats: {
 					source,
 					nRenameSuggestions,
+					timeBeforeFirstInputFieldEdit: this._timeBeforeFirstInputFieldEdit,
 				}
 			});
 		};
