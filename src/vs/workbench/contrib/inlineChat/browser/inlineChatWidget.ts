@@ -42,7 +42,7 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, MENU_INLINE_CHAT_INPUT, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -202,6 +202,17 @@ export class InlineChatWidget {
 					if (isWelcomeVM(item)) {
 						return false;
 					}
+					if (isRequestVM(item)) {
+						let requestCount = 0;
+						for (const item of this._chatWidget.viewModel!.getItems()) {
+							if (isRequestVM(item)) {
+								if (++requestCount >= 2) {
+									return true;
+								}
+							}
+						}
+						return false;
+					}
 					return true;
 				},
 			},
@@ -214,10 +225,20 @@ export class InlineChatWidget {
 		);
 		this._chatWidget.render(this._elements.chatWidget);
 		this._elements.chatWidget.style.setProperty(asCssVariableName(chatRequestBackground), asCssVariable(inlineChatBackground));
-
-
 		this._chatWidget.setVisible(true);
 		this._store.add(this._chatWidget);
+
+		const viewModelStore = this._store.add(new DisposableStore());
+		this._store.add(this._chatWidget.onDidChangeViewModel(() => {
+			viewModelStore.clear();
+			const viewModel = this._chatWidget.viewModel;
+			if (viewModel) {
+				viewModelStore.add(viewModel.onDidChange(e => {
+					this._onDidChangeHeight.fire();
+				}));
+			}
+			this._onDidChangeHeight.fire();
+		}));
 
 		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
@@ -325,7 +346,7 @@ export class InlineChatWidget {
 
 		const result = progressHeight + chatWidgetHeight + detectedIntentHeight + followUpsHeight + statusHeight + extraHeight;
 
-		console.log('InlineChat#contentHeight', result);
+		console.log(`InlineChat#contentHeight ${result}, (chat ${chatWidgetHeight})`);
 		return result;
 	}
 

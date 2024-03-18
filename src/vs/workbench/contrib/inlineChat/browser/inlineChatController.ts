@@ -282,7 +282,7 @@ export class InlineChatController implements IEditorContribution {
 
 		const widgetPosition = this._showWidget(true, initPosition);
 
-		this._updatePlaceholder();
+		// this._updatePlaceholder();
 
 		if (!session) {
 			const createSessionCts = new CancellationTokenSource();
@@ -378,7 +378,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.selectAll();
 		}
 
-		this._showWidget(true);
+		this._showWidget(!this._session.lastExchange);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._session?.lastExchange
