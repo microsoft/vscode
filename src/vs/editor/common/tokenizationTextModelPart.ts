@@ -57,6 +57,12 @@ export interface ITokenizationTextModelPart {
 	tokenizeIfCheap(lineNumber: number): void;
 
 	/**
+	 * Check if tokenization information is accurate for `lineNumber`.
+	 * @internal
+	 */
+	hasAccurateTokensForLine(lineNumber: number): boolean;
+
+	/**
 	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
 	 * This is based on a heuristic.
 	 * @internal

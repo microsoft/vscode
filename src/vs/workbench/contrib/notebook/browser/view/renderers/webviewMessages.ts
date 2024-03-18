@@ -168,23 +168,6 @@ export interface IClearMessage {
 	readonly type: 'clear';
 }
 
-export interface IOutputRequestMetadata {
-	/**
-	 * Additional attributes of a cell metadata.
-	 */
-	readonly custom?: { readonly [key: string]: unknown };
-}
-
-export interface IOutputRequestDto {
-	/**
-	 * { mime_type: value }
-	 */
-	readonly data: { readonly [key: string]: unknown };
-
-	readonly metadata?: IOutputRequestMetadata;
-	readonly outputId: string;
-}
-
 export interface OutputItemEntry {
 	readonly mime: string;
 	readonly valueBytes: Uint8Array;
@@ -476,6 +459,11 @@ export interface IReturnOutputItemMessage {
 	readonly output: OutputItemEntry | undefined;
 }
 
+export interface ISelectOutputItemMessage {
+	readonly type: 'select-output-contents';
+	readonly cellOrOutputId: string;
+}
+
 export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
 	readonly type: 'logRendererDebugMessage';
 	readonly message: string;
@@ -555,7 +543,8 @@ export type ToWebviewMessage = IClearMessage |
 	IFindHighlightCurrentMessage |
 	IFindUnHighlightCurrentMessage |
 	IFindStopMessage |
-	IReturnOutputItemMessage;
+	IReturnOutputItemMessage |
+	ISelectOutputItemMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

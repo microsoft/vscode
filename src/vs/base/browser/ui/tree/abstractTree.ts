@@ -1663,8 +1663,14 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		// Sticky element container
 		const stickyElement = document.createElement('div');
 		stickyElement.style.top = `${stickyNode.position}px`;
-		stickyElement.style.height = `${stickyNode.height}px`;
-		stickyElement.style.lineHeight = `${stickyNode.height}px`;
+
+		if (this.tree.options.setRowHeight !== false) {
+			stickyElement.style.height = `${stickyNode.height}px`;
+		}
+
+		if (this.tree.options.setRowLineHeight !== false) {
+			stickyElement.style.lineHeight = `${stickyNode.height}px`;
+		}
 
 		stickyElement.classList.add('monaco-tree-sticky-row');
 		stickyElement.classList.add('monaco-list-row');
@@ -1974,11 +1980,31 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 	}
 
 	private toggleElementFocus(element: HTMLElement, focused: boolean): void {
+		this.toggleElementActiveFocus(element, focused && this.domHasFocus);
+		this.toggleElementPassiveFocus(element, focused);
+	}
+
+	private toggleCurrentElementActiveFocus(focused: boolean): void {
+		if (this.focusedIndex === -1) {
+			return;
+		}
+		this.toggleElementActiveFocus(this.elements[this.focusedIndex], focused);
+	}
+
+	private toggleElementActiveFocus(element: HTMLElement, focused: boolean) {
+		// active focus is set when sticky scroll has focus
 		element.classList.toggle('focused', focused);
+	}
+
+	private toggleElementPassiveFocus(element: HTMLElement, focused: boolean) {
+		// passive focus allows to show focus when sticky scroll does not have focus
+		// for example when the context menu has focus
+		element.classList.toggle('passive-focused', focused);
 	}
 
 	private toggleStickyScrollFocused(focused: boolean) {
 		// Weather the last focus in the view was sticky scroll and not the list
+		// Is only removed when the focus is back in the tree an no longer in sticky scroll
 		this.view.getHTMLElement().classList.toggle('sticky-scroll-focused', focused);
 	}
 
@@ -1988,6 +2014,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 		}
 		this.domHasFocus = true;
 		this.toggleStickyScrollFocused(true);
+		this.toggleCurrentElementActiveFocus(true);
 		if (this.focusedIndex === -1) {
 			this.setFocus(0);
 		}
@@ -1995,6 +2022,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 
 	private onBlur(): void {
 		this.domHasFocus = false;
+		this.toggleCurrentElementActiveFocus(false);
 	}
 
 	override dispose(): void {
@@ -2054,6 +2082,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
 	readonly contextViewProvider?: IContextViewProvider;
 	readonly collapseByDefault?: boolean; // defaults to false
+	readonly allowNonCollapsibleParents?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly paddingBottom?: number;
@@ -2748,6 +2777,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (styles.listFocusOutline) { // default: set
 			content.push(`.monaco-list${suffix}.sticky-scroll-focused .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
 			content.push(`.monaco-list${suffix}:not(.sticky-scroll-focused) .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused { outline: inherit; }`);
+
+			content.push(`.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused.sticky-scroll-focused .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.passive-focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
 
 			content.push(`.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused.sticky-scroll-focused .monaco-list-rows .monaco-list-row.focused { outline: inherit; }`);
 			content.push(`.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused:not(.sticky-scroll-focused) .monaco-tree-sticky-container .monaco-list-rows .monaco-list-row.focused { outline: inherit; }`);

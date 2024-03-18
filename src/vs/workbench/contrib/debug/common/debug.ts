@@ -737,6 +737,7 @@ export interface IBreakpointsChangeEvent {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
+	gutterMiddleClickAction: 'logpoint' | 'conditionalBreakpoint' | 'triggeredBreakpoint' | 'none';
 	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean | 'auto' | 'on' | 'off'; // boolean for back-compat

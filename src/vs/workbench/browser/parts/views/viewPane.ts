@@ -603,12 +603,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (this.progressIndicator === undefined) {
 			const that = this;
-			this.progressIndicator = new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
+			this.progressIndicator = this._register(new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
 				constructor() {
 					super(that.id, that.isBodyVisible());
 					this._register(that.onDidChangeBodyVisibility(isVisible => isVisible ? this.onScopeOpened(that.id) : this.onScopeClosed(that.id)));
 				}
-			}());
+			}()));
 		}
 		return this.progressIndicator;
 	}

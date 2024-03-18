@@ -152,11 +152,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 		if (this.resource.scheme === Schemas.untitled) {
 			capabilities |= EditorInputCapabilities.Untitled;
-			capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
-		}
-
-		if (this.isDirty()) {
-			capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
 		}
 
 		return capabilities;

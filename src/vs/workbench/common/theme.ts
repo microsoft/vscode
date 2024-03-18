@@ -709,6 +709,13 @@ export const ACTIVITY_BAR_TOP_ACTIVE_BORDER = registerColor('activityBarTop.acti
 	hcLight: '#B5200D'
 }, localize('activityBarTopActiveFocusBorder', "Focus border color for the active item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_TOP_ACTIVE_BACKGROUND = registerColor('activityBarTop.activeBackground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('activityBarTopActiveBackground', "Background color for the active item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
 export const ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND = registerColor('activityBarTop.inactiveForeground', {
 	dark: transparent(ACTIVITY_BAR_TOP_FOREGROUND, 0.6),
 	light: transparent(ACTIVITY_BAR_TOP_FOREGROUND, 0.75),

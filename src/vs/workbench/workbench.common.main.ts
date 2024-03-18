@@ -392,4 +392,6 @@ import 'vs/workbench/contrib/share/browser/share.contribution';
 // Account Entitlements
 import 'vs/workbench/contrib/accountEntitlements/browser/accountsEntitlements.contribution';
 
+// Synchronized Scrolling
+import 'vs/workbench/contrib/scrollLocking/browser/scrollLocking.contribution';
 //#endregion

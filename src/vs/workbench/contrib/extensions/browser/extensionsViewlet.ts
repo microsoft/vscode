@@ -86,7 +86,7 @@ const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', f
 
 const REMOTE_CATEGORY: ILocalizedString = localize2({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote");
 
-export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
+export class ExtensionsViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly container: ViewContainer;
 
@@ -96,6 +96,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
+		super();
+
 		this.container = viewDescriptorService.getViewContainerById(VIEWLET_ID)!;
 		this.registerViews();
 	}
@@ -172,7 +174,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			});
 
 			if (server === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer) {
-				registerAction2(class InstallLocalExtensionsInRemoteAction2 extends Action2 {
+				this._register(registerAction2(class InstallLocalExtensionsInRemoteAction2 extends Action2 {
 					constructor() {
 						super({
 							id: 'workbench.extensions.installLocalExtensions',
@@ -192,12 +194,12 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 					run(accessor: ServicesAccessor): Promise<void> {
 						return accessor.get(IInstantiationService).createInstance(InstallLocalExtensionsInRemoteAction).run();
 					}
-				});
+				}));
 			}
 		}
 
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			registerAction2(class InstallRemoteExtensionsInLocalAction2 extends Action2 {
+			this._register(registerAction2(class InstallRemoteExtensionsInLocalAction2 extends Action2 {
 				constructor() {
 					super({
 						id: 'workbench.extensions.actions.installLocalExtensionsInRemote',
@@ -209,7 +211,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 				run(accessor: ServicesAccessor): Promise<void> {
 					return accessor.get(IInstantiationService).createInstance(InstallRemoteExtensionsInLocalAction, 'workbench.extensions.actions.installLocalExtensionsInRemote').run();
 				}
-			});
+			}));
 		}
 
 		/*

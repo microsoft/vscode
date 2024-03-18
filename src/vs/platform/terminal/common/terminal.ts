@@ -103,6 +103,7 @@ export const enum TerminalSettingId {
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
 	HideOnStartup = 'terminal.integrated.hideOnStartup',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
+	RescaleOverlappingGlyphs = 'terminal.integrated.rescaleOverlappingGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
