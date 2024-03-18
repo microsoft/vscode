@@ -36,6 +36,7 @@ import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/
 import { MinimapPosition, MinimapSectionHeaderStyle, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { createSingleCallFunction } from 'vs/base/common/functional';
 import { LRUCache } from 'vs/base/common/map';
+import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -43,10 +44,6 @@ import { LRUCache } from 'vs/base/common/map';
 const POINTER_DRAG_RESET_DISTANCE = 140;
 
 const GUTTER_DECORATION_WIDTH = 2;
-
-// This is a copy of DEFAULT_FONT_FAMILY in vs/workbench/browser/style.
-// Copied because importing that file violates code style rules.
-const SECTION_HEADER_FONT_FAMILY = platform.isWindows ? '"Segoe WPC", "Segoe UI", sans-serif' : platform.isMacintosh ? '-apple-system, BlinkMacSystemFont, sans-serif' : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';
 
 class MinimapOptions {
 
@@ -140,8 +137,8 @@ class MinimapOptions {
 		this.fontScale = minimapLayout.minimapScale;
 		this.minimapLineHeight = minimapLayout.minimapLineHeight;
 		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
-		this.sectionHeaderFontFamily = SECTION_HEADER_FONT_FAMILY;
-		this.sectionHeaderFontSize = minimapOpts.sectionHeaderFontSize;
+		this.sectionHeaderFontFamily = DEFAULT_FONT_FAMILY;
+		this.sectionHeaderFontSize = minimapOpts.sectionHeaderFontSize * pixelRatio;
 		this.sectionHeaderFontColor = MinimapOptions._getSectionHeaderColor(theme, tokensColorTracker.getColor(ColorId.DefaultForeground));
 
 		this.charRenderer = createSingleCallFunction(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
@@ -1082,7 +1079,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 	public getSectionHeaderDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
 		const minimapLineHeight = this.options.minimapLineHeight;
-		const sectionHeaderFontSize = this.options.sectionHeaderFontSize * this.options.pixelRatio;
+		const sectionHeaderFontSize = this.options.sectionHeaderFontSize;
 		const headerHeightInMinimapLines = sectionHeaderFontSize / minimapLineHeight;
 		startLineNumber = Math.floor(Math.max(1, startLineNumber - headerHeightInMinimapLines));
 		return this._getMinimapDecorationsInViewport(startLineNumber, endLineNumber)
@@ -1790,7 +1787,7 @@ class InnerMinimap extends Disposable {
 
 	private _renderSectionHeaders(layout: MinimapLayout) {
 		const minimapLineHeight = this._model.options.minimapLineHeight;
-		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize * this._model.options.pixelRatio;
+		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize;
 		const backgroundFillHeight = sectionHeaderFontSize * 1.5;
 		const { canvasInnerWidth } = this._model.options;
 
