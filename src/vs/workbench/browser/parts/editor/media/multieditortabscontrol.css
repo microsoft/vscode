@@ -251,6 +251,10 @@
 	background-color: var(--tab-border-top-color);
 }
 
+.monaco-workbench .part.editor > .content .split-view-view:not(:first-of-type) .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom {
+	margin-left: 1px;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
 	z-index: 10;
 	bottom: 0;
