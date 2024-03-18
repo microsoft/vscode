@@ -1062,7 +1062,7 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	async playSignal(cue: AccessibilitySignal, options: {}): Promise<void> {
 	}
 
-	async playAccessibilitySignals(cues: AccessibilitySignal[]): Promise<void> {
+	async playSignals(cues: AccessibilitySignal[]): Promise<void> {
 	}
 
 	isSoundEnabled(cue: AccessibilitySignal): boolean {

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IAction, toAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -28,7 +28,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService, IPromptButton, IPromptCancelButton } from 'vs/platform/dialogs/common/dialogs';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { mainWindow } from 'vs/base/browser/window';
 
 export interface IOpenEditorResult {
 
@@ -129,22 +128,7 @@ export class EditorPanes extends Disposable {
 
 	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 		try {
-
-			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
-			if (getWindowById(this.groupView.windowId, true).window !== mainWindow && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
-				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "This type of editor cannot be opened in other windows yet."), [
-					toAction({
-						id: 'workbench.editor.action.closeEditor', label: localize('openFolder', "Close Editor"), run: async () => {
-							return this.groupView.closeEditor(editor);
-						}
-					})
-				], { forceMessage: true, forceSeverity: Severity.Warning }), editor, options, internalOptions, context);
-			}
-
-			// Open editor normally
-			else {
-				return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, internalOptions, context);
-			}
+			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, internalOptions, context);
 		} catch (error) {
 
 			// First check if caller instructed us to ignore error handling
@@ -377,6 +361,11 @@ export class EditorPanes extends Disposable {
 		if (!editorPane.getContainer()) {
 			const editorPaneContainer = document.createElement('div');
 			editorPaneContainer.classList.add('editor-instance');
+
+			// It is cruicial to append the container to its parent before
+			// passing on to the create() method of the pane so that the
+			// right `window` can be determined in floating window cases.
+			this.editorPanesParent.appendChild(editorPaneContainer);
 
 			editorPane.create(editorPaneContainer);
 		}

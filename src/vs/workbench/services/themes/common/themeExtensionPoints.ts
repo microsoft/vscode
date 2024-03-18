@@ -12,7 +12,7 @@ import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
@@ -165,7 +165,7 @@ export interface IThemeData {
 	location?: URI;
 }
 
-export class ThemeRegistry<T extends IThemeData> {
+export class ThemeRegistry<T extends IThemeData> implements IDisposable {
 
 	private extensionThemes: T[];
 
@@ -180,6 +180,10 @@ export class ThemeRegistry<T extends IThemeData> {
 	) {
 		this.extensionThemes = [];
 		this.initialize();
+	}
+
+	dispose() {
+		this.themesExtPoint.setHandler(() => { });
 	}
 
 	private initialize() {

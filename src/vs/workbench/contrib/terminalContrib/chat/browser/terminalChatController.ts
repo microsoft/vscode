@@ -13,7 +13,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentRequest, IChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatUserAction, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -288,6 +288,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			agentId: this._terminalAgentId,
 			message: this._lastInput,
 			variables: { variables: [] },
+			location: ChatAgentLocation.Terminal
 		};
 		try {
 			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
@@ -311,8 +312,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
 				const containsCode = responseContent.includes('```');
 				this._chatWidget?.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: this._currentRequest.id, providerId: 'terminal' }, false, containsCode);
-				// the message grows in height, be sure to update top position so it doesn't go below the terminal
-				this._chatWidget?.value.layoutVertically();
 				this._responseContainsCodeBlockContextKey.set(containsCode);
 				this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 				this._messages.fire(Message.ACCEPT_INPUT);
@@ -346,8 +345,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		return !!this._chatWidget?.value.hasFocus();
 	}
 
-	acceptCommand(shouldExecute: boolean): void {
-		this._chatWidget?.value.acceptCommand(shouldExecute);
+	async acceptCommand(shouldExecute: boolean): Promise<void> {
+		const code = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(0);
+		if (!code) {
+			return;
+		}
+		this._chatWidget?.value.acceptCommand(code.object.textEditorModel.getValue(), shouldExecute);
 	}
 
 	reveal(): void {
@@ -362,22 +365,25 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		const model = this._model.value;
 		const widget = await this._chatWidgetService.revealViewForProvider(providerInfo.id);
-		if (widget && widget.viewModel && model) {
-			for (const request of model.getRequests()) {
-				if (request.response?.response.value || request.response?.result) {
-					this._chatService.addCompleteRequest(widget.viewModel.sessionId,
-						request.message as IParsedChatRequest,
-						request.variableData,
-						{
-							message: request.response.response.value,
-							result: request.response.result,
-							followups: request.response.followups
-						});
+		if (widget) {
+			if (widget.viewModel && model) {
+				for (const request of model.getRequests()) {
+					if (request.response?.response.value || request.response?.result) {
+						this._chatService.addCompleteRequest(widget.viewModel.sessionId,
+							request.message as IParsedChatRequest,
+							request.variableData,
+							{
+								message: request.response.response.value,
+								result: request.response.result,
+								followups: request.response.followups
+							});
+					}
 				}
+				widget.focusLastMessage();
+			} else if (!model) {
+				widget.focusInput();
 			}
-			widget.focusLastMessage();
-		} else if (!model) {
-			widget?.focusInput();
+			this._chatWidget?.value.hide();
 		}
 	}
 

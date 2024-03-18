@@ -19,7 +19,7 @@ suite('TextModelSearch', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
+	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS, []);
 
 	function assertFindMatch(actual: FindMatch | null, expectedRange: Range, expectedMatches: string[] | null = null): void {
 		assert.deepStrictEqual(actual, new FindMatch(expectedRange, expectedMatches));

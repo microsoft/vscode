@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -184,9 +184,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	private createChannel(id: string): OutputChannel {
-		const channelDisposables: IDisposable[] = [];
 		const channel = this.instantiateChannel(id);
-		channel.model.onDispose(() => {
+		this._register(Event.once(channel.model.onDispose)(() => {
 			if (this.activeChannel === channel) {
 				const channels = this.getChannelDescriptors();
 				const channel = channels.length ? this.getChannel(channels[0].id) : undefined;
@@ -197,8 +196,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				}
 			}
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
-			dispose(channelDisposables);
-		}, channelDisposables);
+		}));
 
 		return channel;
 	}

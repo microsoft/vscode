@@ -1196,6 +1196,17 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	private async getEngine(extension: string, rawExtensionVersion: IRawGalleryExtensionVersion): Promise<string> {
 		let engine = getEngine(rawExtensionVersion);
 		if (!engine) {
+			type GalleryServiceEngineFallbackClassification = {
+				owner: 'sandy081';
+				comment: 'Fallback request when engine is not found in properties of an extension version';
+				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension name' };
+				version: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'version' };
+			};
+			type GalleryServiceEngineFallbackEvent = {
+				extension: string;
+				version: string;
+			};
+			this.telemetryService.publicLog2<GalleryServiceEngineFallbackEvent, GalleryServiceEngineFallbackClassification>('galleryService:engineFallback', { extension, version: rawExtensionVersion.version });
 			const manifest = await this.getManifestFromRawExtensionVersion(extension, rawExtensionVersion, CancellationToken.None);
 			if (!manifest) {
 				throw new Error('Manifest was not found');

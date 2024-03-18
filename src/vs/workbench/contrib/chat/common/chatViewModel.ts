@@ -258,7 +258,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			.forEach((item: ChatResponseViewModel) => item.dispose());
 	}
 
-	private updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
+	updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
 		const content = isRequestVM(model) ? model.messageText : model.response.asString();
 		const renderer = new marked.Renderer();
 

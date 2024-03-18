@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -41,6 +40,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditorLineNumberContextMenu, GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
+import { renderTestMessageAsText } from 'vs/workbench/contrib/testing/browser/testMessageColorizer';
 import { DefaultGutterClickAction, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing, labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
@@ -1085,7 +1085,7 @@ class TestMessageDecoration implements ITestDecoration {
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
 
-		let inlineText = renderStringAsPlaintext(message).replace(lineBreakRe, ' ');
+		let inlineText = renderTestMessageAsText(message).replace(lineBreakRe, ' ');
 		if (inlineText.length > MAX_INLINE_MESSAGE_LENGTH) {
 			inlineText = inlineText.slice(0, MAX_INLINE_MESSAGE_LENGTH - 1) + '…';
 		}

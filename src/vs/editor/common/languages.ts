@@ -1777,6 +1777,14 @@ export enum CommentThreadState {
 /**
  * @internal
  */
+export enum CommentThreadApplicability {
+	Current = 0,
+	Outdated = 1
+}
+
+/**
+ * @internal
+ */
 export interface CommentWidget {
 	commentThread: CommentThread;
 	comment?: Comment;
@@ -1811,6 +1819,7 @@ export interface CommentThread<T = IRange> {
 	initialCollapsibleState?: CommentThreadCollapsibleState;
 	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
+	applicability?: CommentThreadApplicability;
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;

@@ -9,6 +9,7 @@ import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -20,6 +21,7 @@ import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/co
 import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatContributionService, IChatParticipantContribution, IChatProviderContribution, IRawChatParticipantContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatProviderContribution[]>({
@@ -82,6 +84,13 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					markdownDescription: localize('chatParticipantIsDefaultDescription', "**Only** allowed for extensions that have the `defaultChatParticipant` proposal."),
 					type: 'boolean',
 				},
+				defaultImplicitVariables: {
+					markdownDescription: '**Only** allowed for extensions that have the `chatParticipantAdditions` proposal. The names of the variables that are invoked by default',
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				},
 				commands: {
 					markdownDescription: localize('chatCommandsDescription', "Commands available for this Chat Participant, which the user can invoke with a `/`."),
 					type: 'array',
@@ -111,8 +120,25 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 								description: localize('chatCommandDescription', "A description of this command."),
 								type: 'boolean'
 							},
+							defaultImplicitVariables: {
+								markdownDescription: localize('defaultImplicitVariables', "**Only** allowed for extensions that have the `chatParticipantAdditions` proposal. The names of the variables that are invoked by default"),
+								type: 'array',
+								items: {
+									type: 'string'
+								}
+							},
 						}
 					}
+				},
+				locations: {
+					markdownDescription: localize('chatLocationsDescription', "Locations in which this Chat Participant is available."),
+					type: 'array',
+					default: ['panel'],
+					items: {
+						type: 'string',
+						enum: ['panel', 'terminal', 'notebook']
+					}
+
 				}
 			}
 		}
@@ -136,7 +162,8 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	constructor(
 		@IChatContributionService readonly _chatContributionService: IChatContributionService,
 		@IProductService readonly productService: IProductService,
-		@IContextKeyService readonly contextService: IContextKeyService
+		@IContextKeyService readonly contextService: IContextKeyService,
+		@ILogService readonly logService: ILogService,
 	) {
 		this._viewContainer = this.registerViewContainer();
 		this.registerListeners();
@@ -150,9 +177,10 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 				return;
 			}
 
-			const keys = new Set([this.productService.chatWelcomeView.when]);
+			const showWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
+			const keys = new Set([showWelcomeViewConfigKey]);
 			if (e.affectsSome(keys)) {
-				const contextKeyExpr = ContextKeyExpr.equals(this.productService.chatWelcomeView.when, true);
+				const contextKeyExpr = ContextKeyExpr.equals(showWelcomeViewConfigKey, true);
 				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 				if (this.contextService.contextMatchesRules(contextKeyExpr)) {
 					const viewId = this._chatContributionService.getViewIdForProvider(this.productService.chatWelcomeView.welcomeViewId);
@@ -205,6 +233,16 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		chatParticipantExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
 				for (const providerDescriptor of extension.value) {
+					if (providerDescriptor.isDefault && !isProposedApiEnabled(extension.description, 'defaultChatParticipant')) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: defaultChatParticipant.`);
+						continue;
+					}
+
+					if (providerDescriptor.defaultImplicitVariables && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
+						continue;
+					}
+
 					this._chatContributionService.registerChatParticipant({ ...providerDescriptor, extensionId: extension.description.identifier });
 				}
 			}

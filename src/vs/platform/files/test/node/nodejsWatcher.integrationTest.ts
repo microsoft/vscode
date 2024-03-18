@@ -40,7 +40,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 			await super.doWatch(requests);
-			for (const [, watcher] of this.watchers) {
+			for (const watcher of this.watchers) {
 				await watcher.instance.ready;
 			}
 
@@ -523,16 +523,20 @@ import { Emitter, Event } from 'vs/base/common/event';
 		return watchPromise;
 	});
 
-	test('watching same or overlapping paths supported when correlation is applied', async () => {
+	test('watching same or overlapping paths supported when correlation is applied', async function () {
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: false, correlationId: 1 }
+		]);
 
-		// same path, same options
+		await basicCrudTest(join(testDir, 'newFile_1.txt'), undefined, null, 1);
+
 		await watcher.watch([
 			{ path: testDir, excludes: [], recursive: false, correlationId: 1 },
 			{ path: testDir, excludes: [], recursive: false, correlationId: 2, },
 			{ path: testDir, excludes: [], recursive: false, correlationId: undefined }
 		]);
 
-		await basicCrudTest(join(testDir, 'newFile.txt'), undefined, null, 3);
+		await basicCrudTest(join(testDir, 'newFile_2.txt'), undefined, null, 3);
 		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, null, 3);
 	});
 

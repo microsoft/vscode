@@ -321,7 +321,20 @@ export class CodeActionModel extends Disposable {
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
-				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
+				const newState = new CodeActionsState.Triggered(trigger.trigger, startPosition, actions);
+				let isManualToAutoTransition = false;
+				if (this._state.type === CodeActionsState.Type.Triggered) {
+					// Check if the current state is manual and the new state is automatic
+					isManualToAutoTransition = this._state.trigger.type === CodeActionTriggerType.Invoke &&
+						newState.type === CodeActionsState.Type.Triggered &&
+						newState.trigger.type === CodeActionTriggerType.Auto &&
+						this._state.position !== newState.position;
+				}
+
+				// Do not trigger state if current state is manual and incoming state is automatic
+				if (!isManualToAutoTransition) {
+					this.setState(newState);
+				}
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {

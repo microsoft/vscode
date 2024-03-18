@@ -39,7 +39,7 @@ import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browse
 import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
-import { EditorBasedInlineChatWidget, IInlineChatMessageAppender } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { IInlineChatMessageAppender, InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -48,10 +48,6 @@ import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebook
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-
-
-
-const WIDGET_MARGIN_BOTTOM = 16;
 
 class NotebookChatWidget extends Disposable implements INotebookViewZone {
 	set afterModelPosition(afterModelPosition: number) {
@@ -82,14 +78,14 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		readonly notebookViewZone: INotebookViewZone,
 		readonly domNode: HTMLElement,
 		readonly widgetContainer: HTMLElement,
-		readonly inlineChatWidget: EditorBasedInlineChatWidget,
+		readonly inlineChatWidget: InlineChatWidget,
 		readonly parentEditor: CodeEditorWidget,
 		private readonly _languageService: ILanguageService,
 	) {
 		super();
 
 		this._register(inlineChatWidget.onDidChangeHeight(() => {
-			this.heightInPx = inlineChatWidget.getHeight() + WIDGET_MARGIN_BOTTOM;
+			this.heightInPx = inlineChatWidget.getHeight();
 			this._notebookEditor.changeViewZones(accessor => {
 				accessor.layoutZone(id);
 			});
@@ -193,14 +189,14 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		}
 	}
 
-	private _layoutWidget(inlineChatWidget: EditorBasedInlineChatWidget, widgetContainer: HTMLElement) {
+	private _layoutWidget(inlineChatWidget: InlineChatWidget, widgetContainer: HTMLElement) {
 		const layoutConfiguration = this._notebookEditor.notebookOptions.getLayoutConfiguration();
 		const rightMargin = layoutConfiguration.cellRightMargin;
 		const leftMargin = this._notebookEditor.notebookOptions.getCellEditorContainerLeftMargin();
-		const maxWidth = !inlineChatWidget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
+		const maxWidth = 640;
 		const width = Math.min(maxWidth, this._notebookEditor.getLayoutInfo().width - leftMargin - rightMargin);
 
-		inlineChatWidget.layout(new Dimension(width, 80 + WIDGET_MARGIN_BOTTOM));
+		inlineChatWidget.layout(new Dimension(width, this.heightInPx));
 		inlineChatWidget.domNode.style.width = `${width}px`;
 		widgetContainer.style.left = `${leftMargin}px`;
 	}
@@ -407,8 +403,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		fakeParentEditor.setModel(result);
 
 		const inlineChatWidget = this._widgetDisposableStore.add(this._instantiationService.createInstance(
-			EditorBasedInlineChatWidget,
-			fakeParentEditor,
+			InlineChatWidget,
 			{
 				telemetrySource: 'notebook-generate-cell',
 				inputMenuId: MENU_CELL_CHAT_INPUT,
@@ -428,7 +423,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._notebookEditor.changeViewZones(accessor => {
 			const notebookViewZone = {
 				afterModelPosition: index,
-				heightInPx: 80 + WIDGET_MARGIN_BOTTOM,
+				heightInPx: 80,
 				domNode: viewZoneContainer
 			};
 
