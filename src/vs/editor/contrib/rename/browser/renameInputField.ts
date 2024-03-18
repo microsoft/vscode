@@ -51,12 +51,33 @@ const _sticky = false
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false, localize('renameInputVisible', "Whether the rename input widget is visible"));
 export const CONTEXT_RENAME_INPUT_FOCUSED = new RawContextKey<boolean>('renameInputFocused', false, localize('renameInputFocused', "Whether the rename input widget is focused"));
 
-export interface RenameInputFieldResult {
+/**
+ * "Source" of the new name:
+ * - 'inputField' - user entered the new name
+ * - 'renameSuggestion' - user picked from rename suggestions
+ * - 'userEditedRenameSuggestion' - user _likely_ edited a rename suggestion ("likely" because when input started being edited, a rename suggestion had focus)
+ */
+export type NewNameSource =
+	| { k: 'inputField' }
+	| { k: 'renameSuggestion' }
+	| { k: 'userEditedRenameSuggestion' };
+
+/**
+ * Various statistics regarding rename input field
+ */
+export type RenameInputFieldStats = {
+	nRenameSuggestions: number;
+	source: NewNameSource;
+};
+
+export type RenameInputFieldResult = {
+	/**
+	 * The new name to be used
+	 */
 	newName: string;
 	wantsPreview?: boolean;
-	source: 'inputField' | 'renameSuggestion' | 'userEditedRenameSuggestion';
-	nRenameSuggestions: number;
-}
+	stats: RenameInputFieldStats;
+};
 
 interface IRenameInputField {
 	/**
@@ -341,16 +362,16 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 			const nRenameSuggestions = this._renameCandidateListView.nCandidates;
 
 			let newName: string;
-			let source: RenameInputFieldResult['source'];
+			let source: NewNameSource;
 			const focusedCandidate = this._renameCandidateListView.focusedCandidate;
 			if (focusedCandidate !== undefined) {
 				this._trace('using new name from renameSuggestion');
 				newName = focusedCandidate;
-				source = 'renameSuggestion';
+				source = { k: 'renameSuggestion' };
 			} else {
 				this._trace('using new name from inputField');
 				newName = this._input.domNode.value;
-				source = this._isEditingRenameCandidate ? 'userEditedRenameSuggestion' : 'inputField';
+				source = this._isEditingRenameCandidate ? { k: 'userEditedRenameSuggestion' } : { k: 'inputField' };
 			}
 
 			if (newName === currentName || newName.trim().length === 0 /* is just whitespace */) {
@@ -365,8 +386,10 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 			inputResult.complete({
 				newName,
 				wantsPreview: supportPreview && wantsPreview,
-				source,
-				nRenameSuggestions,
+				stats: {
+					source,
+					nRenameSuggestions,
+				}
 			});
 		};
 
