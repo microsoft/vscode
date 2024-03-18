@@ -48,6 +48,7 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 	private isInitialized = false;
 	private showAccountsBadgeContextKey = new RawContextKey<boolean>(accountsBadgeConfigKey, false).bindTo(this.contextService);
 	private showChatWelcomeViewContextKey = new RawContextKey<boolean>(chatWelcomeViewConfigKey, false).bindTo(this.contextService);
+	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		@IContextKeyService readonly contextService: IContextKeyService,
@@ -94,6 +95,7 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 			} else if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.removed?.length) {
 				this.showAccountsBadgeContextKey.set(false);
 				this.showChatWelcomeViewContextKey.set(false);
+				this.accountsMenuBadgeDisposable.clear();
 			}
 		}));
 
@@ -169,6 +171,7 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 		this.storageService.store(chatWelcomeViewConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.showAccountsBadgeContextKey.set(false);
 		this.showChatWelcomeViewContextKey.set(false);
+		this.accountsMenuBadgeDisposable.clear();
 	}
 
 	private async createAccountsBadge(org: string | undefined) {
@@ -176,8 +179,7 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 		const menuTitle = org ? this.productService.gitHubEntitlement!.command.title.replace('{{org}}', org) : this.productService.gitHubEntitlement!.command.titleWithoutPlaceHolder;
 
 		const badge = new NumberBadge(1, () => menuTitle);
-		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
-		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
+		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -220,7 +222,6 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 					});
 				}
 
-				accountsMenuBadgeDisposable.clear();
 				const contextKey = new RawContextKey<boolean>(accountsBadgeConfigKey, true).bindTo(contextKeyService);
 				contextKey.set(false);
 				storageService.store(accountsBadgeConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
