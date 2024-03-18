@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from 'vs/base/browser/dom';
+import { getWindow, getWindowById } from 'vs/base/browser/dom';
 import { CodeWindow } from 'vs/base/browser/window';
+import { toAction } from 'vs/base/common/actions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { dirname, isEqual } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -29,6 +29,7 @@ import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/b
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 interface CustomEditorInputInitInfo {
@@ -90,7 +91,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IFileService private readonly fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super({ providedId: init.viewType, viewType: init.viewType, name: '' }, webview, webviewWorkbenchService);
 		this._editorResource = init.resource;
@@ -398,8 +400,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override claim(claimant: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void {
 		if (this.isModified() && this._modelRef?.object.isTextBased === false && !this.backupId) {
-			const webviewContainerWindow = getWindow(this.webview.container);
-			if (webviewContainerWindow.vscodeWindowId !== targetWindow.vscodeWindowId) {
+			const webviewContainerWindowId = getWindow(this.webview.container).vscodeWindowId;
+			const targetWindowId = targetWindow.vscodeWindowId;
+			if (webviewContainerWindowId !== targetWindowId) {
 
 				// The custom editor is modified, not backed by a file and without a backup.
 				// We have to assume that the modified state is enclosed into the webview
@@ -409,9 +412,17 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				// To mitigate this, we refuse to `claim` in this case and also make sure the
 				// editor is still opened in the window it was originally opened in.
 
-				this.editorGroupsService.getPart(webviewContainerWindow).activeGroup.openEditor(this, { preserveFocus: true });
-
-				throw createEditorOpenError(localize('editorUnsupportedInAuxWindow', "Save the editor first before opening in this window."), [], { forceMessage: true, forceSeverity: Severity.Warning });
+				throw createEditorOpenError(localize('editorUnsupportedInAuxWindow', "Unable to open the editor in this window, it contains modifications that can only be saved in the original window."), [
+					toAction({
+						id: 'openInOriginalWindow',
+						label: localize('reopenInOriginalWindow', "Open in Original Window"),
+						run: async () => {
+							const originalPart = this.editorGroupsService.getPart(this.layoutService.getContainer(getWindowById(webviewContainerWindowId, true).window));
+							const currentPart = this.editorGroupsService.getPart(this.layoutService.getContainer(getWindowById(targetWindowId, true).window));
+							currentPart.activeGroup.moveEditor(this, originalPart.activeGroup);
+						}
+					})
+				], { forceMessage: true });
 			}
 		}
 		return super.claim(claimant, targetWindow, scopedContextKeyService);
