@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { distinct, shuffle } from 'vs/base/common/arrays';
+import { shuffle } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -20,7 +20,7 @@ import { LanguageRecommendations } from 'vs/workbench/contrib/extensions/browser
 import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { timeout } from 'vs/base/common/async';
+import { CancelablePromise, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { WebRecommendations } from 'vs/workbench/contrib/extensions/browser/webRecommendations';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -28,6 +28,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { RemoteRecommendations } from 'vs/workbench/contrib/extensions/browser/remoteRecommendations';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { isString } from 'vs/base/common/types';
 
 type IgnoreRecommendationClassification = {
 	owner: 'sandy081';
@@ -71,14 +72,14 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	) {
 		super();
 
-		this.workspaceRecommendations = instantiationService.createInstance(WorkspaceRecommendations);
-		this.fileBasedRecommendations = instantiationService.createInstance(FileBasedRecommendations);
-		this.configBasedRecommendations = instantiationService.createInstance(ConfigBasedRecommendations);
-		this.exeBasedRecommendations = instantiationService.createInstance(ExeBasedRecommendations);
-		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations);
-		this.webRecommendations = instantiationService.createInstance(WebRecommendations);
-		this.languageRecommendations = instantiationService.createInstance(LanguageRecommendations);
-		this.remoteRecommendations = instantiationService.createInstance(RemoteRecommendations);
+		this.workspaceRecommendations = this._register(instantiationService.createInstance(WorkspaceRecommendations));
+		this.fileBasedRecommendations = this._register(instantiationService.createInstance(FileBasedRecommendations));
+		this.configBasedRecommendations = this._register(instantiationService.createInstance(ConfigBasedRecommendations));
+		this.exeBasedRecommendations = this._register(instantiationService.createInstance(ExeBasedRecommendations));
+		this.keymapRecommendations = this._register(instantiationService.createInstance(KeymapRecommendations));
+		this.webRecommendations = this._register(instantiationService.createInstance(WebRecommendations));
+		this.languageRecommendations = this._register(instantiationService.createInstance(LanguageRecommendations));
+		this.remoteRecommendations = this._register(instantiationService.createInstance(RemoteRecommendations));
 
 		if (!this.isEnabled()) {
 			this.sessionSeed = 0;
@@ -150,9 +151,9 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			...this.webRecommendations.recommendations,
 		];
 
-		for (const { extensionId, reason } of allRecommendations) {
-			if (this.isExtensionAllowedToBeRecommended(extensionId)) {
-				output[extensionId.toLowerCase()] = reason;
+		for (const { extension, reason } of allRecommendations) {
+			if (isString(extension) && this.isExtensionAllowedToBeRecommended(extension)) {
+				output[extension.toLowerCase()] = reason;
 			}
 		}
 
@@ -162,8 +163,8 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	async getConfigBasedRecommendations(): Promise<{ important: string[]; others: string[] }> {
 		await this.configBasedRecommendations.activate();
 		return {
-			important: this.toExtensionRecommendations(this.configBasedRecommendations.importantRecommendations),
-			others: this.toExtensionRecommendations(this.configBasedRecommendations.otherRecommendations)
+			important: this.toExtensionIds(this.configBasedRecommendations.importantRecommendations),
+			others: this.toExtensionIds(this.configBasedRecommendations.otherRecommendations)
 		};
 	}
 
@@ -177,11 +178,8 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			...this.webRecommendations.recommendations
 		];
 
-		const extensionIds = distinct(recommendations.map(e => e.extensionId))
-			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
-
+		const extensionIds = this.toExtensionIds(recommendations);
 		shuffle(extensionIds, this.sessionSeed);
-
 		return extensionIds;
 	}
 
@@ -194,43 +192,50 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			...this.exeBasedRecommendations.importantRecommendations,
 		];
 
-		const extensionIds = distinct(recommendations.map(e => e.extensionId))
-			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
-
+		const extensionIds = this.toExtensionIds(recommendations);
 		shuffle(extensionIds, this.sessionSeed);
-
 		return extensionIds;
 	}
 
 	getKeymapRecommendations(): string[] {
-		return this.toExtensionRecommendations(this.keymapRecommendations.recommendations);
+		return this.toExtensionIds(this.keymapRecommendations.recommendations);
 	}
 
 	getLanguageRecommendations(): string[] {
-		return this.toExtensionRecommendations(this.languageRecommendations.recommendations);
+		return this.toExtensionIds(this.languageRecommendations.recommendations);
 	}
 
 	getRemoteRecommendations(): string[] {
-		return this.toExtensionRecommendations(this.remoteRecommendations.recommendations);
+		return this.toExtensionIds(this.remoteRecommendations.recommendations);
 	}
 
-	async getWorkspaceRecommendations(): Promise<string[]> {
+	async getWorkspaceRecommendations(): Promise<Array<string | URI>> {
 		if (!this.isEnabled()) {
 			return [];
 		}
 		await this.workspaceRecommendations.activate();
-		return this.toExtensionRecommendations(this.workspaceRecommendations.recommendations);
+		const result: Array<string | URI> = [];
+		for (const { extension } of this.workspaceRecommendations.recommendations) {
+			if (isString(extension)) {
+				if (!result.includes(extension.toLowerCase()) && this.isExtensionAllowedToBeRecommended(extension)) {
+					result.push(extension.toLowerCase());
+				}
+			} else {
+				result.push(extension);
+			}
+		}
+		return result;
 	}
 
 	async getExeBasedRecommendations(exe?: string): Promise<{ important: string[]; others: string[] }> {
 		await this.exeBasedRecommendations.activate();
 		const { important, others } = exe ? this.exeBasedRecommendations.getRecommendations(exe)
 			: { important: this.exeBasedRecommendations.importantRecommendations, others: this.exeBasedRecommendations.otherRecommendations };
-		return { important: this.toExtensionRecommendations(important), others: this.toExtensionRecommendations(others) };
+		return { important: this.toExtensionIds(important), others: this.toExtensionIds(others) };
 	}
 
 	getFileBasedRecommendations(): string[] {
-		return this.toExtensionRecommendations(this.fileBasedRecommendations.recommendations);
+		return this.toExtensionIds(this.fileBasedRecommendations.recommendations);
 	}
 
 	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
@@ -254,10 +259,13 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		}
 	}
 
-	private toExtensionRecommendations(recommendations: ReadonlyArray<ExtensionRecommendation>): string[] {
-		const extensionIds = distinct(recommendations.map(e => e.extensionId))
-			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
-
+	private toExtensionIds(recommendations: ReadonlyArray<ExtensionRecommendation>): string[] {
+		const extensionIds: string[] = [];
+		for (const { extension } of recommendations) {
+			if (isString(extension) && this.isExtensionAllowedToBeRecommended(extension) && !extensionIds.includes(extension.toLowerCase())) {
+				extensionIds.push(extension.toLowerCase());
+			}
+		}
 		return extensionIds;
 	}
 
@@ -272,12 +280,17 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			...this.configBasedRecommendations.importantRecommendations.filter(
 				recommendation => !recommendation.whenNotInstalled || recommendation.whenNotInstalled.every(id => installed.every(local => !areSameExtensions(local.identifier, { id }))))
 		]
-			.map(({ extensionId }) => extensionId)
-			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
+			.map(({ extension }) => extension)
+			.filter(extension => !isString(extension) || this.isExtensionAllowedToBeRecommended(extension));
 
 		if (allowedRecommendations.length) {
-			await timeout(5000);
+			await this._registerP(timeout(5000));
 			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
 		}
+	}
+
+	private _registerP<T>(o: CancelablePromise<T>): CancelablePromise<T> {
+		this._register(toDisposable(() => o.cancel()));
+		return o;
 	}
 }

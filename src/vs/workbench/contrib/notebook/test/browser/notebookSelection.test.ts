@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
@@ -12,30 +11,39 @@ import { runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controlle
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('NotebookSelection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('focus is never empty', function () {
 		const selectionCollection = new NotebookCellSelectionCollection();
 		assert.deepStrictEqual(selectionCollection.focus, { start: 0, end: 0 });
 
 		selectionCollection.setState(null, [], true, 'model');
 		assert.deepStrictEqual(selectionCollection.focus, { start: 0, end: 0 });
+		selectionCollection.dispose();
 	});
 });
 
 suite('NotebookCellList focus/selection', () => {
-
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageService: ILanguageService;
 
-	suiteSetup(() => {
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		languageService = instantiationService.get(ILanguageService);
 	});
 
-	suiteTeardown(() => disposables.dispose());
 
 	test('notebook cell list setFocus', async function () {
 		await withTestNotebook(
@@ -43,8 +51,8 @@ suite('NotebookCellList focus/selection', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
-				const cellList = createNotebookCellList(instantiationService);
+			(editor, viewModel, ds) => {
+				const cellList = createNotebookCellList(instantiationService, ds);
 				cellList.attachViewModel(viewModel);
 
 				assert.strictEqual(cellList.length, 2);
@@ -63,8 +71,8 @@ suite('NotebookCellList focus/selection', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
-				const cellList = createNotebookCellList(instantiationService);
+			(editor, viewModel, ds) => {
+				const cellList = createNotebookCellList(instantiationService, ds);
 				cellList.attachViewModel(viewModel);
 
 				assert.strictEqual(cellList.length, 2);
@@ -84,8 +92,8 @@ suite('NotebookCellList focus/selection', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
-				const cellList = createNotebookCellList(instantiationService);
+			(editor, viewModel, ds) => {
+				const cellList = createNotebookCellList(instantiationService, ds);
 				cellList.attachViewModel(viewModel);
 
 				assert.strictEqual(cellList.length, 2);
@@ -111,8 +119,8 @@ suite('NotebookCellList focus/selection', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			(editor, viewModel) => {
-				const cellList = createNotebookCellList(instantiationService);
+			(editor, viewModel, ds) => {
+				const cellList = createNotebookCellList(instantiationService, ds);
 				cellList.attachViewModel(viewModel);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
@@ -146,11 +154,11 @@ suite('NotebookCellList focus/selection', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, ds);
 				cellList.attachViewModel(viewModel);
 				assert.strictEqual(cellList.length, 5);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
@@ -192,11 +200,11 @@ suite('NotebookCellList focus/selection', () => {
 				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'javascript', CellKind.Code, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, ds);
 				cellList.attachViewModel(viewModel);
 				cellList.setFocus([0]);
 				cellList.setSelection([0]);
@@ -220,8 +228,8 @@ suite('NotebookCellList focus/selection', () => {
 				// mimic undo
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], languageService),
-						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], languageService)
+						ds.add(new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], languageService)),
+						ds.add(new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], languageService))
 					]
 				}], true, undefined, () => undefined, undefined, false);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -229,8 +237,6 @@ suite('NotebookCellList focus/selection', () => {
 				assert.strictEqual(cellList.getModelIndex2(0), 0);
 				assert.strictEqual(cellList.getModelIndex2(1), 1);
 				assert.strictEqual(cellList.getModelIndex2(2), 2);
-
-
 			});
 	});
 
@@ -243,11 +249,11 @@ suite('NotebookCellList focus/selection', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, ds);
 				cellList.attachViewModel(viewModel);
 
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -272,7 +278,7 @@ suite('NotebookCellList focus/selection', () => {
 			(editor, viewModel) => {
 				assert.deepStrictEqual(viewModel.validateRange(null), null);
 				assert.deepStrictEqual(viewModel.validateRange(undefined), null);
-				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 0 }), null);
+				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 0 }), { start: 0, end: 0 });
 				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 2 }), { start: 0, end: 2 });
 				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 3 }), { start: 0, end: 2 });
 				assert.deepStrictEqual(viewModel.validateRange({ start: -1, end: 3 }), { start: 0, end: 2 });

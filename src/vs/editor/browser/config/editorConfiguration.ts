@@ -12,13 +12,15 @@ import * as platform from 'vs/base/common/platform';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
-import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo, IValidatedEditorOptions } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { getWindow, getWindowById } from 'vs/base/browser/dom';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 
 export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
@@ -48,6 +50,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	private _lineNumbersDigitCount: number = 1;
 	private _reservedHeight: number = 0;
 	private _glyphMarginDecorationLaneCount: number = 1;
+	private _targetWindowId: number;
 
 	private readonly _computeOptionsMemory: ComputeOptionsMemory = new ComputeOptionsMemory();
 	/**
@@ -72,6 +75,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		super();
 		this.isSimpleWidget = isSimpleWidget;
 		this._containerObserver = this._register(new ElementSizeObserver(container, options.dimension));
+		this._targetWindowId = getWindow(container).vscodeWindowId;
 
 		this._rawOptions = deepCloneAndMigrateOptions(options);
 		this._validatedOptions = EditorOptionsUtil.validateOptions(this._rawOptions);
@@ -85,7 +89,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(TabFocus.onDidChangeTabFocus(() => this._recomputeOptions()));
 		this._register(this._containerObserver.onDidChange(() => this._recomputeOptions()));
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
-		this._register(browser.PixelRatio.onDidChange(() => this._recomputeOptions()));
+		this._register(PixelRatio.getInstance(getWindow(container)).onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
 	}
 
@@ -117,7 +121,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode(TabFocusContext.Editor),
+			tabFocusMode: TabFocus.getTabFocusMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
 			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
 		};
@@ -130,7 +134,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerWidth: this._containerObserver.getWidth(),
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
-			pixelRatio: browser.PixelRatio.value,
+			pixelRatio: PixelRatio.getInstance(getWindowById(this._targetWindowId, true).window).value,
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
 					? AccessibilitySupport.Enabled
@@ -140,7 +144,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	}
 
 	protected _readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
-		return FontMeasurements.readFontInfo(bareFontInfo);
+		return FontMeasurements.readFontInfo(getWindowById(this._targetWindowId, true).window, bareFontInfo);
 	}
 
 	public getRawOptions(): IEditorOptions {

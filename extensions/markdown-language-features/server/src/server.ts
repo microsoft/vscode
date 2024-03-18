@@ -218,7 +218,7 @@ export async function startServer(connection: Connection, serverConfig: {
 			const action: lsp.CodeAction = {
 				title: l10n.t("Organize link definitions"),
 				kind: organizeLinkDefKind,
-				data: <OrganizeLinkActionData>{ uri: document.uri }
+				data: { uri: document.uri } satisfies OrganizeLinkActionData,
 			};
 			return [action];
 		}

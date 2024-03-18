@@ -17,7 +17,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ReleaseNotesManager } from 'vs/workbench/contrib/update/browser/releaseNotesEditor';
-import { isWeb, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -38,12 +38,12 @@ export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string) {
+export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return releaseNotesManager.show(version);
+	return releaseNotesManager.show(version, useCurrentFile);
 }
 
 async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
@@ -61,7 +61,7 @@ async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
 async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
 	const instantiationService = accessor.get(IInstantiationService);
 	try {
-		await showReleaseNotesInEditor(instantiationService, version);
+		await showReleaseNotesInEditor(instantiationService, version, false);
 	} catch (err) {
 		try {
 			await instantiationService.invokeFunction(openLatestReleaseNotesInBrowser);
@@ -135,7 +135,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 			// was there a major/minor update? if so, open release notes
 			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotesInEditor(instantiationService, productService.version)
+				showReleaseNotesInEditor(instantiationService, productService.version, false)
 					.then(undefined, () => {
 						notificationService.prompt(
 							severity.Info,
@@ -173,6 +173,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super();
@@ -241,38 +242,37 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				break;
 
 			case StateType.Ready: {
-				const currentVersion = parseVersion(this.productService.version);
-				const nextVersion = parseVersion(state.update.productVersion);
-				this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
-				this.onUpdateReady(state.update);
+				const productVersion = state.update.productVersion;
+				if (productVersion) {
+					const currentVersion = parseVersion(this.productService.version);
+					const nextVersion = parseVersion(productVersion);
+					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
+					this.onUpdateReady(state.update);
+				}
 				break;
 			}
 		}
 
 		let badge: IBadge | undefined = undefined;
-		let clazz: string | undefined;
 		let priority: number | undefined = undefined;
 
 		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
 		} else if (state.type === StateType.CheckingForUpdates) {
 			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for Updates..."));
-			clazz = 'progress-badge';
 			priority = 1;
 		} else if (state.type === StateType.Downloading) {
 			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading..."));
-			clazz = 'progress-badge';
 			priority = 1;
 		} else if (state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updating', "Updating..."));
-			clazz = 'progress-badge';
 			priority = 1;
 		}
 
 		this.badgeDisposable.clear();
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge, clazz, priority });
+			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge, priority });
 		}
 
 		this.state = state;
@@ -302,6 +302,11 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			return;
 		}
 
+		const productVersion = update.productVersion;
+		if (!productVersion) {
+			return;
+		}
+
 		this.notificationService.prompt(
 			severity.Info,
 			nls.localize('thereIsUpdateAvailable', "There is an available update."),
@@ -314,21 +319,33 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}, {
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
 				}
 			}]
 		);
 	}
 
-	// windows fast updates (target === system)
+	// windows fast updates
 	private onUpdateDownloaded(update: IUpdate): void {
+		if (isMacintosh) {
+			return;
+		}
+		if (this.configurationService.getValue('update.enableWindowsBackgroundUpdates') && this.productService.target === 'user') {
+			return;
+		}
+
 		if (!this.shouldShowNotification()) {
+			return;
+		}
+
+		const productVersion = update.productVersion;
+		if (!productVersion) {
 			return;
 		}
 
 		this.notificationService.prompt(
 			severity.Info,
-			nls.localize('updateAvailable', "There's an update available: {0} {1}", this.productService.nameLong, update.productVersion),
+			nls.localize('updateAvailable', "There's an update available: {0} {1}", this.productService.nameLong, productVersion),
 			[{
 				label: nls.localize('installUpdate', "Install Update"),
 				run: () => this.updateService.applyUpdate()
@@ -338,7 +355,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}, {
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
 				}
 			}]
 		);
@@ -358,12 +375,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			run: () => { }
 		}];
 
-		// TODO@joao check why snap updates send `update` as falsy
-		if (update.productVersion) {
+		const productVersion = update.productVersion;
+		if (productVersion) {
 			actions.push({
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
 				}
 			});
 		}
@@ -384,7 +401,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		// if version != stored version, save version and date
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store('update/lastKnownVersion', currentVersion, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
@@ -464,8 +481,11 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					return;
 				}
 
-				const version = this.updateService.state.update.version;
-				this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, version));
+				const productVersion = this.updateService.state.update.productVersion;
+				if (productVersion) {
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
+				}
+
 			});
 			MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 				group: '7_update',
@@ -513,7 +533,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 			const newQuality = quality === 'stable' ? 'insider' : 'stable';
 			const commandId = `update.switchQuality.${newQuality}`;
 			const isSwitchingToInsiders = newQuality === 'insider';
-			registerAction2(class SwitchQuality extends Action2 {
+			this._register(registerAction2(class SwitchQuality extends Action2 {
 				constructor() {
 					super({
 						id: commandId,
@@ -608,7 +628,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					});
 					return result;
 				}
-			});
+			}));
 		}
 	}
 }

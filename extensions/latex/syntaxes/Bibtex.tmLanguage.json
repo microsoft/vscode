@@ -4,30 +4,74 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/7adad0868ecafbb1df978f1e052d6c3c85c38732",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/36411b38cf4ed18e02050249e2162b1316488686",
 	"name": "BibTeX",
 	"scopeName": "text.bibtex",
-	"comment": "Grammar based on description from http://artis.imag.fr/~Xavier.Decoret/resources/xdkbibtex/bibtex_summary.html#comment\n\t\n\tTODO: Does not support @preamble\n\t",
+	"comment": "Grammar based on description from https://github.com/aclements/biblib\n",
 	"patterns": [
 		{
-			"begin": "@Comment",
-			"beginCaptures": {
+			"match": "@(?i:comment)(?=[\\s{(])",
+			"captures": {
 				"0": {
 					"name": "punctuation.definition.comment.bibtex"
 				}
 			},
-			"end": "$\\n?",
-			"name": "comment.line.at-sign.bibtex"
+			"name": "comment.block.at-sign.bibtex"
 		},
 		{
+			"begin": "((@)(?i:preamble))\\s*(\\{)\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.preamble.bibtex"
+				},
+				"2": {
+					"name": "punctuation.definition.keyword.bibtex"
+				},
+				"3": {
+					"name": "punctuation.section.preamble.begin.bibtex"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.section.preamble.end.bibtex"
+				}
+			},
+			"name": "meta.preamble.braces.bibtex",
 			"patterns": [
 				{
-					"include": "#percentage_comment"
+					"include": "#field_value"
 				}
 			]
 		},
 		{
-			"begin": "((@)(?i:string))\\s*(\\{)\\s*([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)",
+			"begin": "((@)(?i:preamble))\\s*(\\()\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.preamble.bibtex"
+				},
+				"2": {
+					"name": "punctuation.definition.keyword.bibtex"
+				},
+				"3": {
+					"name": "punctuation.section.preamble.begin.bibtex"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.section.preamble.end.bibtex"
+				}
+			},
+			"name": "meta.preamble.parenthesis.bibtex",
+			"patterns": [
+				{
+					"include": "#field_value"
+				}
+			]
+		},
+		{
+			"begin": "((@)(?i:string))\\s*(\\{)\\s*([a-zA-Z!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~][a-zA-Z0-9!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~]*)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.string-constant.bibtex"
@@ -51,12 +95,12 @@
 			"name": "meta.string-constant.braces.bibtex",
 			"patterns": [
 				{
-					"include": "#string_content"
+					"include": "#field_value"
 				}
 			]
 		},
 		{
-			"begin": "((@)(?i:string))\\s*(\\()\\s*([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)",
+			"begin": "((@)(?i:string))\\s*(\\()\\s*([a-zA-Z!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~][a-zA-Z0-9!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~]*)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.string-constant.bibtex"
@@ -80,12 +124,12 @@
 			"name": "meta.string-constant.parenthesis.bibtex",
 			"patterns": [
 				{
-					"include": "#string_content"
+					"include": "#field_value"
 				}
 			]
 		},
 		{
-			"begin": "((@)[a-zA-Z]+)\\s*(\\{)\\s*([^\\s,]*)",
+			"begin": "((@)[a-zA-Z!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~][a-zA-Z0-9!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~]*)\\s*(\\{)\\s*([^\\s,}]*)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.entry-type.bibtex"
@@ -109,13 +153,7 @@
 			"name": "meta.entry.braces.bibtex",
 			"patterns": [
 				{
-					"include": "#percentage_comment"
-				},
-				{
-					"include": "#url_field"
-				},
-				{
-					"begin": "([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)\\s*(\\=)",
+					"begin": "([a-zA-Z!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~][a-zA-Z0-9!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~]*)\\s*(\\=)",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.key.bibtex"
@@ -128,23 +166,14 @@
 					"name": "meta.key-assignment.bibtex",
 					"patterns": [
 						{
-							"include": "#percentage_comment"
-						},
-						{
-							"include": "#integer"
-						},
-						{
-							"include": "#string_content"
-						},
-						{
-							"include": "#string_var"
+							"include": "#field_value"
 						}
 					]
 				}
 			]
 		},
 		{
-			"begin": "((@)[a-zA-Z]+)\\s*(\\()\\s*([^\\s,]*)",
+			"begin": "((@)[a-zA-Z!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~][a-zA-Z0-9!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~]*)\\s*(\\()\\s*([^\\s,]*)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.entry-type.bibtex"
@@ -168,13 +197,7 @@
 			"name": "meta.entry.parenthesis.bibtex",
 			"patterns": [
 				{
-					"include": "#percentage_comment"
-				},
-				{
-					"include": "#url_field"
-				},
-				{
-					"begin": "([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)\\s*(\\=)",
+					"begin": "([a-zA-Z!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~][a-zA-Z0-9!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~]*)\\s*(\\=)",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.key.bibtex"
@@ -187,16 +210,7 @@
 					"name": "meta.key-assignment.bibtex",
 					"patterns": [
 						{
-							"include": "#percentage_comment"
-						},
-						{
-							"include": "#integer"
-						},
-						{
-							"include": "#string_content"
-						},
-						{
-							"include": "#string_var"
+							"include": "#field_value"
 						}
 					]
 				}
@@ -209,6 +223,23 @@
 		}
 	],
 	"repository": {
+		"field_value": {
+			"patterns": [
+				{
+					"include": "#string_content"
+				},
+				{
+					"include": "#integer"
+				},
+				{
+					"include": "#string_var"
+				},
+				{
+					"name": "keyword.operator.bibtex",
+					"match": "#"
+				}
+			]
+		},
 		"integer": {
 			"match": "\\s*(\\d+)\\s*",
 			"captures": {
@@ -218,13 +249,13 @@
 			}
 		},
 		"nested_braces": {
-			"begin": "(?<!\\\\)\\{",
+			"begin": "\\{",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.group.begin.bibtex"
 				}
 			},
-			"end": "(?<!\\\\)\\}",
+			"end": "\\}",
 			"endCaptures": {
 				"0": {
 					"name": "punctuation.definition.group.end.bibtex"
@@ -237,16 +268,10 @@
 			]
 		},
 		"string_var": {
-			"match": "(#)?\\s*([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)\\s*(#)?",
+			"match": "[a-zA-Z!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~][a-zA-Z0-9!$&*+\\-./:;<>?@\\[\\\\\\]^_`|~]*",
 			"captures": {
-				"1": {
-					"name": "keyword.operator.bibtex"
-				},
-				"2": {
+				"0": {
 					"name": "support.variable.bibtex"
-				},
-				"3": {
-					"name": "keyword.operator.bibtex"
 				}
 			}
 		},
@@ -259,23 +284,13 @@
 							"name": "punctuation.definition.string.begin.bibtex"
 						}
 					},
-					"end": "(\\})(?=(?:,?\\s*\\}?\\s*\\n)|(?:\\s*#))",
+					"end": "\\}",
 					"endCaptures": {
-						"1": {
+						"0": {
 							"name": "punctuation.definition.string.end.bibtex"
 						}
 					},
 					"patterns": [
-						{
-							"include": "#url_cmd"
-						},
-						{
-							"include": "#percentage_comment"
-						},
-						{
-							"match": "@",
-							"name": "invalid.illegal.at-sign.bibtex"
-						},
 						{
 							"include": "#nested_braces"
 						}
@@ -288,7 +303,7 @@
 							"name": "punctuation.definition.string.begin.bibtex"
 						}
 					},
-					"end": "\"(?=(?:,?\\s*\\}?\\s*\\n)|(?:\\s*#))",
+					"end": "\"",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.end.bibtex"
@@ -296,104 +311,9 @@
 					},
 					"patterns": [
 						{
-							"include": "#url_cmd"
-						},
-						{
-							"include": "#percentage_comment"
-						},
-						{
-							"match": "@",
-							"name": "invalid.illegal.at-sign.bibtex"
+							"include": "#nested_braces"
 						}
 					]
-				}
-			]
-		},
-		"string_url": {
-			"patterns": [
-				{
-					"begin": "\\{|\"",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.begin.bibtex"
-						}
-					},
-					"end": "(\\}|\")(?=(?:,?\\s*\\}?\\s*\\n)|(?:\\s*#))",
-					"endCaptures": {
-						"1": {
-							"name": "punctuation.definition.string.end.bibtex"
-						}
-					},
-					"contentName": "meta.url.bibtex",
-					"patterns": [
-						{
-							"include": "#url_cmd"
-						}
-					]
-				}
-			]
-		},
-		"percentage_comment": {
-			"patterns": [
-				{
-					"begin": "(^[ \\t]+)?(?=%)",
-					"beginCaptures": {
-						"1": {
-							"name": "punctuation.whitespace.comment.leading.bibtex"
-						}
-					},
-					"end": "(?!\\G)",
-					"patterns": [
-						{
-							"begin": "(?<!\\\\)%",
-							"beginCaptures": {
-								"0": {
-									"name": "punctuation.definition.comment.bibtex"
-								}
-							},
-							"end": "$\\n?",
-							"name": "comment.line.percentage.bibtex"
-						}
-					]
-				}
-			]
-		},
-		"url_cmd": {
-			"captures": {
-				"1": {
-					"name": "support.function.url.bibtex"
-				},
-				"2": {
-					"name": "punctuation.definition.function.bibtex"
-				},
-				"3": {
-					"name": "punctuation.definition.arguments.begin.bibtex"
-				},
-				"4": {
-					"name": "markup.underline.link.bibtex"
-				},
-				"5": {
-					"name": "punctuation.definition.arguments.end.bibtex"
-				}
-			},
-			"match": "(?:\\s*)((\\\\)(?:url|href))(\\{)([^}]*)(\\})",
-			"name": "meta.function.link.url.bibtex"
-		},
-		"url_field": {
-			"begin": "(url)\\s*(\\=)",
-			"beginCaptures": {
-				"1": {
-					"name": "support.function.key.bibtex"
-				},
-				"2": {
-					"name": "punctuation.separator.key-value.bibtex"
-				}
-			},
-			"end": "(?=[,}])",
-			"name": "meta.key-assignment.url.bibtex",
-			"patterns": [
-				{
-					"include": "#string_url"
 				}
 			]
 		}

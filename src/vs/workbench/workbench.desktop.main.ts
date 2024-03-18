@@ -55,8 +55,6 @@ import 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
-import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
-import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/secrets/electron-sandbox/secretStorageService';
 import 'vs/workbench/services/localization/electron-sandbox/languagePackService';
@@ -67,10 +65,7 @@ import 'vs/workbench/services/localization/electron-sandbox/localeService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionsScannerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncAccountService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncStoreManagementService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataAutoSyncService';
 import 'vs/workbench/services/timer/electron-sandbox/timerService';
 import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
@@ -89,15 +84,14 @@ import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistorySer
 import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 import 'vs/workbench/services/extensions/electron-sandbox/nativeExtensionService';
 import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
+import 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
+import 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
 
 
 //#endregion
@@ -135,8 +129,9 @@ import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExport
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-sandbox/terminal.contribution';
 
-// Themes Support
+// Themes
 import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
+import 'vs/workbench/services/themes/electron-sandbox/themes.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribution';
@@ -166,8 +161,18 @@ import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistory.contribu
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contribution';
 
+// Multi Diff Editor
+import 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contribution';
+
 // Remote Tunnel
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';
+
+// Chat
+import 'vs/workbench/contrib/chat/electron-sandbox/chat.contribution';
+import 'vs/workbench/contrib/inlineChat/electron-sandbox/inlineChat.contribution';
+
+// Encryption
+import 'vs/workbench/contrib/encryption/electron-sandbox/encryption.contribution';
 
 //#endregion
 

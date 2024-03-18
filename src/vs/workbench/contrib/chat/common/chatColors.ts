@@ -5,17 +5,40 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-
-
-export const chatRequestBackground = registerColor(
-	'chat.requestBackground',
-	{ dark: new Color(new RGBA(255, 255, 255, 0.03)), light: new Color(new RGBA(0, 0, 0, 0.03)), hcDark: null, hcLight: null, },
-	localize('chat.requestBackground', 'The background color of a chat request.')
-);
+import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 
 export const chatRequestBorder = registerColor(
 	'chat.requestBorder',
-	{ dark: new Color(new RGBA(255, 255, 255, 0.10)), light: new Color(new RGBA(0, 0, 0, 0.10)), hcDark: null, hcLight: null, },
+	{ dark: new Color(new RGBA(255, 255, 255, 0.10)), light: new Color(new RGBA(0, 0, 0, 0.10)), hcDark: contrastBorder, hcLight: contrastBorder, },
 	localize('chat.requestBorder', 'The border color of a chat request.')
+);
+
+export const chatRequestBackground = registerColor(
+	'chat.requestBackground',
+	{ dark: transparent(editorBackground, 0.62), light: transparent(editorBackground, 0.62), hcDark: editorWidgetBackground, hcLight: null },
+	localize('chat.requestBackground', 'The background color of a chat request.')
+);
+
+export const chatSlashCommandBackground = registerColor(
+	'chat.slashCommandBackground',
+	{ dark: '#34414B', light: '#D2ECFF', hcDark: Color.white, hcLight: badgeBackground },
+	localize('chat.slashCommandBackground', 'The background color of a chat slash command.')
+);
+
+export const chatSlashCommandForeground = registerColor(
+	'chat.slashCommandForeground',
+	{ dark: '#40A6FF', light: '#306CA2', hcDark: Color.black, hcLight: badgeForeground },
+	localize('chat.slashCommandForeground', 'The foreground color of a chat slash command.')
+);
+
+export const chatAvatarBackground = registerColor(
+	'chat.avatarBackground',
+	{ dark: '#1f1f1f', light: '#f2f2f2', hcDark: Color.black, hcLight: Color.white, },
+	localize('chat.avatarBackground', 'The background color of a chat avatar.')
+);
+
+export const chatAvatarForeground = registerColor(
+	'chat.avatarForeground',
+	{ dark: foreground, light: foreground, hcDark: foreground, hcLight: foreground, },
+	localize('chat.avatarForeground', 'The foreground color of a chat avatar.')
 );

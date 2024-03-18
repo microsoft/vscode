@@ -52,11 +52,12 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
+		scratchpad: boolean,
 		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
-		this.scratchPad = viewType === 'interactive';
+		this.scratchPad = scratchpad;
 	}
 
 	override dispose(): void {
@@ -108,6 +109,14 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		}
 	}
 
+	get hasErrorState(): boolean {
+		if (this._workingCopy && 'hasState' in this._workingCopy) {
+			return this._workingCopy.hasState(StoredFileWorkingCopyState.ERROR);
+		}
+
+		return false;
+	}
+
 	revert(options?: IRevertOptions): Promise<void> {
 		assertType(this.isResolved());
 		return this._workingCopy!.revert(options);
@@ -128,12 +137,15 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				}
 				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
 			} else {
-				this._workingCopy = await this._workingCopyManager.resolve(this.resource, options?.forceReadFromFile ? { reload: { async: false, force: true } } : undefined);
+				this._workingCopy = await this._workingCopyManager.resolve(this.resource, {
+					limits: options?.limits,
+					reload: options?.forceReadFromFile ? { async: false, force: true } : undefined
+				});
 				this._workingCopyListeners.add(this._workingCopy.onDidSave(e => this._onDidSave.fire(e)));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
 			}
-			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined, this._workingCopyListeners);
+			this._workingCopyListeners.add(this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined));
 
 			this._workingCopyListeners.add(this._workingCopy.onWillDispose(() => {
 				this._workingCopyListeners.clear();
@@ -144,7 +156,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				reload: {
 					async: !options?.forceReadFromFile,
 					force: options?.forceReadFromFile
-				}
+				},
+				limits: options?.limits
 			});
 		}
 
@@ -296,11 +309,11 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 
 	pushStackElement(): void {
-		this._notebookModel.pushStackElement('save', undefined, undefined);
+		this._notebookModel.pushStackElement();
 	}
 }
 
-export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
+export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel> {
 
 	constructor(
 		private readonly _viewType: string,

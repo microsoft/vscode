@@ -5,10 +5,10 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
-import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
+import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
+import { AbstractIncrementalTestCollection, ITestUriCanonicalizer, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
 	private testsByUrl = new ResourceMap<Set<IncrementalTestCollectionItem>>();
@@ -47,8 +47,8 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
 
-	constructor(private readonly expandActual: (id: string, levels: number) => Promise<void>) {
-		super();
+	constructor(uriIdentityService: ITestUriCanonicalizer, private readonly expandActual: (id: string, levels: number) => Promise<void>) {
+		super(uriIdentityService);
 	}
 
 	/**

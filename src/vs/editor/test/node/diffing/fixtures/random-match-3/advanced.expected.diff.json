@@ -17,8 +17,8 @@
 					"modifiedRange": "[1,6 -> 2,18]"
 				},
 				{
-					"originalRange": "[2,1 -> 2,1]",
-					"modifiedRange": "[3,1 -> 4,1]"
+					"originalRange": "[2,1 -> 2,1 EOL]",
+					"modifiedRange": "[3,1 -> 4,1 EOL]"
 				}
 			]
 		}

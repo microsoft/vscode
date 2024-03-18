@@ -6,8 +6,11 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { memoize, throttle } from 'vs/base/common/decorators';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Decorators', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('memoize should memoize methods', () => {
 		class Foo {
 			count = 0;

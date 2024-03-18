@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -23,6 +23,12 @@ export const enum IssueType {
 	Bug,
 	PerformanceIssue,
 	FeatureRequest
+}
+
+export enum IssueSource {
+	VSCode = 'vscode',
+	Extension = 'extension',
+	Marketplace = 'marketplace'
 }
 
 export interface IssueReporterStyles extends WindowStyles {
@@ -53,20 +59,28 @@ export interface IssueReporterExtensionData {
 	displayName: string | undefined;
 	repositoryUrl: string | undefined;
 	bugsUrl: string | undefined;
+	extensionData?: string;
+	extensionTemplate?: string;
 	hasIssueUriRequestHandler?: boolean;
+	hasIssueDataProviders?: boolean;
+	data?: string;
+	uri?: UriComponents;
 }
 
 export interface IssueReporterData extends WindowData {
 	styles: IssueReporterStyles;
 	enabledExtensions: IssueReporterExtensionData[];
 	issueType?: IssueType;
+	issueSource?: IssueSource;
 	extensionId?: string;
 	experiments?: string;
 	restrictedMode: boolean;
 	isUnsupported: boolean;
 	githubAccessToken: string;
-	readonly issueTitle?: string;
-	readonly issueBody?: string;
+	issueTitle?: string;
+	issueBody?: string;
+	data?: string;
+	uri?: UriComponents;
 }
 
 export interface ISettingSearchResult {
@@ -128,5 +142,9 @@ export interface IIssueMainService {
 	$showConfirmCloseDialog(): Promise<void>;
 	$showClipboardDialog(): Promise<boolean>;
 	$getIssueReporterUri(extensionId: string): Promise<URI>;
+	$getIssueReporterData(extensionId: string): Promise<string>;
+	$getIssueReporterTemplate(extensionId: string): Promise<string>;
+	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]>;
+	$sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
 	$closeReporter(): Promise<void>;
 }

@@ -7,17 +7,13 @@ declare module 'vscode' {
 
 	// See https://github.com/microsoft/vscode/issues/63943
 
-	export class ThreadFocus {
+	export class Thread {
 		/**
 		 * Create a ThreadFocus
 		 * @param session
 		 * @param threadId
-		 * @param frameId
 		 */
-		constructor(
-			session: DebugSession,
-			threadId?: number);
-
+		constructor(session: DebugSession, threadId: number);
 
 		/**
 		 * Debug session for thread.
@@ -25,23 +21,19 @@ declare module 'vscode' {
 		readonly session: DebugSession;
 
 		/**
-		 * Id of the associated thread (DAP id). May be undefined if thread has become unselected.
+		 * ID of the associated thread in the debug protocol.
 		 */
-		readonly threadId: number | undefined;
+		readonly threadId: number;
 	}
 
-	export class StackFrameFocus {
+	export class StackFrame {
 		/**
 		 * Create a StackFrameFocus
 		 * @param session
 		 * @param threadId
 		 * @param frameId
 		 */
-		constructor(
-			session: DebugSession,
-			threadId?: number,
-			frameId?: number);
-
+		constructor(session: DebugSession, threadId?: number, frameId?: number);
 
 		/**
 		 * Debug session for thread.
@@ -49,26 +41,26 @@ declare module 'vscode' {
 		readonly session: DebugSession;
 
 		/**
-		 * Id of the associated thread (DAP id). May be undefined if a frame is unselected.
+		 * Id of the associated thread in the debug protocol.
 		 */
-		readonly threadId: number | undefined;
+		readonly threadId: number;
 		/**
-		 * Id of the stack frame (DAP id). May be undefined if a frame is unselected.
+		 * Id of the stack frame in the debug protocol.
 		 */
-		readonly frameId: number | undefined;
+		readonly frameId: number;
 	}
 
 
 	export namespace debug {
 		/**
-		 * The currently focused thread or stack frame id, or `undefined` if this has not been set. (e.g. not in debug mode).
+		 * The currently focused thread or stack frame, or `undefined` if no
+		 * thread or stack is focused.
 		 */
-		export let stackFrameFocus: ThreadFocus | StackFrameFocus | undefined;
+		export const activeStackItem: Thread | StackFrame | undefined;
 
 		/**
-		 * An {@link Event} which fires when the {@link debug.stackFrameFocus} changes. Provides a sessionId. threadId is not undefined
-		 * when a thread of frame has gained focus. frameId is defined when a stackFrame has gained focus.
+		 * An event which fires when the {@link debug.activeStackItem} has changed.
 		 */
-		export const onDidChangeStackFrameFocus: Event<ThreadFocus | StackFrameFocus | undefined>;
+		export const onDidChangeActiveStackItem: Event<Thread | StackFrame | undefined>;
 	}
 }

@@ -14,7 +14,7 @@
 		}
 	},
 	{
-		"c": " mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode",
+		"c": " mcr.microsoft.com/devcontainers/base:ubuntu",
 		"t": "source.dockerfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

@@ -9,6 +9,7 @@
 	"command.openRepository": "Open Repository",
 	"command.reopenClosedRepositories": "Reopen Closed Repositories...",
 	"command.close": "Close Repository",
+	"command.closeOtherRepositories": "Close Other Repositories",
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Changes",
 	"command.openAllChanges": "Open All Changes",
@@ -22,6 +23,8 @@
 	"command.stageSelectedRanges": "Stage Selected Ranges",
 	"command.revertSelectedRanges": "Revert Selected Ranges",
 	"command.stageChange": "Stage Change",
+	"command.stageSelection": "Stage Selection",
+	"command.stageBlock": "Stage Block",
 	"command.revertChange": "Revert Change",
 	"command.unstage": "Unstage Changes",
 	"command.unstageAll": "Unstage All Changes",
@@ -32,6 +35,7 @@
 	"command.cleanAllTracked": "Discard All Tracked Changes",
 	"command.cleanAllUntracked": "Discard All Untracked Changes",
 	"command.closeAllDiffEditors": "Close All Diff Editors",
+	"command.closeAllUnmodifiedEditors": "Close All Unmodified Editors",
 	"command.commit": "Commit",
 	"command.commitAmend": "Commit (Amend)",
 	"command.commitSigned": "Commit (Signed Off)",
@@ -63,12 +67,12 @@
 	"command.deleteBranch": "Delete Branch...",
 	"command.renameBranch": "Rename Branch...",
 	"command.cherryPick": "Cherry Pick...",
-	"command.merge": "Merge Branch...",
+	"command.merge": "Merge...",
 	"command.mergeAbort": "Abort Merge",
 	"command.rebase": "Rebase Branch...",
 	"command.createTag": "Create Tag",
-	"command.deleteTag": "Delete Tag",
-	"command.deleteRemoteTag": "Delete Remote Tag",
+	"command.deleteTag": "Delete Tag...",
+	"command.deleteRemoteTag": "Delete Remote Tag...",
 	"command.fetch": "Fetch",
 	"command.fetchPrune": "Fetch (Prune)",
 	"command.fetchAll": "Fetch From All Remotes",
@@ -99,10 +103,14 @@
 	"command.stashStaged": "Stash Staged",
 	"command.stashPop": "Pop Stash...",
 	"command.stashPopLatest": "Pop Latest Stash",
+	"command.stashPopEditor": "Pop Stash",
 	"command.stashApply": "Apply Stash...",
 	"command.stashApplyLatest": "Apply Latest Stash",
+	"command.stashApplyEditor": "Apply Stash",
 	"command.stashDrop": "Drop Stash...",
 	"command.stashDropAll": "Drop All Stashes...",
+	"command.stashDropEditor": "Drop Stash",
+	"command.stashView": "View Stash...",
 	"command.timelineOpenDiff": "Open Changes",
 	"command.timelineCopyCommitId": "Copy Commit ID",
 	"command.timelineCopyCommitMessage": "Copy Commit Message",
@@ -110,6 +118,8 @@
 	"command.timelineCompareWithSelected": "Compare with Selected",
 	"command.manageUnsafeRepositories": "Manage Unsafe Repositories",
 	"command.openRepositoriesInParentFolders": "Open Repositories In Parent Folders",
+	"command.viewAllChanges": "View All Changes",
+	"command.viewCommit": "View Commit",
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",
@@ -117,7 +127,7 @@
 	"command.git.openMergeEditor": "Resolve in Merge Editor",
 	"command.git.runGitMerge": "Compute Conflicts With Git",
 	"command.git.runGitMergeDiff3": "Compute Conflicts With Git (Diff3)",
-	"config.enabled": "Whether git is enabled.",
+	"config.enabled": "Whether Git is enabled.",
 	"config.path": "Path and filename of the git executable, e.g. `C:\\Program Files\\Git\\bin\\git.exe` (Windows). This can also be an array of string values containing multiple paths to look up.",
 	"config.autoRepositoryDetection": "Configures when repositories should be automatically detected.",
 	"config.autoRepositoryDetection.true": "Scan for both subfolders of the current opened folder and parent folders of open files.",
@@ -127,16 +137,16 @@
 	"config.autorefresh": "Whether auto refreshing is enabled.",
 	"config.autofetch": "When set to true, commits will automatically be fetched from the default remote of the current Git repository. Setting to `all` will fetch from all remotes.",
 	"config.autofetchPeriod": "Duration in seconds between each automatic git fetch, when `#git.autofetch#` is enabled.",
-	"config.confirmSync": "Confirm before synchronizing git repositories.",
+	"config.confirmSync": "Confirm before synchronizing Git repositories.",
 	"config.countBadge": "Controls the Git count badge.",
 	"config.countBadge.all": "Count all changes.",
 	"config.countBadge.tracked": "Count only tracked changes.",
 	"config.countBadge.off": "Turn off counter.",
-	"config.checkoutType": "Controls what type of git refs are listed when running `Checkout to...`.",
+	"config.checkoutType": "Controls what type of Git refs are listed when running `Checkout to...`.",
 	"config.checkoutType.local": "Local branches",
 	"config.checkoutType.tags": "Tags",
 	"config.checkoutType.remote": "Remote branches",
-	"config.defaultBranchName": "The name of the default branch (ex: main, trunk, development) when initializing a new git repository. When set to empty, the default branch name configured in git will be used. **Note:** Requires git version `2.28.0` or later.",
+	"config.defaultBranchName": "The name of the default branch (example: main, trunk, development) when initializing a new Git repository. When set to empty, the default branch name configured in Git will be used. **Note:** Requires Git version `2.28.0` or later.",
 	"config.branchPrefix": "Prefix used when creating a new branch.",
 	"config.branchProtection": "List of protected branches. By default, a prompt is shown before changes are committed to a protected branch. The prompt can be controlled using the `#git.branchProtectionPrompt#`  setting.",
 	"config.branchProtectionPrompt": "Controls whether a prompt is being shown before changes are committed to a protected branch.",
@@ -156,7 +166,7 @@
 	"config.ignoreWindowsGit27Warning": "Ignores the warning when Git 2.25 - 2.26 is installed on Windows.",
 	"config.ignoreLimitWarning": "Ignores the warning when there are too many changes in a repository.",
 	"config.ignoreRebaseWarning": "Ignores the warning when it looks like the branch might have been rebased when pulling.",
-	"config.defaultCloneDirectory": "The default location to clone a git repository.",
+	"config.defaultCloneDirectory": "The default location to clone a Git repository.",
 	"config.useEditorAsCommitInput": "Controls whether a full text editor will be used to author commit messages, whenever no message is provided in the commit input box.",
 	"config.verboseCommit": "Enable verbose output when `#git.useEditorAsCommitInput#` is enabled.",
 	"config.enableSmartCommit": "Commit all changes when there are no staged changes.",
@@ -164,11 +174,12 @@
 	"config.smartCommitChanges.all": "Automatically stage all changes.",
 	"config.smartCommitChanges.tracked": "Automatically stage tracked changes only.",
 	"config.suggestSmartCommit": "Suggests to enable smart commit (commit all changes when there are no staged changes).",
-	"config.enableCommitSigning": "Enables commit signing with GPG or X.509.",
+	"config.enableCommitSigning": "Enables commit signing with GPG, X.509, or SSH.",
 	"config.discardAllScope": "Controls what changes are discarded by the `Discard all changes` command. `all` discards all changes. `tracked` discards only tracked files. `prompt` shows a prompt dialog every time the action is run.",
 	"config.decorations.enabled": "Controls whether Git contributes colors and badges to the Explorer and the Open Editors view.",
 	"config.enableStatusBarSync": "Controls whether the Git Sync command appears in the status bar.",
 	"config.followTagsWhenSync": "Push all annotated tags when running the sync command.",
+	"config.replaceTagsWhenPull": "Automatically replace the local tags with the remote tags in case of a conflict when running the pull command.",
 	"config.promptToSaveFilesBeforeStash": "Controls whether Git should check for unsaved files before stashing changes.",
 	"config.promptToSaveFilesBeforeStash.always": "Check for any unsaved files.",
 	"config.promptToSaveFilesBeforeStash.staged": "Check only for unsaved staged files.",
@@ -189,16 +200,16 @@
 	"config.openAfterClone.prompt": "Always prompt for action.",
 	"config.showInlineOpenFileAction": "Controls whether to show an inline Open File action in the Git changes view.",
 	"config.showPushSuccessNotification": "Controls whether to show a notification when a push is successful.",
-	"config.inputValidation": "Controls when to show commit message input validation.",
+	"config.inputValidation": "Controls whether to show commit message input validation diagnostics.",
 	"config.inputValidationLength": "Controls the commit message length threshold for showing a warning.",
-	"config.inputValidationSubjectLength": "Controls the commit message subject length threshold for showing a warning. Unset it to inherit the value of `config.inputValidationLength`.",
-	"config.detectSubmodules": "Controls whether to automatically detect git submodules.",
-	"config.detectSubmodulesLimit": "Controls the limit of git submodules detected.",
+	"config.inputValidationSubjectLength": "Controls the commit message subject length threshold for showing a warning. Unset it to inherit the value of `#git.inputValidationLength#`.",
+	"config.detectSubmodules": "Controls whether to automatically detect Git submodules.",
+	"config.detectSubmodulesLimit": "Controls the limit of Git submodules detected.",
 	"config.alwaysShowStagedChangesResourceGroup": "Always show the Staged Changes resource group.",
 	"config.alwaysSignOff": "Controls the signoff flag for all commits.",
 	"config.ignoreSubmodules": "Ignore modifications to submodules in the file tree.",
-	"config.ignoredRepositories": "List of git repositories to ignore.",
-	"config.scanRepositories": "List of paths to search for git repositories in.",
+	"config.ignoredRepositories": "List of Git repositories to ignore.",
+	"config.scanRepositories": "List of paths to search for Git repositories in.",
 	"config.commandsToLog": {
 		"message": "List of git commands (ex: commit, push) that would have their `stdout` logged to the [git output](command:git.showOutput). If the git command has a client-side hook configured, the client-side hook's `stdout` will also be logged to the [git output](command:git.showOutput).",
 		"comment": [
@@ -207,8 +218,8 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"config.showProgress": "Controls whether git actions should show progress.",
-	"config.rebaseWhenSync": "Force git to use rebase when running the sync command.",
+	"config.showProgress": "Controls whether Git actions should show progress.",
+	"config.rebaseWhenSync": "Force Git to use rebase when running the sync command.",
 	"config.confirmEmptyCommits": "Always confirm the creation of empty commits for the 'Git: Commit Empty' command.",
 	"config.fetchOnPull": "When enabled, fetch all branches when pulling. Otherwise, fetch just the current one.",
 	"config.pullBeforeCheckout": "Controls whether a branch that does not have outgoing commits is fast-forwarded before it is checked out.",
@@ -217,6 +228,7 @@
 	"config.autoStash": "Stash any changes before pulling and restore them after successful pull.",
 	"config.allowForcePush": "Controls whether force push (with or without lease) is enabled.",
 	"config.useForcePushWithLease": "Controls whether force pushing uses the safer force-with-lease variant.",
+	"config.useForcePushIfIncludes": "Controls whether force pushing uses the safer force-if-includes variant. Note: This setting requires the `#git.useForcePushWithLease#` setting to be enabled, and Git version `2.30.0` or later.",
 	"config.confirmForcePush": "Controls whether to ask for confirmation before force-pushing.",
 	"config.allowNoVerifyCommit": "Controls whether commits without running pre-commit and commit-msg hooks are allowed.",
 	"config.confirmNoVerifyCommit": "Controls whether to ask for confirmation before committing without verification.",
@@ -243,7 +255,7 @@
 	"config.showActionButton.publish": "Show an action button to publish the local branch when it does not have a tracking remote branch.",
 	"config.showActionButton.sync": "Show an action button to synchronize changes when the local branch is either ahead or behind the remote branch.",
 	"config.statusLimit": "Controls how to limit the number of changes that can be parsed from Git status command. Can be set to 0 for no limit.",
-	"config.experimental.installGuide": "Experimental improvements for the git setup flow.",
+	"config.experimental.installGuide": "Experimental improvements for the Git setup flow.",
 	"config.repositoryScanIgnoredFolders": "List of folders that are ignored while scanning for Git repositories when `#git.autoRepositoryDetection#` is set to `true` or `subFolders`.",
 	"config.repositoryScanMaxDepth": "Controls the depth used when scanning workspace folders for Git repositories when `#git.autoRepositoryDetection#` is set to `true` or `subFolders`. Can be set to `-1` for no limit.",
 	"config.useIntegratedAskPass": "Controls whether GIT_ASKPASS should be overwritten to use the integrated version.",
@@ -253,11 +265,11 @@
 	"config.openRepositoryInParentFolders.always": "Always open a repository in parent folders of workspaces or open files.",
 	"config.openRepositoryInParentFolders.never": "Never open a repository in parent folders of workspaces or open files.",
 	"config.openRepositoryInParentFolders.prompt": "Prompt before opening a repository the parent folders of workspaces or open files.",
-	"config.publishBeforeContinueOn": "Controls whether to publish unpublished git state when using Continue Working On from a git repository.",
-	"config.publishBeforeContinueOn.always": "Always publish unpublished git state when using Continue Working On from a git repository",
-	"config.publishBeforeContinueOn.never": "Never publish unpublished git state when using Continue Working On from a git repository",
-	"config.publishBeforeContinueOn.prompt": "Prompt to publish unpublished git state when using Continue Working On from a git repository",
-	"config.similarityThreshold": "Controls the threshold of the similarity index (i.e. amount of additions/deletions compared to the file's size) for changes in a pair of added/deleted files to be considered a rename. **Note:** Requires git version `2.18.0` or later.",
+	"config.publishBeforeContinueOn": "Controls whether to publish unpublished Git state when using Continue Working On from a Git repository.",
+	"config.publishBeforeContinueOn.always": "Always publish unpublished Git state when using Continue Working On from a Git repository",
+	"config.publishBeforeContinueOn.never": "Never publish unpublished Git state when using Continue Working On from a Git repository",
+	"config.publishBeforeContinueOn.prompt": "Prompt to publish unpublished Git state when using Continue Working On from a Git repository",
+	"config.similarityThreshold": "Controls the threshold of the similarity index (the amount of additions/deletions compared to the file's size) for changes in a pair of added/deleted files to be considered a rename. **Note:** Requires Git version `2.18.0` or later.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
@@ -278,6 +290,10 @@
 	"colors.ignored": "Color for ignored resources.",
 	"colors.conflict": "Color for resources with conflicts.",
 	"colors.submodule": "Color for submodule resources.",
+	"colors.incomingAdded": "Color for added incoming resource.",
+	"colors.incomingDeleted": "Color for deleted incoming resource.",
+	"colors.incomingRenamed": "Color for renamed incoming resource.",
+	"colors.incomingModified": "Color for modified incoming resource.",
 	"view.workbench.scm.missing.windows": {
 		"message": "[Download Git for Windows](https://git-scm.com/download/win)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
@@ -304,7 +320,7 @@
 	},
 	"view.workbench.scm.missing": "Install Git, a popular source control system, to track code changes and collaborate with others. Learn more in our [Git guides](https://aka.ms/vscode-scm).",
 	"view.workbench.scm.disabled": {
-		"message": "If you would like to use git features, please enable git in your [settings](command:workbench.action.openSettings?%5B%22git.enabled%22%5D).\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"message": "If you would like to use Git features, please enable Git in your [settings](command:workbench.action.openSettings?%5B%22git.enabled%22%5D).\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
 			"{Locked='](command:workbench.action.openSettings?%5B%22git.enabled%22%5D'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
@@ -312,7 +328,7 @@
 		]
 	},
 	"view.workbench.scm.empty": {
-		"message": "In order to use git features, you can open a folder containing a git repository or clone from a URL.\n[Open Folder](command:vscode.openFolder)\n[Clone Repository](command:git.clone)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"message": "In order to use Git features, you can open a folder containing a Git repository or clone from a URL.\n[Open Folder](command:vscode.openFolder)\n[Clone Repository](command:git.clone)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
 			"{Locked='](command:vscode.openFolder'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
@@ -320,7 +336,7 @@
 		]
 	},
 	"view.workbench.scm.folder": {
-		"message": "The folder currently open doesn't have a git repository. You can initialize a repository which will enable source control features powered by git.\n[Initialize Repository](command:git.init?%5Btrue%5D)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"message": "The folder currently open doesn't have a Git repository. You can initialize a repository which will enable source control features powered by Git.\n[Initialize Repository](command:git.init?%5Btrue%5D)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
 			"{Locked='](command:git.init?%5Btrue%5D'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
@@ -328,7 +344,7 @@
 		]
 	},
 	"view.workbench.scm.workspace": {
-		"message": "The workspace currently open doesn't have any folders containing git repositories. You can initialize a repository on a folder which will enable source control features powered by git.\n[Initialize Repository](command:git.init)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"message": "The workspace currently open doesn't have any folders containing Git repositories. You can initialize a repository on a folder which will enable source control features powered by Git.\n[Initialize Repository](command:git.init)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
 			"{Locked='](command:git.init'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
@@ -336,7 +352,7 @@
 		]
 	},
 	"view.workbench.scm.emptyWorkspace": {
-		"message": "The workspace currently open doesn't have any folders containing git repositories.\n[Add Folder to Workspace](command:workbench.action.addRootFolder)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"message": "The workspace currently open doesn't have any folders containing Git repositories.\n[Add Folder to Workspace](command:workbench.action.addRootFolder)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
 			"{Locked='](command:workbench.action.addRootFolder'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
@@ -344,13 +360,13 @@
 		]
 	},
 	"view.workbench.scm.scanFolderForRepositories": {
-		"message": "Scanning folder for git repositories..."
+		"message": "Scanning folder for Git repositories..."
 	},
 	"view.workbench.scm.scanWorkspaceForRepositories": {
-		"message": "Scanning workspace for git repositories..."
+		"message": "Scanning workspace for Git repositories..."
 	},
 	"view.workbench.scm.repositoryInParentFolders": {
-		"message": "A git repository was found in the parent folders of the workspace or the open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse the [git.openRepositoryInParentFolders](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) setting to control whether git repositories in parent folders of workspaces or open files are opened. To learn more [read our docs](https://aka.ms/vscode-git-repository-in-parent-folders).",
+		"message": "A Git repository was found in the parent folders of the workspace or the open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse the [git.openRepositoryInParentFolders](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) setting to control whether Git repositories in parent folders of workspaces or open files are opened. To learn more [read our docs](https://aka.ms/vscode-git-repository-in-parent-folders).",
 		"comment": [
 			"{Locked='](command:git.openRepositoriesInParentFolders'}",
 			"{Locked='](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D'}",
@@ -359,7 +375,7 @@
 		]
 	},
 	"view.workbench.scm.repositoriesInParentFolders": {
-		"message": "Git repositories were found in the parent folders of the workspace or the open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse the [git.openRepositoryInParentFolders](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) setting to control whether git repositories in parent folders of workspace or open files are opened. To learn more [read our docs](https://aka.ms/vscode-git-repository-in-parent-folders).",
+		"message": "Git repositories were found in the parent folders of the workspace or the open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse the [git.openRepositoryInParentFolders](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) setting to control whether Git repositories in parent folders of workspace or open files are opened. To learn more [read our docs](https://aka.ms/vscode-git-repository-in-parent-folders).",
 		"comment": [
 			"{Locked='](command:git.openRepositoriesInParentFolders'}",
 			"{Locked='](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D'}",
@@ -368,7 +384,7 @@
 		]
 	},
 	"view.workbench.scm.unsafeRepository": {
-		"message": "The detected git repository is potentially unsafe as the folder is owned by someone other than the current user.\n[Manage Unsafe Repositories](command:git.manageUnsafeRepositories)\nTo learn more about unsafe repositories [read our docs](https://aka.ms/vscode-git-unsafe-repository).",
+		"message": "The detected Git repository is potentially unsafe as the folder is owned by someone other than the current user.\n[Manage Unsafe Repositories](command:git.manageUnsafeRepositories)\nTo learn more about unsafe repositories [read our docs](https://aka.ms/vscode-git-unsafe-repository).",
 		"comment": [
 			"{Locked='](command:git.manageUnsafeRepositories'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
@@ -376,7 +392,7 @@
 		]
 	},
 	"view.workbench.scm.unsafeRepositories": {
-		"message": "The detected git repositories are potentially unsafe as the folders are owned by someone other than the current user.\n[Manage Unsafe Repositories](command:git.manageUnsafeRepositories)\nTo learn more about unsafe repositories [read our docs](https://aka.ms/vscode-git-unsafe-repository).",
+		"message": "The detected Git repositories are potentially unsafe as the folders are owned by someone other than the current user.\n[Manage Unsafe Repositories](command:git.manageUnsafeRepositories)\nTo learn more about unsafe repositories [read our docs](https://aka.ms/vscode-git-unsafe-repository).",
 		"comment": [
 			"{Locked='](command:git.manageUnsafeRepositories'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
@@ -384,7 +400,7 @@
 		]
 	},
 	"view.workbench.scm.closedRepository": {
-		"message": "A git repository was found that was previously closed.\n[Reopen Closed Repository](command:git.reopenClosedRepositories)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"message": "A Git repository was found that was previously closed.\n[Reopen Closed Repository](command:git.reopenClosedRepositories)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
 			"{Locked='](command:git.reopenClosedRepositories'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
@@ -392,7 +408,7 @@
 		]
 	},
 	"view.workbench.scm.closedRepositories": {
-		"message": "Git repositories were found that were previously closed.\n[Reopen Closed Repositories](command:git.reopenClosedRepositories)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"message": "Git repositories were found that were previously closed.\n[Reopen Closed Repositories](command:git.reopenClosedRepositories)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
 			"{Locked='](command:git.reopenClosedRepositories'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
@@ -400,12 +416,12 @@
 		]
 	},
 	"view.workbench.cloneRepository": {
-		"message": "You can clone a repository locally.\n[Clone Repository](command:git.clone 'Clone a repository once the git extension has activated')",
+		"message": "You can clone a repository locally.\n[Clone Repository](command:git.clone 'Clone a repository once the Git extension has activated')",
 		"comment": [
 			"{Locked='](command:git.clone'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"view.workbench.learnMore": "To learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm)."
+	"view.workbench.learnMore": "To learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm)."
 }

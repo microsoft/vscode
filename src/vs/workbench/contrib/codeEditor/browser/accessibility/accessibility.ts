@@ -9,7 +9,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { accessibilityHelpIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { accessibilityHelpIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -20,7 +20,7 @@ class ToggleScreenReaderMode extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.toggleScreenReaderAccessibilityMode',
-			title: { value: nls.localize('toggleScreenReaderMode', "Toggle Screen Reader Accessibility Mode"), original: 'Toggle Screen Reader Accessibility Mode' },
+			title: nls.localize2('toggleScreenReaderMode', "Toggle Screen Reader Accessibility Mode"),
 			f1: true,
 			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyE,

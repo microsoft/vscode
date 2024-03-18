@@ -6,7 +6,7 @@
 import { exec } from 'child_process';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as path from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -19,6 +19,7 @@ import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonit
 import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
+import { chunkInput } from 'vs/platform/terminal/common/terminalProcess';
 
 const enum ShutdownConstants {
 	/**
@@ -54,14 +55,6 @@ const enum Constants {
 	 * interval.
 	 */
 	KillSpawnSpacingDuration = 50,
-
-	/**
-	 * Writing large amounts of data can be corrupted for some reason, after looking into this is
-	 * appears to be a race condition around writing to the FD which may be based on how powerful
-	 * the hardware is. The workaround for this is to space out when large amounts of data is being
-	 * written to the terminal. See https://github.com/microsoft/vscode/issues/38137
-	 */
-	WriteMaxChunkSize = 50,
 	/**
 	 * How long to wait between chunk writes.
 	 */
@@ -80,6 +73,7 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 	['ksh', PosixShellType.Ksh],
 	['sh', PosixShellType.Sh],
 	['pwsh', PosixShellType.PowerShell],
+	['python', PosixShellType.Python],
 	['zsh', PosixShellType.Zsh]
 ]);
 
@@ -106,7 +100,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _ptyProcess: IPty | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
-	private _isDisposed: boolean = false;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
@@ -190,6 +183,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
 			});
 		}
+		this._register(toDisposable(() => {
+			if (this._titleInterval) {
+				clearInterval(this._titleInterval);
+				this._titleInterval = null;
+			}
+		}));
 	}
 
 	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
@@ -263,7 +262,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd;
 		const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
-		const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
+		const executable = await findExecutable(slc.executable, cwd, envPaths, this._executableEnv);
 		if (!executable) {
 			return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 		}
@@ -327,15 +326,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._setupTitlePolling(ptyProcess);
 	}
 
-	override dispose(): void {
-		this._isDisposed = true;
-		if (this._titleInterval) {
-			clearInterval(this._titleInterval);
-		}
-		this._titleInterval = null;
-		super.dispose();
-	}
-
 	private _setupTitlePolling(ptyProcess: IPty) {
 		// Send initial timeout async to give event listeners a chance to init
 		setTimeout(() => this._sendProcessTitle(ptyProcess));
@@ -368,7 +358,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Wait to kill to process until the start up code has run. This prevents us from firing a process exit before a
 		// process start.
 		await this._processStartupComplete;
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		// Attempt to kill the pty, it may have already been killed at this
@@ -408,14 +398,19 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessTitle(ptyProcess: IPty): void {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		this._currentTitle = ptyProcess.process;
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
 		// If fig is installed it may change the title of the process
 		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
+
+		if (sanitizedTitle.toLowerCase().startsWith('python')) {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Python });
+		} else {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
+		}
 	}
 
 	shutdown(immediate: boolean): void {
@@ -428,11 +423,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (immediate && !isWindows) {
 			this._kill();
 		} else {
-			if (!this._closeTimeout && !this._isDisposed) {
+			if (!this._closeTimeout && !this._store.isDisposed) {
 				this._queueProcessExit();
 				// Allow a maximum amount of time for the process to exit, otherwise force kill it
 				setTimeout(() => {
-					if (this._closeTimeout && !this._isDisposed) {
+					if (this._closeTimeout && !this._store.isDisposed) {
 						this._closeTimeout = undefined;
 						this._kill();
 					}
@@ -441,17 +436,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	input(data: string, isBinary?: boolean): void {
-		if (this._isDisposed || !this._ptyProcess) {
+	input(data: string, isBinary: boolean = false): void {
+		if (this._store.isDisposed || !this._ptyProcess) {
 			return;
 		}
-		for (let i = 0; i <= Math.floor(data.length / Constants.WriteMaxChunkSize); i++) {
-			const obj = {
-				isBinary: isBinary || false,
-				data: data.substr(i * Constants.WriteMaxChunkSize, Constants.WriteMaxChunkSize)
-			};
-			this._writeQueue.push(obj);
-		}
+		this._writeQueue.push(...chunkInput(data).map(e => {
+			return { isBinary, data: e };
+		}));
 		this._startWrite();
 	}
 
@@ -523,7 +514,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	resize(cols: number, rows: number): void {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		if (typeof cols !== 'number' || typeof rows !== 'number' || isNaN(cols) || isNaN(rows)) {
@@ -650,15 +641,6 @@ class DelayedResizer extends Disposable {
 		this._timeout = setTimeout(() => {
 			this._onTrigger.fire({ rows: this.rows, cols: this.cols });
 		}, 1000);
-		this._register({
-			dispose: () => {
-				clearTimeout(this._timeout);
-			}
-		});
-	}
-
-	override dispose(): void {
-		super.dispose();
-		clearTimeout(this._timeout);
+		this._register(toDisposable(() => clearTimeout(this._timeout)));
 	}
 }

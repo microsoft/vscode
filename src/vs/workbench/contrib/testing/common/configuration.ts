@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { observableFromEvent } from 'vs/base/common/observable';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
@@ -19,12 +20,16 @@ export const enum TestingConfigKeys {
 	AlwaysRevealTestOnStateChange = 'testing.alwaysRevealTestOnStateChange',
 	CountBadge = 'testing.countBadge',
 	ShowAllMessages = 'testing.showAllMessages',
+	CoveragePercent = 'testing.displayedCoveragePercent',
+	ShowCoverageInExplorer = 'testing.showCoverageInExplorer',
+	CoverageBarThresholds = 'testing.coverageBarThresholds',
 }
 
 export const enum AutoOpenTesting {
 	NeverOpen = 'neverOpen',
 	OpenOnTestStart = 'openOnTestStart',
 	OpenOnTestFailure = 'openOnTestFailure',
+	OpenExplorerOnTestStart = 'openExplorerOnTestStart',
 }
 
 export const enum AutoOpenPeekViewWhen {
@@ -36,6 +41,7 @@ export const enum AutoOpenPeekViewWhen {
 export const enum DefaultGutterClickAction {
 	Run = 'run',
 	Debug = 'debug',
+	Coverage = 'runWithCoverage',
 	ContextMenu = 'contextMenu',
 }
 
@@ -44,6 +50,12 @@ export const enum TestingCountBadge {
 	Off = 'off',
 	Passed = 'passed',
 	Skipped = 'skipped',
+}
+
+export const enum TestingDisplayedCoveragePercent {
+	TotalCoverage = 'totalCoverage',
+	Statement = 'statement',
+	Minimum = 'minimum',
 }
 
 export const testingConfiguration: IConfigurationNode = {
@@ -108,11 +120,13 @@ export const testingConfiguration: IConfigurationNode = {
 			enum: [
 				DefaultGutterClickAction.Run,
 				DefaultGutterClickAction.Debug,
+				DefaultGutterClickAction.Coverage,
 				DefaultGutterClickAction.ContextMenu,
 			],
 			enumDescriptions: [
 				localize('testing.defaultGutterClickAction.run', 'Run the test.'),
 				localize('testing.defaultGutterClickAction.debug', 'Debug the test.'),
+				localize('testing.defaultGutterClickAction.coverage', 'Run the test with coverage.'),
 				localize('testing.defaultGutterClickAction.contextMenu', 'Open the context menu for more options.'),
 			],
 			default: DefaultGutterClickAction.Run,
@@ -132,11 +146,13 @@ export const testingConfiguration: IConfigurationNode = {
 				AutoOpenTesting.NeverOpen,
 				AutoOpenTesting.OpenOnTestStart,
 				AutoOpenTesting.OpenOnTestFailure,
+				AutoOpenTesting.OpenExplorerOnTestStart,
 			],
 			enumDescriptions: [
-				localize('testing.openTesting.neverOpen', 'Never automatically open the testing view'),
-				localize('testing.openTesting.openOnTestStart', 'Open the testing view when tests start'),
-				localize('testing.openTesting.openOnTestFailure', 'Open the testing view on any test failure'),
+				localize('testing.openTesting.neverOpen', 'Never automatically open the testing views'),
+				localize('testing.openTesting.openOnTestStart', 'Open the test results view when tests start'),
+				localize('testing.openTesting.openOnTestFailure', 'Open the test result view on any test failure'),
+				localize('testing.openTesting.openExplorerOnTestStart', 'Open the test explorer when tests start'),
 			],
 			default: 'openOnTestStart',
 			description: localize('testing.openTesting', "Controls when the testing view should open.")
@@ -146,8 +162,42 @@ export const testingConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 		},
+		[TestingConfigKeys.ShowCoverageInExplorer]: {
+			description: localize('testing.ShowCoverageInExplorer', "Whether test coverage should be down in the File Explorer view."),
+			type: 'boolean',
+			default: true,
+		},
+		[TestingConfigKeys.CoveragePercent]: {
+			markdownDescription: localize('testing.displayedCoveragePercent', "Configures what percentage is displayed by default for test coverage."),
+			default: TestingDisplayedCoveragePercent.TotalCoverage,
+			enum: [
+				TestingDisplayedCoveragePercent.TotalCoverage,
+				TestingDisplayedCoveragePercent.Statement,
+				TestingDisplayedCoveragePercent.Minimum,
+			],
+			enumDescriptions: [
+				localize('testing.displayedCoveragePercent.totalCoverage', 'A calculation of the combined statement, function, and branch coverage.'),
+				localize('testing.displayedCoveragePercent.statement', 'The statement coverage.'),
+				localize('testing.displayedCoveragePercent.minimum', 'The minimum of statement, function, and branch coverage.'),
+			],
+		},
+		[TestingConfigKeys.CoverageBarThresholds]: {
+			markdownDescription: localize('testing.coverageBarThresholds', "Configures the colors used for percentages in test coverage bars."),
+			default: { red: 0, yellow: 60, green: 90 },
+			properties: {
+				red: { type: 'number', minimum: 0, maximum: 100, default: 0 },
+				yellow: { type: 'number', minimum: 0, maximum: 100, default: 60 },
+				green: { type: 'number', minimum: 0, maximum: 100, default: 90 },
+			},
+		},
 	}
 };
+
+export interface ITestingCoverageBarThresholds {
+	red: number;
+	green: number;
+	yellow: number;
+}
 
 export interface ITestingConfiguration {
 	[TestingConfigKeys.AutoRunDelay]: number;
@@ -161,6 +211,12 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.OpenTesting]: AutoOpenTesting;
 	[TestingConfigKeys.AlwaysRevealTestOnStateChange]: boolean;
 	[TestingConfigKeys.ShowAllMessages]: boolean;
+	[TestingConfigKeys.CoveragePercent]: TestingDisplayedCoveragePercent;
+	[TestingConfigKeys.ShowCoverageInExplorer]: boolean;
+	[TestingConfigKeys.CoverageBarThresholds]: ITestingCoverageBarThresholds;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);
+
+export const observeTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => observableFromEvent(config.onDidChangeConfiguration, () =>
+	getTestingConfiguration(config, key));

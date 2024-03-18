@@ -26,7 +26,8 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/textRe
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
@@ -73,32 +74,32 @@ export const CALLSTACK_BOTTOM_ID = 'workbench.action.debug.callStackBottom';
 export const CALLSTACK_UP_ID = 'workbench.action.debug.callStackUp';
 export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
 
-export const DEBUG_COMMAND_CATEGORY: ILocalizedString = { original: 'Debug', value: nls.localize('debug', 'Debug') };
-export const RESTART_LABEL = { value: nls.localize('restartDebug', "Restart"), original: 'Restart' };
-export const STEP_OVER_LABEL = { value: nls.localize('stepOverDebug', "Step Over"), original: 'Step Over' };
-export const STEP_INTO_LABEL = { value: nls.localize('stepIntoDebug', "Step Into"), original: 'Step Into' };
-export const STEP_INTO_TARGET_LABEL = { value: nls.localize('stepIntoTargetDebug', "Step Into Target"), original: 'Step Into Target' };
-export const STEP_OUT_LABEL = { value: nls.localize('stepOutDebug', "Step Out"), original: 'Step Out' };
-export const PAUSE_LABEL = { value: nls.localize('pauseDebug', "Pause"), original: 'Pause' };
-export const DISCONNECT_LABEL = { value: nls.localize('disconnect', "Disconnect"), original: 'Disconnect' };
-export const DISCONNECT_AND_SUSPEND_LABEL = { value: nls.localize('disconnectSuspend', "Disconnect and Suspend"), original: 'Disconnect and Suspend' };
-export const STOP_LABEL = { value: nls.localize('stop', "Stop"), original: 'Stop' };
-export const CONTINUE_LABEL = { value: nls.localize('continueDebug', "Continue"), original: 'Continue' };
-export const FOCUS_SESSION_LABEL = { value: nls.localize('focusSession', "Focus Session"), original: 'Focus Session' };
-export const SELECT_AND_START_LABEL = { value: nls.localize('selectAndStartDebugging', "Select and Start Debugging"), original: 'Select and Start Debugging' };
+export const DEBUG_COMMAND_CATEGORY: ILocalizedString = nls.localize2('debug', 'Debug');
+export const RESTART_LABEL = nls.localize2('restartDebug', "Restart");
+export const STEP_OVER_LABEL = nls.localize2('stepOverDebug', "Step Over");
+export const STEP_INTO_LABEL = nls.localize2('stepIntoDebug', "Step Into");
+export const STEP_INTO_TARGET_LABEL = nls.localize2('stepIntoTargetDebug', "Step Into Target");
+export const STEP_OUT_LABEL = nls.localize2('stepOutDebug', "Step Out");
+export const PAUSE_LABEL = nls.localize2('pauseDebug', "Pause");
+export const DISCONNECT_LABEL = nls.localize2('disconnect', "Disconnect");
+export const DISCONNECT_AND_SUSPEND_LABEL = nls.localize2('disconnectSuspend', "Disconnect and Suspend");
+export const STOP_LABEL = nls.localize2('stop', "Stop");
+export const CONTINUE_LABEL = nls.localize2('continueDebug', "Continue");
+export const FOCUS_SESSION_LABEL = nls.localize2('focusSession', "Focus Session");
+export const SELECT_AND_START_LABEL = nls.localize2('selectAndStartDebugging', "Select and Start Debugging");
 export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open '{0}'", 'launch.json');
-export const DEBUG_START_LABEL = { value: nls.localize('startDebug', "Start Debugging"), original: 'Start Debugging' };
-export const DEBUG_RUN_LABEL = { value: nls.localize('startWithoutDebugging', "Start Without Debugging"), original: 'Start Without Debugging' };
-export const NEXT_DEBUG_CONSOLE_LABEL = { value: nls.localize('nextDebugConsole', "Focus Next Debug Console"), original: 'Focus Next Debug Console' };
-export const PREV_DEBUG_CONSOLE_LABEL = { value: nls.localize('prevDebugConsole', "Focus Previous Debug Console"), original: 'Focus Previous Debug Console' };
-export const OPEN_LOADED_SCRIPTS_LABEL = { value: nls.localize('openLoadedScript', "Open Loaded Script..."), original: 'Open Loaded Script...' };
-export const CALLSTACK_TOP_LABEL = { value: nls.localize('callStackTop', "Navigate to Top of Call Stack"), original: 'Navigate to Top of Call Stack' };
-export const CALLSTACK_BOTTOM_LABEL = { value: nls.localize('callStackBottom', "Navigate to Bottom of Call Stack"), original: 'Navigate to Bottom of Call Stack' };
-export const CALLSTACK_UP_LABEL = { value: nls.localize('callStackUp', "Navigate Up Call Stack"), original: 'Navigate Up Call Stack' };
-export const CALLSTACK_DOWN_LABEL = { value: nls.localize('callStackDown', "Navigate Down Call Stack"), original: 'Navigate Down Call Stack' };
+export const DEBUG_START_LABEL = nls.localize2('startDebug', "Start Debugging");
+export const DEBUG_RUN_LABEL = nls.localize2('startWithoutDebugging', "Start Without Debugging");
+export const NEXT_DEBUG_CONSOLE_LABEL = nls.localize2('nextDebugConsole', "Focus Next Debug Console");
+export const PREV_DEBUG_CONSOLE_LABEL = nls.localize2('prevDebugConsole', "Focus Previous Debug Console");
+export const OPEN_LOADED_SCRIPTS_LABEL = nls.localize2('openLoadedScript', "Open Loaded Script...");
+export const CALLSTACK_TOP_LABEL = nls.localize2('callStackTop', "Navigate to Top of Call Stack");
+export const CALLSTACK_BOTTOM_LABEL = nls.localize2('callStackBottom', "Navigate to Bottom of Call Stack");
+export const CALLSTACK_UP_LABEL = nls.localize2('callStackUp', "Navigate Up Call Stack");
+export const CALLSTACK_DOWN_LABEL = nls.localize2('callStackDown', "Navigate Down Call Stack");
 
-export const SELECT_DEBUG_CONSOLE_LABEL = { value: nls.localize('selectDebugConsole', "Select Debug Console"), original: 'Select Debug Console' };
-export const SELECT_DEBUG_SESSION_LABEL = { value: nls.localize('selectDebugSession', "Select Debug Session"), original: 'Select Debug Session' };
+export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize2('selectDebugConsole', "Select Debug Console");
+export const SELECT_DEBUG_SESSION_LABEL = nls.localize2('selectDebugSession', "Select Debug Session");
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
 export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
@@ -223,7 +224,7 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 		}
 
 		if (nextVisibleFrame) {
-			debugService.focusStackFrame(nextVisibleFrame);
+			debugService.focusStackFrame(nextVisibleFrame, undefined, undefined, { preserveFocus: false });
 		}
 	}
 }
@@ -236,7 +237,7 @@ async function goToBottomOfCallStack(debugService: IDebugService) {
 		if (callStack.length > 0) {
 			const nextVisibleFrame = findNextVisibleFrame(false, callStack, 0); // must consider the next frame up first, which will be the last frame
 			if (nextVisibleFrame) {
-				debugService.focusStackFrame(nextVisibleFrame);
+				debugService.focusStackFrame(nextVisibleFrame, undefined, undefined, { preserveFocus: false });
 			}
 		}
 	}
@@ -246,7 +247,7 @@ function goToTopOfCallStack(debugService: IDebugService) {
 	const thread = debugService.getViewModel().focusedThread;
 
 	if (thread) {
-		debugService.focusStackFrame(thread.getTopStackFrame());
+		debugService.focusStackFrame(thread.getTopStackFrame(), undefined, undefined, { preserveFocus: false });
 	}
 }
 
@@ -474,7 +475,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STEP_OVER_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.F10,
-	secondary: isWeb ? [(KeyMod.Alt | KeyCode.F10)] : undefined, // Keep Alt-F10 for web for backwards-compatibility
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);
@@ -705,8 +705,26 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
-	handler: async (accessor: ServicesAccessor) => {
+	handler: async (accessor: ServicesAccessor, debugType: string | unknown) => {
 		const quickInputService = accessor.get(IQuickInputService);
+		const debugService = accessor.get(IDebugService);
+
+		if (debugType) {
+			const configManager = debugService.getConfigurationManager();
+			const dynamicProviders = await configManager.getDynamicProviders();
+			for (const provider of dynamicProviders) {
+				if (provider.type === debugType) {
+					const pick = await provider.pick();
+					if (pick) {
+						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
+						debugService.startDebugging(pick.launch, pick.config, { startedByUser: true });
+
+						return;
+					}
+				}
+			}
+		}
+
 		quickInputService.quickAccess.show(DEBUG_QUICK_ACCESS_PREFIX);
 	}
 });
@@ -925,7 +943,7 @@ registerAction2(class AddConfigurationAction extends Action2 {
 	constructor() {
 		super({
 			id: ADD_CONFIGURATION_ID,
-			title: { value: nls.localize('addConfiguration', "Add Configuration..."), original: 'Add Configuration...' },
+			title: nls.localize2('addConfiguration', "Add Configuration..."),
 			category: DEBUG_COMMAND_CATEGORY,
 			f1: true,
 			menu: {

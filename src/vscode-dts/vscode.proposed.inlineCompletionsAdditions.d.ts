@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
+	// https://github.com/microsoft/vscode/issues/124024 @hediet
 
 	export namespace languages {
 		/**
@@ -53,6 +53,24 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
+
+		/**
+		 * Is called when an inline completion item was accepted partially.
+		 * @param info Additional info for the partial accepted trigger.
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
+	}
+
+	export interface PartialAcceptInfo {
+		kind: PartialAcceptTriggerKind;
+	}
+
+	export enum PartialAcceptTriggerKind {
+		Unknown = 0,
+		Word = 1,
+		Line = 2,
+		Suggest = 3,
 	}
 
 	// When finalizing `commands`, make sure to add a corresponding constructor parameter.
@@ -61,11 +79,6 @@ declare module 'vscode' {
 		 * A list of commands associated with the inline completions of this list.
 		 */
 		commands?: Command[];
-
-		/**
-		 * When set, overrides the user setting of `editor.inlineSuggest.suppressSuggestions`.
-		 */
-		suppressSuggestions?: boolean;
 
 		/**
 		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.

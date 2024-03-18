@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa } from 'vs/base/browser/dom';
+import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument } from 'vs/base/browser/dom';
+import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('dom', () => {
 	test('hasClass', () => {
@@ -18,8 +22,6 @@ suite('dom', () => {
 		assert(!element.classList.contains('bar'));
 		assert(!element.classList.contains('foo'));
 		assert(!element.classList.contains(''));
-
-
 	});
 
 	test('removeClass', () => {
@@ -88,7 +90,7 @@ suite('dom', () => {
 			assert(!div.firstChild);
 		});
 
-		test('should buld nodes with id', () => {
+		test('should build nodes with id', () => {
 			const div = $('div#foo');
 			assert(div);
 			assert(div instanceof HTMLElement);
@@ -96,7 +98,7 @@ suite('dom', () => {
 			assert.strictEqual(div.id, 'foo');
 		});
 
-		test('should buld nodes with class-name', () => {
+		test('should build nodes with class-name', () => {
 			const div = $('div.foo');
 			assert(div);
 			assert(div instanceof HTMLElement);
@@ -287,5 +289,123 @@ suite('dom', () => {
 		assert.strictEqual(asCssValueWithDefault('var(--my-var, var(--my-var2))', 'blue'), 'var(--my-var, var(--my-var2, blue))');
 	});
 
+	test('copyAttributes', () => {
+		const elementSource = document.createElement('div');
+		elementSource.setAttribute('foo', 'bar');
+		elementSource.setAttribute('bar', 'foo');
 
+		const elementTarget = document.createElement('div');
+		copyAttributes(elementSource, elementTarget);
+
+		assert.strictEqual(elementTarget.getAttribute('foo'), 'bar');
+		assert.strictEqual(elementTarget.getAttribute('bar'), 'foo');
+	});
+
+	test('trackAttributes (unfiltered)', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const elementSource = document.createElement('div');
+			const elementTarget = document.createElement('div');
+
+			const disposable = trackAttributes(elementSource, elementTarget);
+
+			elementSource.setAttribute('foo', 'bar');
+			elementSource.setAttribute('bar', 'foo');
+
+			await timeout(1);
+
+			assert.strictEqual(elementTarget.getAttribute('foo'), 'bar');
+			assert.strictEqual(elementTarget.getAttribute('bar'), 'foo');
+
+			disposable.dispose();
+		});
+	});
+
+	test('trackAttributes (filtered)', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const elementSource = document.createElement('div');
+			const elementTarget = document.createElement('div');
+
+			const disposable = trackAttributes(elementSource, elementTarget, ['foo']);
+
+			elementSource.setAttribute('foo', 'bar');
+			elementSource.setAttribute('bar', 'foo');
+
+			await timeout(1);
+
+			assert.strictEqual(elementTarget.getAttribute('foo'), 'bar');
+			assert.strictEqual(elementTarget.getAttribute('bar'), null);
+
+			disposable.dispose();
+		});
+	});
+
+	test('window utilities', () => {
+		const windows = Array.from(getWindows());
+		assert.strictEqual(windows.length, 1);
+		assert.strictEqual(getWindowsCount(), 1);
+		const windowId = getWindowId(mainWindow);
+		assert.ok(typeof windowId === 'number');
+		assert.strictEqual(getWindowById(windowId)?.window, mainWindow);
+		assert.strictEqual(getWindowById(undefined, true).window, mainWindow);
+		assert.strictEqual(hasWindow(windowId), true);
+		assert.strictEqual(isAuxiliaryWindow(mainWindow), false);
+		ensureCodeWindow(mainWindow, 1);
+		assert.ok(typeof mainWindow.vscodeWindowId === 'number');
+
+		const div = document.createElement('div');
+		assert.strictEqual(getWindow(div), mainWindow);
+		assert.strictEqual(getDocument(div), mainWindow.document);
+
+		const event = document.createEvent('MouseEvent');
+		assert.strictEqual(getWindow(event), mainWindow);
+		assert.strictEqual(getDocument(event), mainWindow.document);
+	});
+
+	suite('disposableWindowInterval', () => {
+		test('basics', async () => {
+			let count = 0;
+			const promise = new DeferredPromise<void>();
+			const interval = disposableWindowInterval(mainWindow, () => {
+				count++;
+				if (count === 3) {
+					promise.complete(undefined);
+					return true;
+				} else {
+					return false;
+				}
+			}, 0, 10);
+
+			await promise.p;
+			assert.strictEqual(count, 3);
+			interval.dispose();
+		});
+
+		test('iterations', async () => {
+			let count = 0;
+			const interval = disposableWindowInterval(mainWindow, () => {
+				count++;
+
+				return false;
+			}, 0, 0);
+
+			await timeout(5);
+			assert.strictEqual(count, 0);
+			interval.dispose();
+		});
+
+		test('dispose', async () => {
+			let count = 0;
+			const interval = disposableWindowInterval(mainWindow, () => {
+				count++;
+
+				return false;
+			}, 0, 10);
+
+			interval.dispose();
+			await timeout(5);
+			assert.strictEqual(count, 0);
+		});
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

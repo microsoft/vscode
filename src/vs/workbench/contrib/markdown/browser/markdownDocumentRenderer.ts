@@ -13,6 +13,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { escape } from 'vs/base/common/strings';
+import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
 
 export const DEFAULT_MARKDOWN_STYLES = `
 body {
@@ -142,6 +143,18 @@ pre code {
 .vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);
 }
+
+@media (forced-colors: active) and (prefers-color-scheme: light){
+	body {
+		forced-color-adjust: none;
+	}
+}
+
+@media (forced-colors: active) and (prefers-color-scheme: dark){
+	body {
+		forced-color-adjust: none;
+	}
+}
 `;
 
 const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
@@ -183,6 +196,7 @@ export async function renderMarkdownDocument(
 	shouldSanitize: boolean = true,
 	allowUnknownProtocols: boolean = false,
 	token?: CancellationToken,
+	settingRenderer?: SimpleSettingRenderer
 ): Promise<string> {
 
 	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
@@ -191,7 +205,7 @@ export async function renderMarkdownDocument(
 		}
 
 		if (typeof lang !== 'string') {
-			callback(null, `<code>${escape(code)}</code>`);
+			callback(null, escape(code));
 			return '';
 		}
 
@@ -201,15 +215,20 @@ export async function renderMarkdownDocument(
 				return;
 			}
 
-			const languageId = languageService.getLanguageIdByLanguageName(lang);
+			const languageId = languageService.getLanguageIdByLanguageName(lang) ?? languageService.getLanguageIdByLanguageName(lang.split(/\s+|:|,|(?!^)\{|\?]/, 1)[0]);
 			const html = await tokenizeToString(languageService, code, languageId);
-			callback(null, `<code>${html}</code>`);
+			callback(null, html);
 		});
 		return '';
 	};
 
+	const renderer = new marked.Renderer();
+	if (settingRenderer) {
+		renderer.html = settingRenderer.getHtmlRenderer();
+	}
+
 	return new Promise<string>((resolve, reject) => {
-		marked(text, { highlight }, (err, value) => err ? reject(err) : resolve(value));
+		marked(text, { highlight, renderer }, (err, value) => err ? reject(err) : resolve(value));
 	}).then(raw => {
 		if (shouldSanitize) {
 			return sanitize(raw, allowUnknownProtocols);

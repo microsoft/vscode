@@ -266,9 +266,11 @@ class Widget {
 	}
 
 	private _getMaxWidth(): number {
+		const elDocument = this.domNode.domNode.ownerDocument;
+		const elWindow = elDocument.defaultView;
 		return (
 			this.allowEditorOverflow
-				? window.innerWidth || document.documentElement!.offsetWidth || document.body.offsetWidth
+				? elWindow?.innerWidth || elDocument.documentElement.offsetWidth || elDocument.body.offsetWidth
 				: this._contentWidth
 		);
 	}
@@ -326,7 +328,9 @@ class Widget {
 		const MIN_LIMIT = Math.max(LEFT_PADDING, domNodePosition.left - width);
 		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width - RIGHT_PADDING);
 
-		let absoluteLeft = domNodePosition.left + left - window.scrollX;
+		const elDocument = this._viewDomNode.domNode.ownerDocument;
+		const elWindow = elDocument.defaultView;
+		let absoluteLeft = domNodePosition.left + left - (elWindow?.scrollX ?? 0);
 
 		if (absoluteLeft + width > MAX_LIMIT) {
 			const delta = absoluteLeft - (MAX_LIMIT - width);
@@ -348,10 +352,12 @@ class Widget {
 		const belowTop = anchor.top + anchor.height;
 
 		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
-		const absoluteAboveTop = domNodePosition.top + aboveTop - window.scrollY;
-		const absoluteBelowTop = domNodePosition.top + belowTop - window.scrollY;
+		const elDocument = this._viewDomNode.domNode.ownerDocument;
+		const elWindow = elDocument.defaultView;
+		const absoluteAboveTop = domNodePosition.top + aboveTop - (elWindow?.scrollY ?? 0);
+		const absoluteBelowTop = domNodePosition.top + belowTop - (elWindow?.scrollY ?? 0);
 
-		const windowSize = dom.getClientArea(document.body);
+		const windowSize = dom.getClientArea(elDocument.body);
 		const [left, absoluteAboveLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, anchor.left - ctx.scrollLeft + this._contentLeft, width);
 
 		// Leave some clearance to the top/bottom

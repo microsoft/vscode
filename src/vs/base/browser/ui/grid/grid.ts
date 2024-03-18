@@ -8,8 +8,7 @@ import { equals, tail2 as tail } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./gridview';
-import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing } from './gridview';
-import type { GridLocation } from 'vs/base/browser/ui/grid/gridview';
+import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview';
 import type { SplitView, AutoSizing as SplitViewAutoSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 export { IViewSize, LayoutPriority, Orientation, orthogonal } from './gridview';
@@ -52,6 +51,7 @@ export interface GridLeafNode<T extends IView> {
 	readonly view: T;
 	readonly box: Box;
 	readonly cachedVisibleSize: number | undefined;
+	readonly maximized: boolean;
 }
 
 export interface GridBranchNode<T extends IView> {
@@ -289,6 +289,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 
 	private didLayout = false;
 
+	readonly onDidChangeViewMaximized: Event<boolean>;
 	/**
 	 * Create a new {@link Grid}. A grid must *always* have a view
 	 * inside.
@@ -314,6 +315,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 
 		this.onDidChange = this.gridview.onDidChange;
 		this.onDidScroll = this.gridview.onDidScroll;
+		this.onDidChangeViewMaximized = this.gridview.onDidChangeViewMaximized;
 	}
 
 	style(styles: IGridStyles): void {
@@ -546,9 +548,28 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 *
 	 * @param view The reference {@link IView view}.
 	 */
-	isViewSizeMaximized(view: T): boolean {
+	isViewExpanded(view: T): boolean {
 		const location = this.getViewLocation(view);
-		return this.gridview.isViewSizeMaximized(location);
+		return this.gridview.isViewExpanded(location);
+	}
+
+	/**
+	 * Returns whether the {@link IView view} is maximized.
+	 *
+	 * @param view The reference {@link IView view}.
+	 */
+	isViewMaximized(view: T): boolean {
+		const location = this.getViewLocation(view);
+		return this.gridview.isViewMaximized(location);
+	}
+
+	/**
+	 * Returns whether the {@link IView view} is maximized.
+	 *
+	 * @param view The reference {@link IView view}.
+	 */
+	hasMaximizedView(): boolean {
+		return this.gridview.hasMaximizedView();
 	}
 
 	/**
@@ -578,14 +599,30 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	/**
-	 * Maximize the size of a {@link IView view} by collapsing all other views
+	 * Maximizes the specified view and hides all other views.
+	 * @param view The view to maximize.
+	 */
+	maximizeView(view: T) {
+		if (this.views.size < 2) {
+			throw new Error('At least two views are required to maximize a view');
+		}
+		const location = this.getViewLocation(view);
+		this.gridview.maximizeView(location);
+	}
+
+	exitMaximizedView(): void {
+		this.gridview.exitMaximizedView();
+	}
+
+	/**
+	 * Expand the size of a {@link IView view} by collapsing all other views
 	 * to their minimum sizes.
 	 *
 	 * @param view The {@link IView view}.
 	 */
-	maximizeViewSize(view: T): void {
+	expandView(view: T): void {
 		const location = this.getViewLocation(view);
-		this.gridview.maximizeViewSize(location);
+		this.gridview.expandView(location);
 	}
 
 	/**
@@ -714,12 +751,14 @@ export interface ISerializedLeafNode {
 	data: any;
 	size: number;
 	visible?: boolean;
+	maximized?: boolean;
 }
 
 export interface ISerializedBranchNode {
 	type: 'branch';
 	data: ISerializedNode[];
 	size: number;
+	visible?: boolean;
 }
 
 export type ISerializedNode = ISerializedLeafNode | ISerializedBranchNode;
@@ -740,14 +779,23 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		const size = orientation === Orientation.VERTICAL ? node.box.width : node.box.height;
 
 		if (!isGridBranchNode(node)) {
+			const serializedLeafNode: ISerializedLeafNode = { type: 'leaf', data: node.view.toJSON(), size };
+
 			if (typeof node.cachedVisibleSize === 'number') {
-				return { type: 'leaf', data: node.view.toJSON(), size: node.cachedVisibleSize, visible: false };
+				serializedLeafNode.size = node.cachedVisibleSize;
+				serializedLeafNode.visible = false;
+			} else if (node.maximized) {
+				serializedLeafNode.maximized = true;
 			}
 
-			return { type: 'leaf', data: node.view.toJSON(), size };
+			return serializedLeafNode;
 		}
 
-		return { type: 'branch', data: node.children.map(c => SerializableGrid.serializeNode(c, orthogonal(orientation))), size };
+		const data = node.children.map(c => SerializableGrid.serializeNode(c, orthogonal(orientation)));
+		if (data.some(c => c.visible !== false)) {
+			return { type: 'branch', data: data, size };
+		}
+		return { type: 'branch', data: data, size, visible: false };
 	}
 
 	/**

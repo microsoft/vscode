@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
@@ -44,6 +44,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { isWeb } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { mainWindow } from 'vs/base/browser/window';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -306,7 +307,7 @@ class InstalledThemesPicker {
 			if (selectThemeTimeout) {
 				clearTimeout(selectThemeTimeout);
 			}
-			selectThemeTimeout = window.setTimeout(() => {
+			selectThemeTimeout = mainWindow.setTimeout(() => {
 				selectThemeTimeout = undefined;
 				const newTheme = (theme ?? currentTheme) as IWorkbenchTheme;
 				this.setTheme(newTheme, applyTheme ? 'auto' : 'preview').then(undefined,
@@ -328,6 +329,7 @@ class InstalledThemesPicker {
 				quickpick.placeholder = this.placeholderMessage;
 				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
 				quickpick.canSelectMany = false;
+				quickpick.matchOnDescription = true;
 				quickpick.onDidAccept(async _ => {
 					isCompleted = true;
 					const theme = quickpick.selectedItems[0];
@@ -382,7 +384,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SelectColorThemeCommandId,
-			title: { value: localize('selectTheme.label', "Color Theme"), original: 'Color Theme' },
+			title: localize2('selectTheme.label', 'Color Theme'),
 			category: Categories.Preferences,
 			f1: true,
 			keybinding: {
@@ -424,7 +426,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SelectFileIconThemeCommandId,
-			title: { value: localize('selectIconTheme.label', "File Icon Theme"), original: 'File Icon Theme' },
+			title: localize2('selectIconTheme.label', 'File Icon Theme'),
 			category: Categories.Preferences,
 			f1: true
 		});
@@ -459,7 +461,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SelectProductIconThemeCommandId,
-			title: { value: localize('selectProductIconTheme.label', "Product Icon Theme"), original: 'Product Icon Theme' },
+			title: localize2('selectProductIconTheme.label', 'Product Icon Theme'),
 			category: Categories.Preferences,
 			f1: true
 		});
@@ -545,7 +547,13 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 }
 
 function toEntry(theme: IWorkbenchTheme): ThemeItem {
-	const item: ThemeItem = { id: theme.id, theme: theme, label: theme.label, description: theme.description };
+	const settingId = theme.settingsId ?? undefined;
+	const item: ThemeItem = {
+		id: theme.id,
+		theme: theme,
+		label: theme.label,
+		description: theme.description || (theme.label === settingId ? undefined : settingId),
+	};
 	if (theme.extensionData) {
 		item.buttons = [configureButton];
 	}
@@ -570,7 +578,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.generateColorTheme',
-			title: { value: localize('generateColorTheme.label', "Generate Color Theme From Current Settings"), original: 'Generate Color Theme From Current Settings' },
+			title: localize2('generateColorTheme.label', 'Generate Color Theme From Current Settings'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -624,7 +632,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: toggleLightDarkThemesCommandId,
-			title: { value: localize('toggleLightDarkThemes.label', "Toggle between Light/Dark Themes"), original: 'Toggle between Light/Dark Themes' },
+			title: localize2('toggleLightDarkThemes.label', 'Toggle between Light/Dark Themes'),
 			category: Categories.Preferences,
 			f1: true,
 		});
@@ -662,24 +670,73 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const browseColorThemesInMarketplaceCommandId = 'workbench.action.browseColorThemesInMarketplace';
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: browseColorThemesInMarketplaceCommandId,
+			title: localize2('browseColorThemeInMarketPlace.label', 'Browse Color Themes in Marketplace'),
+			category: Categories.Preferences,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const marketplaceTag = 'category:themes';
+		const themeService = accessor.get(IWorkbenchThemeService);
+		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+		const extensionResourceLoaderService = accessor.get(IExtensionResourceLoaderService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		if (!extensionGalleryService.isEnabled() || !extensionResourceLoaderService.supportsExtensionGalleryResources) {
+			return;
+		}
+		const currentTheme = themeService.getColorTheme();
+		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceColorThemes(publisher, name, version);
+
+		let selectThemeTimeout: number | undefined;
+
+		const selectTheme = (theme: IWorkbenchTheme | undefined, applyTheme: boolean) => {
+			if (selectThemeTimeout) {
+				clearTimeout(selectThemeTimeout);
+			}
+			selectThemeTimeout = mainWindow.setTimeout(() => {
+				selectThemeTimeout = undefined;
+				const newTheme = (theme ?? currentTheme) as IWorkbenchTheme;
+				themeService.setColorTheme(newTheme as IWorkbenchColorTheme, applyTheme ? 'auto' : 'preview').then(undefined,
+					err => {
+						onUnexpectedError(err);
+						themeService.setColorTheme(currentTheme, undefined);
+					}
+				);
+			}, applyTheme ? 0 : 200);
+		};
+
+		const marketplaceThemePicker = instantiationService.createInstance(MarketplaceThemesPicker, getMarketplaceColorThemes, marketplaceTag);
+		await marketplaceThemePicker.openQuickPick('', themeService.getColorTheme(), selectTheme).then(undefined, onUnexpectedError);
+	}
+});
+
 const ThemesSubMenu = new MenuId('ThemesSubMenu');
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 	title: localize('themes', "Themes"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
-	order: 6
+	order: 7
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
-	order: 6
+	order: 7
 });
 
 MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {
 		id: SelectColorThemeCommandId,
-		title: localize('selectTheme.label', "Color Theme")
+		title: localize('selectTheme.label', 'Color Theme')
 	},
 	order: 1
 });

@@ -8,7 +8,6 @@
 		"resolveJsonModule": true,
 		"outDir": "../out/vs",
 		"types": [
-			"keytar",
 			"mocha",
 			"semver",
 			"sinon",
@@ -26,7 +25,13 @@
 	"include": [
 		"./bootstrap.js",
 		"./bootstrap-amd.js",
+		"./bootstrap-fork.js",
+		"./bootstrap-node.js",
+		"./bootstrap-window.js",
+		"./cli.js",
+		"./main.js",
 		"./server-main.js",
+		"./server-cli.js",
 		"./typings",
 		"./vs/**/*.ts",
 		"vscode-dts/vscode.proposed.*.d.ts",

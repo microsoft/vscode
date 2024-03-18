@@ -10,13 +10,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class SlashCommandContentWidget extends Disposable implements IContentWidget {
 	private _domNode = document.createElement('div');
 	private _lastSlashCommandText: string | undefined;
+	private _isVisible = false;
 
-	constructor(private _editor: ICodeEditor, private _accessibilityService: IAccessibilityService) {
+	constructor(private _editor: ICodeEditor) {
 		super();
 
 		this._domNode.toggleAttribute('hidden', true);
@@ -27,28 +29,48 @@ export class SlashCommandContentWidget extends Disposable implements IContentWid
 	}
 
 	override dispose() {
-		this._editor.removeContentWidget(this);
+		this.hide();
 		super.dispose();
 	}
 
 	show() {
-		this._domNode.toggleAttribute('hidden', false);
-		this._editor.addContentWidget(this);
+		if (!this._isVisible) {
+			this._isVisible = true;
+			this._domNode.toggleAttribute('hidden', false);
+			this._editor.addContentWidget(this);
+		}
 	}
 
 	hide() {
-		this._domNode.toggleAttribute('hidden', true);
-		this._editor.removeContentWidget(this);
+		if (this._isVisible) {
+			this._isVisible = false;
+			this._domNode.toggleAttribute('hidden', true);
+			this._editor.removeContentWidget(this);
+		}
 	}
 
 	setCommandText(slashCommand: string) {
-		this._domNode.innerText = `${slashCommand} `;
+		this._domNode.innerText = `/${slashCommand} `;
 		this._lastSlashCommandText = slashCommand;
 	}
 
-	getId() { return 'chat-slash-command-content-widget'; }
-	getDomNode() { return this._domNode; }
-	getPosition() { return { position: { lineNumber: 1, column: 1 }, preference: [ContentWidgetPositionPreference.EXACT] }; }
+	getId() {
+		return 'chat-slash-command-content-widget';
+	}
+
+	getDomNode() {
+		return this._domNode;
+	}
+
+	getPosition() {
+		return { position: { lineNumber: 1, column: 1 }, preference: [ContentWidgetPositionPreference.EXACT] };
+	}
+
+	beforeRender(): null {
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		this._domNode.style.lineHeight = `${lineHeight - 2 /*padding*/}px`;
+		return null;
+	}
 
 	private _handleKeyDown(e: IKeyboardEvent) {
 		if (e.keyCode !== KeyCode.Backspace) {
@@ -69,6 +91,6 @@ export class SlashCommandContentWidget extends Disposable implements IContentWid
 		}]);
 
 		// Announce the deletion
-		this._accessibilityService.alert(localize('exited slash command mode', 'Exited {0} mode', this._lastSlashCommandText));
+		aria.alert(localize('exited slash command mode', 'Exited {0} mode', this._lastSlashCommandText));
 	}
 }

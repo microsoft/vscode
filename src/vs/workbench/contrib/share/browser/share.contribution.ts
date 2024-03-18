@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./share';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -77,12 +77,12 @@ class ShareWorkbenchContribution {
 		this._disposables.add(
 			registerAction2(class ShareAction extends Action2 {
 				static readonly ID = 'workbench.action.share';
-				static readonly LABEL = localize('share', 'Share...');
+				static readonly LABEL = localize2('share', 'Share...');
 
 				constructor() {
 					super({
 						id: ShareAction.ID,
-						title: { value: ShareAction.LABEL, original: 'Share...' },
+						title: ShareAction.LABEL,
 						f1: true,
 						icon: Codicon.linkExternal,
 						precondition: ContextKeyExpr.and(ShareProviderCountContext.notEqualsTo(0), WorkspaceFolderCountContext.notEqualsTo(0)),
@@ -110,7 +110,7 @@ class ShareWorkbenchContribution {
 					const result = await progressService.withProgress({
 						location: ProgressLocation.Window,
 						detail: localize('generating link', 'Generating link...')
-					}, async () => shareService.provideShare({ resourceUri, selection }, new CancellationTokenSource().token));
+					}, async () => shareService.provideShare({ resourceUri, selection }, CancellationToken.None));
 
 					if (result) {
 						const uriText = result.toString();

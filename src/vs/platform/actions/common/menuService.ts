@@ -199,7 +199,7 @@ class MenuInfo {
 				group = [groupName, []];
 				this._menuGroups.push(group);
 			}
-			group![1].push(item);
+			group[1].push(item);
 
 			// keep keys for eventing
 			this._collectContextKeys(item);

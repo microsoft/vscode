@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { SELECT_NOTEBOOK_INDENTATION_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
+import { INotebookEditor, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -96,7 +98,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const updateStatus = () => {
-			if (activeEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+			if (activeEditor.notebookOptions.getDisplayOptions().globalToolbar) {
 				// kernel info rendered in the notebook toolbar already
 				this._kernelInfoElement.clear();
 				return;
@@ -167,7 +169,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					text: nls.localize('kernel.select.label', "Select Kernel"),
 					ariaLabel: nls.localize('kernel.select.label', "Select Kernel"),
 					command: SELECT_KERNEL_ID,
-					backgroundColor: { id: 'statusBarItem.prominentBackground' }
+					kind: 'prominent'
 				},
 				SELECT_KERNEL_ID,
 				StatusbarAlignment.RIGHT,
@@ -254,3 +256,87 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Restored);
+
+export class NotebookIndentationStatus extends Disposable implements IWorkbenchContribution {
+
+	private readonly _itemDisposables = this._register(new DisposableStore());
+	private readonly _accessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
+	static readonly ID = 'selectNotebookIndentation';
+
+	constructor(
+		@IEditorService private readonly _editorService: IEditorService,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) {
+		super();
+		this._register(this._editorService.onDidActiveEditorChange(() => this._update()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
+				this._update();
+			}
+		}));
+	}
+
+	private _update() {
+		this._itemDisposables.clear();
+		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+		if (activeEditor) {
+			this._show(activeEditor);
+			this._itemDisposables.add(activeEditor.onDidChangeSelection(() => {
+				this._accessor.clear();
+				this._show(activeEditor);
+			}));
+		} else {
+			this._accessor.clear();
+		}
+	}
+
+	private _show(editor: INotebookEditor) {
+		if (!editor.hasModel()) {
+			this._accessor.clear();
+			return;
+		}
+
+		const cellOptions = editor.getActiveCell()?.textModel?.getOptions();
+		if (!cellOptions) {
+			this._accessor.clear();
+			return;
+		}
+
+		const cellEditorOverridesRaw = editor.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
+		const indentSize = cellEditorOverridesRaw['editor.indentSize'] ?? cellOptions?.indentSize;
+		const insertSpaces = cellEditorOverridesRaw['editor.insertSpaces'] ?? cellOptions?.tabSize;
+		const tabSize = cellEditorOverridesRaw['editor.tabSize'] ?? cellOptions?.insertSpaces;
+
+		const width = typeof indentSize === 'number' ? indentSize : tabSize;
+
+		const message = insertSpaces ? `Spaces: ${width}` : `Tab Size: ${width}`;
+		const newText = message;
+		if (!newText) {
+			this._accessor.clear();
+			return;
+		}
+
+		const entry: IStatusbarEntry = {
+			name: nls.localize('notebook.indentation', "Notebook Indentation"),
+			text: newText,
+			ariaLabel: newText,
+			tooltip: nls.localize('selectNotebookIndentation', "Select Indentation"),
+			command: SELECT_NOTEBOOK_INDENTATION_ID
+		};
+
+		if (!this._accessor.value) {
+			this._accessor.value = this._statusbarService.addEntry(
+				entry,
+				'notebook.status.indentation',
+				StatusbarAlignment.RIGHT,
+				100.4
+			);
+		} else {
+			this._accessor.value.update(entry);
+		}
+	}
+}
+
+registerWorkbenchContribution2(NotebookIndentationStatus.ID, NotebookIndentationStatus, WorkbenchPhase.AfterRestored); // TODO@Yoyokrazy -- unsure on the phase

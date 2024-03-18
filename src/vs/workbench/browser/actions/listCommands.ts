@@ -7,7 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey, WorkbenchTreeStickyScrollFocused } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { equals, range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -17,15 +17,20 @@ import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { AbstractTree, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { isActiveElement } from 'vs/base/browser/dom';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { localize, localize2 } from 'vs/nls';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
 	// DOM focus is within another focusable control within the
 	// list/tree item. therefor we should ensure that the
 	// list/tree has DOM focus again after the command ran.
-	if (widget && widget.getHTMLElement() !== document.activeElement) {
-		widget.domFocus();
+	const element = widget?.getHTMLElement();
+	if (element && !isActiveElement(element)) {
+		widget?.domFocus();
 	}
 }
 
@@ -101,6 +106,40 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusAnyDown',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.Alt | KeyCode.DownArrow,
+	mac: {
+		primary: KeyMod.Alt | KeyCode.DownArrow,
+		secondary: [KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyN]
+	},
+	handler: (accessor, arg2) => {
+		navigate(accessor.get(IListService).lastFocusedList, async widget => {
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { altKey: true });
+			await widget.focusNext(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent);
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusAnyUp',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.Alt | KeyCode.UpArrow,
+	mac: {
+		primary: KeyMod.Alt | KeyCode.UpArrow,
+		secondary: [KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyP]
+	},
+	handler: (accessor, arg2) => {
+		navigate(accessor.get(IListService).lastFocusedList, async widget => {
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { altKey: true });
+			await widget.focusPrevious(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent);
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.focusPageDown',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
@@ -152,6 +191,32 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusAnyFirst',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.Alt | KeyCode.Home,
+	handler: (accessor) => {
+		navigate(accessor.get(IListService).lastFocusedList, async widget => {
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { altKey: true });
+			await widget.focusFirst(fakeKeyboardEvent);
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusAnyLast',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.Alt | KeyCode.End,
+	handler: (accessor) => {
+		navigate(accessor.get(IListService).lastFocusedList, async widget => {
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { altKey: true });
+			await widget.focusLast(fakeKeyboardEvent);
+		});
+	}
+});
+
 function expandMultiSelection(focused: WorkbenchListWidget, previousFocus: unknown): void {
 
 	// List
@@ -188,6 +253,22 @@ function expandMultiSelection(focused: WorkbenchListWidget, previousFocus: unkno
 			list.setSelection(selection.concat(focus), fakeKeyboardEvent);
 		}
 	}
+}
+
+function revealFocusedStickyScroll(tree: ObjectTree<any, any> | DataTree<any, any> | AsyncDataTree<any, any>, postRevealAction?: (focus: any) => void): void {
+	const focus = tree.getStickyScrollFocus();
+
+	if (focus.length === 0) {
+		throw new Error(`StickyScroll has no focus`);
+	}
+	if (focus.length > 1) {
+		throw new Error(`StickyScroll can only have a single focused item`);
+	}
+
+	tree.reveal(focus[0]);
+	tree.getHTMLElement().focus(); // domfocus() would focus stiky scroll dom and not the tree todo@benibenj
+	tree.setFocus(focus);
+	postRevealAction?.(focus[0]);
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -285,6 +366,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				});
 			}
 		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.stickyScroll.collapse',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	when: WorkbenchTreeStickyScrollFocused,
+	primary: KeyCode.LeftArrow,
+	mac: {
+		primary: KeyCode.LeftArrow,
+		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow]
+	},
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
+			return;
+		}
+
+		revealFocusedStickyScroll(widget, focus => widget.collapse(focus));
 	}
 });
 
@@ -426,8 +527,8 @@ function selectElement(accessor: ServicesAccessor, retainCurrentFocus: boolean):
 	// List
 	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
-		list.setSelection(list.getFocus(), fakeKeyboardEvent);
 		list.setAnchor(list.getFocus()[0]);
+		list.setSelection(list.getFocus(), fakeKeyboardEvent);
 	}
 
 	// Trees
@@ -448,8 +549,8 @@ function selectElement(accessor: ServicesAccessor, retainCurrentFocus: boolean):
 				tree.toggleCollapsed(focus[0]);
 			}
 		}
-		tree.setSelection(focus, fakeKeyboardEvent);
 		tree.setAnchor(focus[0]);
+		tree.setSelection(focus, fakeKeyboardEvent);
 	}
 }
 
@@ -464,6 +565,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor) => {
 		selectElement(accessor, false);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.stickyScrollselect',
+	weight: KeybindingWeight.WorkbenchContrib + 50, // priorities over file explorer
+	when: WorkbenchTreeStickyScrollFocused,
+	primary: KeyCode.Enter,
+	mac: {
+		primary: KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
+	},
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
+			return;
+		}
+
+		revealFocusedStickyScroll(widget, focus => widget.setSelection([focus]));
 	}
 });
 
@@ -597,6 +718,22 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.stickyScrolltoggleExpand',
+	weight: KeybindingWeight.WorkbenchContrib + 50, // priorities over file explorer
+	when: WorkbenchTreeStickyScrollFocused,
+	primary: KeyCode.Space,
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
+			return;
+		}
+
+		revealFocusedStickyScroll(widget);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.clear',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListHasSelectionOrFocus),
@@ -644,6 +781,18 @@ CommandsRegistry.registerCommand({
 		if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
 			const tree = widget;
 			tree.findMode = tree.findMode === TreeFindMode.Filter ? TreeFindMode.Highlight : TreeFindMode.Filter;
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'list.toggleFindMatchType',
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
+			const tree = widget;
+			tree.findMatchType = tree.findMatchType === TreeFindMatchType.Contiguous ? TreeFindMatchType.Fuzzy : TreeFindMatchType.Contiguous;
 		}
 	}
 });
@@ -756,5 +905,25 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		focused.scrollLeft += 10;
+	}
+});
+
+registerAction2(class ToggleStickyScroll extends Action2 {
+	constructor() {
+		super({
+			id: 'tree.toggleStickyScroll',
+			title: {
+				...localize2('toggleTreeStickyScroll', "Toggle Tree Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleTreeStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Tree Sticky Scroll"),
+			},
+			category: 'View',
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue<boolean>('workbench.tree.enableStickyScroll');
+		configurationService.updateValue('workbench.tree.enableStickyScroll', newValue);
 	}
 });

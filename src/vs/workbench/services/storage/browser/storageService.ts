@@ -5,6 +5,7 @@
 
 import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
 import { isSafari } from 'vs/base/browser/browser';
+import { getActiveWindow } from 'vs/base/browser/dom';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -195,7 +196,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// have a pending update already running which indicates
 		// that the connection is either slow or disconnected and
 		// thus unhealthy.
-		return document.hasFocus() && !this.hasPendingUpdate;
+		return getActiveWindow().document.hasFocus() && !this.hasPendingUpdate;
 	}
 
 	close(): void {
@@ -430,6 +431,10 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		});
 
 		return true;
+	}
+
+	async optimize(): Promise<void> {
+		// not suported in IndexedDB
 	}
 
 	async close(): Promise<void> {

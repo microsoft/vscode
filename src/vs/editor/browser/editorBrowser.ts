@@ -15,13 +15,14 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
@@ -224,6 +225,22 @@ export const enum OverlayWidgetPositionPreference {
 	 */
 	TOP_CENTER
 }
+
+
+/**
+ * Represents editor-relative coordinates of an overlay widget.
+ */
+export interface IOverlayWidgetPositionCoordinates {
+	/**
+	 * The top position for the overlay widget, relative to the editor.
+	 */
+	top: number;
+	/**
+	 * The left position for the overlay widget, relative to the editor.
+	 */
+	left: number;
+}
+
 /**
  * A position for rendering overlay widgets.
  */
@@ -231,12 +248,16 @@ export interface IOverlayWidgetPosition {
 	/**
 	 * The position preference for the overlay widget.
 	 */
-	preference: OverlayWidgetPositionPreference | null;
+	preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
 }
 /**
  * An overlay widgets renders on top of the text.
  */
 export interface IOverlayWidget {
+	/**
+	 * Render this overlay widget in a location where it could overflow the editor's view dom node.
+	 */
+	allowEditorOverflow?: boolean;
 	/**
 	 * Get a unique identifier of the overlay widget.
 	 */
@@ -250,6 +271,10 @@ export interface IOverlayWidget {
 	 * If null is returned, the overlay widget is responsible to place itself.
 	 */
 	getPosition(): IOverlayWidgetPosition | null;
+	/**
+	 * The editor will ensure that the scroll width is >= than this value.
+	 */
+	getMinContentWidthInPx?(): number;
 }
 
 /**
@@ -354,7 +379,7 @@ export interface IBaseMouseTarget {
 	/**
 	 * The target element
 	 */
-	readonly element: Element | null;
+	readonly element: HTMLElement | null;
 	/**
 	 * The 'approximate' editor position
 	 */
@@ -380,6 +405,7 @@ export interface IMouseTargetMarginData {
 	readonly isAfterLines: boolean;
 	readonly glyphMarginLeft: number;
 	readonly glyphMarginWidth: number;
+	readonly glyphMarginLane?: GlyphMarginLane;
 	readonly lineNumbersWidth: number;
 	readonly offsetX: number;
 }
@@ -484,6 +510,18 @@ export interface IPartialEditorMouseEvent {
 export interface IPasteEvent {
 	readonly range: Range;
 	readonly languageId: string | null;
+	readonly clipboardEvent?: ClipboardEvent;
+}
+
+/**
+ * @internal
+ */
+export interface PastePayload {
+	text: string;
+	pasteOnNewLine: boolean;
+	multicursorText: string[] | null;
+	mode: string | null;
+	clipboardEvent?: ClipboardEvent;
 }
 
 /**
@@ -534,6 +572,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly isSimpleWidget: boolean;
 	/**
+	 * The editor's scoped context key service.
+	 * @internal
+	 */
+	readonly contextKeyService: IContextKeyService;
+	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
@@ -568,6 +611,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent>;
+	/**
+	 * An event emitted when the model of this editor is about to change (e.g. from `editor.setModel()`).
+	 * @event
+	 */
+	readonly onWillChangeModel: Event<editorCommon.IModelChangedEvent>;
 	/**
 	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 	 * @event
@@ -953,7 +1001,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 	 */
-	getTopForLineNumber(lineNumber: number): number;
+	getTopForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 
 	/**
 	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
@@ -1254,18 +1302,21 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	setBoundarySashes(sashes: IBoundarySashes): void;
 
 	/**
-	 * @internal
+	 * Jumps to the next or previous diff.
 	 */
 	goToDiff(target: 'next' | 'previous'): void;
 
 	/**
-	 * @internal
+	 * Scrolls to the first diff.
+	 * (Waits until the diff computation finished.)
 	 */
 	revealFirstDiff(): unknown;
 
 	accessibleDiffViewerNext(): void;
 
 	accessibleDiffViewerPrev(): void;
+
+	handleInitialized(): void;
 }
 
 /**

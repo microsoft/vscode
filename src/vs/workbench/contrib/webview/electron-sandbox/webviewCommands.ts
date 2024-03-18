@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 export class OpenWebviewDeveloperToolsAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.action.webview.openDeveloperTools',
-			title: { value: nls.localize('openToolsLabel', "Open Webview Developer Tools"), original: 'Open Webview Developer Tools' },
+			title: nls.localize2('openToolsLabel', "Open Webview Developer Tools"),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -23,7 +24,7 @@ export class OpenWebviewDeveloperToolsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 
-		const iframeWebviewElements = document.querySelectorAll('iframe.webview.ready');
+		const iframeWebviewElements = getActiveWindow().document.querySelectorAll('iframe.webview.ready');
 		if (iframeWebviewElements.length) {
 			console.info(nls.localize('iframeWebviewAlert', "Using standard dev tools to debug iframe based webview"));
 			nativeHostService.openDevTools();

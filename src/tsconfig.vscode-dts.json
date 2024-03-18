@@ -13,8 +13,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"types": [],
 		"lib": [
-			"es5",
-			"ES2015.Iterable"
+			"ES2022"
 		],
 	},
 	"include": [

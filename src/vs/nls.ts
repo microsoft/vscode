@@ -30,6 +30,11 @@ export interface ILocalizeInfo {
 	comment: string[];
 }
 
+export interface ILocalizedString {
+	original: string;
+	value: string;
+}
+
 interface ILocalizeFunc {
 	(info: ILocalizeInfo, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
 	(key: string, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
@@ -39,8 +44,18 @@ interface IBoundLocalizeFunc {
 	(idx: number, defaultValue: null): string;
 }
 
+interface ILocalize2Func {
+	(info: ILocalizeInfo, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString;
+	(key: string, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString;
+}
+
+interface IBoundLocalize2Func {
+	(idx: number, defaultValue: string): ILocalizedString;
+}
+
 interface IConsumerAPI {
 	localize: ILocalizeFunc | IBoundLocalizeFunc;
+	localize2: ILocalize2Func | IBoundLocalize2Func;
 	getConfiguredDefaultLocale(stringFromLocalizeCall: string): string | undefined;
 }
 
@@ -107,19 +122,38 @@ function createScopedLocalize(scope: string[]): IBoundLocalizeFunc {
 	};
 }
 
+function createScopedLocalize2(scope: string[]): IBoundLocalize2Func {
+	return (idx: number, defaultValue: string, ...args) => ({
+		value: _format(scope[idx], args),
+		original: _format(defaultValue, args)
+	});
+}
+
 /**
- * Localize a message.
+ * Marks a string to be localized. Returns the localized string.
  *
- * `message` can contain `{n}` notation where it is replaced by the nth value in `...args`
- * For example, `localize({ key: 'sayHello', comment: ['Welcomes user'] }, 'hello {0}', name)`
+ * @param info The {@linkcode ILocalizeInfo} which describes the id and comments associated with the localized string.
+ * @param message The string to localize
+ * @param args The arguments to the string
+ *
+ * @note `message` can contain `{n}` notation where it is replaced by the nth value in `...args`
+ * @example `localize({ key: 'sayHello', comment: ['Welcomes user'] }, 'hello {0}', name)`
+ *
+ * @returns string The localized string.
  */
 export function localize(info: ILocalizeInfo, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
 
 /**
- * Localize a message.
+ * Marks a string to be localized. Returns the localized string.
  *
- * `message` can contain `{n}` notation where it is replaced by the nth value in `...args`
- * For example, `localize('sayHello', 'hello {0}', name)`
+ * @param key The key to use for localizing the string
+ * @param message The string to localize
+ * @param args The arguments to the string
+ *
+ * @note `message` can contain `{n}` notation where it is replaced by the nth value in `...args`
+ * @example For example, `localize('sayHello', 'hello {0}', name)`
+ *
+ * @returns string The localized string.
  */
 export function localize(key: string, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
 
@@ -128,6 +162,47 @@ export function localize(key: string, message: string, ...args: (string | number
  */
 export function localize(data: ILocalizeInfo | string, message: string, ...args: (string | number | boolean | undefined | null)[]): string {
 	return _format(message, args);
+}
+
+/**
+ * Marks a string to be localized. Returns an {@linkcode ILocalizedString}
+ * which contains the localized string and the original string.
+ *
+ * @param info The {@linkcode ILocalizeInfo} which describes the id and comments associated with the localized string.
+ * @param message The string to localize
+ * @param args The arguments to the string
+ *
+ * @note `message` can contain `{n}` notation where it is replaced by the nth value in `...args`
+ * @example `localize2({ key: 'sayHello', comment: ['Welcomes user'] }, 'hello {0}', name)`
+ *
+ * @returns ILocalizedString which contains the localized string and the original string.
+ */
+export function localize2(info: ILocalizeInfo, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString;
+
+/**
+ * Marks a string to be localized. Returns an {@linkcode ILocalizedString}
+ * which contains the localized string and the original string.
+ *
+ * @param key The key to use for localizing the string
+ * @param message The string to localize
+ * @param args The arguments to the string
+ *
+ * @note `message` can contain `{n}` notation where it is replaced by the nth value in `...args`
+ * @example `localize('sayHello', 'hello {0}', name)`
+ *
+ * @returns ILocalizedString which contains the localized string and the original string.
+ */
+export function localize2(key: string, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString;
+
+/**
+ * @skipMangle
+ */
+export function localize2(data: ILocalizeInfo | string, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
+	const original = _format(message, args);
+	return {
+		value: original,
+		original
+	};
 }
 
 /**
@@ -159,6 +234,7 @@ export function setPseudoTranslation(value: boolean) {
 export function create(key: string, data: IBundledStrings & IConsumerAPI): IConsumerAPI {
 	return {
 		localize: createScopedLocalize(data[key]),
+		localize2: createScopedLocalize2(data[key]),
 		getConfiguredDefaultLocale: data.getConfiguredDefaultLocale ?? ((_: string) => undefined)
 	};
 }
@@ -173,8 +249,9 @@ export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoa
 		// TODO: We need to give back the mangled names here
 		return load({
 			localize: localize,
+			localize2: localize2,
 			getConfiguredDefaultLocale: () => pluginConfig.availableLanguages?.['*']
-		});
+		} as IConsumerAPI);
 	}
 	const language = pluginConfig.availableLanguages ? findLanguageForModule(pluginConfig.availableLanguages, name) : null;
 	const useDefaultLanguage = language === null || language === DEFAULT_TAG;
@@ -185,8 +262,10 @@ export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoa
 	const messagesLoaded = (messages: string[] | IBundledStrings) => {
 		if (Array.isArray(messages)) {
 			(messages as any as IConsumerAPI).localize = createScopedLocalize(messages);
+			(messages as any as IConsumerAPI).localize2 = createScopedLocalize2(messages);
 		} else {
 			(messages as any as IConsumerAPI).localize = createScopedLocalize(messages[name]);
+			(messages as any as IConsumerAPI).localize2 = createScopedLocalize2(messages[name]);
 		}
 		(messages as any as IConsumerAPI).getConfiguredDefaultLocale = () => pluginConfig.availableLanguages?.['*'];
 		load(messages);

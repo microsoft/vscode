@@ -13,8 +13,11 @@ import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('CellOperations', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Move cells - single cell', async function () {
 		await withTestNotebook(
 			[
@@ -61,8 +64,8 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			async (editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				updateFoldingStateAtIndex(foldingModel, 1, true);
@@ -144,8 +147,8 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			async (editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				updateFoldingStateAtIndex(foldingModel, 1, true);
@@ -536,7 +539,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 
 				const insertedCellAbove = insertCell(languageService, editor, 4, CellKind.Code, 'above', 'var a = 0;');

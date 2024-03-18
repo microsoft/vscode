@@ -33,6 +33,7 @@ export class TelemetryService implements ITelemetryService {
 
 	readonly sessionId: string;
 	readonly machineId: string;
+	readonly sqmId: string;
 	readonly firstSessionDate: string;
 	readonly msftInternal: boolean | undefined;
 
@@ -56,6 +57,7 @@ export class TelemetryService implements ITelemetryService {
 
 		this.sessionId = this._commonProperties['sessionID'] as string;
 		this.machineId = this._commonProperties['common.machineId'] as string;
+		this.sqmId = this._commonProperties['common.sqmId'] as string;
 		this.firstSessionDate = this._commonProperties['common.firstSessionDate'] as string;
 		this.msftInternal = this._commonProperties['common.msftInternal'] as boolean | undefined;
 

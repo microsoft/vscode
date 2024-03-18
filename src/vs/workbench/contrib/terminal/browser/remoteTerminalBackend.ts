@@ -32,6 +32,8 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 export class RemoteTerminalBackendContribution implements IWorkbenchContribution {
+	static ID = 'remoteTerminalBackend';
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -140,6 +142,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 				}
 			}
 		}));
+
+		this._onPtyHostConnected.fire();
 	}
 
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
@@ -335,6 +339,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			throw new Error(`Cannot call getActiveInstanceId when there is no remote`);
 		}
 
+		const workspaceId = this._getWorkspaceId();
+
 		// Revive processes if needed
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 		const reviveBufferState = this._deserializeTerminalState(serializedState);
@@ -343,7 +349,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 				// Note that remote terminals do not get their environment re-resolved unlike in local terminals
 
 				mark('code/terminal/willReviveTerminalProcessesRemote');
-				await this._remoteTerminalChannel.reviveTerminalProcesses(reviveBufferState, Intl.DateTimeFormat().resolvedOptions().locale);
+				await this._remoteTerminalChannel.reviveTerminalProcesses(workspaceId, reviveBufferState, Intl.DateTimeFormat().resolvedOptions().locale);
 				mark('code/terminal/didReviveTerminalProcessesRemote');
 				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it

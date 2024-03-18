@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugSession, IExpression, IExpressionContainer, IStackFrame, IThread, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugSession, IExpression, IExpressionContainer, IStackFrame, IThread, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export class ViewModel implements IViewModel {
@@ -22,14 +22,19 @@ export class ViewModel implements IViewModel {
 	private readonly _onDidSelectExpression = new Emitter<{ expression: IExpression; settingWatch: boolean } | undefined>();
 	private readonly _onDidEvaluateLazyExpression = new Emitter<IExpressionContainer>();
 	private readonly _onWillUpdateViews = new Emitter<void>();
+	private readonly _onDidChangeVisualization = new Emitter<{ original: IExpression; replacement: IExpression }>();
+	private readonly visualized = new WeakMap<IExpression, IExpression>();
+	private readonly preferredVisualizers = new Map</** cache key */ string, /* tree ID */ string>();
 	private expressionSelectedContextKey!: IContextKey<boolean>;
 	private loadedScriptsSupportedContextKey!: IContextKey<boolean>;
 	private stepBackSupportedContextKey!: IContextKey<boolean>;
 	private focusedSessionIsAttach!: IContextKey<boolean>;
+	private focusedSessionIsNoDebug!: IContextKey<boolean>;
 	private restartFrameSupportedContextKey!: IContextKey<boolean>;
 	private stepIntoTargetsSupported!: IContextKey<boolean>;
 	private jumpToCursorSupported!: IContextKey<boolean>;
 	private setVariableSupported!: IContextKey<boolean>;
+	private setDataBreakpointAtByteSupported!: IContextKey<boolean>;
 	private setExpressionSupported!: IContextKey<boolean>;
 	private multiSessionDebug!: IContextKey<boolean>;
 	private terminateDebuggeeSupported!: IContextKey<boolean>;
@@ -43,10 +48,12 @@ export class ViewModel implements IViewModel {
 			this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
 			this.stepBackSupportedContextKey = CONTEXT_STEP_BACK_SUPPORTED.bindTo(contextKeyService);
 			this.focusedSessionIsAttach = CONTEXT_FOCUSED_SESSION_IS_ATTACH.bindTo(contextKeyService);
+			this.focusedSessionIsNoDebug = CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG.bindTo(contextKeyService);
 			this.restartFrameSupportedContextKey = CONTEXT_RESTART_FRAME_SUPPORTED.bindTo(contextKeyService);
 			this.stepIntoTargetsSupported = CONTEXT_STEP_INTO_TARGETS_SUPPORTED.bindTo(contextKeyService);
 			this.jumpToCursorSupported = CONTEXT_JUMP_TO_CURSOR_SUPPORTED.bindTo(contextKeyService);
 			this.setVariableSupported = CONTEXT_SET_VARIABLE_SUPPORTED.bindTo(contextKeyService);
+			this.setDataBreakpointAtByteSupported = CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED.bindTo(contextKeyService);
 			this.setExpressionSupported = CONTEXT_SET_EXPRESSION_SUPPORTED.bindTo(contextKeyService);
 			this.multiSessionDebug = CONTEXT_MULTI_SESSION_DEBUG.bindTo(contextKeyService);
 			this.terminateDebuggeeSupported = CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED.bindTo(contextKeyService);
@@ -83,19 +90,21 @@ export class ViewModel implements IViewModel {
 		this._focusedSession = session;
 
 		this.contextKeyService.bufferChangeEvents(() => {
-			this.loadedScriptsSupportedContextKey.set(session ? !!session.capabilities.supportsLoadedSourcesRequest : false);
-			this.stepBackSupportedContextKey.set(session ? !!session.capabilities.supportsStepBack : false);
-			this.restartFrameSupportedContextKey.set(session ? !!session.capabilities.supportsRestartFrame : false);
-			this.stepIntoTargetsSupported.set(session ? !!session.capabilities.supportsStepInTargetsRequest : false);
-			this.jumpToCursorSupported.set(session ? !!session.capabilities.supportsGotoTargetsRequest : false);
-			this.setVariableSupported.set(session ? !!session.capabilities.supportsSetVariable : false);
-			this.setExpressionSupported.set(session ? !!session.capabilities.supportsSetExpression : false);
-			this.terminateDebuggeeSupported.set(session ? !!session.capabilities.supportTerminateDebuggee : false);
-			this.suspendDebuggeeSupported.set(session ? !!session.capabilities.supportSuspendDebuggee : false);
+			this.loadedScriptsSupportedContextKey.set(!!session?.capabilities.supportsLoadedSourcesRequest);
+			this.stepBackSupportedContextKey.set(!!session?.capabilities.supportsStepBack);
+			this.restartFrameSupportedContextKey.set(!!session?.capabilities.supportsRestartFrame);
+			this.stepIntoTargetsSupported.set(!!session?.capabilities.supportsStepInTargetsRequest);
+			this.jumpToCursorSupported.set(!!session?.capabilities.supportsGotoTargetsRequest);
+			this.setVariableSupported.set(!!session?.capabilities.supportsSetVariable);
+			this.setDataBreakpointAtByteSupported.set(!!session?.capabilities.supportsDataBreakpointBytes);
+			this.setExpressionSupported.set(!!session?.capabilities.supportsSetExpression);
+			this.terminateDebuggeeSupported.set(!!session?.capabilities.supportTerminateDebuggee);
+			this.suspendDebuggeeSupported.set(!!session?.capabilities.supportSuspendDebuggee);
 			this.disassembleRequestSupported.set(!!session?.capabilities.supportsDisassembleRequest);
 			this.focusedStackFrameHasInstructionPointerReference.set(!!stackFrame?.instructionPointerReference);
 			const attach = !!session && isSessionAttach(session);
 			this.focusedSessionIsAttach.set(attach);
+			this.focusedSessionIsNoDebug.set(!!session && !!session.configuration.noDebug);
 		});
 
 		if (shouldEmitForSession) {
@@ -120,6 +129,10 @@ export class ViewModel implements IViewModel {
 
 	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }> {
 		return this._onDidFocusStackFrame.event;
+	}
+
+	get onDidChangeVisualization() {
+		return this._onDidChangeVisualization.event;
 	}
 
 	getSelectedExpression(): { expression: IExpression; settingWatch: boolean } | undefined {
@@ -156,8 +169,33 @@ export class ViewModel implements IViewModel {
 		this.multiSessionDebug.set(isMultiSessionView);
 	}
 
+	setVisualizedExpression(original: IExpression, visualized: IExpression & { treeId: string } | undefined): void {
+		const current = this.visualized.get(original) || original;
+		const key = this.getPreferredVisualizedKey(original);
+		if (visualized) {
+			this.visualized.set(original, visualized);
+			this.preferredVisualizers.set(key, visualized.treeId);
+		} else {
+			this.visualized.delete(original);
+			this.preferredVisualizers.delete(key);
+		}
+		this._onDidChangeVisualization.fire({ original: current, replacement: visualized || original });
+	}
+
+	getVisualizedExpression(expression: IExpression): IExpression | string | undefined {
+		return this.visualized.get(expression) || this.preferredVisualizers.get(this.getPreferredVisualizedKey(expression));
+	}
+
 	async evaluateLazyExpression(expression: IExpressionContainer): Promise<void> {
 		await expression.evaluateLazy();
 		this._onDidEvaluateLazyExpression.fire(expression);
+	}
+
+	private getPreferredVisualizedKey(expr: IExpression) {
+		return JSON.stringify([
+			expr.name,
+			expr.type,
+			!!expr.memoryReference,
+		].join('\0'));
 	}
 }

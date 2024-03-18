@@ -1,0 +1,40 @@
+{
+	"original": {
+		"content": "\t\tfor (extendToBottom = 0; extendToBottom < linesBelow; extendToBottom++) {\n\t\t\tconst origLine = move.original.endLineNumberExclusive + extendToBottom;\n\t\t\tconst modLine = move.modified.endLineNumberExclusive + extendToBottom;\n\t\t\tif (origLine > originalLines.length || modLine > modifiedLines.length) {\n\t\t\t\tbreak;\n\t\t\t}\n\t\t\tif (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {\n\t\t\t\tbreak;\n\t\t\t}\n\t\t\tif (!areLinesSimilar(originalLines[origLine - 1], modifiedLines[modLine - 1], timeout)) {\n\t\t\t\tbreak;\n\t\t\t}\n\t\t}\n\n\t\tif (extendToBottom > 0) {\n\t\t\toriginalSet.addRange(new LineRange(move.original.endLineNumberExclusive, move.original.endLineNumberExclusive + extendToBottom));\n\t\t\tmodifiedSet.addRange(new LineRange(move.modified.endLineNumberExclusive, move.modified.endLineNumberExclusive + extendToBottom));\n\t\t}",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "\t\tfor (extendToBottom = 0; extendToBottom < linesBelow; extendToBottom++) {\n\t\t\tconst origLine = move.original.endLineNumberExclusive + extendToBottom;\n\t\t\tconst modLine = move.modified.endLineNumberExclusive + extendToBottom;\n\t\t\tif (origLine > originalLines.length || modLine > modifiedLines.length) {\n\t\t\t\tbreak;\n\t\t\t}\n\t\t\tif (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {\n\t\t\t\tbreak;\n\t\t\t}\n\t\t\tif (!areLinesSimilar(originalLines[origLine - 1], modifiedLines[modLine - 1], timeout)) {\n\t\t\t\tbreak;\n\t\t\t}\n\t\t\tif (originalLines[origLine - 1].trim().length !== 0) {\n\t\t\t\textendToBottomWithoutEmptyLines = extendToBottom + 1;\n\t\t\t}\n\t\t}\n\n\t\tif (extendToBottomWithoutEmptyLines > 0) {\n\t\t\toriginalSet.addRange(new LineRange(move.original.endLineNumberExclusive, move.original.endLineNumberExclusive + extendToBottomWithoutEmptyLines));\n\t\t\tmodifiedSet.addRange(new LineRange(move.modified.endLineNumberExclusive, move.modified.endLineNumberExclusive + extendToBottomWithoutEmptyLines));\n\t\t}",
+		"fileName": "./2.txt"
+	},
+	"diffs": [
+		{
+			"originalRange": "[13,13)",
+			"modifiedRange": "[13,16)",
+			"innerChanges": [
+				{
+					"originalRange": "[13,1 -> 13,1]",
+					"modifiedRange": "[13,1 -> 16,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[15,18)",
+			"modifiedRange": "[18,21)",
+			"innerChanges": [
+				{
+					"originalRange": "[15,7 -> 15,21]",
+					"modifiedRange": "[18,7 -> 18,38]"
+				},
+				{
+					"originalRange": "[16,116 -> 16,130]",
+					"modifiedRange": "[19,116 -> 19,147]"
+				},
+				{
+					"originalRange": "[17,116 -> 17,130]",
+					"modifiedRange": "[20,116 -> 20,147]"
+				}
+			]
+		}
+	]
+}

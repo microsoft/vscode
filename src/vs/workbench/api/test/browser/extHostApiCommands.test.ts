@@ -3,6 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/editor/contrib/codeAction/browser/codeAction';
+import 'vs/editor/contrib/codelens/browser/codelens';
+import 'vs/editor/contrib/colorPicker/browser/color';
+import 'vs/editor/contrib/format/browser/format';
+import 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
+import 'vs/editor/contrib/documentSymbols/browser/documentSymbols';
+import 'vs/editor/contrib/hover/browser/getHover';
+import 'vs/editor/contrib/links/browser/getLinks';
+import 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
+import 'vs/editor/contrib/smartSelect/browser/smartSelect';
+import 'vs/editor/contrib/suggest/browser/suggest';
+import 'vs/editor/contrib/rename/browser/rename';
+import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
+
 import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -34,26 +48,11 @@ import { mock } from 'vs/base/test/common/mock';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-
-import 'vs/editor/contrib/codeAction/browser/codeAction';
-import 'vs/editor/contrib/codelens/browser/codelens';
-import 'vs/editor/contrib/colorPicker/browser/color';
-import 'vs/editor/contrib/format/browser/format';
-import 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
-import 'vs/editor/contrib/documentSymbols/browser/documentSymbols';
-import 'vs/editor/contrib/hover/browser/getHover';
-import 'vs/editor/contrib/links/browser/getLinks';
-import 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
-import 'vs/editor/contrib/smartSelect/browser/smartSelect';
-import 'vs/editor/contrib/suggest/browser/suggest';
-import 'vs/editor/contrib/rename/browser/rename';
-import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { assertType } from 'vs/base/common/types';
@@ -62,6 +61,10 @@ import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { timeout } from 'vs/base/common/async';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -76,6 +79,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	const defaultSelector = { scheme: 'far' };
 	let model: ITextModel;
 
+	let insta: TestInstantiationService;
 	let rpcProtocol: TestRPCProtocol;
 	let extHost: ExtHostLanguageFeatures;
 	let mainThread: MainThreadLanguageFeatures;
@@ -152,7 +156,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
 		services.set(IConfigurationService, new TestConfigurationService());
 
-		const insta = new InstantiationService(services);
+		insta = new TestInstantiationService(services);
 
 		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
@@ -189,6 +193,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, insta.createInstance(MainThreadLanguageFeatures, rpcProtocol));
 
+		// forcefully create the outline service so that `ensureNoDisposablesAreLeakedInTestSuite` doesn't bark
+		insta.get(IOutlineModelService);
+
 		return rpcProtocol.sync();
 	});
 
@@ -196,6 +203,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
 		mainThread.dispose();
+
+		(<OutlineModelService>insta.get(IOutlineModelService)).dispose();
+		insta.dispose();
 	});
 
 	teardown(() => {
@@ -203,7 +213,20 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	// --- workspace symbols
+
+	function testApiCmd(name: string, fn: () => Promise<any>) {
+		test(name, async function () {
+			await runWithFakedTimers({}, async () => {
+				await fn();
+				await timeout(10000); 	// API commands for things that allow commands dispose their result delay. This is to be nice
+				// because otherwise properties like command are disposed too early
+			});
+		});
+
+	}
 
 	test('WorkspaceSymbols, invalid arguments', function () {
 		const promises = [
@@ -678,6 +701,33 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	// --- document highlights
+
+	test('"vscode.executeDocumentHighlights" API has stopped returning DocumentHighlight[]#200056', async function () {
+
+
+		disposables.push(extHost.registerDocumentHighlightProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentHighlightProvider>{
+			provideDocumentHighlights() {
+				return [
+					new types.DocumentHighlight(new types.Range(0, 17, 0, 25), types.DocumentHighlightKind.Read)
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		return commands.executeCommand<vscode.DocumentHighlight[]>('vscode.executeDocumentHighlights', model.uri, new types.Position(0, 0)).then(values => {
+			assert.ok(Array.isArray(values));
+			assert.strictEqual(values.length, 1);
+			const [first] = values;
+			assert.strictEqual(first.range.start.line, 0);
+			assert.strictEqual(first.range.start.character, 17);
+			assert.strictEqual(first.range.end.line, 0);
+			assert.strictEqual(first.range.end.character, 25);
+		});
+
+	});
+
 	// --- outline
 
 	test('Outline, back and forth', function () {
@@ -734,7 +784,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- suggest
 
-	test('triggerCharacter is null when completion provider is called programmatically #159914', async function () {
+	testApiCmd('triggerCharacter is null when completion provider is called programmatically #159914', async function () {
 
 		let actualContext: vscode.CompletionContext | undefined;
 
@@ -751,9 +801,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		assert.ok(actualContext);
 		assert.deepStrictEqual(actualContext, { triggerKind: types.CompletionTriggerKind.Invoke, triggerCharacter: undefined });
+
 	});
 
-	test('Suggest, back and forth', function () {
+	testApiCmd('Suggest, back and forth', async function () {
+
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				const a = new types.CompletionItem('item1');
@@ -771,49 +823,45 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}, []));
 
-		return rpcProtocol.sync().then(() => {
-			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
+		await rpcProtocol.sync();
 
-				assert.ok(list instanceof types.CompletionList);
-				const values = list.items;
-				assert.ok(Array.isArray(values));
-				assert.strictEqual(values.length, 4);
-				const [first, second, third, fourth] = values;
-				assert.strictEqual(first.label, 'item1');
-				assert.strictEqual(first.textEdit, undefined);// no text edit, default ranges
-				assert.ok(!types.Range.isRange(first.range));
-				assert.strictEqual((<types.MarkdownString>first.documentation).value, 'hello_md_string');
+		const list = await commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4));
+		assert.ok(list instanceof types.CompletionList);
+		const values = list.items;
+		assert.ok(Array.isArray(values));
+		assert.strictEqual(values.length, 4);
+		const [first, second, third, fourth] = values;
+		assert.strictEqual(first.label, 'item1');
+		assert.strictEqual(first.textEdit, undefined); // no text edit, default ranges
+		assert.ok(!types.Range.isRange(first.range));
+		assert.strictEqual((<types.MarkdownString>first.documentation).value, 'hello_md_string');
+		assert.strictEqual(second.label, 'item2');
+		assert.strictEqual(second.textEdit!.newText, 'foo');
+		assert.strictEqual(second.textEdit!.range.start.line, 0);
+		assert.strictEqual(second.textEdit!.range.start.character, 4);
+		assert.strictEqual(second.textEdit!.range.end.line, 0);
+		assert.strictEqual(second.textEdit!.range.end.character, 8);
+		assert.strictEqual(third.label, 'item3');
+		assert.strictEqual(third.textEdit!.newText, 'foobar');
+		assert.strictEqual(third.textEdit!.range.start.line, 0);
+		assert.strictEqual(third.textEdit!.range.start.character, 1);
+		assert.strictEqual(third.textEdit!.range.end.line, 0);
+		assert.strictEqual(third.textEdit!.range.end.character, 6);
+		assert.strictEqual(fourth.label, 'item4');
+		assert.strictEqual(fourth.textEdit, undefined);
+		const range: any = fourth.range!;
+		assert.ok(types.Range.isRange(range));
+		assert.strictEqual(range.start.line, 0);
+		assert.strictEqual(range.start.character, 1);
+		assert.strictEqual(range.end.line, 0);
+		assert.strictEqual(range.end.character, 4);
+		assert.ok(fourth.insertText instanceof types.SnippetString);
+		assert.strictEqual((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
 
-				assert.strictEqual(second.label, 'item2');
-				assert.strictEqual(second.textEdit!.newText, 'foo');
-				assert.strictEqual(second.textEdit!.range.start.line, 0);
-				assert.strictEqual(second.textEdit!.range.start.character, 4);
-				assert.strictEqual(second.textEdit!.range.end.line, 0);
-				assert.strictEqual(second.textEdit!.range.end.character, 8);
-
-				assert.strictEqual(third.label, 'item3');
-				assert.strictEqual(third.textEdit!.newText, 'foobar');
-				assert.strictEqual(third.textEdit!.range.start.line, 0);
-				assert.strictEqual(third.textEdit!.range.start.character, 1);
-				assert.strictEqual(third.textEdit!.range.end.line, 0);
-				assert.strictEqual(third.textEdit!.range.end.character, 6);
-
-				assert.strictEqual(fourth.label, 'item4');
-				assert.strictEqual(fourth.textEdit, undefined);
-
-				const range: any = fourth.range!;
-				assert.ok(types.Range.isRange(range));
-				assert.strictEqual(range.start.line, 0);
-				assert.strictEqual(range.start.character, 1);
-				assert.strictEqual(range.end.line, 0);
-				assert.strictEqual(range.end.character, 4);
-				assert.ok(fourth.insertText instanceof types.SnippetString);
-				assert.strictEqual((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
-			});
-		});
 	});
 
-	test('Suggest, return CompletionList !array', function () {
+	testApiCmd('Suggest, return CompletionList !array', async function () {
+
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				const a = new types.CompletionItem('item1');
@@ -822,15 +870,16 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}, []));
 
-		return rpcProtocol.sync().then(() => {
-			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
-				assert.ok(list instanceof types.CompletionList);
-				assert.strictEqual(list.isIncomplete, true);
-			});
-		});
+		await rpcProtocol.sync();
+
+		const list = await commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4));
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.strictEqual(list.isIncomplete, true);
 	});
 
-	test('Suggest, resolve completion items', async function () {
+	testApiCmd('Suggest, resolve completion items', async function () {
+
 
 		let resolveCount = 0;
 
@@ -863,7 +912,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	});
 
-	test('"vscode.executeCompletionItemProvider" doesnot return a preselect field #53749', async function () {
+	testApiCmd('"vscode.executeCompletionItemProvider" doesnot return a preselect field #53749', async function () {
+
+
+
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				const a = new types.CompletionItem('item1');
@@ -895,7 +947,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(d.preselect, undefined);
 	});
 
-	test('executeCompletionItemProvider doesn\'t capture commitCharacters #58228', async function () {
+	testApiCmd('executeCompletionItemProvider doesn\'t capture commitCharacters #58228', async function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				const a = new types.CompletionItem('item1');
@@ -922,7 +974,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(b.commitCharacters, undefined);
 	});
 
-	test('vscode.executeCompletionItemProvider returns the wrong CompletionItemKinds in insiders #95715', async function () {
+	testApiCmd('vscode.executeCompletionItemProvider returns the wrong CompletionItemKinds in insiders #95715', async function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				return [
@@ -980,7 +1032,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- quickfix
 
-	test('QuickFix, back and forth', function () {
+	testApiCmd('QuickFix, back and forth', function () {
 		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
 			provideCodeActions(): vscode.Command[] {
 				return [{ command: 'testing', title: 'Title', arguments: [1, 2, true] }];
@@ -998,7 +1050,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
-	test('vscode.executeCodeActionProvider results seem to be missing their `command` property #45124', function () {
+	testApiCmd('vscode.executeCodeActionProvider results seem to be missing their `command` property #45124', function () {
 		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
 			provideCodeActions(document, range): vscode.CodeAction[] {
 				return [{
@@ -1018,8 +1070,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.strictEqual(value.length, 1);
 				const [first] = value;
 				assert.ok(first.command);
-				assert.strictEqual(first.command!.command, 'command');
-				assert.strictEqual(first.command!.title, 'command_title');
+				assert.strictEqual(first.command.command, 'command');
+				assert.strictEqual(first.command.title, 'command_title');
 				assert.strictEqual(first.kind!.value, 'foo');
 				assert.strictEqual(first.title, 'title');
 
@@ -1027,7 +1079,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
-	test('vscode.executeCodeActionProvider passes Range to provider although Selection is passed in #77997', function () {
+	testApiCmd('vscode.executeCodeActionProvider passes Range to provider although Selection is passed in #77997', function () {
 		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
 			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
 				return [{
@@ -1049,13 +1101,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.strictEqual(value.length, 1);
 				const [first] = value;
 				assert.ok(first.command);
-				assert.ok(first.command!.arguments![1] instanceof types.Selection);
-				assert.ok(first.command!.arguments![1].isEqual(selection));
+				assert.ok(first.command.arguments![1] instanceof types.Selection);
+				assert.ok(first.command.arguments![1].isEqual(selection));
 			});
 		});
 	});
 
-	test('vscode.executeCodeActionProvider results seem to be missing their `isPreferred` property #78098', function () {
+	testApiCmd('vscode.executeCodeActionProvider results seem to be missing their `isPreferred` property #78098', function () {
 		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
 			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
 				return [{
@@ -1082,7 +1134,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
-	test('resolving code action', async function () {
+	testApiCmd('resolving code action', async function () {
 
 		let didCallResolve = 0;
 		class MyAction extends types.CodeAction { }
@@ -1116,7 +1168,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- code lens
 
-	test('CodeLens, back and forth', function () {
+	testApiCmd('CodeLens, back and forth', function () {
 
 		const complexArg = {
 			foo() { },
@@ -1144,7 +1196,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
-	test('CodeLens, resolve', async function () {
+	testApiCmd('CodeLens, resolve', async function () {
 
 		let resolveCount = 0;
 
@@ -1178,7 +1230,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(resolveCount, 0);
 	});
 
-	test('Links, back and forth', function () {
+	testApiCmd('Links, back and forth', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks(): any {
@@ -1200,7 +1252,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
-	test('What\'s the condition for DocumentLink target to be undefined? #106308', async function () {
+	testApiCmd('What\'s the condition for DocumentLink target to be undefined? #106308', async function () {
 		disposables.push(extHost.registerDocumentLinkProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks(): any {
 				return [new types.DocumentLink(new types.Range(0, 0, 0, 20), undefined)];
@@ -1292,7 +1344,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- inline hints
 
-	test('Inlay Hints, back and forth', async function () {
+	testApiCmd('Inlay Hints, back and forth', async function () {
 		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
 			provideInlayHints() {
 				return [new types.InlayHint(new types.Position(0, 1), 'Foo')];
@@ -1310,7 +1362,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(first.position.character, 1);
 	});
 
-	test('Inline Hints, merge', async function () {
+	testApiCmd('Inline Hints, merge', async function () {
 		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
 			provideInlayHints() {
 				const part = new types.InlayHintLabelPart('Bar');
@@ -1342,7 +1394,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
 		assert.strictEqual(first.textEdits?.length, 1);
-		assert.strictEqual(first.textEdits![0].newText, 'Hello');
+		assert.strictEqual(first.textEdits[0].newText, 'Hello');
 
 		assert.strictEqual(second.position.line, 10);
 		assert.strictEqual(second.position.character, 11);
@@ -1358,7 +1410,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(label.command?.title, 'part');
 	});
 
-	test('Inline Hints, bad provider', async function () {
+	testApiCmd('Inline Hints, bad provider', async function () {
 		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
 			provideInlayHints() {
 				return [new types.InlayHint(new types.Position(0, 1), 'Foo')];

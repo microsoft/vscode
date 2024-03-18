@@ -18,7 +18,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_LAST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -79,38 +79,11 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				{
-					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
-						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
-						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
-						ContextKeyExpr.and(
-							ContextKeyExpr.has(InputFocusedContextKey),
-							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
-							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
-						),
-						CTX_INLINE_CHAT_FOCUSED,
-						CTX_INLINE_CHAT_INNER_CURSOR_LAST,
-						EditorContextKeys.isEmbeddedDiffEditor.negate()
-					),
-					primary: KeyCode.DownArrow,
-					weight: KeybindingWeight.EditorCore
+					when: NOTEBOOK_EDITOR_FOCUSED,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
+					weight: KeybindingWeight.WorkbenchContrib
 				},
-				{
-					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
-						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
-						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
-						ContextKeyExpr.and(
-							NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
-							NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.isEqualTo(false),
-							NOTEBOOK_CURSOR_NAVIGATION_MODE),
-						CTX_INLINE_CHAT_FOCUSED,
-						CTX_INLINE_CHAT_INNER_CURSOR_LAST,
-						EditorContextKeys.isEmbeddedDiffEditor.negate()
-					),
-					primary: KeyCode.DownArrow,
-					weight: KeybindingWeight.EditorCore
-				}
 			]
 		});
 	}
@@ -149,7 +122,6 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 		super({
 			id: NOTEBOOK_FOCUS_PREVIOUS_EDITOR,
 			title: localize('cursorMoveUp', 'Focus Previous Cell Editor'),
-			precondition: CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 			keybinding: [
 				{
 					when: ContextKeyExpr.and(
@@ -181,7 +153,13 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 					),
 					primary: KeyCode.UpArrow,
 					weight: KeybindingWeight.WorkbenchContrib, // markdown keybinding, focus on list: higher weight to override list.focusDown
-				}
+				},
+				{
+					when: NOTEBOOK_EDITOR_FOCUSED,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp },
+					weight: KeybindingWeight.WorkbenchContrib
+				},
 			],
 		});
 	}
@@ -219,12 +197,18 @@ registerAction2(class extends NotebookAction {
 		super({
 			id: NOTEBOOK_FOCUS_TOP,
 			title: localize('focusFirstCell', 'Focus First Cell'),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyCode.Home,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
-				weight: KeybindingWeight.WorkbenchContrib
-			},
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					primary: KeyMod.CtrlCmd | KeyCode.Home,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				{
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.isEqualTo('')),
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			],
 		});
 	}
 
@@ -244,12 +228,19 @@ registerAction2(class extends NotebookAction {
 		super({
 			id: NOTEBOOK_FOCUS_BOTTOM,
 			title: localize('focusLastCell', 'Focus Last Cell'),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyCode.End,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
-				weight: KeybindingWeight.WorkbenchContrib
-			},
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					primary: KeyMod.CtrlCmd | KeyCode.End,
+					mac: undefined,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				{
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.isEqualTo('')),
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			],
 		});
 	}
 
@@ -367,6 +358,7 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_EDITOR_FOCUSED,
 						ContextKeyExpr.has(InputFocusedContextKey),
 						EditorContextKeys.editorTextFocus,
+						NOTEBOOK_OUTPUT_FOCUSED.negate(), // Webview handles Shift+PageUp for selection of output contents
 					),
 					primary: KeyMod.Shift | KeyCode.PageUp,
 					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
@@ -415,6 +407,7 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_EDITOR_FOCUSED,
 						ContextKeyExpr.has(InputFocusedContextKey),
 						EditorContextKeys.editorTextFocus,
+						NOTEBOOK_OUTPUT_FOCUSED.negate(), // Webview handles Shift+PageDown for selection of output contents
 					),
 					primary: KeyMod.Shift | KeyCode.PageDown,
 					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT

@@ -6,7 +6,7 @@
 import 'vs/css!./outlinePane';
 import * as dom from 'vs/base/browser/dom';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { TimeoutTimer, timeout } from 'vs/base/common/async';
 import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
@@ -124,6 +124,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this._tree?.domFocus();
 	}
 
@@ -303,7 +304,19 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorControlDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
+		let idPool = 0;
+		this._editorControlDisposables.add(tree.onDidOpen(async e => {
+			const myId = ++idPool;
+			const isDoubleClick = e.browserEvent?.type === 'dblclick';
+			if (!isDoubleClick) {
+				// workaround for https://github.com/microsoft/vscode/issues/206424
+				await timeout(150);
+				if (myId !== idPool) {
+					return;
+				}
+			}
+			await newOutline.reveal(e.element, e.editorOptions, e.sideBySide, isDoubleClick);
+		}));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
 			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {

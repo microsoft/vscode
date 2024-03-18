@@ -56,38 +56,39 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		super();
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
-			const [{ newUri, oldUri }] = e.files;
-			const newFilePath = this.client.toTsFilePath(newUri);
-			if (!newFilePath) {
-				return;
+			for (const { newUri, oldUri } of e.files) {
+				const newFilePath = this.client.toTsFilePath(newUri);
+				if (!newFilePath) {
+					continue;
+				}
+
+				const oldFilePath = this.client.toTsFilePath(oldUri);
+				if (!oldFilePath) {
+					continue;
+				}
+
+				const config = this.getConfiguration(newUri);
+				const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
+				if (setting === UpdateImportsOnFileMoveSetting.Never) {
+					continue;
+				}
+
+				// Try to get a js/ts file that is being moved
+				// For directory moves, this returns a js/ts file under the directory.
+				const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newUri);
+				if (!jsTsFileThatIsBeingMoved || !this.client.toTsFilePath(jsTsFileThatIsBeingMoved)) {
+					continue;
+				}
+
+				this._pendingRenames.add({ oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved });
+
+				this._delayer.trigger(() => {
+					vscode.window.withProgress({
+						location: vscode.ProgressLocation.Window,
+						title: vscode.l10n.t("Checking for update of JS/TS imports")
+					}, () => this.flushRenames());
+				});
 			}
-
-			const oldFilePath = this.client.toTsFilePath(oldUri);
-			if (!oldFilePath) {
-				return;
-			}
-
-			const config = this.getConfiguration(newUri);
-			const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
-			if (setting === UpdateImportsOnFileMoveSetting.Never) {
-				return;
-			}
-
-			// Try to get a js/ts file that is being moved
-			// For directory moves, this returns a js/ts file under the directory.
-			const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newUri);
-			if (!jsTsFileThatIsBeingMoved || !this.client.toTsFilePath(jsTsFileThatIsBeingMoved)) {
-				return;
-			}
-
-			this._pendingRenames.add({ oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved });
-
-			this._delayer.trigger(() => {
-				vscode.window.withProgress({
-					location: vscode.ProgressLocation.Window,
-					title: vscode.l10n.t("Checking for update of JS/TS imports")
-				}, () => this.flushRenames());
-			});
 		}));
 	}
 

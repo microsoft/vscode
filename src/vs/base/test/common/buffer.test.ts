@@ -7,8 +7,11 @@ import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { bufferedStreamToBuffer, bufferToReadable, bufferToStream, decodeBase64, encodeBase64, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer } from 'vs/base/common/buffer';
 import { peekStream } from 'vs/base/common/stream';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Buffer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #71993 - VSBuffer#toString returns numbers', () => {
 		const data = new Uint8Array([1, 2, 3, 'h'.charCodeAt(0), 'i'.charCodeAt(0), 4, 5]).buffer;

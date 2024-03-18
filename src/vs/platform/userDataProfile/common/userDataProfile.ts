@@ -41,6 +41,7 @@ export interface IUserDataProfile {
 	readonly isDefault: boolean;
 	readonly name: string;
 	readonly shortName?: string;
+	readonly icon?: string;
 	readonly location: URI;
 	readonly globalStorageHome: URI;
 	readonly settingsResource: URI;
@@ -84,12 +85,14 @@ export type WillRemoveProfileEvent = {
 
 export interface IUserDataProfileOptions {
 	readonly shortName?: string;
+	readonly icon?: string;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly transient?: boolean;
 }
 
-export interface IUserDataProfileUpdateOptions extends IUserDataProfileOptions {
+export interface IUserDataProfileUpdateOptions extends Omit<IUserDataProfileOptions, 'icon'> {
 	readonly name?: string;
+	readonly icon?: string | null;
 }
 
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
@@ -124,6 +127,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		isDefault: profile.isDefault,
 		name: profile.name,
 		shortName: profile.shortName,
+		icon: profile.icon,
 		location: URI.revive(profile.location).with({ scheme }),
 		globalStorageHome: URI.revive(profile.globalStorageHome).with({ scheme }),
 		settingsResource: URI.revive(profile.settingsResource).with({ scheme }),
@@ -144,6 +148,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		location,
 		isDefault: false,
 		shortName: options?.shortName,
+		icon: options?.icon,
 		globalStorageHome: defaultProfile && options?.useDefaultFlags?.globalState ? defaultProfile.globalStorageHome : joinPath(location, 'globalStorage'),
 		settingsResource: defaultProfile && options?.useDefaultFlags?.settings ? defaultProfile.settingsResource : joinPath(location, 'settings.json'),
 		keybindingsResource: defaultProfile && options?.useDefaultFlags?.keybindings ? defaultProfile.keybindingsResource : joinPath(location, 'keybindings.json'),
@@ -166,6 +171,7 @@ export type StoredUserDataProfile = {
 	name: string;
 	location: URI;
 	shortName?: string;
+	icon?: string;
 	useDefaultFlags?: UseDefaultProfileFlags;
 };
 
@@ -246,7 +252,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 							this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
 							continue;
 						}
-						profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { shortName: storedProfile.shortName, useDefaultFlags: storedProfile.useDefaultFlags }, defaultProfile));
+						profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { shortName: storedProfile.shortName, icon: storedProfile.icon, useDefaultFlags: storedProfile.useDefaultFlags }, defaultProfile));
 					}
 				} catch (error) {
 					this.logService.error(error);
@@ -365,7 +371,12 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			throw new Error(`Profile '${profileToUpdate.name}' does not exist`);
 		}
 
-		profile = toUserDataProfile(profile.id, options.name ?? profile.name, profile.location, this.profilesCacheHome, { shortName: options.shortName ?? profile.shortName, transient: options.transient ?? profile.isTransient, useDefaultFlags: options.useDefaultFlags ?? profile.useDefaultFlags }, this.defaultProfile);
+		profile = toUserDataProfile(profile.id, options.name ?? profile.name, profile.location, this.profilesCacheHome, {
+			shortName: options.shortName ?? profile.shortName,
+			icon: options.icon === null ? undefined : options.icon ?? profile.icon,
+			transient: options.transient ?? profile.isTransient,
+			useDefaultFlags: options.useDefaultFlags ?? profile.useDefaultFlags
+		}, this.defaultProfile);
 		this.updateProfiles([], [], [profile]);
 
 		return profile;
@@ -516,7 +527,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			if (profile.isTransient) {
 				this.transientProfilesObject.profiles.push(profile);
 			} else {
-				storedProfiles.push({ location: profile.location, name: profile.name, shortName: profile.shortName, useDefaultFlags: profile.useDefaultFlags });
+				storedProfiles.push({ location: profile.location, name: profile.name, shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
 			}
 		}
 		this.saveStoredProfiles(storedProfiles);

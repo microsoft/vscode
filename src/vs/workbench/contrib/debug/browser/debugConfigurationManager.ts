@@ -12,7 +12,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as resources from 'vs/base/common/resources';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,7 +23,6 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
@@ -60,6 +59,8 @@ export class ConfigurationManager implements IConfigurationManager {
 	private readonly _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
 	private debugConfigurationTypeContext: IContextKey<string>;
+	private readonly _onDidChangeConfigurationProviders = new Emitter<void>();
+	public readonly onDidChangeConfigurationProviders = this._onDidChangeConfigurationProviders.event;
 
 	constructor(
 		private readonly adapterManager: IAdapterManager,
@@ -74,7 +75,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
-		this.toDispose = [];
+		this.toDispose = [this._onDidChangeConfigurationProviders];
 		this.initLaunches();
 		this.setCompoundSchemaValues();
 		this.registerListeners();
@@ -93,9 +94,11 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable {
 		this.configProviders.push(debugConfigurationProvider);
+		this._onDidChangeConfigurationProviders.fire();
 		return {
 			dispose: () => {
 				this.unregisterDebugConfigurationProvider(debugConfigurationProvider);
+				this._onDidChangeConfigurationProviders.fire();
 			}
 		};
 	}
@@ -188,18 +191,24 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 
 			if (explicitTypes.length) {
-				return acc.concat(explicitTypes);
-			}
-
-			if (hasGenericEvent) {
+				explicitTypes.forEach(t => acc.add(t));
+			} else if (hasGenericEvent) {
 				const debuggerType = e.contributes?.debuggers?.[0].type;
-				return debuggerType ? acc.concat(debuggerType) : acc;
+				if (debuggerType) {
+					acc.add(debuggerType);
+				}
 			}
 
 			return acc;
-		}, [] as string[]);
+		}, new Set<string>());
 
-		return debugDynamicExtensionsTypes.map(type => {
+		for (const configProvider of this.configProviders) {
+			if (configProvider.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic) {
+				debugDynamicExtensionsTypes.add(configProvider.type);
+			}
+		}
+
+		return [...debugDynamicExtensionsTypes].map(type => {
 			return {
 				label: this.adapterManager.getDebuggerLabel(type)!,
 				getProvider: async () => {
@@ -245,6 +254,7 @@ export class ConfigurationManager implements IConfigurationManager {
 							await this.selectConfiguration(launch, config.name);
 							this.removeRecentDynamicConfigurations(config.name, config.type);
 						}));
+						disposables.add(input.onDidHide(() => resolve(undefined)));
 					});
 
 					const nestedPicks = await Promise.all(picks);
@@ -621,7 +631,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		}, ACTIVE_GROUP);
 
 		return ({
-			editor: withUndefinedAsNull(editor),
+			editor: editor ?? null,
 			created
 		});
 	}
@@ -681,7 +691,7 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 		}, ACTIVE_GROUP);
 
 		return ({
-			editor: withUndefinedAsNull(editor),
+			editor: editor ?? null,
 			created: false
 		});
 	}
@@ -721,7 +731,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 	async openConfigFile({ preserveFocus, type, useInitialContent }: { preserveFocus: boolean; type?: string; useInitialContent?: boolean }): Promise<{ editor: IEditorPane | null; created: boolean }> {
 		const editor = await this.preferencesService.openUserSettings({ jsonEditor: true, preserveFocus, revealSetting: { key: 'launch' } });
 		return ({
-			editor: withUndefinedAsNull(editor),
+			editor: editor ?? null,
 			created: false
 		});
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -15,6 +15,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 export class ToggleStatusbarEntryVisibilityAction extends Action {
 
@@ -113,7 +114,7 @@ class FocusStatusBarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusStatusBar',
-			title: { value: localize('focusStatusBar', "Focus Status Bar"), original: 'Focus Status Bar' },
+			title: localize2('focusStatusBar', 'Focus Status Bar'),
 			category: Categories.View,
 			f1: true
 		});
@@ -121,7 +122,7 @@ class FocusStatusBarAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.focusPart(Parts.STATUSBAR_PART);
+		layoutService.focusPart(Parts.STATUSBAR_PART, getActiveWindow());
 	}
 }
 

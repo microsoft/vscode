@@ -6,26 +6,26 @@
 import * as dom from 'vs/base/browser/dom';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import type { IDecoration, ITerminalAddon, Terminal } from 'xterm';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import type { IDecoration, ITerminalAddon, Terminal } from '@xterm/xterm';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -52,7 +52,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
@@ -69,8 +69,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}));
 		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
 		this._updateDecorationVisibility();
-		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c)));
-		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c)));
+		this._register(this._capabilities.onDidAddCapabilityType(c => this._createCapabilityDisposables(c)));
+		this._register(this._capabilities.onDidRemoveCapabilityType(c => this._removeCapabilityDisposables(c)));
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 	}
@@ -134,9 +134,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _updateGutterDecorationVisibility(): void {
-		const commandDecorationElements = document.querySelectorAll(DecorationSelector.CommandDecoration);
-		for (const commandDecorationElement of commandDecorationElements) {
-			this._updateCommandDecorationVisibility(commandDecorationElement);
+		const commandDecorationElements = this._terminal?.element?.querySelectorAll(DecorationSelector.CommandDecoration);
+		if (commandDecorationElements) {
+			for (const commandDecorationElement of commandDecorationElements) {
+				this._updateCommandDecorationVisibility(commandDecorationElement);
+			}
 		}
 	}
 
@@ -217,7 +219,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
 			this.registerCommandDecoration(command);
 			if (command.exitCode) {
-				this._audioCueService.playAudioCue(AudioCue.terminalCommandFailed);
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
 			}
 		}));
 		// Command invalidated
@@ -301,7 +303,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		} else if (command?.markProperties || markProperties) {
 			return [this._terminalDecorationHoverService.createHover(element, command || markProperties, markProperties?.hoverMessage)];
 		}
-		return [this._createContextMenu(element, command), this._terminalDecorationHoverService.createHover(element, command)];
+		return [...this._createContextMenu(element, command), this._terminalDecorationHoverService.createHover(element, command)];
 	}
 
 	private _updateClasses(element?: HTMLElement, exitCode?: number, markProperties?: IMarkProperties): void {
@@ -334,14 +336,37 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _createContextMenu(element: HTMLElement, command: ITerminalCommand): IDisposable {
+	private _createContextMenu(element: HTMLElement, command: ITerminalCommand): IDisposable[] {
 		// When the xterm Decoration gets disposed of, its element gets removed from the dom
 		// along with its listeners
-		return dom.addDisposableListener(element, dom.EventType.CLICK, async () => {
-			this._terminalDecorationHoverService.hideHover();
-			const actions = await this._getCommandActions(command);
-			this._contextMenuService.showContextMenu({ getAnchor: () => element, getActions: () => actions });
-		});
+		return [
+			dom.addDisposableListener(element, dom.EventType.MOUSE_DOWN, async (e) => {
+				e.stopImmediatePropagation();
+			}),
+			dom.addDisposableListener(element, dom.EventType.CLICK, async (e) => {
+				e.stopImmediatePropagation();
+				this._terminalDecorationHoverService.hideHover();
+				const actions = await this._getCommandActions(command);
+				this._contextMenuService.showContextMenu({ getAnchor: () => element, getActions: () => actions });
+			}),
+			dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async (e) => {
+				e.stopImmediatePropagation();
+				this._terminalDecorationHoverService.hideHover();
+				const actions = this._getContextMenuActions();
+				this._contextMenuService.showContextMenu({ getAnchor: () => element, getActions: () => actions });
+			}),
+		];
+	}
+	private _getContextMenuActions(): IAction[] {
+		const label = localize('workbench.action.terminal.toggleVisibility', "Toggle Visibility");
+		return [
+			{
+				class: undefined, tooltip: label, id: 'terminal.toggleVisibility', label, enabled: true,
+				run: async () => {
+					this._showToggleVisibilityQuickPick();
+				}
+			}
+		];
 	}
 
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
@@ -371,6 +396,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					this._onDidRequestRunCommand.fire({ command });
 				}
 			});
+			// The second section is the clipboard section
+			actions.push(new Separator());
 			const labelCopy = localize("terminal.copyCommand", 'Copy Command');
 			actions.push({
 				class: undefined, tooltip: labelCopy, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
@@ -378,9 +405,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			});
 		}
 		if (command.hasOutput()) {
-			if (actions.length > 0) {
-				actions.push(new Separator());
-			}
+			const labelCopyCommandAndOutput = localize("terminal.copyCommandAndOutput", 'Copy Command and Output');
+			actions.push({
+				class: undefined, tooltip: labelCopyCommandAndOutput, id: 'terminal.copyCommandAndOutput', label: labelCopyCommandAndOutput, enabled: true,
+				run: () => {
+					const output = command.getOutput();
+					if (typeof output === 'string') {
+						this._clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
+					}
+				}
+			});
 			const labelText = localize("terminal.copyOutput", 'Copy Output');
 			actions.push({
 				class: undefined, tooltip: labelText, id: 'terminal.copyOutput', label: labelText, enabled: true,
@@ -413,33 +447,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 		actions.push(new Separator());
 
-		const labelConfigure = localize("terminal.configureCommandDecorations", 'Configure Command Decorations');
-		actions.push({
-			class: undefined, tooltip: labelConfigure, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,
-			run: () => this._showConfigureCommandDecorationsQuickPick()
-		});
 		const labelAbout = localize("terminal.learnShellIntegration", 'Learn About Shell Integration');
 		actions.push({
 			class: undefined, tooltip: labelAbout, id: 'terminal.learnShellIntegration', label: labelAbout, enabled: true,
 			run: () => this._openerService.open('https://code.visualstudio.com/docs/terminal/shell-integration')
 		});
 		return actions;
-	}
-
-	private async _showConfigureCommandDecorationsQuickPick() {
-		const quickPick = this._quickInputService.createQuickPick();
-		quickPick.items = [
-			{ id: 'a', label: localize('toggleVisibility', 'Toggle visibility') },
-		];
-		quickPick.canSelectMany = false;
-		quickPick.onDidAccept(async e => {
-			quickPick.hide();
-			const result = quickPick.activeItems[0];
-			switch (result.id) {
-				case 'a': this._showToggleVisibilityQuickPick(); break;
-			}
-		});
-		quickPick.show();
 	}
 
 	private _showToggleVisibilityQuickPick() {

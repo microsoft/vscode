@@ -9,7 +9,7 @@ import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IFileMatch, ISearchRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { CellMatch, FileMatch, FolderMatch, SearchModel, textSearchMatchesToNotebookMatches } from 'vs/workbench/contrib/search/browser/searchModel';
 import { URI } from 'vs/base/common/uri';
@@ -17,6 +17,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
 import { IModelService } from 'vs/editor/common/services/model';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('searchNotebookHelpers', () => {
 	let instantiationService: TestInstantiationService;
@@ -28,13 +29,18 @@ suite('searchNotebookHelpers', () => {
 	let markdownContentResults: ITextSearchMatch[];
 	let codeContentResults: ITextSearchMatch[];
 	let codeWebviewResults: ITextSearchMatch[];
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let counter: number = 0;
 	setup(() => {
 
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IModelService, stubModelService(instantiationService));
-		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
+		store.add(instantiationService);
+		const modelService = stubModelService(instantiationService, (e) => store.add(e));
+		const notebookEditorService = stubNotebookEditorService(instantiationService, (e) => store.add(e));
+		instantiationService.stub(IModelService, modelService);
+		instantiationService.stub(INotebookEditorService, notebookEditorService);
 		mdInputCell = {
+			id: 'mdCell',
 			cellKind: CellKind.Markup, textBuffer: <IReadonlyTextBuffer>{
 				getLineContent(lineNumber: number): string {
 					if (lineNumber === 1) {
@@ -48,6 +54,7 @@ suite('searchNotebookHelpers', () => {
 
 		const findMatchMds = [new FindMatch(new Range(1, 15, 1, 19), ['Test'])];
 		codeCell = {
+			id: 'codeCell',
 			cellKind: CellKind.Code, textBuffer: <IReadonlyTextBuffer>{
 				getLineContent(lineNumber: number): string {
 					if (lineNumber === 1) {
@@ -175,18 +182,18 @@ suite('searchNotebookHelpers', () => {
 			const codeWebviewContentMatchObjs = textSearchMatchesToNotebookMatches(codeWebviewResults, codeCellMatch);
 
 
-			assert.strictEqual(markdownCellContentMatchObjs[0].cell.id, mdCellMatch.id);
+			assert.strictEqual(markdownCellContentMatchObjs[0].cell?.id, mdCellMatch.id);
 			assertRangesEqual(markdownCellContentMatchObjs[0].range(), [new Range(1, 15, 1, 19)]);
 
-			assert.strictEqual(codeCellContentMatchObjs[0].cell.id, codeCellMatch.id);
-			assert.strictEqual(codeCellContentMatchObjs[1].cell.id, codeCellMatch.id);
+			assert.strictEqual(codeCellContentMatchObjs[0].cell?.id, codeCellMatch.id);
+			assert.strictEqual(codeCellContentMatchObjs[1].cell?.id, codeCellMatch.id);
 			assertRangesEqual(codeCellContentMatchObjs[0].range(), [new Range(1, 8, 1, 12)]);
 			assertRangesEqual(codeCellContentMatchObjs[1].range(), [new Range(1, 14, 1, 18)]);
 			assertRangesEqual(codeCellContentMatchObjs[2].range(), [new Range(2, 18, 2, 22)]);
 
-			assert.strictEqual(codeWebviewContentMatchObjs[0].cell.id, codeCellMatch.id);
-			assert.strictEqual(codeWebviewContentMatchObjs[1].cell.id, codeCellMatch.id);
-			assert.strictEqual(codeWebviewContentMatchObjs[2].cell.id, codeCellMatch.id);
+			assert.strictEqual(codeWebviewContentMatchObjs[0].cell?.id, codeCellMatch.id);
+			assert.strictEqual(codeWebviewContentMatchObjs[1].cell?.id, codeCellMatch.id);
+			assert.strictEqual(codeWebviewContentMatchObjs[2].cell?.id, codeCellMatch.id);
 			assertRangesEqual(codeWebviewContentMatchObjs[0].range(), [new Range(1, 2, 1, 6)]);
 			assertRangesEqual(codeWebviewContentMatchObjs[1].range(), [new Range(1, 8, 1, 12)]);
 			assertRangesEqual(codeWebviewContentMatchObjs[2].range(), [new Range(1, 12, 1, 16)]);
@@ -201,14 +208,20 @@ suite('searchNotebookHelpers', () => {
 			};
 
 			const searchModel = instantiationService.createInstance(SearchModel);
+			store.add(searchModel);
 			const folderMatch = instantiationService.createInstance(FolderMatch, URI.file('somepath'), '', 0, {
 				type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 					pattern: ''
 				}
-			}, searchModel.searchResult, searchModel, null);
-			return instantiationService.createInstance(FileMatch, {
+			}, searchModel.searchResult, searchModel.searchResult, null);
+			const fileMatch = instantiationService.createInstance(FileMatch, {
 				pattern: ''
 			}, undefined, undefined, folderMatch, rawMatch, null, '');
+			fileMatch.createMatches(false);
+			store.add(folderMatch);
+			store.add(fileMatch);
+
+			return fileMatch;
 		}
 	});
 });

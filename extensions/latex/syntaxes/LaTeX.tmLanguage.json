@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/30d04562e592305b6f6d41a539b3ccf326888aaf",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/c863108952ce5c695c066ea8dc498135abb19e0a",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -155,8 +155,8 @@
 			]
 		},
 		{
-			"begin": "(^\\s*)?\\\\begin\\{(lstlisting|minted|pyglist)\\}(?=\\[|\\{)",
-			"end": "\\\\end\\{(?:minted|lstlisting|pyglist)\\}",
+			"begin": "(?:^\\s*)?\\\\begin\\{(lstlisting|minted|pyglist)\\}(?=\\[|\\{)",
+			"end": "\\\\end\\{\\1\\}",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -1064,9 +1064,10 @@
 			]
 		},
 		{
-			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code|lstlisting|minted|pyglist)(?:\\*)?\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
+			"begin": "\\s*\\\\begin\\{([a-zA-Z]*code|lstlisting|minted|pyglist)\\*?\\}(?:\\[.*\\])?(?:\\{.*\\})?",
+			"end": "\\\\end\\{\\1\\}(?:\\s*\\n)?",
 			"captures": {
-				"1": {
+				"0": {
 					"patterns": [
 						{
 							"include": "#begin-env-tokenizer"
@@ -1074,9 +1075,43 @@
 					]
 				}
 			},
-			"end": "(\\\\end\\{\\2\\}(?:\\s*\\n)?)",
 			"contentName": "meta.function.embedded.latex",
 			"name": "meta.embedded.block.generic.latex"
+		},
+		{
+			"begin": "(?:^\\s*)?\\\\begin\\{(terminal\\*?)\\}(?=\\[|\\{)",
+			"end": "\\\\end\\{\\1\\}",
+			"captures": {
+				"0": {
+					"patterns": [
+						{
+							"include": "#begin-env-tokenizer"
+						}
+					]
+				}
+			},
+			"patterns": [
+				{
+					"include": "#multiline-optional-arg-no-highlight"
+				},
+				{
+					"begin": "(?:\\G|(?<=\\]))(\\{)([a-zA-Z]*)(\\})",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						},
+						"2": {
+							"name": "variable.parameter.function.latex"
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.end.latex"
+						}
+					},
+					"contentName": "meta.function.embedded.latex",
+					"end": "^\\s*(?=\\\\end\\{terminal\\*?\\})",
+					"name": "meta.embedded.block.generic.latex"
+				}
+			]
 		},
 		{
 			"begin": "((\\\\)addplot)(?:\\+?)((?:\\[[^\\[]*\\]))*\\s*(gnuplot)\\s*((?:\\[[^\\[]*\\]))*\\s*(\\{)",
@@ -1197,6 +1232,74 @@
 			"name": "meta.function.verbatim.latex"
 		},
 		{
+			"comment": "Captures \\command[option]{url}{optional category}{optional name}{text}",
+			"begin": "(?:\\s*)((\\\\)(?:href|hyperref|hyperimage))(?=\\[|\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.url.latex"
+				}
+			},
+			"end": "(\\})",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.arguments.end.latex"
+				}
+			},
+			"name": "meta.function.hyperlink.latex",
+			"patterns": [
+				{
+					"include": "#multiline-optional-arg-no-highlight"
+				},
+				{
+					"begin": "(?:\\G|(?<=\\]))(\\{)([^}]*)(\\})(?:\\{[^}]*\\}){2}?(\\{)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						},
+						"2": {
+							"name": "markup.underline.link.latex"
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.end.latex"
+						},
+						"4": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						}
+					},
+					"end": "(?=\\})",
+					"patterns": [
+						{
+							"include": "$base"
+						}
+					],
+					"contentName": "meta.variable.parameter.function.latex"
+				},
+				{
+					"begin": "(?:\\G|(?<=\\]))(?:(\\{)[^}]*(\\}))?(\\{)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						},
+						"2": {
+							"name": "punctuation.definition.arguments.end.latex"
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						}
+					},
+					"end": "(?=\\})",
+					"patterns": [
+						{
+							"include": "$base"
+						}
+					],
+					"contentName": "meta.variable.parameter.function.latex"
+				}
+			]
+		},
+		{
+			"match": "(?:\\s*)((\\\\)url)(\\{)([^}]*)(\\})",
+			"name": "meta.function.link.url.latex",
 			"captures": {
 				"1": {
 					"name": "support.function.url.latex"
@@ -1205,33 +1308,15 @@
 					"name": "punctuation.definition.function.latex"
 				},
 				"3": {
-					"patterns": [
-						{
-							"include": "#optional-arg"
-						}
-					]
-				},
-				"4": {
 					"name": "punctuation.definition.arguments.begin.latex"
 				},
 				"5": {
+					"name": "punctuation.definition.arguments.end.latex"
+				},
+				"'": {
 					"name": "markup.underline.link.latex"
-				},
-				"6": {
-					"name": "punctuation.definition.arguments.end.latex"
-				},
-				"7": {
-					"name": "punctuation.definition.arguments.begin.latex"
-				},
-				"8": {
-					"name": "entity.name.hyperlink.latex"
-				},
-				"9": {
-					"name": "punctuation.definition.arguments.end.latex"
 				}
-			},
-			"match": "(?:\\s*)((\\\\)(?:url|href|hyperref|hyperimage))(\\[[^\\[]*?\\])?(\\{)([^}]*)(\\})(?:\\{[^}]*\\}){2}?(?:(\\{)([^}]*)(\\}))?",
-			"name": "meta.function.link.url.latex"
+			}
 		},
 		{
 			"comment": "These two patterns match the \\begin{document} and \\end{document} commands, so that the environment matching pattern following them will ignore those commands.",
@@ -2071,21 +2156,6 @@
 			]
 		},
 		{
-			"begin": "(?<!\\\\)(\\`\\`)",
-			"beginCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.begin.latex"
-				}
-			},
-			"end": "(?<!\\\\)(\\'\\'|\")",
-			"endCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.end.latex"
-				}
-			},
-			"name": "string.quoted.double.latex"
-		},
-		{
 			"begin": "\\$\\$",
 			"beginCaptures": {
 				"0": {
@@ -2356,7 +2426,7 @@
 			"name": "meta.definition.label.latex",
 			"patterns": [
 				{
-					"match": "[a-zA-Z0-9\\.,:/*!^_-]",
+					"match": "[\\p{Alphabetic}\\p{Number}\\.,:/*!^_-]",
 					"name": "variable.parameter.definition.label.latex"
 				}
 			]

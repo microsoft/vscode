@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,7 +22,7 @@ export class ToggleMultiCursorModifierAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleMultiCursorModifierAction.ID,
-			title: { value: localize('toggleLocation', "Toggle Multi-Cursor Modifier"), original: 'Toggle Multi-Cursor Modifier' },
+			title: localize2('toggleLocation', 'Toggle Multi-Cursor Modifier'),
 			f1: true
 		});
 	}

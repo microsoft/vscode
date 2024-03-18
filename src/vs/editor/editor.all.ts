@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/editor/browser/coreCommands';
-import 'vs/editor/browser/widget/codeEditorWidget';
-import 'vs/editor/browser/widget/diffEditorWidget';
-import 'vs/editor/browser/widget/diffNavigator';
+import 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
 import 'vs/editor/contrib/anchorSelect/browser/anchorSelect';
 import 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import 'vs/editor/contrib/caretOperations/browser/caretOperations';
@@ -42,8 +41,10 @@ import 'vs/editor/contrib/linkedEditing/browser/linkedEditing';
 import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/longLinesHelper/browser/longLinesHelper';
 import 'vs/editor/contrib/multicursor/browser/multicursor';
+import 'vs/editor/contrib/inlineEdit/browser/inlineEdit.contribution';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/rename/browser/rename';
+import 'vs/editor/contrib/sectionHeaders/browser/sectionHeaders';
 import 'vs/editor/contrib/semanticTokens/browser/documentSemanticTokens';
 import 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import 'vs/editor/contrib/smartSelect/browser/smartSelect';
@@ -59,6 +60,7 @@ import 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/browser/wordOperations';
 import 'vs/editor/contrib/wordPartOperations/browser/wordPartOperations';
 import 'vs/editor/contrib/readOnlyMessage/browser/contribution';
+import 'vs/editor/contrib/diffEditorBreadcrumbs/browser/contribution';
 
 // Load up these strings even in VSCode, even if they are not used
 // in order to get them translated

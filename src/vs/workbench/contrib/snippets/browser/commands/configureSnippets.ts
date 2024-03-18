@@ -225,19 +225,15 @@ export class ConfigureSnippetsAction extends SnippetsAction {
 	constructor() {
 		super({
 			id: 'workbench.action.openSnippets',
-			title: {
-				value: nls.localize('openSnippet.label', "Configure User Snippets"),
-				original: 'Configure User Snippets'
-			},
+			title: nls.localize2('openSnippet.label', "Configure User Snippets"),
 			shortTitle: {
-				value: nls.localize('userSnippets', "User Snippets"),
+				...nls.localize2('userSnippets', "User Snippets"),
 				mnemonicTitle: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"),
-				original: 'User Snippets'
 			},
 			f1: true,
 			menu: [
-				{ id: MenuId.MenubarPreferencesMenu, group: '2_configuration', order: 4 },
-				{ id: MenuId.GlobalActivity, group: '2_configuration', order: 4 },
+				{ id: MenuId.MenubarPreferencesMenu, group: '2_configuration', order: 5 },
+				{ id: MenuId.GlobalActivity, group: '2_configuration', order: 5 },
 			]
 		});
 	}

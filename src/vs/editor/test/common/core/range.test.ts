@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
 suite('Editor Core - Range', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('empty range', () => {
 		const s = new Range(1, 1, 1, 1);
 		assert.strictEqual(s.startLineNumber, 1);

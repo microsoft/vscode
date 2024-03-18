@@ -75,7 +75,7 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 			this.initiaizeCachedConfigurationDefaultsOverridesPromise = (async () => {
 				try {
 					// Read only when the cache exists
-					if (window.localStorage.getItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY)) {
+					if (localStorage.getItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY)) {
 						const content = await this.configurationCache.read(this.cacheKey);
 						if (content) {
 							this.cachedConfigurationDefaultsOverrides = JSON.parse(content);
@@ -108,10 +108,10 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 		}
 		try {
 			if (Object.keys(cachedConfigurationDefaultsOverrides).length) {
-				window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
+				localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 				await this.configurationCache.write(this.cacheKey, JSON.stringify(cachedConfigurationDefaultsOverrides));
 			} else {
-				window.localStorage.removeItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY);
+				localStorage.removeItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY);
 				await this.configurationCache.remove(this.cacheKey);
 			}
 		} catch (error) {/* Ignore error */ }
@@ -179,10 +179,14 @@ export class UserConfiguration extends Disposable {
 		this.settingsResource = settingsResource;
 		this.tasksResource = tasksResource;
 		this.configurationParseOptions = configurationParseOptions;
+		return this.doReset();
+	}
+
+	private async doReset(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 		const folder = this.uriIdentityService.extUri.dirname(this.settingsResource);
 		const standAloneConfigurationResources: [string, URI][] = this.tasksResource ? [[TASKS_CONFIGURATION_KEY, this.tasksResource]] : [];
 		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.settingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
-		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
+		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration(settingsConfiguration);
 		this.userConfiguration.value = fileServiceBasedConfiguration;
 
 		// Check for value because userConfiguration might have been disposed.
@@ -197,11 +201,11 @@ export class UserConfiguration extends Disposable {
 		return this.userConfiguration.value!.loadConfiguration();
 	}
 
-	async reload(): Promise<ConfigurationModel> {
+	async reload(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 		if (this.hasTasksLoaded) {
 			return this.userConfiguration.value!.loadConfiguration();
 		}
-		return this.reset(this.settingsResource, this.tasksResource, this.configurationParseOptions);
+		return this.doReset(settingsConfiguration);
 	}
 
 	reparse(parseOptions?: Partial<ConfigurationParseOptions>): ConfigurationModel {
@@ -254,13 +258,13 @@ class FileServiceBasedConfiguration extends Disposable {
 			), () => undefined, 100)(() => this._onDidChange.fire()));
 	}
 
-	async resolveContents(): Promise<[string | undefined, [string, string | undefined][]]> {
+	async resolveContents(donotResolveSettings?: boolean): Promise<[string | undefined, [string, string | undefined][]]> {
 
 		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
 			return Promise.all(resources.map(async resource => {
 				try {
-					const content = (await this.fileService.readFile(resource)).value.toString();
-					return content;
+					const content = await this.fileService.readFile(resource, { atomic: true });
+					return content.value.toString();
 				} catch (error) {
 					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
 					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
@@ -273,16 +277,16 @@ class FileServiceBasedConfiguration extends Disposable {
 		};
 
 		const [[settingsContent], standAloneConfigurationContents] = await Promise.all([
-			resolveContents([this.settingsResource]),
+			donotResolveSettings ? Promise.resolve([undefined]) : resolveContents([this.settingsResource]),
 			resolveContents(this.standAloneConfigurationResources.map(([, resource]) => resource)),
 		]);
 
 		return [settingsContent, standAloneConfigurationContents.map((content, index) => ([this.standAloneConfigurationResources[index][0], content]))];
 	}
 
-	async loadConfiguration(): Promise<ConfigurationModel> {
+	async loadConfiguration(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 
-		const [settingsContent, standAloneConfigurationContents] = await this.resolveContents();
+		const [settingsContent, standAloneConfigurationContents] = await this.resolveContents(!!settingsConfiguration);
 
 		// reset
 		this._standAloneConfigurations = [];
@@ -302,7 +306,7 @@ class FileServiceBasedConfiguration extends Disposable {
 		}
 
 		// Consolidate (support *.json files in the workspace settings folder)
-		this.consolidate();
+		this.consolidate(settingsConfiguration);
 
 		return this._cache;
 	}
@@ -321,8 +325,8 @@ class FileServiceBasedConfiguration extends Disposable {
 		return this._cache;
 	}
 
-	private consolidate(): void {
-		this._cache = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
+	private consolidate(settingsConfiguration?: ConfigurationModel): void {
+		this._cache = (settingsConfiguration ?? this._folderSettingsModelParser.configurationModel).merge(...this._standAloneConfigurations);
 	}
 
 	private handleFileChangesEvent(event: FileChangesEvent): boolean {
@@ -446,8 +450,8 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
+	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
+	private readonly directoryWatcherDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly configurationResource: URI,
@@ -469,22 +473,20 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	private watchResource(): void {
-		this.fileWatcherDisposable = this.fileService.watch(this.configurationResource);
+		this.fileWatcherDisposable.value = this.fileService.watch(this.configurationResource);
 	}
 
 	private stopWatchingResource(): void {
-		this.fileWatcherDisposable.dispose();
-		this.fileWatcherDisposable = Disposable.None;
+		this.fileWatcherDisposable.value = undefined;
 	}
 
 	private watchDirectory(): void {
 		const directory = this.uriIdentityService.extUri.dirname(this.configurationResource);
-		this.directoryWatcherDisposable = this.fileService.watch(directory);
+		this.directoryWatcherDisposable.value = this.fileService.watch(directory);
 	}
 
 	private stopWatchingDirectory(): void {
-		this.directoryWatcherDisposable.dispose();
-		this.directoryWatcherDisposable = Disposable.None;
+		this.directoryWatcherDisposable.value = undefined;
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -494,7 +496,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	async resolveContent(): Promise<string> {
-		const content = await this.fileService.readFile(this.configurationResource);
+		const content = await this.fileService.readFile(this.configurationResource, { atomic: true });
 		return content.value.toString();
 	}
 
@@ -764,7 +766,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 	}
 
 	async resolveContent(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
-		const content = await this.fileService.readFile(workspaceIdentifier.configPath);
+		const content = await this.fileService.readFile(workspaceIdentifier.configPath, { atomic: true });
 		return content.value.toString();
 	}
 

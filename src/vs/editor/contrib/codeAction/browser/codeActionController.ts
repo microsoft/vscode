@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -13,6 +16,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ApplyCodeActionReason, applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
@@ -28,6 +33,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
 
@@ -36,6 +44,9 @@ interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
 	readonly fromLightbulb?: boolean;
 }
+
+
+const DECORATION_CLASS_NAME = 'quickfix-edit-highlight';
 
 export class CodeActionController extends Disposable implements IEditorContribution {
 
@@ -71,14 +82,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		super();
 
 		this._editor = editor;
-
-		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
+		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._editor.getContribution<LightBulbWidget>(LightBulbWidget.ID);
 			if (widget) {
-				this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
+				this._register(widget.onClick(e => this.showCodeActionsFromLightbulb(e.actions, e)));
 			}
 			return widget;
 		});
@@ -91,6 +101,21 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	override dispose() {
 		this._disposed = true;
 		super.dispose();
+	}
+
+	private async showCodeActionsFromLightbulb(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
+		if (actions.allAIFixes && actions.validActions.length === 1) {
+			const actionItem = actions.validActions[0];
+			const command = actionItem.action.command;
+			if (command && command.id === 'inlineChat.start') {
+				if (command.arguments && command.arguments.length >= 1) {
+					command.arguments[0] = { ...command.arguments[0], autoSend: false };
+				}
+			}
+			await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
+			return;
+		}
+		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
 	}
 
 	public showCodeActions(_trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
@@ -120,9 +145,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this._model.trigger(trigger);
 	}
 
-	private async _applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean): Promise<void> {
+	private async _applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
 		try {
-			await this._instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.FromCodeActions, { preview, editor: this._editor });
+			await this._instantiationService.invokeFunction(applyCodeAction, action, actionReason, { preview, editor: this._editor });
 		} finally {
 			if (retrigger) {
 				this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
@@ -162,7 +187,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				if (validActionToApply) {
 					try {
 						this._lightBulbWidget.value?.hide();
-						await this._applyCodeAction(validActionToApply, false, false);
+						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();
 					}
@@ -231,7 +256,15 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return undefined;
 	}
 
+	private static readonly DECORATION = ModelDecorationOptions.register({
+		description: 'quickfix-highlight',
+		className: DECORATION_CLASS_NAME
+	});
+
 	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
+
+		const currentDecorations = this._editor.createDecorationsCollection();
+
 		const editorDom = this._editor.getDomNode();
 		if (!editorDom) {
 			return;
@@ -246,11 +279,43 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this._applyCodeAction(action, /* retrigger */ true, !!preview);
+				this._applyCodeAction(action, /* retrigger */ true, !!preview, ApplyCodeActionReason.FromCodeActions);
 				this._actionWidgetService.hide();
+				currentDecorations.clear();
 			},
 			onHide: () => {
 				this._editor?.focus();
+				currentDecorations.clear();
+			},
+			onHover: async (action: CodeActionItem, token: CancellationToken) => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				return { canPreview: !!action.action.edit?.edits.length };
+			},
+			onFocus: (action: CodeActionItem | undefined) => {
+				if (action && action.action) {
+					const ranges = action.action.ranges;
+					const diagnostics = action.action.diagnostics;
+					currentDecorations.clear();
+					if (ranges && ranges.length > 0) {
+						// Handles case for `fix all` where there are multiple diagnostics.
+						const decorations: IModelDeltaDecoration[] = (diagnostics && diagnostics?.length > 1)
+							? diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }))
+							: ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
+						currentDecorations.set(decorations);
+					} else if (diagnostics && diagnostics.length > 0) {
+						const decorations: IModelDeltaDecoration[] = diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
+						currentDecorations.set(decorations);
+						const diagnostic = diagnostics[0];
+						if (diagnostic.startLineNumber && diagnostic.startColumn) {
+							const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
+							aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
+						}
+					}
+				} else {
+					currentDecorations.clear();
+				}
 			}
 		};
 
@@ -327,3 +392,18 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return resultActions;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
+		if (color) {
+			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
+		}
+	};
+
+	addBackgroundColorRule('.quickfix-edit-highlight', theme.getColor(editorFindMatchHighlight));
+	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
+
+	if (findMatchHighlightBorder) {
+		collector.addRule(`.monaco-editor .quickfix-edit-highlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
+	}
+});
