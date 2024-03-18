@@ -30,7 +30,7 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
-		CommandsRegistry.registerCommand({ id: 'showEditorScreenReaderNotification', handler: () => this.showScreenReaderNotification() });
+		this._register(CommandsRegistry.registerCommand({ id: 'showEditorScreenReaderNotification', handler: () => this.showScreenReaderNotification() }));
 
 		this.updateScreenReaderModeElement(this.accessibilityService.isScreenReaderOptimized());
 
