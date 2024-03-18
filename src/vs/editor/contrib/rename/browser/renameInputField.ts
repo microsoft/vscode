@@ -76,14 +76,13 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 	private _position?: Position;
 	private _currentName?: string;
 	private _domNode?: HTMLElement;
-	private _input?: HTMLInputElement;
+	private _input: RenameInput;
 	private _renameCandidateListView?: RenameCandidateListView;
 	private _label?: HTMLDivElement;
 	private _visible?: boolean;
 	private _nPxAvailableAbove?: number;
 	private _nPxAvailableBelow?: number;
 	private readonly _visibleContextKey: IContextKey<boolean>;
-	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _disposables = new DisposableStore();
 
 	readonly allowEditorOverflow: boolean = true;
@@ -97,7 +96,9 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
-		this._focusedContextKey = CONTEXT_RENAME_INPUT_FOCUSED.bindTo(contextKeyService);
+
+		this._input = new RenameInput();
+		this._disposables.add(this._input);
 
 		this._editor.addContentWidget(this);
 
@@ -124,24 +125,20 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 			this._domNode = document.createElement('div');
 			this._domNode.className = 'monaco-editor rename-box';
 
-			this._input = document.createElement('input');
-			this._input.className = 'rename-input';
-			this._input.type = 'text';
-			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
-			this._disposables.add(dom.addDisposableListener(this._input, 'focus', () => { this._focusedContextKey.set(true); }));
-			this._disposables.add(dom.addDisposableListener(this._input, 'blur', () => { this._focusedContextKey.reset(); }));
-			this._domNode.appendChild(this._input);
+			this._domNode.appendChild(this._input.domNode);
 
 			this._renameCandidateListView = this._disposables.add(
 				new RenameCandidateListView(this._domNode, {
 					fontInfo: this._editor.getOption(EditorOption.fontInfo),
 					onFocusChange: (newSymbolName: string) => {
-						assertType(this._input !== undefined);
-						this._input.value = newSymbolName;
-						this._input.select();
+						this._input.domNode.value = newSymbolName;
 					},
 					onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
 				})
+			);
+
+			this._disposables.add(
+				this._input.onDidChange(() => this._renameCandidateListView?.clearFocus())
 			);
 
 			this._label = document.createElement('div');
@@ -155,7 +152,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 	}
 
 	private _updateStyles(theme: IColorTheme): void {
-		if (!this._input || !this._domNode) {
+		if (!this._domNode) {
 			return;
 		}
 
@@ -166,22 +163,21 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		this._domNode.style.border = widgetBorderColor ? `1px solid ${widgetBorderColor}` : '';
 		this._domNode.style.color = String(theme.getColor(inputForeground) ?? '');
 
-		this._input.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
+		this._input.domNode.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
 		// this._input.style.color = String(theme.getColor(inputForeground) ?? '');
 		const border = theme.getColor(inputBorder);
-		this._input.style.borderWidth = border ? '1px' : '0px';
-		this._input.style.borderStyle = border ? 'solid' : 'none';
-		this._input.style.borderColor = border?.toString() ?? 'none';
+		this._input.domNode.style.borderWidth = border ? '1px' : '0px';
+		this._input.domNode.style.borderStyle = border ? 'solid' : 'none';
+		this._input.domNode.style.borderColor = border?.toString() ?? 'none';
 	}
 
 	private _updateFont(): void {
 		if (this._domNode === undefined) {
 			return;
 		}
-		assertType(this._input !== undefined, 'RenameInputField#_updateFont: _input must not be undefined given _domNode is defined');
 		assertType(this._label !== undefined, 'RenameInputField#_updateFont: _label must not be undefined given _domNode is defined');
 
-		this._editor.applyFontInfo(this._input);
+		this._editor.applyFontInfo(this._input.domNode);
 
 		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		this._label.style.fontSize = `${this._computeLabelFontSize(fontInfo.fontSize)}px`;
@@ -250,7 +246,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		assertType(this._nPxAvailableAbove !== undefined);
 		assertType(this._nPxAvailableBelow !== undefined);
 
-		const inputBoxHeight = dom.getTotalHeight(this._input!);
+		const inputBoxHeight = dom.getTotalHeight(this._input.domNode);
 
 		const labelHeight = dom.getTotalHeight(this._label!);
 
@@ -263,7 +259,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 
 		this._renameCandidateListView!.layout({
 			height: totalHeightAvailable - labelHeight - inputBoxHeight,
-			width: dom.getTotalWidth(this._input!),
+			width: dom.getTotalWidth(this._input.domNode),
 		});
 	}
 
@@ -283,15 +279,13 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 
 	focusNextRenameSuggestion() {
 		if (!this._renameCandidateListView?.focusNext()) {
-			this._input!.value = this._currentName!;
-			this._input!.select();
+			this._input.domNode.value = this._currentName!;
 		}
 	}
 
 	focusPreviousRenameSuggestion() { // TODO@ulugbekna: this and focusNext should set the original name if no candidate is focused
 		if (!this._renameCandidateListView?.focusPrevious()) {
-			this._input!.value = this._currentName!;
-			this._input!.select();
+			this._input.domNode.value = this._currentName!;
 		}
 	}
 
@@ -302,10 +296,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		this._position = new Position(where.startLineNumber, where.startColumn);
 		this._currentName = currentName;
 
-		this._input!.value = currentName;
-		this._input!.setAttribute('selectionStart', selectionStart.toString());
-		this._input!.setAttribute('selectionEnd', selectionEnd.toString());
-		this._input!.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20); // determines width
+		this._input.domNode.value = currentName;
+		this._input.domNode.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20); // determines width
 
 		const disposeOnDone = new DisposableStore();
 
@@ -331,7 +323,6 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 
 		this._currentAcceptInput = (wantsPreview) => {
 			this._trace('invoking _currentAcceptInput');
-			assertType(this._input !== undefined);
 			assertType(this._renameCandidateListView !== undefined);
 
 			const nRenameSuggestions = this._renameCandidateListView.nCandidates;
@@ -345,7 +336,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 				source = 'renameSuggestion';
 			} else {
 				this._trace('using new name from inputField');
-				newName = this._input.value;
+				newName = this._input.domNode.value;
 				source = 'inputField';
 			}
 
@@ -385,9 +376,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 
 		// TODO@ulugbekna: could this be simply run in `afterRender`?
 		setTimeout(() => {
-			assertType(this._input !== undefined);
-			this._input.focus();
-			this._input.select();
+			this._input.domNode.focus();
+			this._input.domNode.select();
 		}, 100);
 	}
 
@@ -413,7 +403,7 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		const distinctNames = arrays.distinct(newNames, v => v.newSymbolName);
 		trace(`distinct candidates - ${distinctNames.length} candidates.`);
 
-		const validDistinctNames = distinctNames.filter(({ newSymbolName }) => newSymbolName.trim().length > 0 && newSymbolName !== this._input?.value && newSymbolName !== currentName);
+		const validDistinctNames = distinctNames.filter(({ newSymbolName }) => newSymbolName.trim().length > 0 && newSymbolName !== this._input.domNode.value && newSymbolName !== currentName);
 		trace(`valid distinct candidates - ${newNames.length} candidates.`);
 
 		if (validDistinctNames.length < 1) {
@@ -614,6 +604,10 @@ class RenameCandidateListView {
 		}
 	}
 
+	public clearFocus(): void {
+		this._listWidget.setFocus([]);
+	}
+
 	private get _candidateViewHeight(): number {
 		const { totalHeight } = RenameCandidateView.getLayoutInfo({ lineHeight: this._lineHeight });
 		return totalHeight;
@@ -673,6 +667,35 @@ class RenameCandidateListView {
 				multipleSelectionSupport: false,
 			}
 		);
+	}
+}
+
+/**
+ * @remarks lazily creates the DOM node
+ */
+class RenameInput implements IDisposable {
+
+	private _domNode: HTMLInputElement | undefined;
+
+	private readonly _onDidChange = new Emitter<void>();
+	public readonly onDidChange = this._onDidChange.event;
+
+	private _disposables = new DisposableStore();
+
+	get domNode() {
+		if (!this._domNode) {
+			this._domNode = document.createElement('input');
+			this._domNode.className = 'rename-input';
+			this._domNode.type = 'text';
+			this._domNode.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
+			this._disposables.add(dom.addDisposableListener(this._domNode, 'input', () => this._onDidChange.fire()));
+		}
+		return this._domNode;
+	}
+
+	dispose(): void {
+		this._onDidChange.dispose();
+		this._disposables.dispose();
 	}
 }
 
