@@ -897,6 +897,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._register(this._listDelegate);
 
 		const accessibilityProvider = new NotebookAccessibilityProvider(this.notebookExecutionStateService, () => this.viewModel, this.keybindingService, this.configurationService);
+		this._register(accessibilityProvider);
 
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,

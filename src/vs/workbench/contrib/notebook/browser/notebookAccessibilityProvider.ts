@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Emitter } from 'vs/base/common/event';
+import { DebounceEmitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,7 +16,10 @@ import { CellKind, NotebookCellExecutionState } from 'vs/workbench/contrib/noteb
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class NotebookAccessibilityProvider implements IListAccessibilityProvider<CellViewModel>, IDisposable {
-	private readonly _onDidAriaLabelChange = new Emitter<CellViewModel>();
+	private readonly _onDidAriaLabelChange = new DebounceEmitter<CellViewModel>({
+		merge: (vms) => vms[vms.length - 1],
+		delay: 100
+	});
 	readonly onDidAriaLabelChange = this._onDidAriaLabelChange.event;
 
 	private listener: IDisposable;
