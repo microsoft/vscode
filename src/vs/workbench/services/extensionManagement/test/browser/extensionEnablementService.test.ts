@@ -39,6 +39,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 function createStorageService(instantiationService: TestInstantiationService, disposableStore: DisposableStore): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -132,6 +133,7 @@ suite('ExtensionEnablementService Test', () => {
 		installed.splice(0, installed.length);
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
+		instantiationService.stub(IProductService, TestProductService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
 			id: 'local',
