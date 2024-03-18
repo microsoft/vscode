@@ -549,10 +549,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			markdownDescription: localize('outline.showCodeCells', "When enabled notebook outline shows code cells.")
 		},
-		'notebook.outline.onlyShowMarkdownHeaders': {
+		'notebook.outline.showNonHeaderMarkdownCells': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('outline.onlyShowMarkdownHeaders', "When enabled notebook outline only shows markdown cells that contain a header. When disabled, all markdown cells appear in the outline.")
+			markdownDescription: localize('outline.showNonHeaderMarkdownCells', "When enabled, notebook outline will show non-header markdown cell entries. When disabled, only markdown cells containing a header are shown.")
 		},
 		'notebook.breadcrumbs.showCodeCells': {
 			type: 'boolean',

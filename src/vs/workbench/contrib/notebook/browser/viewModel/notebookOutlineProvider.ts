@@ -70,7 +70,7 @@ export class NotebookCellOutlineProvider {
 		);
 
 		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.outline.showCodeCells') || e.affectsConfiguration('notebook.outline.onlyShowMarkdownHeaders')) {
+			if (e.affectsConfiguration('notebook.outline.showCodeCells') || e.affectsConfiguration('notebook.outline.showNonMarkdownHeaderCells')) {
 				this._recomputeState();
 			}
 		}));
@@ -142,7 +142,7 @@ export class NotebookCellOutlineProvider {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const onlyShowMarkdownHeaders = this._configurationService.getValue<boolean>('notebook.outline.onlyShowMarkdownHeaders');
+		const showNonHeaderMarkdownCells = this._configurationService.getValue<boolean>('notebook.outline.showNonHeaderMarkdownCells');
 
 		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
 
@@ -164,7 +164,7 @@ export class NotebookCellOutlineProvider {
 			for (let i = 1; i < entries.length; i++) {
 				const entry = entries[i];
 
-				if (onlyShowMarkdownHeaders && entry.cell.cellKind === CellKind.Markup && entry.level === 7) {
+				if (!showNonHeaderMarkdownCells && entry.cell.cellKind === CellKind.Markup && entry.level === 7) {
 					// skip plain text markdown cells
 					continue;
 				}
