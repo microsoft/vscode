@@ -60,11 +60,11 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
-		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
+		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, configurationService);
 	}
 
 	override dispose(): void {

@@ -25,6 +25,7 @@ import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const enum ForceOpenAs {
 	None,
@@ -98,9 +99,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IPathService private readonly pathService: IPathService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(resource, preferredResource, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
+		super(resource, preferredResource, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, configurationService);
 
 		this.model = this.textFileService.files.get(resource);
 
