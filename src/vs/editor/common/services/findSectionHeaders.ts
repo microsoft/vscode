@@ -73,7 +73,7 @@ function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSe
 		const lineContent = model.getLineContent(lineNumber);
 		const match = lineContent.match(options.foldingRules!.markers!.start);
 		if (match) {
-			const range = { startLineNumber: lineNumber, startColumn: match[0].length, endLineNumber: lineNumber, endColumn: lineContent.length - match[0].length };
+			const range = { startLineNumber: lineNumber, startColumn: match[0].length + 1, endLineNumber: lineNumber, endColumn: lineContent.length + 1 };
 			if (range.endColumn > range.startColumn) {
 				const sectionHeader = { range, ...getHeaderText(lineContent.substring(match[0].length)) };
 				if (sectionHeader.text || sectionHeader.hasSeparatorLine) {
