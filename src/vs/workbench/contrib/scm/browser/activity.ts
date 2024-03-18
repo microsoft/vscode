@@ -293,6 +293,7 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 
 	private activeResourceHasChangesContextKey: IContextKey<boolean>;
 	private activeResourceRepositoryContextKey: IContextKey<string | undefined>;
+	private activeResourceGroupMembershipsContextKey: IContextKey<string[]>;
 	private readonly disposables = new DisposableStore();
 	private repositoryDisposables = new Set<IDisposable>();
 
@@ -304,6 +305,7 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 	) {
 		this.activeResourceHasChangesContextKey = contextKeyService.createKey('scmActiveResourceHasChanges', false);
 		this.activeResourceRepositoryContextKey = contextKeyService.createKey('scmActiveResourceRepository', undefined);
+		this.activeResourceGroupMembershipsContextKey = contextKeyService.createKey('scmActiveResourceGroupMemberships', []);
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 
@@ -340,16 +342,17 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 
 			this.activeResourceRepositoryContextKey.set(activeResourceRepository?.id);
 
+			const groupMemberships: string[] = [];
 			for (const resourceGroup of activeResourceRepository?.provider.groups ?? []) {
 				if (resourceGroup.resources
 					.some(scmResource =>
 						this.uriIdentityService.extUri.isEqual(activeResource, scmResource.sourceUri))) {
-					this.activeResourceHasChangesContextKey.set(true);
-					return;
+					groupMemberships.push(resourceGroup.id);
 				}
 			}
 
-			this.activeResourceHasChangesContextKey.set(false);
+			this.activeResourceGroupMembershipsContextKey.set(groupMemberships);
+			this.activeResourceHasChangesContextKey.set(groupMemberships.length > 0);
 		} else {
 			this.activeResourceHasChangesContextKey.set(false);
 			this.activeResourceRepositoryContextKey.set(undefined);
