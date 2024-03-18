@@ -48,6 +48,7 @@ export interface IChatVariablesService {
 	 * Resolves all variables that occur in `prompt`
 	 */
 	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData>;
+	resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[]>;
 }
 
 export interface IDynamicVariable {

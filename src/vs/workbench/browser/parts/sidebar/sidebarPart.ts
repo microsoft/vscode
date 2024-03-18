@@ -112,13 +112,19 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	private onDidChangeActivityBarLocation(): void {
+		this.acitivityBarPart.hide();
+
 		this.updateCompositeBar();
 
 		const id = this.getActiveComposite()?.getId();
 		if (id) {
 			this.onTitleAreaUpdate(id);
 		}
-		this.updateActivityBarVisiblity();
+
+		if (this.shouldShowActivityBar()) {
+			this.acitivityBarPart.show();
+		}
+
 		this.rememberActivityBarVisiblePosition();
 	}
 
@@ -230,14 +236,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			case ActivityBarPosition.TOP: return ActivityBarPosition.TOP;
 			case ActivityBarPosition.BOTTOM: return ActivityBarPosition.BOTTOM;
 			default: return ActivityBarPosition.DEFAULT;
-		}
-	}
-
-	private updateActivityBarVisiblity(): void {
-		if (this.shouldShowActivityBar()) {
-			this.acitivityBarPart.show();
-		} else {
-			this.acitivityBarPart.hide();
 		}
 	}
 

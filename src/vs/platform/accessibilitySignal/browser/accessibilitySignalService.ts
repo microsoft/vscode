@@ -18,7 +18,7 @@ export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalS
 export interface IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	playSignal(signal: AccessibilitySignal, options?: IAccessbilitySignalOptions): Promise<void>;
-	playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
+	playSignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
 	isSoundEnabled(signal: AccessibilitySignal): boolean;
 	isAnnouncementEnabled(signal: AccessibilitySignal): boolean;
 	onSoundEnabledChanged(signal: AccessibilitySignal): Event<void>;
@@ -30,7 +30,12 @@ export interface IAccessibilitySignalService {
 
 export interface IAccessbilitySignalOptions {
 	allowManyInParallel?: boolean;
+
+	/**
+	 * The source that triggered the signal (e.g. "diffEditor.cursorPositionChanged").
+	 */
 	source?: string;
+
 	/**
 	 * For actions like save or format, depending on the
 	 * configured value, we will only
@@ -68,7 +73,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		}
 	}
 
-	public async playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void> {
+	public async playSignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void> {
 		for (const signal of signals) {
 			this.sendSignalTelemetry('signal' in signal ? signal.signal : signal, 'source' in signal ? signal.source : undefined);
 		}

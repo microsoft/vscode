@@ -53,8 +53,21 @@
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .count,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .relevance,
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .user {
 	min-width: fit-content;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .relevance {
+	border-radius: 2px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	padding: 0px 4px 1px 4px;
+	font-size: 0.9em;
+	margin-right: 4px;
+	margin-top: 4px;
+	margin-bottom: 3px;
+	line-height: 14px;
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text {
