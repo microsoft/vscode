@@ -166,8 +166,12 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 					fontInfo: this._editor.getOption(EditorOption.fontInfo),
 					onFocusChange: (newSymbolName: string) => {
 						this._input.domNode.value = newSymbolName;
+						this._isEditingRenameCandidate = false; // @ulugbekna: reset
 					},
-					onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
+					onSelectionChange: () => {
+						this._isEditingRenameCandidate = false; // @ulugbekna: because user picked a rename suggestion
+						this.acceptInput(false); // we don't allow preview with mouse click for now
+					}
 				})
 			);
 
