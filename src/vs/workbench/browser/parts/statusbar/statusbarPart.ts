@@ -675,7 +675,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 
 	readonly mainPart = this._register(this.instantiationService.createInstance(MainStatusbarPart));
 
-	private readonly _onDidCreateAuxiliaryStatusbarPart = this._register(new Emitter<IAuxiliaryStatusbarPart>());
+	private readonly _onDidCreateAuxiliaryStatusbarPart = this._register(new Emitter<AuxiliaryStatusbarPart>());
 	private readonly onDidCreateAuxiliaryStatusbarPart = this._onDidCreateAuxiliaryStatusbarPart.event;
 
 	constructor(
@@ -734,22 +734,26 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 	}
 
 	private doAddEntryToAllWindows(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
-		const disposables = new DisposableStore();
+		const entryDisposables = new DisposableStore();
 
 		const accessors = new Set<IStatusbarEntryAccessor>();
 
-		function rememberAccessor(accessor: IStatusbarEntryAccessor) {
+		function addEntry(part: StatusbarPart | AuxiliaryStatusbarPart): void {
+			const partDisposables = new DisposableStore();
+			partDisposables.add(part.onWillDispose(() => partDisposables.dispose()));
+
+			const accessor = partDisposables.add(part.addEntry(entry, id, alignment, priorityOrLocation));
 			accessors.add(accessor);
-			disposables.add(toDisposable(() => accessors.delete(accessor)));
+			partDisposables.add(toDisposable(() => accessors.delete(accessor)));
+
+			entryDisposables.add(partDisposables);
 		}
 
 		for (const part of this.parts) {
-			rememberAccessor(disposables.add(part.addEntry(entry, id, alignment, priorityOrLocation)));
+			addEntry(part);
 		}
 
-		disposables.add(this.onDidCreateAuxiliaryStatusbarPart(part => {
-			rememberAccessor(disposables.add(part.addEntry(entry, id, alignment, priorityOrLocation)));
-		}));
+		entryDisposables.add(this.onDidCreateAuxiliaryStatusbarPart(part => addEntry(part)));
 
 		return {
 			update: (entry: IStatusbarEntry) => {
@@ -757,7 +761,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 					update.update(entry);
 				}
 			},
-			dispose: () => disposables.dispose()
+			dispose: () => entryDisposables.dispose()
 		};
 	}
 
