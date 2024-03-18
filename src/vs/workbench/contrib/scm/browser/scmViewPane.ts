@@ -372,6 +372,9 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 			}
 		}));
 
+		// Reset widget height so it's recalculated
+		templateData.inputWidgetHeight = InputRenderer.DEFAULT_HEIGHT;
+
 		// Rerender the element whenever the editor content height changes
 		const onDidChangeContentHeight = () => {
 			const contentHeight = templateData.inputWidget.getContentHeight();
@@ -411,6 +414,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	}
 
 	getHeight(input: ISCMInput): number {
+		console.log('getHeight: ', (this.contentHeights.get(input) ?? InputRenderer.DEFAULT_HEIGHT) + 10);
 		return (this.contentHeights.get(input) ?? InputRenderer.DEFAULT_HEIGHT) + 10;
 	}
 
@@ -2909,7 +2913,7 @@ export class SCMViewPane extends ViewPane {
 	private createTree(container: HTMLElement, viewState?: IAsyncDataTreeViewState): void {
 		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => { this.tree.updateElementHeight(input, height); });
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => { { console.log('hello: ', height); this.tree.updateElementHeight(input, height); } });
 		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
