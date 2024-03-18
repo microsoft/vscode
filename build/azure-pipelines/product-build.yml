@@ -459,13 +459,13 @@ stages:
                   VSCODE_RUN_INTEGRATION_TESTS: false
                   VSCODE_RUN_SMOKE_TESTS: false
 
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER'], true)) }}:
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER'], true)) }}:
     - stage: LinuxLegacyServer
       dependsOn:
         - Compile
       pool: 1es-ubuntu-20.04-x64
       jobs:
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_X64_LEGACY_SERVER, true)) }}:
+        - ${{ if eq(parameters.VSCODE_BUILD_LINUX_X64_LEGACY_SERVER, true) }}:
           - job: Linuxx64LegacyServer
             variables:
               VSCODE_ARCH: x64
@@ -478,7 +478,7 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER, true)) }}:
+        - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER, true) }}:
           - job: LinuxArmhfLegacyServer
             variables:
               VSCODE_ARCH: armhf
@@ -490,7 +490,7 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_RUN_INTEGRATION_TESTS: false
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER, true)) }}:
+        - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER, true) }}:
           - job: LinuxArm64LegacyServer
             variables:
               VSCODE_ARCH: arm64
