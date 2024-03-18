@@ -265,7 +265,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.experimental.supportWorkspaceExtensions': {
 				type: 'boolean',
 				description: localize('extensions.experimental.supportWorkspaceExtensions', "Enables support for workspace specific local extensions."),
-				default: false
+				default: false,
+				scope: ConfigurationScope.APPLICATION
 			},
 		}
 	});
