@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
-import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
+import { IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 import { IInputBoxStyles, IMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -61,6 +61,7 @@ export interface ISearchWidgetOptions {
 	inputBoxStyles: IInputBoxStyles;
 	toggleStyles: IToggleStyles;
 	notebookOptions?: NotebookToggleState;
+	initialAIButtonVisibility?: boolean;
 }
 
 interface NotebookToggleState {
@@ -120,7 +121,7 @@ export class SearchWidget extends Widget {
 
 	domNode: HTMLElement | undefined;
 
-	searchInput: FindInput | undefined;
+	searchInput: SearchFindInput | undefined;
 	searchInputFocusTracker: dom.IFocusTracker | undefined;
 	private searchInputBoxFocused: IContextKey<boolean>;
 
@@ -206,12 +207,12 @@ export class SearchWidget extends Widget {
 
 		this._register(
 			this._notebookFilters.onDidChange(() => {
-				if (this.searchInput instanceof SearchFindInput) {
+				if (this.searchInput) {
 					this.searchInput.updateStyles();
 				}
 			}));
 		this._register(this.editorService.onDidEditorsChange((e) => {
-			if (this.searchInput instanceof SearchFindInput &&
+			if (this.searchInput &&
 				e.event.editor instanceof NotebookEditorInput &&
 				(e.event.kind === GroupModelChangeKind.EDITOR_OPEN || e.event.kind === GroupModelChangeKind.EDITOR_CLOSE)) {
 				this.searchInput.filterVisible = this._hasNotebookOpen();
@@ -402,7 +403,19 @@ export class SearchWidget extends Widget {
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
 
-		this.searchInput = this._register(new SearchFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, this.contextMenuService, this.instantiationService, this._notebookFilters, this._hasNotebookOpen()));
+		this.searchInput = this._register(
+			new SearchFindInput(
+				searchInputContainer,
+				this.contextViewService,
+				inputOptions,
+				this.contextKeyService,
+				this.contextMenuService,
+				this.instantiationService,
+				this._notebookFilters,
+				options.initialAIButtonVisibility ?? false,
+				this._hasNotebookOpen()
+			)
+		);
 
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
