@@ -271,6 +271,48 @@ suite('Editor Contrib - Auto Indent On Paste', () => {
 			assert.strictEqual(model.getValue(), pasteText);
 		});
 	});
+
+	test('issue #85781: Do not indent the final line if the selection ends at the start of it', () => {
+		const languageId = 'indentFinalLine';
+		const lines = [
+			'if (true) {',
+			'    console.log("end");',
+			'}',
+		];
+		const model = createTextModel(lines.join('\n'), languageId, {});
+		disposables.add(model);
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+			const languageService = instantiationService.get(ILanguageService);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			disposables.add(languageService.registerLanguage({ id: languageId }));
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')']
+				],
+				indentationRules: javascriptIndentationRules,
+				onEnterRules: javascriptOnEnterRules
+			}));
+
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			// The bug only happened when pasting 2 or more lines
+			const pasteLines = [
+				'console.log(1);',
+				'console.log(2);',
+			];
+
+			viewModel.setSelections('test', [new Selection(2, 1, 2, 1)]);
+			viewModel.paste(pasteLines.join('\n') + '\n', false, undefined, 'keyboard');
+			autoIndentOnPasteController.trigger(new Range(2, 1, 4, 1));
+			const expectText = [
+				lines[0],
+				...pasteLines.map(line => '    ' + line),
+				...lines.slice(1),
+			].join('\n');
+			assert.strictEqual(model.getValue(), expectText);
+		});
+	});
 });
 
 suite('Editor Contrib - Keep Indent On Paste', () => {
