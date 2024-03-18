@@ -27,6 +27,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -66,6 +68,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 	) {
 
 		const mapping = this._store.add(new DisposableMap<IInlineChatSessionProvider>());
@@ -151,7 +154,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${provider.debugName}`);
 
 
-		this._store.add(this._chatService.onDidPerformUserAction(e => {
+		store.add(this._chatService.onDidPerformUserAction(e => {
 			if (e.sessionId !== chatModel.sessionId) {
 				return;
 			}
@@ -169,6 +172,20 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					e.action.direction === InteractiveSessionVoteDirection.Down ? InlineChatResponseFeedbackKind.Unhelpful : InlineChatResponseFeedbackKind.Helpful
 				);
 			}
+		}));
+
+		store.add(this._chatAgentService.registerDynamicAgent({
+			id: provider.debugName,
+			extensionId: nullExtensionDescription.identifier,
+			isDefault: true,
+			locations: [ChatAgentLocation.Editor],
+			defaultImplicitVariables: [],
+			metadata: { isSticky: true },
+			slashCommands: []
+		}, {
+			async invoke(request, progress, history, token) {
+				return {};
+			},
 		}));
 
 		store.add(this._inlineChatService.onDidChangeProviders(e => {
