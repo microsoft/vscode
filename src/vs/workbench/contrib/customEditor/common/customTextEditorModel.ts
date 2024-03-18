@@ -28,6 +28,8 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		});
 	}
 
+	readonly isTextBased = true;
+
 	private readonly _textFileModel: ITextFileEditorModel | undefined;
 
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
