@@ -65,13 +65,6 @@ export class SearchFindInput extends ContextScopedFindInput {
 		this._findFilter.container.classList.add('monaco-custom-toggle');
 		this.filterVisible = filterStartVisiblitity;
 
-		// const contextKeyForAIButtonSet = new Set(Constants.SearchContext.hasAIResultProvider.key);
-		// this.aiButtonVisible = this._shouldShowAIButton();
-		// this._register(contextKeyService.onDidChangeContext(e => {
-		// 	if (e.affectsSome(contextKeyForAIButtonSet)) {
-		// 		this.aiButtonVisible = this._shouldShowAIButton();
-		// 	}
-		// }));
 		this._register(this._aiButton.onChange(() => {
 			if (this._aiButton.checked) {
 				this.regex?.disable();
@@ -89,18 +82,6 @@ export class SearchFindInput extends ContextScopedFindInput {
 		// ensure that ai button is visible if it should be
 		this._aiButton.domNode.style.display = _shouldShowAIButton ? '' : 'none';
 	}
-
-	// set hasAISettingEnabled(enabled: boolean) {
-	// 	if (enabled !== this._hasAISettingEnabled) {
-	// 		this._hasAISettingEnabled = enabled;
-	// 		this.aiButtonVisible = this._shouldShowAIButton();
-	// 	}
-	// }
-
-	// private _shouldShowAIButton(): boolean {
-	// 	return this._hasAISettingEnabled && (Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).get() ?? false);
-	// }
-
 
 	set shouldShowAIButton(visible: boolean) {
 		if (this._shouldShowAIButton !== visible) {
@@ -122,7 +103,6 @@ export class SearchFindInput extends ContextScopedFindInput {
 		} else {
 			this.regex?.disable();
 		}
-
 	}
 
 	updateStyles() {
