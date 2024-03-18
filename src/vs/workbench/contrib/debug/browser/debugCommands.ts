@@ -73,6 +73,7 @@ export const CALLSTACK_TOP_ID = 'workbench.action.debug.callStackTop';
 export const CALLSTACK_BOTTOM_ID = 'workbench.action.debug.callStackBottom';
 export const CALLSTACK_UP_ID = 'workbench.action.debug.callStackUp';
 export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
+export const INTERNAL_SET_SESSION_FOCUS_ID = '_debugSessionFocus';
 
 export const DEBUG_COMMAND_CATEGORY: ILocalizedString = nls.localize2('debug', 'Debug');
 export const RESTART_LABEL = nls.localize2('restartDebug', "Restart");
@@ -1040,3 +1041,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 	}
 });
+
+
+CommandsRegistry.registerCommand({
+	id: INTERNAL_SET_SESSION_FOCUS_ID,
+	handler: async (accessor: ServicesAccessor, sessionId: string) => {
+		const debugService = accessor.get(IDebugService);
+		const commandService = accessor.get(ICommandService);
+		const session = debugService.getModel().getSession(sessionId);
+		if (session) {
+			return commandService.executeCommand(FOCUS_SESSION_ID, session);
+		}
+		return undefined;
+	}
+});
+

@@ -393,6 +393,13 @@ const newCommands: ApiCommand[] = [
 			return result.map(typeConverters.InlineValue.to);
 		})
 	),
+
+	new ApiCommand(
+		'debug.debugSessionFocus', '_debugSessionFocus', 'Set the active debug session',
+		[ApiCommandArgument.String],
+		ApiCommandResult.Void
+	),
+
 	// --- open'ish commands
 	new ApiCommand(
 		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or an http(s) URL. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
