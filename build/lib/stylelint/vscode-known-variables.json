@@ -16,6 +16,7 @@
 		"--vscode-activityBarTop-foreground",
 		"--vscode-activityBarTop-inactiveForeground",
 		"--vscode-activityBarTop-background",
+		"--vscode-activityBarTop-activeBackground",
 		"--vscode-badge-background",
 		"--vscode-badge-foreground",
 		"--vscode-banner-background",

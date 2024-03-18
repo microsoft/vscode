@@ -160,6 +160,7 @@ export class InlineChatWidget {
 	readonly onRequestWithoutIntentDetection: Event<void> = this._onRequestWithoutIntentDetection.event;
 
 	private _lastDim: Dimension | undefined;
+	private _lastInputDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
 
 
@@ -293,8 +294,9 @@ export class InlineChatWidget {
 			const widgetToolbarWidth = getTotalWidth(this._elements.widgetToolbar);
 			const innerEditorWidth = widgetDim.width - widgetToolbarWidth;
 			const inputDim = new Dimension(innerEditorWidth, this._inputWidget.getPreferredSize().height);
-			if (!this._lastDim || !Dimension.equals(this._lastDim, widgetDim)) {
+			if (!this._lastDim || !Dimension.equals(this._lastDim, widgetDim) || !this._lastInputDim || !Dimension.equals(this._lastInputDim, inputDim)) {
 				this._lastDim = widgetDim;
+				this._lastInputDim = inputDim;
 				this._doLayout(widgetDim, inputDim);
 			}
 		} finally {

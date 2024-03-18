@@ -1062,7 +1062,7 @@ class TreePool extends Disposable {
 		const resourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility });
 
 		const container = $('.interactive-response-progress-tree');
-		createFileIconThemableTreeContainerScope(container, this.themeService);
+		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		const tree = <WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData>>this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
@@ -1122,7 +1122,7 @@ class ContentReferencesListPool extends Disposable {
 		const resourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility });
 
 		const container = $('.chat-used-context-list');
-		createFileIconThemableTreeContainerScope(container, this.themeService);
+		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		const list = <WorkbenchList<IChatContentReference>>this.instantiationService.createInstance(
 			WorkbenchList,

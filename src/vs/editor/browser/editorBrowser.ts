@@ -510,6 +510,18 @@ export interface IPartialEditorMouseEvent {
 export interface IPasteEvent {
 	readonly range: Range;
 	readonly languageId: string | null;
+	readonly clipboardEvent?: ClipboardEvent;
+}
+
+/**
+ * @internal
+ */
+export interface PastePayload {
+	text: string;
+	pasteOnNewLine: boolean;
+	multicursorText: string[] | null;
+	mode: string | null;
+	clipboardEvent?: ClipboardEvent;
 }
 
 /**

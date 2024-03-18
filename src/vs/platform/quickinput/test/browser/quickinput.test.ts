@@ -19,7 +19,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { mainWindow } from 'vs/base/browser/window';
 import { QuickPick } from 'vs/platform/quickinput/browser/quickInput';
-import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -237,5 +237,42 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 		// Since we don't select any items, the selected items should be empty
 		assert.strictEqual(quickpick.selectedItems.length, 0);
+	});
+
+	test('activeItems - verify onDidChangeActive is triggered after setting items', async () => {
+		const quickpick = store.add(controller.createQuickPick());
+
+		// Setup listener for verification
+		const activeItemsFromEvent: IQuickPickItem[] = [];
+		store.add(quickpick.onDidChangeActive(items => activeItemsFromEvent.push(...items)));
+
+		quickpick.show();
+
+		const item = { label: 'step 1' };
+		quickpick.items = [item];
+
+		assert.strictEqual(activeItemsFromEvent.length, 1);
+		assert.strictEqual(activeItemsFromEvent[0], item);
+		assert.strictEqual(quickpick.activeItems.length, 1);
+		assert.strictEqual(quickpick.activeItems[0], item);
+	});
+
+	test('activeItems - verify setting itemActivation to None still triggers onDidChangeActive after selection #207832', async () => {
+		const quickpick = store.add(controller.createQuickPick());
+		const item = { label: 'step 1' };
+		quickpick.items = [item];
+		quickpick.show();
+		assert.strictEqual(quickpick.activeItems[0], item);
+
+		// Setup listener for verification
+		const activeItemsFromEvent: IQuickPickItem[] = [];
+		store.add(quickpick.onDidChangeActive(items => activeItemsFromEvent.push(...items)));
+
+		// Trigger a change
+		quickpick.itemActivation = ItemActivation.NONE;
+		quickpick.items = [item];
+
+		assert.strictEqual(activeItemsFromEvent.length, 0);
+		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
 });

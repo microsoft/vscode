@@ -522,7 +522,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._register(this.inputPart.onDidChangeHeight(() => this.bodyDimension && this.layout(this.bodyDimension.height, this.bodyDimension.width)));
 		this._register(this.inputEditor.onDidChangeModelContent(() => this.updateImplicitContextKinds()));
-		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateImplicitContextKinds()));
+		this._register(this.chatAgentService.onDidChangeAgents(() => {
+			if (this.viewModel) {
+				this.updateImplicitContextKinds();
+			}
+		}));
 	}
 
 	private onDidStyleChange(): void {

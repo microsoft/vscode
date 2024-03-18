@@ -699,7 +699,8 @@ export const enum TabInputKind {
 	WebviewEditorInput,
 	TerminalEditorInput,
 	InteractiveEditorInput,
-	ChatEditorInput
+	ChatEditorInput,
+	MultiDiffEditorInput
 }
 
 export const enum TabModelOperationKind {
@@ -767,11 +768,16 @@ export interface ChatEditorInputDto {
 	providerId: string;
 }
 
+export interface MultiDiffEditorInputDto {
+	kind: TabInputKind.MultiDiffEditorInput;
+	diffEditors: TextDiffInputDto[];
+}
+
 export interface TabInputDto {
 	kind: TabInputKind.TerminalEditorInput;
 }
 
-export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | TextMergeInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | InteractiveEditorInputDto | ChatEditorInputDto | TabInputDto;
+export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | MultiDiffEditorInputDto | TextMergeInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | InteractiveEditorInputDto | ChatEditorInputDto | TabInputDto;
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc

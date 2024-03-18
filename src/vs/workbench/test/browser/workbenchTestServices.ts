@@ -584,7 +584,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainerDimension: IDimension = { width: 800, height: 600 };
 	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
-	whenActiveContainerStylesLoaded = Promise.resolve();
 
 	mainContainer: HTMLElement = mainWindow.document.body;
 	containers = [mainWindow.document.body];
@@ -613,6 +612,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
 	getContainer(): HTMLElement { return null!; }
+	whenContainerStylesLoaded() { return undefined; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }
@@ -852,7 +852,6 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 
-	readonly activePart = this;
 	readonly mainPart = this;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
@@ -1774,7 +1773,6 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly activePart = this;
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
 
@@ -2104,6 +2102,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
 	onDidChangeProfile = Event.None;
+	onDidEnableExtensions = Event.None;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
@@ -2153,8 +2152,8 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
 	getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]> { throw new Error('Method not implemented.'); }
 	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
-	getAllExtensions(location: URI): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
-	getExtension(location: URI): Promise<IResourceExtension | null> { throw new Error('Method not implemented.'); }
+	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
+	isWorkspaceExtensionsSupported(): boolean { throw new Error('Method not implemented.'); }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {

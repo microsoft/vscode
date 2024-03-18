@@ -38,7 +38,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_RENAME_INPUT_FOCUSED, CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField, RenameInputFieldResult } from './renameInputField';
+import { CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField, RenameInputFieldResult } from './renameInputField';
 
 class RenameSkeleton {
 
@@ -520,12 +520,6 @@ registerAction2(class FocusPreviousRenameSuggestion extends Action2 {
 			precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 			keybinding: [
 				{
-					when: CONTEXT_RENAME_INPUT_FOCUSED,
-					primary: KeyCode.Tab | KeyCode.Shift,
-					weight: KeybindingWeight.EditorContrib + 99,
-				},
-				{
-					when: CONTEXT_RENAME_INPUT_FOCUSED.toNegated(),
 					primary: KeyMod.Shift | KeyCode.Tab,
 					secondary: [KeyCode.UpArrow],
 					weight: KeybindingWeight.EditorContrib + 99,

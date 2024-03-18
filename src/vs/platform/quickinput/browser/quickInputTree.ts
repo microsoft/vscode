@@ -469,6 +469,11 @@ class QuickInputListRenderer implements ITreeRenderer<IQuickPickElement, void, I
 			data.entry.classList.remove('has-actions');
 		}
 	}
+	renderTwistie(element: IQuickPickElement, twistieElement: HTMLElement): boolean {
+		// Force the twistie to be hidden
+		twistieElement.setAttribute('style', 'display:none !important');
+		return false;
+	}
 	disposeElement?(_element: ITreeNode<IQuickPickElement, void>, _index: number, data: IQuickInputItemTemplateData): void {
 		data.toDisposeElement.clear();
 		data.actionBar.clear();
@@ -663,6 +668,7 @@ export class QuickInputTree extends Disposable {
 		this._registerOnElementChecked();
 		this._registerOnContextMenu();
 		this._registerHoverListeners();
+		this._registerSelectionChangeListener();
 	}
 
 	private _registerOnKeyDown() {
@@ -773,6 +779,21 @@ export class QuickInputTree extends Disposable {
 				return;
 			}
 			delayer.cancel();
+		}));
+	}
+
+	private _registerSelectionChangeListener() {
+		// When the user selects a separator, the separator will move to the top and focus will be
+		// set to the first element after the separator.
+		this._register(this._tree.onDidChangeSelection(e => {
+			const elementsWithoutSeparators = e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement);
+			if (elementsWithoutSeparators.length !== e.elements.length) {
+				if (e.elements.length === 1 && e.elements[0] instanceof QuickPickSeparatorElement) {
+					this._tree.setFocus([e.elements[0].children[0]]);
+					this._tree.reveal(e.elements[0], 0);
+				}
+				this._tree.setSelection(elementsWithoutSeparators);
+			}
 		}));
 	}
 

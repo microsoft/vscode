@@ -17,7 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestProductService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestExtensionTipsService, TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -212,6 +212,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(ILifecycleService, disposableStore.add(new TestLifecycleService()));
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
+		instantiationService.stub(IProductService, TestProductService);
 		instantiationService.stub(ILogService, NullLogService);
 		const fileService = new FileService(instantiationService.get(ILogService));
 		instantiationService.stub(IFileService, disposableStore.add(fileService));
@@ -230,7 +231,8 @@ suite('ExtensionRecommendationsService Test', () => {
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
-			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
+			async getTargetPlatform() { return getTargetPlatform(platform, arch); },
+			isWorkspaceExtensionsSupported() { return false; },
 		});
 		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,

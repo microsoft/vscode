@@ -90,7 +90,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	) {
 		super(window, undefined, hostService, environmentService);
 
-		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => { });
+		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => undefined);
+
 		this.registerListeners();
 	}
 
@@ -333,7 +334,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}
 	}
 
-	protected applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
+	private applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
 		mark('code/auxiliaryWindow/willApplyCSS');
 
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
@@ -341,11 +342,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const stylesLoaded = new Barrier();
 		stylesLoaded.wait().then(() => mark('code/auxiliaryWindow/didLoadCSSStyles'));
 
-		let pendingLinkSettles = 0;
-		function onLinkSettled(_event?: globalThis.Event) {
-			// network errors from loading stylesheets will be written to the console
-			// already, we probably don't need to log them manually.
-			if (!--pendingLinkSettles) {
+		const pendingLinksDisposables = disposables.add(new DisposableStore());
+
+		let pendingLinksToSettle = 0;
+		function onLinkSettled() {
+			if (--pendingLinksToSettle === 0) {
+				pendingLinksDisposables.dispose();
 				stylesLoaded.open();
 			}
 		}
@@ -356,21 +358,28 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			}
 
 			const clonedNode = auxiliaryWindow.document.head.appendChild(originalNode.cloneNode(true));
-			if (originalNode.tagName === 'LINK') {
-				pendingLinkSettles++;
-				disposables.add(addDisposableListener(clonedNode, 'load', onLinkSettled));
-				disposables.add(addDisposableListener(clonedNode, 'error', onLinkSettled));
+			if (originalNode.tagName.toLowerCase() === 'link') {
+				pendingLinksToSettle++;
+
+				pendingLinksDisposables.add(addDisposableListener(clonedNode, 'load', onLinkSettled));
+				pendingLinksDisposables.add(addDisposableListener(clonedNode, 'error', onLinkSettled));
 			}
 
 			mapOriginalToClone.set(originalNode, clonedNode);
 		}
 
 		// Clone all style elements and stylesheet links from the window to the child window
-		pendingLinkSettles++; // outer increment handles cases where there's nothing to load, and ensures it can't settle prematurely
-		for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
-			cloneNode(originalNode);
+		// and keep track of <link> elements to settle to signal that styles have loaded
+		// Increment pending links right from the beginning to ensure we only settle when
+		// all style related nodes have been cloned.
+		pendingLinksToSettle++;
+		try {
+			for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
+				cloneNode(originalNode);
+			}
+		} finally {
+			onLinkSettled();
 		}
-		onLinkSettled();
 
 		// Global stylesheets in <head> are cloned in a special way because the mutation
 		// observer is not firing for changes done via `style.sheet` API. Only text changes
