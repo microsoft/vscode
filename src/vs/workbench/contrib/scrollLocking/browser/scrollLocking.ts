@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorPane, IEditorPaneScrollPosition } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorPaneScrollPosition, isEditorPaneWithScrolling } from 'vs/workbench/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
@@ -97,7 +97,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 
 		for (const pane of this.getAllVisiblePanes()) {
 
-			if (!pane.getScrollPosition || !pane.onDidChangeScroll) {
+			if (!isEditorPaneWithScrolling(pane)) {
 				continue;
 			}
 
@@ -113,7 +113,11 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 			throw new Error('Scrolled pane not tracked');
 		}
 
-		const scrolledPaneCurrentPosition = scrolledPane.getScrollPosition!()!;
+		if (!isEditorPaneWithScrolling(scrolledPane)) {
+			throw new Error('Scrolled pane does not support scrolling');
+		}
+
+		const scrolledPaneCurrentPosition = scrolledPane.getScrollPosition();
 		const scrolledFromInitial = {
 			scrollTop: scrolledPaneCurrentPosition.scrollTop - scrolledPaneInitialOffset.scrollTop,
 			scrollLeft: scrolledPaneCurrentPosition.scrollLeft !== undefined && scrolledPaneInitialOffset.scrollLeft !== undefined ? scrolledPaneCurrentPosition.scrollLeft - scrolledPaneInitialOffset.scrollLeft : undefined,
@@ -124,7 +128,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 				continue;
 			}
 
-			if (!pane.setScrollPosition) {
+			if (!isEditorPaneWithScrolling(pane)) {
 				return;
 			}
 

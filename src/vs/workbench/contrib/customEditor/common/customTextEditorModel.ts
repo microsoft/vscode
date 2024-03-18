@@ -16,8 +16,6 @@ import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from
 
 export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
 
-	readonly isTextBased = true;
-
 	public static async create(
 		instantiationService: IInstantiationService,
 		viewType: string,
@@ -29,6 +27,8 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 			return instantiationService.createInstance(CustomTextEditorModel, viewType, resource, model);
 		});
 	}
+
+	readonly isTextBased = true;
 
 	private readonly _textFileModel: ITextFileEditorModel | undefined;
 

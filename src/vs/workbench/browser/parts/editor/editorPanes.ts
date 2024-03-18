@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IAction, toAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,7 +17,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions, IInternalEditorMoveCopyOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
@@ -126,24 +126,9 @@ export class EditorPanes extends Disposable {
 		}
 	}
 
-	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorMoveCopyOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 		try {
-
-			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
-			if (getWindowById(this.groupView.windowId) !== getWindowById(internalOptions?.sourceGroup?.windowId, true) && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
-				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "Save the editor first before opening in this window."), [
-					toAction({
-						id: 'workbench.editor.action.closeEditor', label: localize('openFolder', "Close Editor"), run: async () => {
-							return this.groupView.closeEditor(editor);
-						}
-					})
-				], { forceMessage: true, forceSeverity: Severity.Warning }), editor, options, internalOptions, context);
-			}
-
-			// Open editor normally
-			else {
-				return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, internalOptions, context);
-			}
+			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, internalOptions, context);
 		} catch (error) {
 
 			// First check if caller instructed us to ignore error handling

@@ -4,56 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Schemas } from 'vs/base/common/network';
+import { isIOS, isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/scrollbar';
-import 'vs/css!./media/widgets';
-import 'vs/css!./media/xterm';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/terminalVoice';
+import 'vs/css!./media/widgets';
+import 'vs/css!./media/xterm';
 import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight, KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput } from 'vs/platform/dnd/browser/dnd';
-import { registerTerminalActions, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { TERMINAL_VIEW_ID, TerminalCommandId, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
-import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, TerminalDataTransfers, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IKeybindings, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ITerminalLogService, TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { isIOS, isWindows } from 'vs/base/common/platform';
-import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
-import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
+import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
+import { IViewContainersRegistry, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
+import { RemoteTerminalBackendContribution } from 'vs/workbench/contrib/terminal/browser/remoteTerminalBackend';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, TerminalDataTransfers, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { registerTerminalActions, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { TerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminalEditorService';
 import { TerminalInputSerializer } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
+import { TerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminalEditorService';
 import { TerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminalGroupService';
-import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { RemoteTerminalBackendContribution } from 'vs/workbench/contrib/terminal/browser/remoteTerminalBackend';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
-import { Schemas } from 'vs/base/common/network';
-import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
+import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
+import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
+import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
+import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
+import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
+import { TerminalContextKeyStrings, TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 // Register services
 registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
@@ -79,9 +78,9 @@ const quickAccessNavigatePreviousInTerminalPickerId = 'workbench.action.quickOpe
 CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigatePreviousInTerminalPickerId, false) });
 
 // Register workbench contributions
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, LifecyclePhase.Restored);
+// This contribution blocks startup as it's critical to enable the web embedder window.createTerminal API
+registerWorkbenchContribution2(TerminalMainContribution.ID, TerminalMainContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(RemoteTerminalBackendContribution.ID, RemoteTerminalBackendContribution, WorkbenchPhase.AfterRestored);
 
 // Register configurations
 registerTerminalPlatformConfiguration();
