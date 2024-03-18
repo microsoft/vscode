@@ -438,6 +438,7 @@ registerAction2(class extends NotebookCellAction {
 					id: MenuId.NotebookCellTitle,
 					when: NOTEBOOK_EDITOR_FOCUSED,
 					group: CellOverflowToolbarGroups.Copy,
+					order: 2,
 				},
 				keybinding: platform.isNative ? undefined : {
 					primary: KeyMod.CtrlCmd | KeyCode.KeyC,
@@ -463,6 +464,7 @@ registerAction2(class extends NotebookCellAction {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 					group: CellOverflowToolbarGroups.Copy,
+					order: 1,
 				},
 				keybinding: platform.isNative ? undefined : {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -488,6 +490,7 @@ registerAction2(class extends NotebookAction {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
 					group: CellOverflowToolbarGroups.Copy,
+					order: 3,
 				},
 				keybinding: platform.isNative ? undefined : {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
