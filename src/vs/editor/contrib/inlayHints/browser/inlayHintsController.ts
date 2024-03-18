@@ -261,7 +261,7 @@ export class InlayHintsController implements IEditorContribution {
 			cts?.cancel();
 
 			// update less aggressive when typing
-			const delay = Math.max(scheduler.delay, 1250);
+			const delay = Math.max(scheduler.delay, options.typingDebounceDelay);
 			scheduler.schedule(delay);
 		}));
 
