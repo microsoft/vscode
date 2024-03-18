@@ -1865,7 +1865,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				message: nls.localize('TaskSystem.saveBeforeRun.prompt.title', "Save all editors?"),
 				detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
 				primaryButton: nls.localize({ key: 'saveBeforeRun.save', comment: ['&& denotes a mnemonic'] }, '&&Save'),
-				cancelButton: nls.localize('saveBeforeRun.dontSave', 'Don\'t save'),
+				cancelButton: nls.localize({ key: 'saveBeforeRun.dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
 			});
 
 			if (!confirmed) {
