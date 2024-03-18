@@ -34,9 +34,11 @@ interface ITraitChangeEvent {
 	browserEvent?: UIEvent;
 }
 
-type ITraitTemplateData = {
+type ITraitTemplateData = HTMLElement;
+
+type IAccessibilityTemplateData = {
 	container: HTMLElement;
-	disposables?: DisposableStore;
+	disposables: DisposableStore;
 };
 
 interface IRenderedContainer {
@@ -54,7 +56,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 	}
 
 	renderTemplate(container: HTMLElement): ITraitTemplateData {
-		return { container };
+		return container;
 	}
 
 	renderElement(element: T, index: number, templateData: ITraitTemplateData): void {
@@ -62,14 +64,14 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 
 		if (renderedElementIndex >= 0) {
 			const rendered = this.renderedElements[renderedElementIndex];
-			this.trait.unrender(templateData.container);
+			this.trait.unrender(templateData);
 			rendered.index = index;
 		} else {
 			const rendered = { index, templateData };
 			this.renderedElements.push(rendered);
 		}
 
-		this.trait.renderIndex(index, templateData.container);
+		this.trait.renderIndex(index, templateData);
 	}
 
 	splice(start: number, deleteCount: number, insertCount: number): void {
@@ -93,7 +95,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 	renderIndexes(indexes: number[]): void {
 		for (const { index, templateData } of this.renderedElements) {
 			if (indexes.indexOf(index) > -1) {
-				this.trait.renderIndex(index, templateData.container);
+				this.trait.renderIndex(index, templateData);
 			}
 		}
 	}
@@ -851,7 +853,7 @@ export interface IStyleController {
 }
 
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
-	getAriaLabel(element: T, disposables?: DisposableStore): string | null;
+	getAriaLabel(element: T): string | null;
 	onDidAriaLabelChange?: Event<T>;
 	getWidgetAriaLabel(): string;
 	getWidgetRole?(): AriaRole;
@@ -1258,17 +1260,17 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 	}
 }
 
-class AccessibiltyRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
+class AccessibiltyRenderer<T> implements IListRenderer<T, IAccessibilityTemplateData> {
 
 	templateId: string = 'a18n';
 
 	constructor(private accessibilityProvider: IListAccessibilityProvider<T>) { }
 
-	renderTemplate(container: HTMLElement): ITraitTemplateData {
+	renderTemplate(container: HTMLElement): IAccessibilityTemplateData {
 		return { container, disposables: new DisposableStore() };
 	}
 
-	renderElement(element: T, index: number, data: ITraitTemplateData): void {
+	renderElement(element: T, index: number, data: IAccessibilityTemplateData): void {
 		const ariaLabel = this.accessibilityProvider.getAriaLabel(element);
 
 		this.setAriaLabel(ariaLabel, data.container);
@@ -1299,7 +1301,7 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: ITraitTemplateData, height: number | undefined): void {
+	disposeElement(element: T, index: number, templateData: IAccessibilityTemplateData, height: number | undefined): void {
 		templateData.disposables?.clear();
 	}
 
@@ -1466,7 +1468,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const role = this._options.accessibilityProvider && this._options.accessibilityProvider.getWidgetRole ? this._options.accessibilityProvider?.getWidgetRole() : 'list';
 		this.selection = new SelectionTrait(role !== 'listbox');
 
-		const baseRenderers: IListRenderer<T, ITraitTemplateData>[] = [this.focus.renderer, this.selection.renderer];
+		const baseRenderers: IListRenderer<T, ITraitTemplateData | IAccessibilityTemplateData>[] = [this.focus.renderer, this.selection.renderer];
 
 		this.accessibilityProvider = _options.accessibilityProvider;
 

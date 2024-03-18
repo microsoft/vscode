@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { DebounceEmitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,13 +13,10 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellKind, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class NotebookAccessibilityProvider implements IListAccessibilityProvider<CellViewModel>, IDisposable {
-	private readonly _onDidAriaLabelChange = new DebounceEmitter<CellViewModel>({
-		merge: (vms) => vms[vms.length - 1],
-		delay: 100
-	});
+	private readonly _onDidAriaLabelChange = new Emitter<CellViewModel>();
 	readonly onDidAriaLabelChange = this._onDidAriaLabelChange.event;
 
 	private listener: IDisposable;
@@ -30,14 +27,19 @@ export class NotebookAccessibilityProvider implements IListAccessibilityProvider
 		private readonly keybindingService: IKeybindingService,
 		private readonly configurationService: IConfigurationService
 	) {
-		this.listener = this.notebookExecutionStateService.onDidChangeExecution(e => {
+		this.listener = Event.debounce<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent, number[]>(
+			this.notebookExecutionStateService.onDidChangeExecution,
+			this.mergeEvents,
+			100
+		)((cellHandles: number[]) => {
 			const viewModel = this.viewModel();
-			if (viewModel && e.type === NotebookExecutionType.cell && e.affectsNotebook(viewModel.uri)) {
-				const cellModel = viewModel.getCellByHandle(e.cellHandle);
-				if (cellModel) {
-					this._onDidAriaLabelChange.fire(cellModel as CellViewModel);
+			if (viewModel) {
+				for (const handle of cellHandles) {
+					const cellModel = viewModel.getCellByHandle(handle);
+					if (cellModel) {
+						this._onDidAriaLabelChange.fire(cellModel as CellViewModel);
+					}
 				}
-
 			}
 		});
 	}
@@ -45,7 +47,6 @@ export class NotebookAccessibilityProvider implements IListAccessibilityProvider
 	dispose(): void {
 		this.listener.dispose();
 	}
-
 
 	getAriaLabel(element: CellViewModel) {
 		const viewModel = this.viewModel();
@@ -81,5 +82,16 @@ export class NotebookAccessibilityProvider implements IListAccessibilityProvider
 				: nls.localize('notebookTreeAriaLabelHelpNoKb', "Notebook\nRun the Open Accessibility Help command for more information", keybinding);
 		}
 		return nls.localize('notebookTreeAriaLabel', "Notebook");
+	}
+
+	private mergeEvents(last: number[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent): number[] {
+		const viewModel = this.viewModel();
+		const result = last || [];
+		if (viewModel && e.type === NotebookExecutionType.cell && e.affectsNotebook(viewModel.uri)) {
+			if (result.indexOf(e.cellHandle) < 0) {
+				result.push(e.cellHandle);
+			}
+		}
+		return result;
 	}
 }
