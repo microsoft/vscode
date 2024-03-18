@@ -691,6 +691,8 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 	//#region Auxiliary Statusbar Parts
 
 	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart {
+
+		// Container
 		const statusbarPartContainer = document.createElement('footer');
 		statusbarPartContainer.classList.add('part', 'statusbar');
 		statusbarPartContainer.setAttribute('role', 'status');
@@ -699,6 +701,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		statusbarPartContainer.setAttribute('tabindex', '0');
 		container.appendChild(statusbarPartContainer);
 
+		// Statusbar Part
 		const statusbarPart = this.instantiationService.createInstance(AuxiliaryStatusbarPart, statusbarPartContainer);
 		const disposable = this.registerPart(statusbarPart);
 
@@ -706,6 +709,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 
 		Event.once(statusbarPart.onWillDispose)(() => disposable.dispose());
 
+		// Emit internal event
 		this._onDidCreateAuxiliaryStatusbarPart.fire(statusbarPart);
 
 		return statusbarPart;
@@ -733,12 +737,18 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		const disposables = new DisposableStore();
 
 		const accessors = new Set<IStatusbarEntryAccessor>();
+
+		function rememberAccessor(accessor: IStatusbarEntryAccessor) {
+			accessors.add(accessor);
+			disposables.add(toDisposable(() => accessors.delete(accessor)));
+		}
+
 		for (const part of this.parts) {
-			accessors.add(disposables.add(part.addEntry(entry, id, alignment, priorityOrLocation)));
+			rememberAccessor(disposables.add(part.addEntry(entry, id, alignment, priorityOrLocation)));
 		}
 
 		disposables.add(this.onDidCreateAuxiliaryStatusbarPart(part => {
-			accessors.add(disposables.add(part.addEntry(entry, id, alignment, priorityOrLocation)));
+			rememberAccessor(disposables.add(part.addEntry(entry, id, alignment, priorityOrLocation)));
 		}));
 
 		return {
