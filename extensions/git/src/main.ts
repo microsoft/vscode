@@ -25,6 +25,7 @@ import { createIPCServer, IPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
+import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -58,7 +59,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 			logger.info(l10n.t('Skipped found git in: "{0}"', gitPath));
 		}
 		return !skip;
-	});
+	}, logger);
 
 	let ipcServer: IPCServer | undefined = undefined;
 
@@ -117,6 +118,12 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 
 	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
+
+	const diagnosticsManager = new GitCommitInputBoxDiagnosticsManager(model);
+	disposables.push(diagnosticsManager);
+
+	const codeActionsProvider = new GitCommitInputBoxCodeActionsProvider(diagnosticsManager);
+	disposables.push(codeActionsProvider);
 
 	checkGitVersion(info);
 	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/sumneko/lua.tmbundle/commit/3a18700941737c3ab66ac5964696f141aee61800",
+	"version": "https://github.com/sumneko/lua.tmbundle/commit/94ce82cc4d45f82641a5252d7a7fd9e28c875adc",
 	"name": "Lua",
 	"scopeName": "source.lua",
 	"patterns": [
@@ -356,6 +356,26 @@
 						}
 					},
 					"patterns": [
+						{
+							"begin": "--\\[(=*)\\[@@@",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.begin.lua"
+								}
+							},
+							"end": "\\]\\1\\]",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.end.lua"
+								}
+							},
+							"name": "",
+							"patterns": [
+								{
+									"include": "source.lua"
+								}
+							]
+						},
 						{
 							"begin": "--\\[(=*)\\[",
 							"beginCaptures": {
@@ -928,7 +948,6 @@
 		},
 		"ldoc_tag": {
 			"match": "\\G[ \\t]*(@)(alias|annotation|author|charset|class|classmod|comment|constructor|copyright|description|example|export|factory|field|file|fixme|function|include|lfunction|license|local|module|name|param|pragma|private|raise|release|return|script|section|see|set|static|submodule|summary|tfield|thread|tparam|treturn|todo|topic|type|usage|warning|within)\\b",
-			"end": "(?!@)\\b",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.block.tag.ldoc"

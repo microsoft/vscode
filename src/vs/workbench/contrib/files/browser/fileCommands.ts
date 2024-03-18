@@ -37,7 +37,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -46,11 +46,13 @@ import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/ed
 import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { OpenEditorsView } from 'vs/workbench/contrib/files/browser/views/openEditorsView';
+import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -326,13 +328,17 @@ CommandsRegistry.registerCommand({
 		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
-
 		if (uri && contextService.isInsideWorkspace(uri)) {
-			const explorerView = await viewService.openView(VIEW_ID, false);
+			const explorerView = await viewService.openView<ExplorerView>(VIEW_ID, false);
 			if (explorerView) {
+				const oldAutoReveal = explorerView.autoReveal;
+				// Disable autoreveal before revealing the explorer to prevent a race betwene auto reveal + selection
+				// Fixes #197268
+				explorerView.autoReveal = false;
 				explorerView.setExpanded(true);
 				await explorerService.select(uri, 'force');
 				explorerView.focus();
+				explorerView.autoReveal = oldAutoReveal;
 			}
 		} else {
 			const openEditorsView = await viewService.openView(OpenEditorsView.ID, false);
@@ -377,11 +383,16 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 			// has 2 sides, we consider both, to support saving both sides.
 			// We only allow this when saving, not for "Save As" and not if any
 			// editor is untitled which would bring up a "Save As" dialog too.
+			// In addition, we require the secondary side to be modified to not
+			// trigger a touch operation unexpectedly.
+			//
 			// See also https://github.com/microsoft/vscode/issues/4180
 			// See also https://github.com/microsoft/vscode/issues/106330
+			// See also https://github.com/microsoft/vscode/issues/190210
 			if (
 				activeGroup.activeEditor instanceof SideBySideEditorInput &&
-				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled))
+				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled)) &&
+				activeGroup.activeEditor.secondary.isModified()
 			) {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
@@ -403,7 +414,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 	// find it in our text file models. Currently, only textual editors
 	// support embedded editors.
 	const focusedCodeEditor = codeEditorService.getFocusedCodeEditor();
-	if (focusedCodeEditor instanceof EmbeddedCodeEditorWidget) {
+	if (focusedCodeEditor instanceof EmbeddedCodeEditorWidget && !focusedCodeEditor.isSimpleWidget) {
 		const resource = focusedCodeEditor.getModel()?.uri;
 
 		// Check that the resource of the model was not saved already
@@ -658,7 +669,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: isWeb ? (isWindows ? KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyCode.KeyN,
 	secondary: isWeb ? [KeyMod.CtrlCmd | KeyCode.KeyN] : undefined,
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	description: {
+	metadata: {
 		description: NEW_UNTITLED_FILE_LABEL,
 		args: [
 			{

@@ -4,37 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import * as dom from 'vs/base/browser/dom';
-import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { State } from 'vs/workbench/contrib/debug/common/debug';
-import { isWindows } from 'vs/base/common/platform';
+import { Expression, Scope, StackFrame, Thread, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let linkDetector: LinkDetector;
 
 	/**
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
-		disposables = new DisposableStore();
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		linkDetector = instantiationService.createInstance(LinkDetector);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('render view tree', () => {
@@ -91,7 +86,7 @@ suite('Debug - Base Debug View', () => {
 		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined!, endColumn: undefined! }, 0, true);
 		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined!, 0, 0, undefined, {}, 'string');
+		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined, 0, 0, undefined, {}, 'string');
 		let expression = $('.');
 		let name = $('.');
 		let value = $('.');
@@ -110,7 +105,6 @@ suite('Debug - Base Debug View', () => {
 		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(value.textContent, 'hey');
 		assert.strictEqual(label.element.textContent, 'foo:');
-		assert.strictEqual(label.element.title, 'string');
 
 		variable.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
 		expression = $('.');
@@ -127,14 +121,15 @@ suite('Debug - Base Debug View', () => {
 		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(name.className, 'virtual');
 		assert.strictEqual(label.element.textContent, 'console:');
-		assert.strictEqual(label.element.title, 'console');
 		assert.strictEqual(value.className, 'value number');
+
+		label.dispose();
 	});
 
 	test('statusbar in debug mode', () => {
-		const model = createMockDebugModel();
-		const session = createTestSession(model);
-		const session2 = createTestSession(model, undefined, { suppressDebugStatusbar: true });
+		const model = createMockDebugModel(disposables);
+		const session = disposables.add(createTestSession(model));
+		const session2 = disposables.add(createTestSession(model, undefined, { suppressDebugStatusbar: true }));
 		assert.strictEqual(isStatusbarInDebugMode(State.Inactive, []), false);
 		assert.strictEqual(isStatusbarInDebugMode(State.Initializing, [session]), false);
 		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session]), true);

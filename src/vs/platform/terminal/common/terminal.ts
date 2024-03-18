@@ -20,6 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
+	AutomationProfile = 'terminal.integrated.automationProfile.',
 	DefaultProfile = 'terminal.integrated.defaultProfile.',
 	Profiles = 'terminal.integrated.profiles.'
 }
@@ -64,6 +65,7 @@ export const enum TerminalSettingId {
 	FontWeightBold = 'terminal.integrated.fontWeightBold',
 	CursorBlinking = 'terminal.integrated.cursorBlinking',
 	CursorStyle = 'terminal.integrated.cursorStyle',
+	CursorStyleInactive = 'terminal.integrated.cursorStyleInactive',
 	CursorWidth = 'terminal.integrated.cursorWidth',
 	Scrollback = 'terminal.integrated.scrollback',
 	DetectLocale = 'terminal.integrated.detectLocale',
@@ -77,6 +79,7 @@ export const enum TerminalSettingId {
 	ConfirmOnExit = 'terminal.integrated.confirmOnExit',
 	ConfirmOnKill = 'terminal.integrated.confirmOnKill',
 	EnableBell = 'terminal.integrated.enableBell',
+	EnableVisualBell = 'terminal.integrated.enableVisualBell',
 	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
 	AllowChords = 'terminal.integrated.allowChords',
 	AllowMnemonics = 'terminal.integrated.allowMnemonics',
@@ -100,6 +103,7 @@ export const enum TerminalSettingId {
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
 	HideOnStartup = 'terminal.integrated.hideOnStartup',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
+	RescaleOverlappingGlyphs = 'terminal.integrated.rescaleOverlappingGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
@@ -112,6 +116,14 @@ export const enum TerminalSettingId {
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
+	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
+	FocusAfterRun = 'terminal.integrated.focusAfterRun',
+	AccessibleViewPreserveCursorPosition = 'terminal.integrated.accessibleViewPreserveCursorPosition',
+	AccessibleViewFocusOnCommandExecution = 'terminal.integrated.accessibleViewFocusOnCommandExecution',
+	StickyScrollEnabled = 'terminal.integrated.stickyScroll.enabled',
+	StickyScrollMaxLineCount = 'terminal.integrated.stickyScroll.maxLineCount',
+	MouseWheelZoom = 'terminal.integrated.mouseWheelZoom',
+	ExperimentalInlineChat = 'terminal.integrated.experimentalInlineChat',
 
 	// Debug settings that are hidden from user
 
@@ -119,6 +131,8 @@ export const enum TerminalSettingId {
 	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
 	/** Simulated startup delay of the pty host process */
 	DeveloperPtyHostStartupDelay = 'terminal.integrated.developer.ptyHost.startupDelay',
+	/** Shows the textarea element */
+	DevMode = 'terminal.integrated.developer.devMode'
 }
 
 export const enum PosixShellType {
@@ -129,12 +143,14 @@ export const enum PosixShellType {
 	Csh = 'csh',
 	Ksh = 'ksh',
 	Zsh = 'zsh',
+	Python = 'python'
 }
 export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
 	Wsl = 'wsl',
-	GitBash = 'gitbash'
+	GitBash = 'gitbash',
+	Python = 'python'
 }
 export type TerminalShellType = PosixShellType | WindowsShellType;
 
@@ -414,7 +430,7 @@ export enum HeartbeatConstants {
 	BeatInterval = 5000,
 	/**
 	 * The duration of the first heartbeat while the pty host is starting up. This is much larger
-	 * than the regular BeatInterval to accomodate slow machines, we still want to warn about the
+	 * than the regular BeatInterval to accommodate slow machines, we still want to warn about the
 	 * pty host's unresponsiveness eventually though.
 	 */
 	ConnectingBeatInterval = 20000,
@@ -554,7 +570,7 @@ export interface IShellLaunchConfig {
 	 * until `Terminal.show` is called. The typical usage for this is when you need to run
 	 * something that may need interactivity but only want to tell the user about it when
 	 * interaction is needed. Note that the terminals will still be exposed to all extensions
-	 * as normal.
+	 * as normal. The hidden terminals will not be restored when the workspace is next opened.
 	 */
 	hideFromUser?: boolean;
 
@@ -598,6 +614,12 @@ export interface IShellLaunchConfig {
 	isTransient?: boolean;
 
 	/**
+	 * Attempt to force shell integration to be enabled by bypassing the {@link isFeatureTerminal}
+	 * equals false requirement.
+	 */
+	forceShellIntegration?: boolean;
+
+	/**
 	 * Create a terminal without shell integration even when it's enabled
 	 */
 	ignoreShellIntegration?: boolean;
@@ -609,6 +631,7 @@ export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
 	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
+	cwd?: string | URI;
 }
 
 export enum TerminalLocation {
@@ -962,6 +985,7 @@ export interface ITerminalCommandSelector {
 	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus: boolean;
 	commandExitResult: 'success' | 'error';
+	kind?: 'fix' | 'explain';
 }
 
 export interface ITerminalBackend {

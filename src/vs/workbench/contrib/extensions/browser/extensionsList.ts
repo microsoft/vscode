@@ -13,7 +13,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction, SkipUpdateAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction, ToggleAutoUpdateForExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -26,6 +26,7 @@ import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
 
@@ -80,7 +81,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const preReleaseWidget = this.instantiationService.createInstance(PreReleaseBookmarkWidget, append(root, $('.extension-bookmark-container')));
 		const element = append(root, $('.extension-list-item'));
 		const iconContainer = append(element, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon'));
+		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { alt: '' }));
 		const iconRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, false);
 		const extensionPackBadgeWidget = this.instantiationService.createInstance(ExtensionPackBadgeWidget, iconContainer);
 		const details = append(element, $('.details'));
@@ -98,13 +99,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $(`.verified-publisher`)), true);
 		const publisherDisplayName = append(publisher, $('.publisher-name.ellipsis'));
 		const actionbar = new ActionBar(footer, {
-			animated: false,
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof ActionWithDropDownAction) {
-					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+					return new ExtensionActionWithDropdownActionViewItem(action, { ...options, icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
 				}
 				if (action instanceof ExtensionDropDownAction) {
-					return action.createActionViewItem();
+					return action.createActionViewItem(options);
 				}
 				return undefined;
 			},
@@ -117,9 +117,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const actions = [
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, true),
-			this.instantiationService.createInstance(ReloadAction),
+			this.instantiationService.createInstance(ExtensionRuntimeStateAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
-				[[this.instantiationService.createInstance(UpdateAction, false)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
+				[[this.instantiationService.createInstance(UpdateAction, false)], [this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, true, [true, 'onlyEnabledExtensions'])]]),
 			this.instantiationService.createInstance(InstallDropdownAction),
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(SetLanguageAction),
@@ -128,8 +128,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(LocalInstallAction),
 			this.instantiationService.createInstance(WebInstallAction),
 			extensionStatusIconAction,
-			this.instantiationService.createInstance(SwitchToReleasedVersionAction, true),
-			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, true),
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
 		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, position: this.options.hoverOptions.position }, extensionStatusIconAction);
@@ -225,7 +223,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.description.textContent = extension.description;
 
 		const updatePublisher = () => {
-			data.publisherDisplayName.textContent = extension.publisherDisplayName;
+			data.publisherDisplayName.textContent = !extension.resourceExtension && extension.local?.source !== 'resource' ? extension.publisherDisplayName : '';
 		};
 		updatePublisher();
 		Event.filter(this.extensionsWorkbenchService.onChange, e => !!e && areSameExtensions(e.identifier, extension.identifier))(() => updatePublisher(), this, data.extensionDisposables);

@@ -11,7 +11,7 @@ pub mod protocol;
 pub mod shutdown_signal;
 pub mod singleton_client;
 pub mod singleton_server;
-pub mod forwarding;
+pub mod local_forwarding;
 
 mod wsl_detect;
 mod challenge;

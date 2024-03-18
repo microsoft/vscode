@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -15,14 +15,16 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 
 export class ConfigureDisplayLanguageAction extends Action2 {
 	public static readonly ID = 'workbench.action.configureLocale';
-	public static readonly LABEL = localize('configureLocale', "Configure Display Language");
 
 	constructor() {
 		super({
 			id: ConfigureDisplayLanguageAction.ID,
-			title: { original: 'Configure Display Language', value: ConfigureDisplayLanguageAction.LABEL },
+			title: localize2('configureLocale', "Configure Display Language"),
 			menu: {
 				id: MenuId.CommandPalette
+			},
+			metadata: {
+				description: localize2('configureLocaleDescription', "Changes the locale of VS Code based on installed language packs. Common languages include French, Chinese, Spanish, Japanese, German, Korean, and more.")
 			}
 		});
 	}
@@ -36,6 +38,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		const installedLanguages = await languagePackService.getInstalledLanguages();
 
 		const qp = quickInputService.createQuickPick<ILanguagePackItem>();
+		qp.matchOnDescription = true;
 		qp.placeholder = localize('chooseLocale', "Select Display Language");
 
 		if (installedLanguages?.length) {
@@ -64,9 +67,11 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		});
 
 		disposables.add(qp.onDidAccept(async () => {
-			const selectedLanguage = qp.activeItems[0];
-			qp.hide();
-			await localeService.setLocale(selectedLanguage);
+			const selectedLanguage = qp.activeItems[0] as ILanguagePackItem | undefined;
+			if (selectedLanguage) {
+				qp.hide();
+				await localeService.setLocale(selectedLanguage);
+			}
 		}));
 
 		disposables.add(qp.onDidTriggerItemButton(async e => {
@@ -95,12 +100,12 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 
 export class ClearDisplayLanguageAction extends Action2 {
 	public static readonly ID = 'workbench.action.clearLocalePreference';
-	public static readonly LABEL = localize('clearDisplayLanguage', "Clear Display Language Preference");
+	public static readonly LABEL = localize2('clearDisplayLanguage', "Clear Display Language Preference");
 
 	constructor() {
 		super({
 			id: ClearDisplayLanguageAction.ID,
-			title: { original: 'Clear Display Language Preference', value: ClearDisplayLanguageAction.LABEL },
+			title: ClearDisplayLanguageAction.LABEL,
 			menu: {
 				id: MenuId.CommandPalette
 			}

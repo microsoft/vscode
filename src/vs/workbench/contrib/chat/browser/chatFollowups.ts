@@ -7,16 +7,23 @@ import * as dom from 'vs/base/browser/dom';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IInlineChatFollowup } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 const $ = dom.$;
 
-export class ChatFollowups<T extends IChatFollowup> extends Disposable {
+export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extends Disposable {
 	constructor(
 		container: HTMLElement,
 		followups: T[],
 		private readonly options: IButtonStyles | undefined,
 		private readonly clickHandler: (followup: T) => void,
+		@IContextKeyService private readonly contextService: IContextKeyService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
@@ -25,17 +32,43 @@ export class ChatFollowups<T extends IChatFollowup> extends Disposable {
 	}
 
 	private renderFollowup(container: HTMLElement, followup: T): void {
-		const tooltip = 'tooltip' in followup ? followup.tooltip : undefined;
+
+		if (followup.kind === 'command' && followup.when && !this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(followup.when))) {
+			return;
+		}
+
+		if (!this.chatAgentService.getDefaultAgent()) {
+			// No default agent yet, which affects how followups are rendered, so can't render this yet
+			return;
+		}
+
+		let tooltipPrefix = '';
+		if ('agentId' in followup && followup.agentId && followup.agentId !== this.chatAgentService.getDefaultAgent()?.id) {
+			tooltipPrefix += `${chatAgentLeader}${followup.agentId} `;
+			if ('subCommand' in followup && followup.subCommand) {
+				tooltipPrefix += `${chatSubcommandLeader}${followup.subCommand} `;
+			}
+		}
+
+		const baseTitle = followup.kind === 'reply' ?
+			(followup.title || followup.message)
+			: followup.title;
+
+		const tooltip = tooltipPrefix +
+			('tooltip' in followup && followup.tooltip || baseTitle);
 		const button = this._register(new Button(container, { ...this.options, supportIcons: true, title: tooltip }));
 		if (followup.kind === 'reply') {
 			button.element.classList.add('interactive-followup-reply');
 		} else if (followup.kind === 'command') {
 			button.element.classList.add('interactive-followup-command');
 		}
-
-		const label = followup.kind === 'reply' ?
-			'$(sparkle) ' + (followup.title || followup.message) :
-			followup.title;
+		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", followup.title);
+		let label = '';
+		if (followup.kind === 'reply') {
+			label = '$(sparkle) ' + baseTitle;
+		} else {
+			label = baseTitle;
+		}
 		button.label = new MarkdownString(label, { supportThemeIcons: true });
 
 		this._register(button.onDidClick(() => this.clickHandler(followup)));

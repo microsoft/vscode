@@ -20,7 +20,7 @@
 	visibility: hidden;
 }
 .monaco-workbench .part.panel .pane-body.integrated-terminal .terminal-outer-container {
-	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-groups-container,
@@ -32,7 +32,7 @@
 }
 .monaco-workbench .part.sidebar .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .part.auxiliarybar .pane-body.integrated-terminal .terminal-outer-container {
-	background-color: var(--vscode-terminal-background, --vscode-sideBar-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-sideBar-background));
 }
 
 .monaco-workbench .pane-body.integrated-terminal .split-view-view:not(:first-child),
@@ -41,7 +41,7 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay {
-	background-color: var(--vscode-terminal-dropBackground, --vscode-editorGroup-dropBackground);
+	background-color: var(--vscode-terminal-dropBackground, var(--vscode-editorGroup-dropBackground));
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before {
@@ -53,9 +53,9 @@
 	outline: 0 !important;
 }
 
-.monaco-workbench .terminal-tab::before {
-	font-family: 'codicon' !important;
-	font-size: 16px !important;
+.monaco-workbench .xterm .xterm-helper-textarea:focus {
+	/* Override the general vscode style applies `opacity:1!important` to textareas */
+	opacity: 0 !important;
 }
 
 .monaco-workbench .terminal-tab:not(.terminal-uri-icon)::before {
@@ -63,7 +63,7 @@
 }
 
 .monaco-workbench .terminal-editor .terminal-wrapper {
-	background-color: var(--vscode-terminal-background, --vscode-editorPane-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-editorPane-background));
 }
 .monaco-workbench .terminal-editor .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
@@ -248,11 +248,6 @@
 	top: 0;
 }
 
-.monaco-workbench .xterm .xterm-helper-textarea:focus {
-	/* Override the general vscode style applies `opacity:1!important` to textareas */
-	opacity: 0 !important;
-}
-
 .monaco-workbench.vs-dark.mac .pane-body.integrated-terminal .terminal-groups-container:not(.alt-active) .terminal:not(.enable-mouse-events),
 .monaco-workbench.hc-black.mac .pane-body.integrated-terminal .terminal-groups-container:not(.alt-active) .terminal:not(.enable-mouse-events) {
 	cursor: -webkit-image-set(url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAL0lEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVORK5CYII=') 1x, url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0lEQVRIx2NgYGBY/R8I/vx5eelX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSARckrNBRvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhRA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KrtYcx/CTIy0e+rC7R1Z4KMICVTQQ14feVXIbR695u14+Ir4gwAAD49E54wc1kWAAAAAElFTkSuQmCC') 2x) 5 8, text;
@@ -273,10 +268,6 @@
 .part.panel > .title > .title-actions .switch-terminal > .monaco-select-box {
 	border-width: 1px;
 	border-style: solid;
-}
-
-.xterm-screen .xterm-decoration-container .xterm-decoration.quick-fix {
-	z-index: 7;
 }
 
 .monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal {
@@ -459,6 +450,8 @@
 
 .monaco-workbench .terminal .terminal-command-decoration:not(.default):hover {
 	cursor: pointer;
+}
+.monaco-workbench .terminal .terminal-command-decoration:not(.default):hover::before {
 	border-radius: 5px;
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
@@ -472,10 +465,6 @@
 	pointer-events: none;
 	color: var(--vscode-terminalCommandDecoration-defaultBackground);
 }
-.monaco-workbench .terminal .terminal-command-decoration.quick-fix {
-	color: var(--vscode-editorLightBulb-foreground) !important;
-	background-color: var(--vscode-terminal-background, --vscode-panel-background);
-}
 
 .terminal-scroll-highlight {
 	left: 0;
@@ -485,12 +474,42 @@
 	pointer-events: none;
 }
 
-.terminal-scroll-highlight-outline {
-	border: 1px solid #ffffff;
+.terminal-range-highlight {
+	outline: 1px solid var(--vscode-focusBorder);
 	pointer-events: none;
 }
 
-.terminal-scroll-highlight {
+.terminal-command-guide {
+	left: 0;
+	border: 1.5px solid #ffffff;
+	width: 0px !important;
+	border-color: var(--vscode-notebook-inactiveFocusedCellBorder);
+	box-sizing: border-box;
+	transform: translateX(3px);
+}
+.terminal-command-guide.top {
+	border-top-left-radius: 1px;
+	border-top-right-radius: 1px;
+}
+.terminal-command-guide.bottom {
+	border-bottom-left-radius: 1px;
+	border-bottom-right-radius: 1px;
+}
+
+.terminal-scroll-highlight-outline {
+	border-left: 1px solid #ffffff;
+	border-right: 1px solid #ffffff;
+	pointer-events: none;
+}
+.terminal-scroll-highlight-outline.top {
+	border-top: 1px solid #ffffff;
+}
+.terminal-scroll-highlight-outline.bottom {
+	border-bottom: 1px solid #ffffff;
+}
+
+.terminal-scroll-highlight,
+.terminal-scroll-highlight.terminal-scroll-highlight-outline {
 	border-color: var(--vscode-focusBorder);
 }
 .hc-black .xterm-find-result-decoration,
@@ -546,34 +565,6 @@
 
 .monaco-workbench .xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
-}
-
-.monaco-workbench .terminal-accessible-widget {
-	position: absolute;
-	left: 10px;
-	top: 0;
-	bottom: 0;
-	right: 0;
-	opacity: 0;
-	/* Reset cursor style as monaco controls it here */
-	cursor: default;
-	padding: 0;
-	overflow: initial;
-	overflow-x: initial;
-	pointer-events: none;
-	z-index: 0;
-}
-
-.monaco-workbench .terminal-accessible-widget div {
-	white-space: pre-wrap;
-}
-
-.monaco-workbench .terminal-accessible-widget.focus-within,
-.monaco-workbench .terminal-accessible-widget.active {
-	pointer-events: all;
-	opacity: 1;
-	z-index: 33;
-	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }
 
 .monaco-workbench .xterm.terminal.hide {

@@ -21,6 +21,7 @@ export namespace TestingContextKeys {
 	export const supportsContinuousRun = new RawContextKey('testing.supportsContinuousRun', false, { type: 'boolean', description: localize('testing.supportsContinuousRun', 'Indicates whether continous test running is supported') });
 	export const isParentRunningContinuously = new RawContextKey('testing.isParentRunningContinuously', false, { type: 'boolean', description: localize('testing.isParentRunningContinuously', 'Indicates whether the parent of a test is continuously running, set in the menu context of test items') });
 	export const activeEditorHasTests = new RawContextKey('testing.activeEditorHasTests', false, { type: 'boolean', description: localize('testing.activeEditorHasTests', 'Indicates whether any tests are present in the current editor') });
+	export const isTestCoverageOpen = new RawContextKey('testing.isTestCoverageOpen', false, { type: 'boolean', description: localize('testing.isTestCoverageOpen', 'Indicates whether a test coverage report is open') });
 
 	export const capabilityToContextKey: { [K in TestRunProfileBitset]: RawContextKey<boolean> } = {
 		[TestRunProfileBitset.Run]: hasRunnableTests,
@@ -57,5 +58,17 @@ export namespace TestingContextKeys {
 	export const testItemIsHidden = new RawContextKey<boolean>('testing.testItemIsHidden', false, {
 		type: 'boolean',
 		description: localize('testing.testItemIsHidden', 'Boolean indicating whether the test item is hidden')
+	});
+	export const testMessageContext = new RawContextKey<string>('testMessage', undefined, {
+		type: 'string',
+		description: localize('testing.testMessage', 'Value set in `testMessage.contextValue`, available in editor/content and testing/message/context')
+	});
+	export const testResultOutdated = new RawContextKey<boolean>('testResultOutdated', undefined, {
+		type: 'boolean',
+		description: localize('testing.testResultOutdated', 'Value available in editor/content and testing/message/context when the result is outdated')
+	});
+	export const testResultState = new RawContextKey<string>('testResultState', undefined, {
+		type: 'string',
+		description: localize('testing.testResultState', 'Value available testing/item/result indicating the state of the item.')
 	});
 }

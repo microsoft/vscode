@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::collections::HashMap;
+use serde::Deserialize;
+use std::{collections::HashMap, io::IsTerminal};
 
 use const_format::concatcp;
 use lazy_static::lazy_static;
@@ -32,17 +33,16 @@ pub const VSCODE_CLI_AI_ENDPOINT: Option<&'static str> = option_env!("VSCODE_CLI
 pub const VSCODE_CLI_QUALITY: Option<&'static str> = option_env!("VSCODE_CLI_QUALITY");
 pub const DOCUMENTATION_URL: Option<&'static str> = option_env!("VSCODE_CLI_DOCUMENTATION_URL");
 pub const VSCODE_CLI_COMMIT: Option<&'static str> = option_env!("VSCODE_CLI_COMMIT");
-pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
-	option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
+pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> = option_env!("VSCODE_CLI_UPDATE_URL");
 
 /// Windows lock name for the running tunnel service. Used by the setup script
 /// to detect a tunnel process. See #179265.
 pub const TUNNEL_SERVICE_LOCK_NAME: Option<&'static str> =
-	option_env!("VSCODE_CLI_TUNNEL_SERVICE_MUTEX");
+	option_env!("VSCODE_CLI_WIN32_TUNNEL_SERVICE_MUTEX");
 
 /// Windows lock name for the running tunnel without a service. Used by the setup
 /// script to detect a tunnel process. See #179265.
-pub const TUNNEL_CLI_LOCK_NAME: Option<&'static str> = option_env!("VSCODE_CLI_TUNNEL_CLI_MUTEX");
+pub const TUNNEL_CLI_LOCK_NAME: Option<&'static str> = option_env!("VSCODE_CLI_WIN32_TUNNEL_MUTEX");
 
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 
@@ -68,16 +68,24 @@ pub const QUALITYLESS_PRODUCT_NAME: &str = match option_env!("VSCODE_CLI_QUALITY
 /// Name of the application without quality information.
 pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " Server");
 
+pub const QUALITY: &str = match VSCODE_CLI_QUALITY {
+	Some(q) => q,
+	_ => "oss",
+};
+
 /// Web URL the editor is hosted at. For VS Code, this is vscode.dev.
-pub const EDITOR_WEB_URL: Option<&'static str> = option_env!("VSCODE_CLI_EDITOR_WEB_URL");
+pub const EDITOR_WEB_URL: Option<&'static str> = option_env!("VSCODE_CLI_TUNNEL_EDITOR_WEB_URL");
 
 /// Name shown in places where we need to tell a user what a process is, e.g. in sleep inhibition.
 pub const TUNNEL_ACTIVITY_NAME: &str = concatcp!(PRODUCT_NAME_LONG, " Tunnel");
 
+/// Download URL of the desktop product.
+pub const PRODUCT_DOWNLOAD_URL: Option<&'static str> = option_env!("VSCODE_CLI_DOWNLOAD_URL");
+
 const NONINTERACTIVE_VAR: &str = "VSCODE_CLI_NONINTERACTIVE";
 
 /// Default data CLI data directory.
-pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DEFAULT_PARENT_DATA_DIR") {
+pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DATA_FOLDER_NAME") {
 	Some(n) => n,
 	None => ".vscode-oss",
 };
@@ -91,6 +99,12 @@ pub fn get_default_user_agent() -> String {
 
 const NO_COLOR_ENV: &str = "NO_COLOR";
 
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerQualityInfo {
+	pub server_application_name: String,
+}
+
 lazy_static! {
 	pub static ref TUNNEL_SERVICE_USER_AGENT: String =
 		match std::env::var(TUNNEL_SERVICE_USER_AGENT_ENV_VAR) {
@@ -98,32 +112,20 @@ lazy_static! {
 			_ => get_default_user_agent(),
 		};
 
-	/// Map of quality names to arrays of app IDs used for them, for example, `{"stable":["ABC123"]}`
-	pub static ref WIN32_APP_IDS: Option<HashMap<Quality, Vec<String>>> =
-		option_env!("VSCODE_CLI_WIN32_APP_IDS").and_then(|s| serde_json::from_str(s).unwrap());
-
-	/// Map of quality names to desktop download URIs
-	pub static ref QUALITY_DOWNLOAD_URIS: Option<HashMap<Quality, String>> =
-		option_env!("VSCODE_CLI_QUALITY_DOWNLOAD_URIS").and_then(|s| serde_json::from_str(s).unwrap());
-
-	/// Map of qualities to the long name of the app in that quality
-	pub static ref PRODUCT_NAME_LONG_MAP: Option<HashMap<Quality, String>> =
-		option_env!("VSCODE_CLI_NAME_LONG_MAP").and_then(|s| serde_json::from_str(s).unwrap());
-
-	/// Map of qualities to the application name
-	pub static ref APPLICATION_NAME_MAP: Option<HashMap<Quality, String>> =
-		option_env!("VSCODE_CLI_APPLICATION_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
-
 	/// Map of qualities to the server name
-	pub static ref SERVER_NAME_MAP: Option<HashMap<Quality, String>> =
-		option_env!("VSCODE_CLI_SERVER_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
+	pub static ref SERVER_NAME_MAP: Option<HashMap<Quality, ServerQualityInfo>> =
+		option_env!("VSCODE_CLI_TUNNEL_SERVER_QUALITIES").and_then(|s| serde_json::from_str(s).unwrap());
 
 	/// Whether i/o interactions are allowed in the current CLI.
-	pub static ref IS_A_TTY: bool = atty::is(atty::Stream::Stdin);
+	pub static ref IS_A_TTY: bool = std::io::stdin().is_terminal();
 
 	/// Whether i/o interactions are allowed in the current CLI.
 	pub static ref COLORS_ENABLED: bool = *IS_A_TTY && std::env::var(NO_COLOR_ENV).is_err();
 
 	/// Whether i/o interactions are allowed in the current CLI.
 	pub static ref IS_INTERACTIVE_CLI: bool = *IS_A_TTY && std::env::var(NONINTERACTIVE_VAR).is_err();
+
+	/// Map of quality names to arrays of app IDs used for them, for example, `{"stable":["ABC123"]}`
+	pub static ref WIN32_APP_IDS: Option<Vec<String>> =
+		option_env!("VSCODE_CLI_WIN32_APP_IDS").map(|s| s.split(',').map(|s| s.to_string()).collect());
 }

@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { defaultUserDataProfileIcon, DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
@@ -22,8 +22,7 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	get currentProfile(): IUserDataProfile { return this._currentProfile; }
 
 	constructor(
-		currentProfile: IUserDataProfile,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
+		currentProfile: IUserDataProfile
 	) {
 		super();
 		this._currentProfile = currentProfile;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -18,9 +18,8 @@ export class ToggleMinimapAction extends Action2 {
 		super({
 			id: ToggleMinimapAction.ID,
 			title: {
-				value: localize('toggleMinimap', "Toggle Minimap"),
-				original: 'Toggle Minimap',
-				mnemonicTitle: localize({ key: 'miMinimap', comment: ['&& denotes a mnemonic'] }, "&&Minimap")
+				...localize2('toggleMinimap', "Toggle Minimap"),
+				mnemonicTitle: localize({ key: 'miMinimap', comment: ['&& denotes a mnemonic'] }, "&&Minimap"),
 			},
 			category: Categories.View,
 			f1: true,

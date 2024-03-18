@@ -8,10 +8,9 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/common/editor';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { insert } from 'vs/base/common/arrays';
-import { IStoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 
 export class StoredFileWorkingCopySaveParticipant extends Disposable {
@@ -33,7 +32,7 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 		return toDisposable(() => remove());
 	}
 
-	participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
+	participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, token: CancellationToken): Promise<void> {
 		const cts = new CancellationTokenSource(token);
 
 		return this.progressService.withProgress({
@@ -61,6 +60,9 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 
 			// undoStop after participation
 			workingCopy.model?.pushStackElement();
+
+			// Cleanup
+			cts.dispose();
 		}, () => {
 			// user cancel
 			cts.dispose(true);
@@ -69,5 +71,7 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 
 	override dispose(): void {
 		this.saveParticipants.splice(0, this.saveParticipants.length);
+
+		super.dispose();
 	}
 }

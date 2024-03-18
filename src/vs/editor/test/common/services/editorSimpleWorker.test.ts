@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/languages';
 import { EditorSimpleWorker, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
 suite('EditorSimpleWorker', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	class WorkerWithModels extends EditorSimpleWorker {
 
@@ -96,6 +99,41 @@ suite('EditorSimpleWorker', () => {
 			assert.strictEqual(first.text, 'O');
 			assert.deepStrictEqual(first.range, { startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 15 });
 		});
+	});
+
+	test('MoreMinimal, merge adjacent edits', async function () {
+
+		const model = worker.addModel([
+			'one',
+			'two',
+			'three',
+			'four',
+			'five'
+		], '\n');
+
+
+		const newEdits = await worker.computeMoreMinimalEdits(model.uri.toString(), [
+			{
+				range: new Range(1, 1, 2, 1),
+				text: 'one\ntwo\nthree\n',
+			}, {
+				range: new Range(2, 1, 3, 1),
+				text: '',
+			}, {
+				range: new Range(3, 1, 4, 1),
+				text: '',
+			}, {
+				range: new Range(4, 2, 4, 3),
+				text: '4',
+			}, {
+				range: new Range(5, 3, 5, 5),
+				text: '5',
+			}
+		], false);
+
+		assert.strictEqual(newEdits.length, 2);
+		assert.strictEqual(newEdits[0].text, '4');
+		assert.strictEqual(newEdits[1].text, '5');
 	});
 
 	test('MoreMinimal, issue #15385 newline changes only', function () {
@@ -219,6 +257,15 @@ suite('EditorSimpleWorker', () => {
 		);
 	});
 
+	test('[Bug] Getting Message "Overlapping ranges are not allowed" and nothing happens with Inline-Chat ', async function () {
+		await testEdits(("const API = require('../src/api');\n\ndescribe('API', () => {\n  let api;\n  let database;\n\n  beforeAll(() => {\n    database = {\n      getAllBooks: jest.fn(),\n      getBooksByAuthor: jest.fn(),\n      getBooksByTitle: jest.fn(),\n    };\n    api = new API(database);\n  });\n\n  describe('GET /books', () => {\n    it('should return all books', async () => {\n      const mockBooks = [{ title: 'Book 1' }, { title: 'Book 2' }];\n      database.getAllBooks.mockResolvedValue(mockBooks);\n\n      const req = {};\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === '/books') {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getAllBooks).toHaveBeenCalled();\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n\n  describe('GET /books/author/:author', () => {\n    it('should return books by author', async () => {\n      const mockAuthor = 'John Doe';\n      const mockBooks = [{ title: 'Book 1', author: mockAuthor }, { title: 'Book 2', author: mockAuthor }];\n      database.getBooksByAuthor.mockResolvedValue(mockBooks);\n\n      const req = {\n        params: {\n          author: mockAuthor,\n        },\n      };\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === `/books/author/${mockAuthor}`) {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getBooksByAuthor).toHaveBeenCalledWith(mockAuthor);\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n\n  describe('GET /books/title/:title', () => {\n    it('should return books by title', async () => {\n      const mockTitle = 'Book 1';\n      const mockBooks = [{ title: mockTitle, author: 'John Doe' }];\n      database.getBooksByTitle.mockResolvedValue(mockBooks);\n\n      const req = {\n        params: {\n          title: mockTitle,\n        },\n      };\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === `/books/title/${mockTitle}`) {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getBooksByTitle).toHaveBeenCalledWith(mockTitle);\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n});\n").split('\n'),
+			[{
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 96, endColumn: 1 },
+				text: `const request = require('supertest');\nconst API = require('../src/api');\n\ndescribe('API', () => {\n  let api;\n  let database;\n\n  beforeAll(() => {\n    database = {\n      getAllBooks: jest.fn(),\n      getBooksByAuthor: jest.fn(),\n      getBooksByTitle: jest.fn(),\n    };\n    api = new API(database);\n  });\n\n  describe('GET /books', () => {\n    it('should return all books', async () => {\n      const mockBooks = [{ title: 'Book 1' }, { title: 'Book 2' }];\n      database.getAllBooks.mockResolvedValue(mockBooks);\n\n      const response = await request(api.app).get('/books');\n\n      expect(database.getAllBooks).toHaveBeenCalled();\n      expect(response.status).toBe(200);\n      expect(response.body).toEqual(mockBooks);\n    });\n  });\n\n  describe('GET /books/author/:author', () => {\n    it('should return books by author', async () => {\n      const mockAuthor = 'John Doe';\n      const mockBooks = [{ title: 'Book 1', author: mockAuthor }, { title: 'Book 2', author: mockAuthor }];\n      database.getBooksByAuthor.mockResolvedValue(mockBooks);\n\n      const response = await request(api.app).get(\`/books/author/\${mockAuthor}\`);\n\n      expect(database.getBooksByAuthor).toHaveBeenCalledWith(mockAuthor);\n      expect(response.status).toBe(200);\n      expect(response.body).toEqual(mockBooks);\n    });\n  });\n\n  describe('GET /books/title/:title', () => {\n    it('should return books by title', async () => {\n      const mockTitle = 'Book 1';\n      const mockBooks = [{ title: mockTitle, author: 'John Doe' }];\n      database.getBooksByTitle.mockResolvedValue(mockBooks);\n\n      const response = await request(api.app).get(\`/books/title/\${mockTitle}\`);\n\n      expect(database.getBooksByTitle).toHaveBeenCalledWith(mockTitle);\n      expect(response.status).toBe(200);\n      expect(response.body).toEqual(mockBooks);\n    });\n  });\n});\n`,
+			}]
+		);
+	});
+
 	test('ICommonModel#getValueInRange, issue #17424', function () {
 
 		const model = worker.addModel([
@@ -290,7 +337,7 @@ function applyEdits(text: string, edits: { range: IRange; text: string }[]): str
 class PositionOffsetTransformer {
 	private readonly lineStartOffsetByLineIdx: number[];
 
-	constructor(text: string) {
+	constructor(private readonly text: string) {
 		this.lineStartOffsetByLineIdx = [];
 		this.lineStartOffsetByLineIdx.push(0);
 		for (let i = 0; i < text.length; i++) {
@@ -302,7 +349,7 @@ class PositionOffsetTransformer {
 	}
 
 	getOffset(position: Position): number {
-		const nextLineOffset = this.lineStartOffsetByLineIdx[position.lineNumber];
-		return Math.min(this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1, nextLineOffset - 1);
+		const maxLineOffset = position.lineNumber >= this.lineStartOffsetByLineIdx.length ? this.text.length : (this.lineStartOffsetByLineIdx[position.lineNumber] - 1);
+		return Math.min(this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1, maxLineOffset);
 	}
 }

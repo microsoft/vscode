@@ -33,10 +33,10 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 
 The following command will create a `coverage` folder in the `.build` folder at the root of the workspace:
 
-**OS X and Linux**
+### OS X and Linux
 
     ./scripts/test.sh --coverage
 
-**Windows**
+### Windows
 
     scripts\test --coverage

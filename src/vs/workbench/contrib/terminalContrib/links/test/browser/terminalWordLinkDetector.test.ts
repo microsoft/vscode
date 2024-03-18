@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { importAMDNodeModule } from 'vs/amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -12,29 +13,27 @@ import { ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contr
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalWordLinkDetector';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 
 suite('Workbench - TerminalWordLinkDetector', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let configurationService: TestConfigurationService;
 	let detector: TerminalWordLinkDetector;
 	let xterm: Terminal;
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: '' } });
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.set(IProductService, TestProductService);
 
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
-		detector = instantiationService.createInstance(TerminalWordLinkDetector, xterm);
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
+		detector = store.add(instantiationService.createInstance(TerminalWordLinkDetector, xterm));
 	});
 
 	async function assertLink(
@@ -70,6 +69,14 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 			await assertLink(' aabbccdd.txt ', [{ range: [[2, 1], [13, 1]], text: 'aabbccdd.txt' }]);
 			await assertLink(' [aabbccdd.txt] ', [{ range: [[3, 1], [14, 1]], text: 'aabbccdd.txt' }]);
 		});
+	});
+
+	suite('should ignore powerline symbols', () => {
+		for (let i = 0xe0b0; i <= 0xe0bf; i++) {
+			test(`\\u${i.toString(16)}`, async () => {
+				await assertLink(`${String.fromCharCode(i)}foo${String.fromCharCode(i)}`, [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+			});
+		}
 	});
 
 	// These are failing - the link's start x is 1 px too far to the right bc it starts

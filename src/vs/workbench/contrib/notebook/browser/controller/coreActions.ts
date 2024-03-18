@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, cellRangeToViewCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, cellRangeToViewCells, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -25,12 +25,13 @@ import { isEqual } from 'vs/base/common/resources';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = '_notebook.selectKernel';
-export const NOTEBOOK_ACTIONS_CATEGORY = { value: localize('notebookActions.category', "Notebook"), original: 'Notebook' };
+export const NOTEBOOK_ACTIONS_CATEGORY = localize2('notebookActions.category', 'Notebook');
 
 export const CELL_TITLE_CELL_GROUP_ID = 'inline/cell';
 export const CELL_TITLE_OUTPUT_GROUP_ID = 'inline/output';
 
 export const NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContrib; // smaller than Suggest Widget, etc
+export const NOTEBOOK_OUTPUT_WEBVIEW_ACTION_WEIGHT = KeybindingWeight.WorkbenchContrib + 1; // higher than Workbench contribution (such as Notebook List View), etc
 
 export const enum CellToolbarOrder {
 	EditCell,
@@ -68,6 +69,10 @@ export interface INotebookCommandContext extends INotebookActionContext {
 
 export interface INotebookCellActionContext extends INotebookActionContext {
 	cell: ICellViewModel;
+}
+
+export interface INotebookOutputActionContext extends INotebookCellActionContext {
+	outputViewModel: ICellOutputViewModel;
 }
 
 export function getContextFromActiveEditor(editorService: IEditorService): INotebookActionContext | undefined {
@@ -379,7 +384,8 @@ export function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args:
 	return context ? {
 		ui: false,
 		notebookEditor: context.notebookEditor,
-		selectedCells: context.selectedCells ?? []
+		selectedCells: context.selectedCells ?? [],
+		cell: context.cell
 	} : undefined;
 }
 

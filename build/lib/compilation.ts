@@ -64,12 +64,17 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
 		const isUtf8Test = (f: File) => /(\/|\\)test(\/|\\).*utf8/.test(f.path);
 		const isRuntimeJs = (f: File) => f.path.endsWith('.js') && !f.path.includes('fixtures');
+		const isCSS = (f: File) => f.path.endsWith('.css') && !f.path.includes('fixtures');
 		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
+
+		const postcss = require('gulp-postcss') as typeof import('gulp-postcss');
+		const postcssNesting = require('postcss-nesting');
 
 		const input = es.through();
 		const output = input
 			.pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise
 			.pipe(util.$if(!build && isRuntimeJs, util.appendOwnPathSourceURL()))
+			.pipe(util.$if(isCSS, postcss([postcssNesting()])))
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(compilation(token))
@@ -93,9 +98,9 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 	return pipeline;
 }
 
-export function transpileTask(src: string, out: string, swc: boolean): () => NodeJS.ReadWriteStream {
+export function transpileTask(src: string, out: string, swc: boolean): task.StreamTask {
 
-	return function () {
+	const task = () => {
 
 		const transpile = createCompile(src, false, true, { swc });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
@@ -104,11 +109,14 @@ export function transpileTask(src: string, out: string, swc: boolean): () => Nod
 			.pipe(transpile())
 			.pipe(gulp.dest(out));
 	};
+
+	task.taskName = `transpile-${path.basename(src)}`;
+	return task;
 }
 
-export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean } = {}): () => NodeJS.ReadWriteStream {
+export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean } = {}): task.StreamTask {
 
-	return function () {
+	const task = () => {
 
 		if (os.totalmem() < 4_000_000_000) {
 			throw new Error('compilation requires 4GB of RAM');
@@ -150,11 +158,14 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			.pipe(compile())
 			.pipe(gulp.dest(out));
 	};
+
+	task.taskName = `compile-${path.basename(src)}`;
+	return task;
 }
 
-export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
+export function watchTask(out: string, build: boolean): task.StreamTask {
 
-	return function () {
+	const task = () => {
 		const compile = createCompile('src', build, false, false);
 
 		const src = gulp.src('src/**', { base: 'src' });
@@ -168,6 +179,8 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 			.pipe(util.incremental(compile, src, true))
 			.pipe(gulp.dest(out));
 	};
+	task.taskName = `watch-${path.basename(out)}`;
+	return task;
 }
 
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
@@ -213,7 +226,7 @@ class MonacoGenerator {
 		}
 	}
 
-	private _executeSoonTimer: NodeJS.Timer | null = null;
+	private _executeSoonTimer: NodeJS.Timeout | null = null;
 	private _executeSoon(): void {
 		if (this._executeSoonTimer !== null) {
 			clearTimeout(this._executeSoonTimer);
@@ -269,7 +282,7 @@ function generateApiProposalNames() {
 		eol = os.EOL;
 	}
 
-	const pattern = /vscode\.proposed\.([a-zA-Z]+)\.d\.ts$/;
+	const pattern = /vscode\.proposed\.([a-zA-Z\d]+)\.d\.ts$/;
 	const proposalNames = new Set<string>();
 
 	const input = es.through();

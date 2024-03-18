@@ -39,15 +39,48 @@ export enum OverviewRulerLane {
  */
 export enum GlyphMarginLane {
 	Left = 1,
-	Right = 2
+	Center = 2,
+	Right = 3,
+}
+
+export interface IGlyphMarginLanesModel {
+	/**
+	 * The number of lanes that should be rendered in the editor.
+	 */
+	readonly requiredLanes: number;
+
+	/**
+	 * Gets the lanes that should be rendered starting at a given line number.
+	 */
+	getLanesAtLine(lineNumber: number): GlyphMarginLane[];
+
+	/**
+	 * Resets the model and ensures it can contain at least `maxLine` lines.
+	 */
+	reset(maxLine: number): void;
+
+	/**
+	 * Registers that a lane should be visible at the Range in the model.
+	 * @param persist - if true, notes that the lane should always be visible,
+	 * even on lines where there's no specific request for that lane.
+	 */
+	push(lane: GlyphMarginLane, range: Range, persist?: boolean): void;
 }
 
 /**
  * Position in the minimap to render the decoration.
  */
-export enum MinimapPosition {
+export const enum MinimapPosition {
 	Inline = 1,
 	Gutter = 2
+}
+
+/**
+ * Section header style.
+ */
+export const enum MinimapSectionHeaderStyle {
+	Normal = 1,
+	Underlined = 2
 }
 
 export interface IDecorationOptions {
@@ -68,6 +101,12 @@ export interface IModelDecorationGlyphMarginOptions {
 	 * The position in the glyph margin.
 	 */
 	position: GlyphMarginLane;
+
+	/**
+	 * Whether the glyph margin lane in {@link position} should be rendered even
+	 * outside of this decoration's range.
+	 */
+	persistLane?: boolean;
 }
 
 /**
@@ -88,6 +127,14 @@ export interface IModelDecorationMinimapOptions extends IDecorationOptions {
 	 * The position in the minimap.
 	 */
 	position: MinimapPosition;
+	/**
+	 * If the decoration is for a section header, which header style.
+	 */
+	sectionHeaderStyle?: MinimapSectionHeaderStyle | null;
+	/**
+	 * If the decoration is for a section header, the header text.
+	 */
+	sectionHeaderText?: string | null;
 }
 
 /**
@@ -130,6 +177,10 @@ export interface IModelDecorationOptions {
 	 */
 	hoverMessage?: IMarkdownString | IMarkdownString[] | null;
 	/**
+	 * Array of MarkdownString to render as the line number message.
+	 */
+	lineNumberHoverMessage?: IMarkdownString | IMarkdownString[] | null;
+	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */
 	isWholeLine?: boolean;
@@ -169,6 +220,14 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
 	linesDecorationsClassName?: string | null;
+	/**
+	 * Controls the tooltip text of the line decoration.
+	 */
+	linesDecorationsTooltip?: string | null;
+	/**
+	 * If set, the decoration will be rendered on the line number.
+	 */
+	lineNumberClassName?: string | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
 	 */
@@ -841,6 +900,13 @@ export interface ITextModel {
 	isTooLargeForTokenization(): boolean;
 
 	/**
+	 * The file is so large, that operations on it might be too large for heap
+	 * and can lead to OOM crashes so they should be disabled.
+	 * @internal
+	 */
+	isTooLargeForHeapOperation(): boolean;
+
+	/**
 	 * Search the model.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 	 * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
@@ -1395,7 +1461,7 @@ export class SearchData {
 /**
  * @internal
  */
-export interface ITextBuffer extends IReadonlyTextBuffer {
+export interface ITextBuffer extends IReadonlyTextBuffer, IDisposable {
 	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
 }

@@ -23,8 +23,8 @@
 			"modifiedRange": "[6,7)",
 			"innerChanges": [
 				{
-					"originalRange": "[5,92 -> 5,92]",
-					"modifiedRange": "[5,92 -> 6,31]"
+					"originalRange": "[5,92 -> 5,92 EOL]",
+					"modifiedRange": "[5,92 -> 6,31 EOL]"
 				}
 			]
 		}

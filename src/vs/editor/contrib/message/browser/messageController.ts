@@ -16,7 +16,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { PositionAffinity } from 'vs/editor/common/model';
-import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { openLinkFromMarkdown } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -70,7 +70,10 @@ export class MessageController implements IEditorContribution {
 		this._messageListeners.clear();
 		this._message = isMarkdownString(message) ? renderMarkdown(message, {
 			actionHandler: {
-				callback: (url) => openLinkFromMarkdown(this._openerService, url, isMarkdownString(message) ? message.isTrusted : undefined),
+				callback: (url) => {
+					this.closeMessage();
+					openLinkFromMarkdown(this._openerService, url, isMarkdownString(message) ? message.isTrusted : undefined);
+				},
 				disposables: this._messageListeners
 			},
 		}) : undefined;
@@ -82,7 +85,7 @@ export class MessageController implements IEditorContribution {
 				return; // override when mouse over message
 			}
 
-			if (this._messageWidget.value && dom.isAncestor(document.activeElement, this._messageWidget.value.getDomNode())) {
+			if (this._messageWidget.value && dom.isAncestor(dom.getActiveElement(), this._messageWidget.value.getDomNode())) {
 				return; // override when focus is inside the message
 			}
 

@@ -13,7 +13,6 @@ import { Schemas } from 'vs/base/common/network';
 import { Counter } from 'vs/base/common/numbers';
 import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -29,16 +28,18 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
-import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
+import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
+import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
+import { revive } from 'vs/base/common/marshalling';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
 	resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
 	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
 	resolveProxy(url: string): Promise<string | undefined>;
+	loadCertificates(): Promise<string[]>;
 }
 
 function isFolderEqual(folderA: URI, folderB: URI, extHostFileSystemInfo: IExtHostFileSystemInfo): boolean {
@@ -445,27 +446,74 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	findFiles(include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | null | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles`);
 
-		let excludePatternOrDisregardExcludes: string | false | undefined = undefined;
+		let excludeString: string = '';
+		let useFileExcludes = true;
 		if (exclude === null) {
-			excludePatternOrDisregardExcludes = false;
-		} else if (exclude) {
+			useFileExcludes = false;
+		} else if (exclude !== undefined) {
 			if (typeof exclude === 'string') {
-				excludePatternOrDisregardExcludes = exclude;
+				excludeString = exclude;
 			} else {
-				excludePatternOrDisregardExcludes = exclude.pattern;
+				excludeString = exclude.pattern;
 			}
 		}
+		return this._findFilesImpl(include, undefined, {
+			exclude: excludeString,
+			maxResults,
+			useDefaultExcludes: useFileExcludes,
+			useDefaultSearchExcludes: false,
+			useIgnoreFiles: false
+		}, token);
+	}
 
+	findFiles2(filePattern: vscode.GlobPattern | undefined,
+		options: vscode.FindFiles2Options = {},
+		extensionId: ExtensionIdentifier,
+		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
+		this._logService.trace(`extHostWorkspace#findFiles2: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2`);
+		return this._findFilesImpl(undefined, filePattern, options, token);
+	}
+
+	private async _findFilesImpl(
+		// the old `findFiles` used `include` to query, but the new `findFiles2` uses `filePattern` to query.
+		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
+		include: vscode.GlobPattern | undefined,
+		filePattern: vscode.GlobPattern | undefined,
+		options: vscode.FindFiles2Options,
+		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		if (token && token.isCancellationRequested) {
 			return Promise.resolve([]);
 		}
 
-		const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
+		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
+			options.exclude ? options.exclude.pattern : undefined;
+
+		const fileQueries = <IFileQueryBuilderOptions>{
+			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
+			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
+			disregardParentIgnoreFiles: typeof options.useParentIgnoreFiles === 'boolean' ? !options.useParentIgnoreFiles : undefined,
+			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : false,
+			disregardSearchExcludeSettings: typeof options.useDefaultSearchExcludes === 'boolean' ? !options.useDefaultSearchExcludes : false,
+			maxResults: options.maxResults,
+			excludePattern: excludePattern,
+			shouldGlobSearch: typeof options.fuzzy === 'boolean' ? !options.fuzzy : true,
+			_reason: 'startFileSearch'
+		};
+		let folderToUse: URI | undefined;
+		if (include) {
+			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
+			folderToUse = folder;
+			fileQueries.includePattern = includePattern;
+		} else {
+			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(filePattern));
+			folderToUse = folder;
+			fileQueries.filePattern = includePattern;
+		}
+
 		return this._proxy.$startFileSearch(
-			withUndefinedAsNull(includePattern),
-			withUndefinedAsNull(folder),
-			withUndefinedAsNull(excludePatternOrDisregardExcludes),
-			withUndefinedAsNull(maxResults),
+			folderToUse ?? null,
+			fileQueries,
 			token
 		)
 			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);
@@ -510,7 +558,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 
 			const uri = URI.revive(p.resource);
-			p.results!.forEach(result => {
+			p.results!.forEach(rawResult => {
+				const result: ITextSearchResult<URI> = revive(rawResult);
 				if (resultIsMatch(result)) {
 					callback(<vscode.TextSearchMatch>{
 						uri,
@@ -541,7 +590,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		try {
 			const result = await this._proxy.$startTextSearch(
 				query,
-				withUndefinedAsNull(folder),
+				folder ?? null,
 				queryOptions,
 				requestId,
 				token);
@@ -575,6 +624,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	resolveProxy(url: string): Promise<string | undefined> {
 		return this._proxy.$resolveProxy(url);
+	}
+
+	loadCertificates(): Promise<string[]> {
+		return this._proxy.$loadCertificates();
 	}
 
 	// --- trust ---

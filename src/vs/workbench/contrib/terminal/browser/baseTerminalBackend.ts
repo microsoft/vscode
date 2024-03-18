@@ -6,12 +6,9 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { ICrossVersionSerializedTerminalState, IPtyHostController, ISerializedTerminalState, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -49,7 +46,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 		this._register(this._ptyHostController.onPtyHostExit(() => {
 			this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
 		}));
-		this.onPtyHostConnected(() => hasStarted = true);
+		this._register(this.onPtyHostConnected(() => hasStarted = true));
 		this._register(this._ptyHostController.onPtyHostStart(() => {
 			this._logService.debug(`The terminal's pty host process is starting`);
 			// Only fire the _restart_ event after it has started
@@ -69,8 +66,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 					tooltip: localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, terminals may stop working. Click to manually restart the pty host."),
 					ariaLabel: localize('ptyHostStatus.ariaLabel', 'Pty Host is unresponsive'),
 					command: TerminalCommandId.RestartPtyHost,
-					backgroundColor: themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND),
-					color: themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND),
+					kind: 'warning'
 				};
 			}
 			statusBarAccessor = statusBarService.addEntry(unresponsiveStatusBarEntry, 'ptyHostStatus', StatusbarAlignment.LEFT);
@@ -92,7 +88,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 				return;
 			}
 			const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+			const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 			const resolveCalls: Promise<string>[] = e.originalText.map(t => {
 				return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 			});
@@ -120,5 +116,9 @@ export abstract class BaseTerminalBackend extends Disposable {
 			return undefined;
 		}
 		return parsedCrossVersion.state as ISerializedTerminalState[];
+	}
+
+	protected _getWorkspaceId(): string {
+		return this._workspaceContextService.getWorkspace().id;
 	}
 }

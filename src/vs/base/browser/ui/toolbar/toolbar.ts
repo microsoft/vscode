@@ -13,9 +13,10 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { EventMultiplexer } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 
 
@@ -31,6 +32,12 @@ export interface IToolBarOptions {
 	moreIcon?: ThemeIcon;
 	allowContextMenu?: boolean;
 	skipTelemetry?: boolean;
+	hoverDelegate?: IHoverDelegate;
+
+	/**
+	 * If true, toggled primary items are highlighted with a background color.
+	 */
+	highlightToggledItems?: boolean;
 }
 
 /**
@@ -48,11 +55,12 @@ export class ToolBar extends Disposable {
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
-	private disposables = new DisposableStore();
+	private disposables = this._register(new DisposableStore());
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
 
+		options.hoverDelegate = options.hoverDelegate ?? this._register(createInstantHoverDelegate());
 		this.options = options;
 		this.lookupKeybindings = typeof this.options.getKeyBinding === 'function';
 
@@ -67,6 +75,8 @@ export class ToolBar extends Disposable {
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
 			allowContextMenu: options.allowContextMenu,
+			highlightToggledItems: options.highlightToggledItems,
+			hoverDelegate: options.hoverDelegate,
 			actionViewItemProvider: (action, viewItemOptions) => {
 				if (action.id === ToggleMenuAction.ID) {
 					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
@@ -80,7 +90,9 @@ export class ToolBar extends Disposable {
 							classNames: ThemeIcon.asClassNameArray(options.moreIcon ?? Codicon.toolBarMore),
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
-							skipTelemetry: this.options.skipTelemetry
+							skipTelemetry: this.options.skipTelemetry,
+							isMenu: true,
+							hoverDelegate: this.options.hoverDelegate
 						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
@@ -109,7 +121,8 @@ export class ToolBar extends Disposable {
 							classNames: action.class,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
-							skipTelemetry: this.options.skipTelemetry
+							skipTelemetry: this.options.skipTelemetry,
+							hoverDelegate: this.options.hoverDelegate
 						}
 					);
 					result.setActionContext(this.actionBar.context);
@@ -196,7 +209,7 @@ export class ToolBar extends Disposable {
 	private getKeybindingLabel(action: IAction): string | undefined {
 		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
 
-		return withNullAsUndefined(key?.getLabel());
+		return key?.getLabel() ?? undefined;
 	}
 
 	private clear(): void {
@@ -207,6 +220,7 @@ export class ToolBar extends Disposable {
 
 	override dispose(): void {
 		this.clear();
+		this.disposables.dispose();
 		super.dispose();
 	}
 }

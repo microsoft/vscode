@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { Color } from 'vs/base/common/color';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
@@ -52,7 +52,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		this._overviewViewportDomElement.setWidth(width);
 		container.appendChild(this._overviewViewportDomElement.domNode);
 
-		this._register(browser.PixelRatio.onDidChange(() => {
+		this._register(PixelRatio.getInstance(DOM.getWindow(this._domNode.domNode)).onDidChange(() => {
 			this._scheduleRender();
 		}));
 
@@ -114,7 +114,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 
 	private _scheduleRender(): void {
 		if (this._renderAnimationFrame === null) {
-			this._renderAnimationFrame = DOM.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 16);
+			this._renderAnimationFrame = DOM.runAtThisOrScheduleAtNextAnimationFrame(DOM.getWindow(this._domNode.domNode), this._onRenderScheduled.bind(this), 16);
 		}
 	}
 
@@ -127,7 +127,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 		const height = layoutInfo.height;
 		const contentHeight = this._diffElementViewModels.map(view => view.layoutInfo.totalHeight).reduce((a, b) => a + b, 0);
-		const ratio = browser.PixelRatio.value;
+		const ratio = PixelRatio.getInstance(DOM.getWindow(this._domNode.domNode)).value;
 		this._domNode.setWidth(this.width);
 		this._domNode.setHeight(height);
 		this._domNode.domNode.width = this.width * ratio;

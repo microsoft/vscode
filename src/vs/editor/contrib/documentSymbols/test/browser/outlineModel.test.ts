@@ -18,6 +18,7 @@ import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from '../../browser/outlineModel';
 import { mock } from 'vs/base/test/common/mock';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('OutlineModel', function () {
 
@@ -27,6 +28,8 @@ suite('OutlineModel', function () {
 	teardown(function () {
 		disposables.clear();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('OutlineModel#create, cached', async function () {
 
@@ -61,6 +64,7 @@ suite('OutlineModel', function () {
 
 		reg.dispose();
 		model.dispose();
+		service.dispose();
 	});
 
 	test('OutlineModel#create, cached/cancel', async function () {
@@ -78,9 +82,10 @@ suite('OutlineModel', function () {
 		const reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
 			provideDocumentSymbols(d, token) {
 				return new Promise(resolve => {
-					token.onCancellationRequested(_ => {
+					const l = token.onCancellationRequested(_ => {
 						isCancelled = true;
 						resolve(null);
+						l.dispose();
 					});
 				});
 			}
@@ -100,6 +105,8 @@ suite('OutlineModel', function () {
 
 		reg.dispose();
 		model.dispose();
+		service.dispose();
+
 	});
 
 	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {

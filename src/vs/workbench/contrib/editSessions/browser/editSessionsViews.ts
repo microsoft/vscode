@@ -38,8 +38,7 @@ export class EditSessionsDataViews extends Disposable {
 
 	private registerViews(container: ViewContainer): void {
 		const viewId = EDIT_SESSIONS_DATA_VIEW_ID;
-		const name = EDIT_SESSIONS_TITLE;
-		const treeView = this.instantiationService.createInstance(TreeView, viewId, name);
+		const treeView = this.instantiationService.createInstance(TreeView, viewId, EDIT_SESSIONS_TITLE.value);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
 		treeView.dataProvider = this.instantiationService.createInstance(EditSessionDataViewDataProvider);
@@ -47,7 +46,7 @@ export class EditSessionsDataViews extends Disposable {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id: viewId,
-			name,
+			name: EDIT_SESSIONS_TITLE,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
 			canToggleVisibility: true,
 			canMoveView: false,
@@ -68,7 +67,7 @@ export class EditSessionsDataViews extends Disposable {
 			order: 1
 		});
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resume',
@@ -88,9 +87,9 @@ export class EditSessionsDataViews extends Disposable {
 				await commandService.executeCommand('workbench.editSessions.actions.resumeLatest', editSessionId, true);
 				await treeView.refresh();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.store',
@@ -104,9 +103,9 @@ export class EditSessionsDataViews extends Disposable {
 				await commandService.executeCommand('workbench.editSessions.actions.storeCurrent');
 				await treeView.refresh();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.delete',
@@ -128,16 +127,16 @@ export class EditSessionsDataViews extends Disposable {
 					message: localize('confirm delete.v2', 'Are you sure you want to permanently delete your working changes with ref {0}?', editSessionId),
 					detail: localize('confirm delete detail.v2', ' You cannot undo this action.'),
 					type: 'warning',
-					title: EDIT_SESSIONS_TITLE
+					title: EDIT_SESSIONS_TITLE.value
 				});
 				if (result.confirmed) {
 					await editSessionStorageService.delete('editSessions', editSessionId);
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.deleteAll',
@@ -157,14 +156,14 @@ export class EditSessionsDataViews extends Disposable {
 					message: localize('confirm delete all', 'Are you sure you want to permanently delete all stored changes from the cloud?'),
 					detail: localize('confirm delete all detail', ' You cannot undo this action.'),
 					type: 'warning',
-					title: EDIT_SESSIONS_TITLE
+					title: EDIT_SESSIONS_TITLE.value
 				});
 				if (result.confirmed) {
 					await editSessionStorageService.delete('editSessions', null);
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 	}
 }
 

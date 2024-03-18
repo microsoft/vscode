@@ -8,9 +8,9 @@ import { timeout } from 'vs/base/common/async';
 import { newWriteableBufferStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -20,9 +20,7 @@ import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userData
 
 suite('UserDataSyncStoreService', () => {
 
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('test read manifest for the first time', async () => {
 		// Setup the client
@@ -415,8 +413,12 @@ suite('UserDataSyncRequestsSession', () => {
 	const requestService: IRequestService = {
 		_serviceBrand: undefined,
 		async request() { return { res: { headers: {} }, stream: newWriteableBufferStream() }; },
-		async resolveProxy() { return undefined; }
+		async resolveProxy() { return undefined; },
+		async loadCertificates() { return []; }
 	};
+
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('too many requests are thrown when limit exceeded', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());

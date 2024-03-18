@@ -9,6 +9,7 @@ import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
+import { hash } from 'vs/base/common/hash';
 import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { checksum } from 'vs/base/node/crypto';
@@ -16,14 +17,14 @@ import * as pfs from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
-import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -47,7 +48,7 @@ function getUpdateType(): UpdateType {
 	return _updateType;
 }
 
-export class Win32UpdateService extends AbstractUpdateService {
+export class Win32UpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private availableUpdate: IAvailableUpdate | undefined;
 
@@ -69,6 +70,23 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@IProductService productService: IProductService
 	) {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+
+		lifecycleMainService.setRelaunchHandler(this);
+	}
+
+	handleRelaunch(options?: IRelaunchOptions): boolean {
+		if (options?.addArgs || options?.removeArgs) {
+			return false; // we cannot apply an update and restart with different args
+		}
+
+		if (this.state.type !== StateType.Ready || !this.availableUpdate) {
+			return false; // we only handle the relaunch when we have a pending update
+		}
+
+		this.logService.trace('update#handleRelaunch(): running raw#quitAndInstall()');
+		this.doQuitAndInstall();
+
+		return true;
 	}
 
 	protected override async initialize(): Promise<void> {
@@ -82,11 +100,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
-		let platform = 'win32';
-
-		if (process.arch !== 'ia32') {
-			platform += `-${process.arch}`;
-		}
+		let platform = `win32-${process.arch}`;
 
 		if (getUpdateType() === UpdateType.Archive) {
 			platform += '-archive';
@@ -121,7 +135,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 					return Promise.resolve(null);
 				}
 
-				this.setState(State.Downloading(update));
+				this.setState(State.Downloading);
 
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
@@ -130,26 +144,22 @@ export class Win32UpdateService extends AbstractUpdateService {
 								return Promise.resolve(updatePackagePath);
 							}
 
-							const url = update.url;
-							const hash = update.hash;
 							const downloadPath = `${updatePackagePath}.tmp`;
 
-							return this.requestService.request({ url }, CancellationToken.None)
+							return this.requestService.request({ url: update.url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
-								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
+								.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
 								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
-						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-
 						this.availableUpdate = { packagePath };
+						this.setState(State.Downloaded(update));
 
+						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 						if (fastUpdatesEnabled) {
 							if (this.productService.target === 'user') {
 								this.doApplyUpdate();
-							} else {
-								this.setState(State.Downloaded(update));
 							}
 						} else {
 							this.setState(State.Ready(update));
@@ -158,8 +168,8 @@ export class Win32UpdateService extends AbstractUpdateService {
 				});
 			})
 			.then(undefined, err => {
+				this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
 				this.logService.error(err);
-				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 
 				// only show message when explicitly checking for updates
 				const message: string | undefined = !!context ? (err.message || err) : undefined;
@@ -197,7 +207,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	protected override async doApplyUpdate(): Promise<void> {
-		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
+		if (this.state.type !== StateType.Downloaded) {
 			return Promise.resolve(undefined);
 		}
 
@@ -261,14 +271,13 @@ export class Win32UpdateService extends AbstractUpdateService {
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
-		this.setState(State.Downloading(update));
+		this.setState(State.Downloading);
 		this.availableUpdate = { packagePath };
+		this.setState(State.Downloaded(update));
 
 		if (fastUpdatesEnabled) {
 			if (this.productService.target === 'user') {
 				this.doApplyUpdate();
-			} else {
-				this.setState(State.Downloaded(update));
 			}
 		} else {
 			this.setState(State.Ready(update));

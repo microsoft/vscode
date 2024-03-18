@@ -20,7 +20,9 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - task: UsePythonVersion@0
     inputs:
@@ -73,7 +75,10 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-      exec { npm config set always-auth=true --location=project }
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      exec { Add-Content -Path .npmrc -Value "always-auth=true" }
       exec { yarn config set registry "$env:NPM_REGISTRY" }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM & Yarn
@@ -85,28 +90,16 @@ steps:
     displayName: Setup NPM Authentication
 
   - powershell: |
-      mkdir -Force .build/node-gyp
-    displayName: Create custom node-gyp directory
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - powershell: |
-      . ../../build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      # TODO: Should be replaced with upstream URL once https://github.com/nodejs/node-gyp/pull/2825
-      # gets merged.
-      exec { git clone https://github.com/rzhao271/node-gyp.git . } "Cloning rzhao271/node-gyp failed"
-      exec { git checkout 102b347da0c92c29f9c67df22e864e70249cf086 } "Checking out 102b347 failed"
-      exec { npm install } "Building rzhao271/node-gyp failed"
-    displayName: Install custom node-gyp
-    workingDirectory: .build/node-gyp
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
-      $env:npm_config_node_gyp="$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
-      $env:npm_config_arch="$(VSCODE_ARCH)"
+      # TODO: remove custom node-gyp when updating to Node v20,
+      # refs https://github.com/npm/cli/releases/tag/v10.2.3 which is available with Node >= 20.10.0
+      $nodeGypDir = "$(Agent.TempDirectory)/custom-packages"
+      mkdir "$nodeGypDir"
+      npm install node-gyp@10.0.1 -g --prefix "$nodeGypDir"
+      $env:npm_config_node_gyp = "${nodeGypDir}/node_modules/node-gyp/bin/node-gyp.js"
+      $env:npm_config_arch = "$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile --check-files } }
     env:
@@ -145,7 +138,7 @@ steps:
     - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Transpile
+      displayName: Transpile client and extensions
 
   - ${{ else }}:
     - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_QUALITY, 'insider')) }}:
@@ -233,11 +226,11 @@ steps:
           echo "##vso[task.setvariable variable=EsrpCliDllPath]$EsrpCliDllPath"
         displayName: Find ESRP CLI
 
-      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
-        displayName: Codesign
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
+        displayName: Codesign executables and shared libraries
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx'
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx'
         displayName: Codesign context menu appx package
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -315,17 +308,18 @@ steps:
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (server)
         inputs:
+          BuildComponentPath: $(Build.SourcesDirectory)/remote
           BuildDropPath: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)
           PackageName: Visual Studio Code Server
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
       - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (client)
-        artifact: $(ARTIFACT_PREFIX)sbom_client_win32_$(VSCODE_ARCH)
+        artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_win32_$(VSCODE_ARCH)
 
       - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (server)
-        artifact: $(ARTIFACT_PREFIX)sbom_server_win32_$(VSCODE_ARCH)
+        artifact: $(ARTIFACT_PREFIX)sbom_vscode_server_win32_$(VSCODE_ARCH)
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
       - publish: $(CLIENT_PATH)

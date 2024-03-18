@@ -32,13 +32,13 @@ export class WebLocaleService implements ILocaleService {
 			return;
 		}
 		if (locale) {
-			window.localStorage.setItem(WebLocaleService._LOCAL_STORAGE_LOCALE_KEY, locale);
+			localStorage.setItem(WebLocaleService._LOCAL_STORAGE_LOCALE_KEY, locale);
 			if (languagePackItem.extensionId) {
-				window.localStorage.setItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY, languagePackItem.extensionId);
+				localStorage.setItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY, languagePackItem.extensionId);
 			}
 		} else {
-			window.localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_LOCALE_KEY);
-			window.localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY);
+			localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_LOCALE_KEY);
+			localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY);
 		}
 
 		const restartDialog = await this.dialogService.confirm({
@@ -54,8 +54,8 @@ export class WebLocaleService implements ILocaleService {
 	}
 
 	async clearLocalePreference(): Promise<void> {
-		window.localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_LOCALE_KEY);
-		window.localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY);
+		localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_LOCALE_KEY);
+		localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY);
 
 		if (Language.value() === navigator.language.toLowerCase()) {
 			return;
@@ -87,7 +87,7 @@ class WebActiveLanguagePackService implements IActiveLanguagePackService {
 		if (language === LANGUAGE_DEFAULT) {
 			return undefined;
 		}
-		const extensionId = window.localStorage.getItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY);
+		const extensionId = localStorage.getItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY);
 		if (extensionId) {
 			return extensionId;
 		}
@@ -102,7 +102,7 @@ class WebActiveLanguagePackService implements IActiveLanguagePackService {
 			// Only install extensions that are published by Microsoft and start with vscode-language-pack for extra certainty
 			const extensionToInstall = tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack'));
 			if (extensionToInstall) {
-				window.localStorage.setItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY, extensionToInstall.identifier.id);
+				localStorage.setItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY, extensionToInstall.identifier.id);
 				return extensionToInstall.identifier.id;
 			}
 

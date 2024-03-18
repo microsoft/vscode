@@ -1296,7 +1296,7 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 #define Uninstall32RootKey "HKLM32"
 #endif
 
-Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\bin"; Tasks: addtopath; Check: NeedsAddPath(ExpandConstant('{app}\bin'))
+Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; ValueName: "Path"; ValueData: "{code:AddToPath|{app}\bin}"; Tasks: addtopath; Check: NeedsAddToPath(ExpandConstant('{app}\bin'))
 
 [Code]
 function IsBackgroundUpdate(): Boolean;
@@ -1327,7 +1327,7 @@ begin
   #endif
 
   #if "user" == InstallTarget
-    #if "ia32" == Arch || "arm64" == Arch
+    #if "arm64" == Arch
       #define IncompatibleArchRootKey "HKLM32"
     #else
       #define IncompatibleArchRootKey "HKLM64"
@@ -1343,24 +1343,6 @@ begin
       end;
     end;
   #endif
-
-  if Result and IsWin64 then begin
-    RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleArchAppId}', 2, 38) + '_is1';
-
-    if '{#Arch}' = 'ia32' then begin
-      Result := not RegKeyExists({#Uninstall64RootKey}, RegKey);
-      ThisArch := '32';
-      AltArch := '64';
-    end else begin
-      Result := not RegKeyExists({#Uninstall32RootKey}, RegKey);
-      ThisArch := '64';
-      AltArch := '32';
-    end;
-
-    if not Result and not WizardSilent() then begin
-      MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version.', mbInformation, MB_OK);
-    end;
-  end;
 
 end;
 
@@ -1528,15 +1510,16 @@ begin
     begin
       CreateMutex('{#AppMutex}-ready');
 
+      Log('Checking whether application is still running...');
       while (CheckForMutexes('{#AppMutex}')) do
       begin
-        Log('Application is still running, waiting');
         Sleep(1000)
       end;
+      Log('Application appears not to be running.');
 
       StopTunnelServiceIfNeeded();
 
-      Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+      Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists()) + ' "{cm:UpdatingVisualStudioCode}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
     end;
 
     if ShouldRestartTunnelService then
@@ -1570,7 +1553,7 @@ begin
   until Length(Text)=0;
 end;
 
-function NeedsAddPath(Param: string): boolean;
+function NeedsAddToPath(VSCode: string): boolean;
 var
   OrigPath: string;
 begin
@@ -1579,7 +1562,19 @@ begin
     Result := True;
     exit;
   end;
-  Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
+  Result := Pos(';' + VSCode + ';', ';' + OrigPath + ';') = 0;
+end;
+
+function AddToPath(VSCode: string): string;
+var
+  OrigPath: string;
+begin
+  RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath)
+
+  if (Length(OrigPath) > 0) and (OrigPath[Length(OrigPath)] = ';') then
+    Result := OrigPath + VSCode
+  else
+    Result := OrigPath + ';' + VSCode
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

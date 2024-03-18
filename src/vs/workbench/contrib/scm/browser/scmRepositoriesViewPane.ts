@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/scm';
 import { localize } from 'vs/nls';
+import { Event } from 'vs/base/common/event';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $ } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
@@ -20,10 +21,12 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
+import { RepositoryActionRunner, RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Iterable } from 'vs/base/common/iterator';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -39,6 +42,7 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 export class SCMRepositoriesViewPane extends ViewPane {
 
 	private list!: WorkbenchList<ISCMRepository>;
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		options: IViewPaneOptions,
@@ -53,7 +57,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -61,8 +65,16 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		const listContainer = append(container, $('.scm-view.scm-repositories-view'));
 
+		const updateProviderCountVisibility = () => {
+			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
+			listContainer.classList.toggle('hide-provider-counts', value === 'hidden');
+			listContainer.classList.toggle('auto-provider-counts', value === 'auto');
+		};
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
+		updateProviderCountVisibility();
+
 		const delegate = new ListDelegate();
-		const renderer = this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService));
+		const renderer = this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, getActionViewItemProvider(this.instantiationService));
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer], {
@@ -106,6 +118,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.list.domFocus();
 	}
 
@@ -134,10 +147,16 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		const provider = e.element.provider;
 		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-		const menu = menus.repositoryMenu;
+		const menu = menus.repositoryContextMenu;
 		const actions = collectContextMenuActions(menu);
 
+		const actionRunner = this._register(new RepositoryActionRunner(() => {
+			return this.list.getSelectedElements();
+		}));
+		actionRunner.onWillRun(() => this.list.domFocus());
+
 		this.contextMenuService.showContextMenu({
+			actionRunner,
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => provider
@@ -178,5 +197,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			this.list.setAnchor(selection[0]);
 			this.list.setFocus([selection[0]]);
 		}
+	}
+
+	override dispose(): void {
+		this.disposables.dispose();
+		super.dispose();
 	}
 }

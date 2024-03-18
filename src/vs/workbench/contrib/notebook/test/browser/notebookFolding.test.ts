@@ -10,18 +10,22 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Notebook Folding', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
-	suiteSetup(() => {
+	teardown(() => disposables.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		instantiationService.spy(IUndoRedoService, 'pushElement');
 	});
 
-	suiteTeardown(() => disposables.dispose());
 
 	test('Folding based on markdown cells', async function () {
 		await withTestNotebook(
@@ -34,8 +38,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingController = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingController = ds.add(new FoldingModel());
 				foldingController.attachViewModel(viewModel);
 
 				assert.strictEqual(foldingController.regions.findRange(1), 0);
@@ -61,8 +65,8 @@ suite('Notebook Folding', () => {
 				['## header 2.1', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'python', CellKind.Code, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingController = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingController = ds.add(new FoldingModel());
 				foldingController.attachViewModel(viewModel);
 
 				assert.strictEqual(foldingController.regions.findRange(1), 0);
@@ -88,8 +92,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingController = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingController = ds.add(new FoldingModel());
 				foldingController.attachViewModel(viewModel);
 
 				assert.strictEqual(foldingController.regions.findRange(1), 0);
@@ -119,8 +123,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -140,8 +144,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 2, true);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -162,8 +166,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 2, true);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -186,8 +190,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -245,8 +249,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([{ start: 2, end: 6 }]);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -273,8 +277,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([
 					{ start: 5, end: 6 },
@@ -305,8 +309,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([
 					{ start: 5, end: 6 },
@@ -339,8 +343,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([{ start: 2, end: 6 }]);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -375,8 +379,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([
 					{ start: 5, end: 6 },

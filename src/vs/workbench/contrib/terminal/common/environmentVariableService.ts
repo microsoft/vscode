@@ -12,6 +12,7 @@ import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCol
 import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string;
@@ -22,19 +23,21 @@ interface ISerializableExtensionEnvironmentVariableCollection {
 /**
  * Tracks and persists environment variable collections as defined by extensions.
  */
-export class EnvironmentVariableService implements IEnvironmentVariableService {
+export class EnvironmentVariableService extends Disposable implements IEnvironmentVariableService {
 	declare readonly _serviceBrand: undefined;
 
 	collections: Map<string, IEnvironmentVariableCollectionWithPersistence> = new Map();
 	mergedCollection: IMergedEnvironmentVariableCollection;
 
-	private readonly _onDidChangeCollections = new Emitter<IMergedEnvironmentVariableCollection>();
+	private readonly _onDidChangeCollections = this._register(new Emitter<IMergedEnvironmentVariableCollection>());
 	get onDidChangeCollections(): Event<IMergedEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
+		super();
+
 		this._storageService.remove(TerminalStorageKeys.DeprecatedEnvironmentVariableCollections, StorageScope.WORKSPACE);
 		const serializedPersistedCollections = this._storageService.get(TerminalStorageKeys.EnvironmentVariableCollections, StorageScope.WORKSPACE);
 		if (serializedPersistedCollections) {
@@ -53,7 +56,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		this.mergedCollection = this._resolveMergedCollection();
 
 		// Listen for uninstalled/disabled extensions
-		this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections());
+		this._register(this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections()));
 	}
 
 	set(extensionIdentifier: string, collection: IEnvironmentVariableCollectionWithPersistence): void {

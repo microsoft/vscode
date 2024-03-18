@@ -7,7 +7,6 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { isCancellationError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -20,7 +19,7 @@ import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorksp
 import { IWorkspace, IWorkspaceContextService, WorkbenchState, isUntitledWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
+import { IFileQueryBuilderOptions, ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IEditorService, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -141,21 +140,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null> {
+	$startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 
 		const query = this._queryBuilder.file(
 			includeFolder ? [includeFolder] : workspace.folders,
-			{
-				maxResults: withNullAsUndefined(maxResults),
-				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
-				disregardSearchExcludeSettings: true,
-				disregardIgnoreFiles: true,
-				includePattern: withNullAsUndefined(includePattern),
-				excludePattern: typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined,
-				_reason: 'startFileSearch'
-			});
+			options
+		);
 
 		return this._searchService.fileSearch(query, token).then(result => {
 			return result.results.map(m => m.resource);
@@ -229,6 +221,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	$resolveProxy(url: string): Promise<string | undefined> {
 		return this._requestService.resolveProxy(url);
+	}
+
+	$loadCertificates(): Promise<string[]> {
+		return this._requestService.loadCertificates();
 	}
 
 	// --- trust ---

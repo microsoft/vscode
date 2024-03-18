@@ -38,7 +38,6 @@ const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 // Targets
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'darwin', arch: 'x64' },
 	{ platform: 'darwin', arch: 'arm64' },
@@ -61,10 +60,6 @@ const serverResources = [
 
 	// Performance
 	'out-build/vs/base/common/performance.js',
-
-	// Watcher
-	'out-build/vs/platform/files/**/*.exe',
-	'out-build/vs/platform/files/**/*.md',
 
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
@@ -130,7 +125,7 @@ function getNodeVersion() {
 	return { nodeVersion, internalNodeVersion };
 }
 
-function getNodeChecksum(nodeVersion, platform, arch) {
+function getNodeChecksum(nodeVersion, platform, arch, glibcPrefix) {
 	let expectedName;
 	switch (platform) {
 		case 'win32':
@@ -140,7 +135,7 @@ function getNodeChecksum(nodeVersion, platform, arch) {
 		case 'darwin':
 		case 'alpine':
 		case 'linux':
-			expectedName = `node-v${nodeVersion}-${platform}-${arch}.tar.gz`;
+			expectedName = `node-v${nodeVersion}${glibcPrefix}-${platform}-${arch}.tar.gz`;
 			break;
 	}
 
@@ -189,9 +184,7 @@ function nodejs(platform, arch) {
 	const untar = require('gulp-untar');
 	const crypto = require('crypto');
 
-	if (arch === 'ia32') {
-		arch = 'x86';
-	} else if (arch === 'armhf') {
+	if (arch === 'armhf') {
 		arch = 'armv7l';
 	} else if (arch === 'alpine') {
 		platform = 'alpine';
@@ -200,7 +193,8 @@ function nodejs(platform, arch) {
 
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
 
-	const checksumSha256 = getNodeChecksum(nodeVersion, platform, arch);
+	const glibcPrefix = process.env['VSCODE_NODE_GLIBC'] ?? '';
+	const checksumSha256 = getNodeChecksum(nodeVersion, platform, arch, glibcPrefix);
 
 	if (checksumSha256) {
 		log(`Using SHA256 checksum for checking integrity: ${checksumSha256}`);
@@ -217,7 +211,7 @@ function nodejs(platform, arch) {
 		case 'darwin':
 		case 'linux':
 			return (product.nodejsRepository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 }) :
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}${glibcPrefix}-${platform}-${arch}.tar.gz`, checksumSha256 }) :
 				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
 			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 				.pipe(filter('**/node'))
@@ -375,6 +369,14 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(util.setExecutableBit()),
 				gulp.src(`resources/server/bin/${platform === 'darwin' ? 'code-server-darwin.sh' : 'code-server-linux.sh'}`, { base: '.' })
 					.pipe(rename(`bin/${product.serverApplicationName}`))
+					.pipe(util.setExecutableBit())
+			);
+		}
+
+		if (platform === 'linux' || platform === 'alpine') {
+			result = es.merge(result,
+				gulp.src(`resources/server/bin/helpers/check-requirements-linux.sh`, { base: '.' })
+					.pipe(rename(`bin/helpers/check-requirements.sh`))
 					.pipe(util.setExecutableBit())
 			);
 		}

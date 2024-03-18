@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -34,6 +34,8 @@ import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, Workbenc
 import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private _folder: IWorkspaceFolder | null;
@@ -41,6 +43,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private container!: HTMLElement;
 	private anchorElement!: HTMLElement;
+	private anchorElementHover!: ICustomHover;
 	private labelElement!: HTMLElement;
 	private detailsElement!: HTMLElement;
 	private dropDownElement!: HTMLElement;
@@ -87,6 +90,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 			'aria-haspopup': 'true',
 			'tabindex': '0'
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
+		this.anchorElementHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.anchorElement, ''));
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e)));
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
@@ -145,7 +149,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
-			this.anchorElement.title = this._folder.name;
+			this.anchorElementHover.update(this._folder.name);
 			const detailsText = this.labelWithCount(this._action.label, total);
 			this.detailsElement.textContent = detailsText;
 			this.dropDownElement.classList.toggle('hide', workspace.folders.length === 1 || !this._action.checked);
@@ -153,7 +157,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 			const labelText = this.labelWithCount(this._action.label, total);
 			this.labelElement.textContent = labelText;
 			this.detailsElement.textContent = '';
-			this.anchorElement.title = this._action.label;
+			this.anchorElementHover.update(this._action.label);
 			this.dropDownElement.classList.remove('hide');
 		}
 
@@ -252,8 +256,7 @@ export class SettingsTargetsWidget extends Widget {
 			orientation: ActionsOrientation.HORIZONTAL,
 			focusOnlyEnabledItems: true,
 			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
-			animated: false,
-			actionViewItemProvider: (action: IAction) => action.id === 'folderSettings' ? this.folderSettings : undefined
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
 
 		this.userLocalSettings = new Action('userSettings', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));

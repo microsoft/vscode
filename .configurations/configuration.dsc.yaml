@@ -12,11 +12,11 @@ properties:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: npm
       directives:
-        description: Install NodeJS version >=16.17.x and <17
+        description: Install NodeJS version >=18.15.x and <19
         allowPrerelease: true
       settings:
         id: OpenJS.NodeJS.LTS
-        version: "16.20.0"
+        version: "18.18.0"
         source: winget
     - resource: NpmDsc/NpmPackage
       id: yarn

@@ -30,8 +30,9 @@ import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentServi
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
+import { promiseWithResolvers } from 'vs/base/common/async';
+import { shouldUseEnvironmentVariableCollection } from 'vs/platform/terminal/common/terminalEnvironment';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -235,14 +236,14 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		);
 
 		// Apply extension environment variable collections to the environment
-		if (!shellLaunchConfig.strictEnv) {
+		if (shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
 			const entries: [string, IEnvironmentVariableCollection][] = [];
 			for (const [k, v, d] of args.envVariableCollections) {
 				entries.push([k, { map: deserializeEnvironmentVariableCollection(v), descriptionMap: deserializeEnvironmentDescriptionMap(d) }]);
 			}
 			const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
 			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
-			const workspaceFolder = activeWorkspaceFolder ? withNullAsUndefined(activeWorkspaceFolder) : undefined;
+			const workspaceFolder = activeWorkspaceFolder ? activeWorkspaceFolder ?? undefined : undefined;
 			await mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 
@@ -267,12 +268,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 	}
 
 	private _executeCommand<T>(persistentProcessId: number, commandId: string, commandArgs: any[], uriTransformer: IURITransformer): Promise<T> {
-		let resolve!: (data: any) => void;
-		let reject!: (err: any) => void;
-		const result = new Promise<T>((_resolve, _reject) => {
-			resolve = _resolve;
-			reject = _reject;
-		});
+		const { resolve, reject, promise } = promiseWithResolvers<T>();
 
 		const reqId = ++this._lastReqId;
 		this._pendingCommands.set(reqId, { resolve, reject, uriTransformer });
@@ -294,7 +290,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			commandArgs: serializedCommandArgs
 		});
 
-		return result;
+		return promise;
 	}
 
 	private _sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {

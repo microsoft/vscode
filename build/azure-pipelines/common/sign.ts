@@ -5,11 +5,11 @@
 
 import * as cp from 'child_process';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import * as path from 'path';
 import * as os from 'os';
-import * as crypto from 'crypto';
 
-class Temp {
+export class Temp {
 	private _files: string[] = [];
 
 	tmpNameSync(): string {
@@ -29,18 +29,92 @@ class Temp {
 	}
 }
 
-function getParams(type: string): string {
+interface Params {
+	readonly keyCode: string;
+	readonly operationSetCode: string;
+	readonly parameters: {
+		readonly parameterName: string;
+		readonly parameterValue: string;
+	}[];
+	readonly toolName: string;
+	readonly toolVersion: string;
+}
+
+function getParams(type: string): Params[] {
 	switch (type) {
-		case 'windows':
-			return '[{"keyCode":"CP-230012","operationSetCode":"SigntoolSign","parameters":[{"parameterName":"OpusName","parameterValue":"VS Code"},{"parameterName":"OpusInfo","parameterValue":"https://code.visualstudio.com/"},{"parameterName":"Append","parameterValue":"/as"},{"parameterName":"FileDigest","parameterValue":"/fd \\"SHA256\\""},{"parameterName":"PageHash","parameterValue":"/NPH"},{"parameterName":"TimeStamp","parameterValue":"/tr \\"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\\" /td sha256"}],"toolName":"sign","toolVersion":"1.0"},{"keyCode":"CP-230012","operationSetCode":"SigntoolVerify","parameters":[{"parameterName":"VerifyAll","parameterValue":"/all"}],"toolName":"sign","toolVersion":"1.0"}]';
-		case 'windows-appx':
-			return '[{"keyCode":"CP-229979","operationSetCode":"SigntoolSign","parameters":[{"parameterName":"OpusName","parameterValue":"VS Code"},{"parameterName":"OpusInfo","parameterValue":"https://code.visualstudio.com/"},{"parameterName":"FileDigest","parameterValue":"/fd \\"SHA256\\""},{"parameterName":"PageHash","parameterValue":"/NPH"},{"parameterName":"TimeStamp","parameterValue":"/tr \\"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\\" /td sha256"}],"toolName":"sign","toolVersion":"1.0"},{"keyCode":"CP-229979","operationSetCode":"SigntoolVerify","parameters":[],"toolName":"sign","toolVersion":"1.0"}]';
-		case 'rpm':
-			return '[{ "keyCode": "CP-450779-Pgp", "operationSetCode": "LinuxSign", "parameters": [], "toolName": "sign", "toolVersion": "1.0" }]';
-		case 'darwin-sign':
-			return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppDeveloperSign","parameters":[{"parameterName":"Hardening","parameterValue":"--options=runtime"}],"toolName":"sign","toolVersion":"1.0"}]';
-		case 'darwin-notarize':
-			return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppNotarize","parameters":[],"toolName":"sign","toolVersion":"1.0"}]';
+		case 'sign-windows':
+			return [
+				{
+					keyCode: 'CP-230012',
+					operationSetCode: 'SigntoolSign',
+					parameters: [
+						{ parameterName: 'OpusName', parameterValue: 'VS Code' },
+						{ parameterName: 'OpusInfo', parameterValue: 'https://code.visualstudio.com/' },
+						{ parameterName: 'Append', parameterValue: '/as' },
+						{ parameterName: 'FileDigest', parameterValue: '/fd "SHA256"' },
+						{ parameterName: 'PageHash', parameterValue: '/NPH' },
+						{ parameterName: 'TimeStamp', parameterValue: '/tr "http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer" /td sha256' }
+					],
+					toolName: 'sign',
+					toolVersion: '1.0'
+				},
+				{
+					keyCode: 'CP-230012',
+					operationSetCode: 'SigntoolVerify',
+					parameters: [
+						{ parameterName: 'VerifyAll', parameterValue: '/all' }
+					],
+					toolName: 'sign',
+					toolVersion: '1.0'
+				}
+			];
+		case 'sign-windows-appx':
+			return [
+				{
+					keyCode: 'CP-229979',
+					operationSetCode: 'SigntoolSign',
+					parameters: [
+						{ parameterName: 'OpusName', parameterValue: 'VS Code' },
+						{ parameterName: 'OpusInfo', parameterValue: 'https://code.visualstudio.com/' },
+						{ parameterName: 'FileDigest', parameterValue: '/fd "SHA256"' },
+						{ parameterName: 'PageHash', parameterValue: '/NPH' },
+						{ parameterName: 'TimeStamp', parameterValue: '/tr "http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer" /td sha256' }
+					],
+					toolName: 'sign',
+					toolVersion: '1.0'
+				},
+				{
+					keyCode: 'CP-229979',
+					operationSetCode: 'SigntoolVerify',
+					parameters: [],
+					toolName: 'sign',
+					toolVersion: '1.0'
+				}
+			];
+		case 'sign-pgp':
+			return [{
+				keyCode: 'CP-450779-Pgp',
+				operationSetCode: 'LinuxSign',
+				parameters: [],
+				toolName: 'sign',
+				toolVersion: '1.0'
+			}];
+		case 'sign-darwin':
+			return [{
+				keyCode: 'CP-401337-Apple',
+				operationSetCode: 'MacAppDeveloperSign',
+				parameters: [{ parameterName: 'Hardening', parameterValue: '--options=runtime' }],
+				toolName: 'sign',
+				toolVersion: '1.0'
+			}];
+		case 'notarize-darwin':
+			return [{
+				keyCode: 'CP-401337-Apple',
+				operationSetCode: 'MacAppNotarize',
+				parameters: [],
+				toolName: 'sign',
+				toolVersion: '1.0'
+			}];
 		default:
 			throw new Error(`Sign type ${type} not found`);
 	}
@@ -54,7 +128,7 @@ export function main([esrpCliPath, type, cert, username, password, folderPath, p
 	fs.writeFileSync(patternPath, pattern);
 
 	const paramsPath = tmp.tmpNameSync();
-	fs.writeFileSync(paramsPath, getParams(type));
+	fs.writeFileSync(paramsPath, JSON.stringify(getParams(type)));
 
 	const keyFile = tmp.tmpNameSync();
 	const key = crypto.randomBytes(32);

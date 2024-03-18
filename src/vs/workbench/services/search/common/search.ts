@@ -19,12 +19,14 @@ import * as paths from 'vs/base/common/path';
 import { isCancellationError } from 'vs/base/common/errors';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import { isThenable } from 'vs/base/common/async';
+import { ResourceSet } from 'vs/base/common/map';
 
 export { TextSearchCompleteMessageType };
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
 export const VIEW_ID = 'workbench.view.search';
+export const SEARCH_RESULT_LANGUAGE_ID = 'search-result';
 
 export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
 
@@ -41,7 +43,9 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	readonly _serviceBrand: undefined;
-	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void, notebookURIs?: Set<URI>): Promise<ISearchComplete>;
+	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	aiTextSearch(query: IAITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	textSearchSplitSyncAsync(query: ITextQuery, token?: CancellationToken | undefined, onProgress?: ((result: ISearchProgressItem) => void) | undefined, notebookFilesToIgnore?: ResourceSet, asyncNotebookFilesToIgnore?: Promise<ResourceSet>): { syncResults: ISearchComplete; asyncResults: Promise<ISearchComplete> };
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
@@ -52,7 +56,8 @@ export interface ISearchService {
  */
 export const enum SearchProviderType {
 	file,
-	text
+	text,
+	aiText
 }
 
 export interface ISearchResultProvider {
@@ -78,6 +83,8 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	_reason?: string;
 
 	folderQueries: IFolderQuery<U>[];
+	// The include pattern for files that gets passed into ripgrep.
+	// Note that this will override any ignore files if applicable.
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
@@ -91,6 +98,10 @@ export interface ICommonQueryProps<U extends UriComponents> {
 export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
 	type: QueryType.File;
 	filePattern?: string;
+
+	// when walking through the tree to find the result, don't use the filePattern to fuzzy match.
+	// Instead, should use glob matching.
+	shouldGlobMatchFilePattern?: boolean;
 
 	/**
 	 * If true no results will be returned. Instead `limitHit` will indicate if at least one result exists or not.
@@ -114,17 +125,32 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
 
+export interface IAITextQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
+	type: QueryType.aiText;
+	contentPattern: string;
+
+	previewOptions?: ITextSearchPreviewOptions;
+	maxFileSize?: number;
+	afterContext?: number;
+	beforeContext?: number;
+
+	userDisabledExcludesAndIgnoreFiles?: boolean;
+}
+
 export type IFileQuery = IFileQueryProps<URI>;
 export type IRawFileQuery = IFileQueryProps<UriComponents>;
 export type ITextQuery = ITextQueryProps<URI>;
 export type IRawTextQuery = ITextQueryProps<UriComponents>;
+export type IAITextQuery = IAITextQueryProps<URI>;
+export type IRawAITextQuery = IAITextQueryProps<UriComponents>;
 
-export type IRawQuery = IRawTextQuery | IRawFileQuery;
-export type ISearchQuery = ITextQuery | IFileQuery;
+export type IRawQuery = IRawTextQuery | IRawFileQuery | IRawAITextQuery;
+export type ISearchQuery = ITextQuery | IFileQuery | IAITextQuery;
 
 export const enum QueryType {
 	File = 1,
-	Text = 2
+	Text = 2,
+	aiText = 3
 }
 
 /* __GDPR__FRAGMENT__
@@ -161,7 +187,7 @@ export interface IExtendedExtensionSearchOptions {
 
 export interface IFileMatch<U extends UriComponents = URI> {
 	resource: U;
-	results?: ITextSearchResult[];
+	results?: ITextSearchResult<U>[];
 }
 
 export type IRawFileMatch2 = IFileMatch<UriComponents>;
@@ -184,20 +210,20 @@ export interface ITextSearchResultPreview {
 	cellFragment?: string;
 }
 
-export interface ITextSearchMatch {
-	uri?: URI;
+export interface ITextSearchMatch<U extends UriComponents = URI> {
+	uri?: U;
 	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
 	webviewIndex?: number;
 }
 
-export interface ITextSearchContext {
-	uri?: URI;
+export interface ITextSearchContext<U extends UriComponents = URI> {
+	uri?: U;
 	text: string;
 	lineNumber: number;
 }
 
-export type ITextSearchResult = ITextSearchMatch | ITextSearchContext;
+export type ITextSearchResult<U extends UriComponents = URI> = ITextSearchMatch<U> | ITextSearchContext<U>;
 
 export function resultIsMatch(result: ITextSearchResult): result is ITextSearchMatch {
 	return !!(<ITextSearchMatch>result).preview;
@@ -240,7 +266,7 @@ export const enum SearchCompletionExitCode {
 }
 
 export interface ITextSearchStats {
-	type: 'textSearchProvider' | 'searchProcess';
+	type: 'textSearchProvider' | 'searchProcess' | 'aiTextSearchProvider';
 }
 
 export interface IFileSearchStats {
@@ -400,6 +426,7 @@ export interface ISearchConfigurationProperties {
 	mode: 'view' | 'reuseEditor' | 'newEditor';
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide';
+		singleClickBehaviour: 'default' | 'peekDefinition';
 		reusePriorSearchConfiguration: boolean;
 		defaultNumberOfContextLines: number | null;
 		experimental: {};
@@ -412,6 +439,9 @@ export interface ISearchConfigurationProperties {
 	defaultViewMode: ViewMode;
 	experimental: {
 		closedNotebookRichContentResults: boolean;
+		quickAccess: {
+			preserveInput: boolean;
+		};
 	};
 }
 
@@ -580,9 +610,11 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 	return !!(<ISerializedFileMatch>arg).path;
 }
 
-export function isFilePatternMatch(candidate: IRawFileMatch, normalizedFilePatternLowercase: string): boolean {
+export function isFilePatternMatch(candidate: IRawFileMatch, filePatternToUse: string, fuzzy = true): boolean {
 	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
-	return fuzzyContains(pathToMatch, normalizedFilePatternLowercase);
+	return fuzzy ?
+		fuzzyContains(pathToMatch, filePatternToUse) :
+		glob.match(filePatternToUse, pathToMatch);
 }
 
 export interface ISerializedFileMatch {

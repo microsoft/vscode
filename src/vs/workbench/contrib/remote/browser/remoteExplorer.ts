@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Attributes, AutoTunnelSource, IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, Tunnel, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID, TunnelCloseReason, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction, openPreviewEnabledContext } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { Attributes, AutoTunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, Tunnel, TunnelCloseReason, TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
+import { ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction, openPreviewEnabledContext } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 import Severity from 'vs/base/common/severity';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationHandle, INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -32,12 +33,16 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { Action } from 'vs/base/common/actions';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
-	private contextKeyListener?: IDisposable;
-	private _activityBadge?: IDisposable;
+	private readonly contextKeyListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly activityBadge = this._register(new MutableDisposable<IDisposable>());
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
 
 	constructor(
@@ -50,7 +55,8 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
-			content: `No forwarded ports. Forward a port to access your running services locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
+			content: this.environmentService.remoteAuthority ? nls.localize('remoteNoPorts', "No forwarded ports. Forward a port to access your running services locally.\n[Forward a Port]({0})", `command:${ForwardPortAction.INLINE_ID}`)
+				: nls.localize('noRemoteNoPorts', "No forwarded ports. Forward a port to access your locally running services over the internet.\n[Forward a Port]({0})", `command:${ForwardPortAction.INLINE_ID}`),
 		}));
 		this.enableBadgeAndStatusBar();
 		this.enableForwardedPortsView();
@@ -59,7 +65,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private async getViewContainer(): Promise<ViewContainer | null> {
 		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 			id: TUNNEL_VIEW_CONTAINER_ID,
-			title: nls.localize('ports', "Ports"),
+			title: nls.localize2('ports', "Ports"),
 			icon: portsViewIcon,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TUNNEL_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: TUNNEL_VIEW_CONTAINER_ID,
@@ -69,10 +75,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async enableForwardedPortsView() {
-		if (this.contextKeyListener) {
-			this.contextKeyListener.dispose();
-			this.contextKeyListener = undefined;
-		}
+		this.contextKeyListener.clear();
 
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 
@@ -82,10 +85,10 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
 				this.remoteExplorerService.enablePortsFeatures();
-				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
+				viewsRegistry.registerViews([tunnelPanelDescriptor], viewContainer);
 			}
 		} else {
-			this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {
+			this.contextKeyListener.value = this.contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
 					this.enableForwardedPortsView();
 				}
@@ -113,9 +116,8 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async updateActivityBadge() {
-		this._activityBadge?.dispose();
 		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
-			this._activityBadge = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
+			this.activityBadge.value = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
 				badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
 			});
 		}
@@ -173,21 +175,26 @@ export class PortRestore implements IWorkbenchContribution {
 
 
 export class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
+	private procForwarder: ProcAutomaticPortForwarding | undefined;
+	private outputForwarder: OutputAutomaticPortForwarding | undefined;
+	private portListener: IDisposable | undefined;
 
 	constructor(
-		@ITerminalService terminalService: ITerminalService,
-		@INotificationService notificationService: INotificationService,
-		@IOpenerService openerService: IOpenerService,
-		@IExternalUriOpenerService externalOpenerService: IExternalUriOpenerService,
-		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
-		@IDebugService debugService: IDebugService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ITunnelService tunnelService: ITunnelService,
-		@IHostService hostService: IHostService,
-		@ILogService logService: ILogService
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IExternalUriOpenerService private readonly externalOpenerService: IExternalUriOpenerService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService,
+		@ITunnelService private readonly tunnelService: ITunnelService,
+		@IHostService private readonly hostService: IHostService,
+		@ILogService private readonly logService: ILogService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		if (!environmentService.remoteAuthority) {
@@ -195,24 +202,109 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		}
 
 		configurationService.whenRemoteConfigurationLoaded().then(() => remoteAgentService.getEnvironment()).then(environment => {
-			if (environment?.os !== OperatingSystem.Linux) {
+			this.setup(environment);
+			this._register(configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING)) {
+					this.setup(environment);
+				} else if (e.affectsConfiguration(PORT_AUTO_FALLBACK_SETTING) && !this.portListener) {
+					this.listenForPorts();
+				}
+			}));
+		});
+
+		if (!this.storageService.getBoolean('processPortForwardingFallback', StorageScope.WORKSPACE, true)) {
+			this.configurationService.updateValue(PORT_AUTO_FALLBACK_SETTING, 0, ConfigurationTarget.WORKSPACE);
+		}
+	}
+
+	private getPortAutoFallbackNumber(): number {
+		const fallbackAt = this.configurationService.inspect<number>(PORT_AUTO_FALLBACK_SETTING);
+		if ((fallbackAt.value !== undefined) && (fallbackAt.value === 0 || (fallbackAt.value !== fallbackAt.defaultValue))) {
+			return fallbackAt.value;
+		}
+		const inspectSource = this.configurationService.inspect(PORT_AUTO_SOURCE_SETTING);
+		if (inspectSource.applicationValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.userValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.userLocalValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.userRemoteValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.workspaceFolderValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.workspaceValue === PORT_AUTO_SOURCE_SETTING_PROCESS) {
+			return 0;
+		}
+		return fallbackAt.value ?? 20;
+	}
+
+	private listenForPorts() {
+		let fallbackAt = this.getPortAutoFallbackNumber();
+		if (fallbackAt === 0) {
+			this.portListener?.dispose();
+			return;
+		}
+
+		if (this.procForwarder && !this.portListener && (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS)) {
+			this.portListener = this._register(this.remoteExplorerService.tunnelModel.onForwardPort(async () => {
+				fallbackAt = this.getPortAutoFallbackNumber();
+				if (fallbackAt === 0) {
+					this.portListener?.dispose();
+					return;
+				}
+				if (Array.from(this.remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.source.source === TunnelSource.Auto).length > fallbackAt) {
+					await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID);
+					this.notificationService.notify({
+						message: nls.localize('remote.autoForwardPortsSource.fallback', "Over 20 ports have been automatically forwarded. The `process` based automatic port forwarding has been switched to `hybrid` in settings. Some ports may no longer be detected."),
+						severity: Severity.Warning,
+						actions: {
+							primary: [
+								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Undo"), undefined, true, async () => {
+									await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS);
+									await this.configurationService.updateValue(PORT_AUTO_FALLBACK_SETTING, 0, ConfigurationTarget.WORKSPACE);
+									this.portListener?.dispose();
+									this.portListener = undefined;
+								}),
+								new Action('showPortSourceSetting', nls.localize('remote.autoForwardPortsSource.fallback.showPortSourceSetting', "Show Setting"), undefined, true, async () => {
+									await this.preferencesService.openSettings({
+										query: 'remote.autoForwardPortsSource'
+									});
+								})
+							]
+						}
+					});
+				}
+			}));
+		} else {
+			this.portListener?.dispose();
+			this.portListener = undefined;
+		}
+	}
+
+
+	private setup(environment: IRemoteAgentEnvironment | null) {
+		const alreadyForwarded = this.procForwarder?.forwarded;
+		const isSwitch = this.outputForwarder || this.procForwarder;
+		this.procForwarder?.dispose();
+		this.procForwarder = undefined;
+		this.outputForwarder?.dispose();
+		this.outputForwarder = undefined;
+		if (environment?.os !== OperatingSystem.Linux) {
+			if (this.configurationService.inspect<string>(PORT_AUTO_SOURCE_SETTING).default?.value !== PORT_AUTO_SOURCE_SETTING_OUTPUT) {
 				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
-				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
-					remoteExplorerService, configurationService, debugService, tunnelService, hostService, logService, contextKeyService, () => false));
-			} else {
-				const useProc = () => (configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
-				if (useProc()) {
-					this._register(new ProcAutomaticPortForwarding(false, configurationService, remoteExplorerService, notificationService,
-						openerService, externalOpenerService, tunnelService, hostService, logService, contextKeyService));
-				} else if (configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_HYBRID) {
-					this._register(new ProcAutomaticPortForwarding(true, configurationService, remoteExplorerService, notificationService,
-						openerService, externalOpenerService, tunnelService, hostService, logService, contextKeyService));
-				}
-				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
-					remoteExplorerService, configurationService, debugService, tunnelService, hostService, logService, contextKeyService, useProc));
 			}
-		});
+			this.outputForwarder = this._register(new OutputAutomaticPortForwarding(this.terminalService, this.notificationService, this.openerService, this.externalOpenerService,
+				this.remoteExplorerService, this.configurationService, this.debugService, this.tunnelService, this.hostService, this.logService, this.contextKeyService, () => false));
+		} else {
+			const useProc = () => (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
+			if (useProc()) {
+				this.procForwarder = this._register(new ProcAutomaticPortForwarding(false, alreadyForwarded, !isSwitch, this.configurationService, this.remoteExplorerService, this.notificationService,
+					this.openerService, this.externalOpenerService, this.tunnelService, this.hostService, this.logService, this.contextKeyService));
+			} else if (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_HYBRID) {
+				this.procForwarder = this._register(new ProcAutomaticPortForwarding(true, alreadyForwarded, !isSwitch, this.configurationService, this.remoteExplorerService, this.notificationService,
+					this.openerService, this.externalOpenerService, this.tunnelService, this.hostService, this.logService, this.contextKeyService));
+			}
+			this.outputForwarder = this._register(new OutputAutomaticPortForwarding(this.terminalService, this.notificationService, this.openerService, this.externalOpenerService,
+				this.remoteExplorerService, this.configurationService, this.debugService, this.tunnelService, this.hostService, this.logService, this.contextKeyService, useProc));
+		}
+		this.listenForPorts();
 	}
 }
 
@@ -320,8 +412,11 @@ class OnAutoForwardedAction extends Disposable {
 		});
 	}
 
-	private basicMessage(tunnel: RemoteTunnel) {
-		return nls.localize('remote.tunnelsView.automaticForward', "Your application running on port {0} is available.  ",
+	private async basicMessage(tunnel: RemoteTunnel) {
+		const properties = await this.remoteExplorerService.tunnelModel.getAttributes([{ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }], false);
+		const label = properties?.get(tunnel.tunnelRemotePort)?.label;
+		return nls.localize('remote.tunnelsView.automaticForward', "Your application{0} running on port {1} is available.  ",
+			label ? ` (${label})` : '',
 			tunnel.tunnelRemotePort);
 	}
 
@@ -337,7 +432,7 @@ class OnAutoForwardedAction extends Disposable {
 		}
 
 		this.lastNotification?.close();
-		let message = this.basicMessage(tunnel);
+		let message = await this.basicMessage(tunnel);
 		const choices = [this.openBrowserChoice(tunnel)];
 		if (!isWeb || openPreviewEnabledContext.getValue(this.contextKeyService)) {
 			choices.push(this.openPreviewChoice(tunnel));
@@ -410,13 +505,13 @@ class OnAutoForwardedAction extends Disposable {
 					elevateIfNeeded: true,
 					source: AutoTunnelSource
 				});
-				if (!newTunnel) {
+				if (!newTunnel || (typeof newTunnel === 'string')) {
 					return;
 				}
 				this.lastNotification?.close();
 				this.lastShownPort = newTunnel.tunnelRemotePort;
 				this.lastNotification = this.notificationService.prompt(Severity.Info,
-					this.basicMessage(newTunnel) + this.linkMessage(),
+					await this.basicMessage(newTunnel) + this.linkMessage(),
 					[this.openBrowserChoice(newTunnel), this.openPreviewChoice(tunnel)],
 					{ neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 				this.lastNotification.onDidClose(() => {
@@ -491,7 +586,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 				return;
 			}
 			const forwarded = await this.remoteExplorerService.forward({ remote: localUrl, source: AutoTunnelSource }, attributes ?? null);
-			if (forwarded) {
+			if (forwarded && (typeof forwarded !== 'string')) {
 				this.notifier.doAction([forwarded]);
 			}
 		}));
@@ -515,6 +610,8 @@ class ProcAutomaticPortForwarding extends Disposable {
 
 	constructor(
 		private readonly unforwardOnly: boolean,
+		readonly alreadyAutoForwarded: Set<string> | undefined,
+		private readonly needsInitialCandidates: boolean,
 		private readonly configurationService: IConfigurationService,
 		readonly remoteExplorerService: IRemoteExplorerService,
 		readonly notificationService: INotificationService,
@@ -527,7 +624,12 @@ class ProcAutomaticPortForwarding extends Disposable {
 	) {
 		super();
 		this.notifier = new OnAutoForwardedAction(notificationService, remoteExplorerService, openerService, externalOpenerService, tunnelService, hostService, logService, contextKeyService);
+		alreadyAutoForwarded?.forEach(port => this.autoForwarded.add(port));
 		this.initialize();
+	}
+
+	get forwarded(): Set<string> {
+		return this.autoForwarded;
 	}
 
 	private async initialize() {
@@ -579,6 +681,10 @@ class ProcAutomaticPortForwarding extends Disposable {
 	}
 
 	private async setInitialCandidates() {
+		if (!this.needsInitialCandidates) {
+			this.logService.debug(`ForwardedPorts: (ProcForwarding) Not setting initial candidates`);
+			return;
+		}
 		let startingCandidates = this.remoteExplorerService.tunnelModel.candidatesOrUndefined;
 		if (!startingCandidates) {
 			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onCandidatesChanged(() => resolve()));
@@ -631,7 +737,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} has been notified`);
 				this.notifiedOnly.add(address);
 			}
-			if (forwarded) {
+			if (forwarded && (typeof forwarded !== 'string')) {
 				allTunnels.push(forwarded);
 			}
 		}

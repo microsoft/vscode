@@ -42,11 +42,10 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 //#region --- workbench parts
 
 import 'vs/workbench/browser/parts/editor/editor.contribution';
-import 'vs/workbench/browser/parts/editor/editorPart';
-import 'vs/workbench/browser/parts/paneCompositePart';
+import 'vs/workbench/browser/parts/editor/editorParts';
+import 'vs/workbench/browser/parts/paneCompositePartService';
 import 'vs/workbench/browser/parts/banner/bannerPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
-import 'vs/workbench/browser/parts/views/viewsService';
 
 //#endregion
 
@@ -68,6 +67,8 @@ import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/editor/browser/editorResolverService';
+import 'vs/workbench/services/aiEmbeddingVector/common/aiEmbeddingVectorService';
+import 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformationService';
 import 'vs/workbench/services/history/browser/historyService';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
@@ -76,6 +77,7 @@ import 'vs/workbench/services/textresourceProperties/common/textResourceProperti
 import 'vs/workbench/services/textfile/common/textEditorService';
 import 'vs/workbench/services/language/common/languageService';
 import 'vs/workbench/services/model/common/modelService';
+import 'vs/workbench/services/notebook/common/notebookDocumentService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
@@ -84,6 +86,7 @@ import 'vs/workbench/services/extensionManagement/browser/extensionEnablementSer
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
 import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import 'vs/workbench/services/extensionManagement/common/extensionFeaturesManagemetService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileImportExportService';
@@ -97,10 +100,14 @@ import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import 'vs/workbench/services/views/browser/viewDescriptorService';
+import 'vs/workbench/services/views/browser/viewsService';
 import 'vs/workbench/services/quickinput/browser/quickInputService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService';
 import 'vs/workbench/services/authentication/browser/authenticationService';
-import 'vs/workbench/services/hover/browser/hoverService';
+import 'vs/workbench/services/authentication/browser/authenticationExtensionsService';
+import 'vs/workbench/services/authentication/browser/authenticationUsageService';
+import 'vs/workbench/services/authentication/browser/authenticationAccessService';
+import 'vs/editor/browser/services/hoverService/hoverService';
 import 'vs/workbench/services/assignment/common/assignmentService';
 import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
@@ -111,6 +118,7 @@ import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contr
 import 'vs/workbench/services/userActivity/common/userActivityService';
 import 'vs/workbench/services/userActivity/browser/userActivityBrowser';
 import 'vs/workbench/services/issue/browser/issueTroubleshoot';
+import 'vs/workbench/services/editor/browser/editorPaneService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -175,6 +183,10 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
+// Speech
+import 'vs/workbench/contrib/speech/browser/speech.contribution';
+
+// Chat
 import 'vs/workbench/contrib/chat/browser/chat.contribution';
 import 'vs/workbench/contrib/inlineChat/browser/inlineChat.contribution';
 
@@ -225,6 +237,12 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
+
+// Multi Diff Editor
+import 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contribution';
+
+// Mapped Edits
+import 'vs/workbench/contrib/mappedEdits/common/mappedEdits.contribution';
 
 // Commands
 import 'vs/workbench/contrib/commands/common/commands.contribution';
@@ -326,6 +344,9 @@ import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contrib
 // Language Status
 import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
 
+// Authentication
+import 'vs/workbench/contrib/authentication/browser/authentication.contribution';
+
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
@@ -353,8 +374,8 @@ import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 // List
 import 'vs/workbench/contrib/list/browser/list.contribution';
 
-// Audio Cues
-import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
+// Accessibility Signals
+import 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
 
 // Deprecated Extension Migrator
 import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';
@@ -368,4 +389,9 @@ import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 // Share
 import 'vs/workbench/contrib/share/browser/share.contribution';
 
+// Account Entitlements
+import 'vs/workbench/contrib/accountEntitlements/browser/accountsEntitlements.contribution';
+
+// Synchronized Scrolling
+import 'vs/workbench/contrib/scrollLocking/browser/scrollLocking.contribution';
 //#endregion

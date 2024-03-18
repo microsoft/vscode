@@ -309,25 +309,6 @@
 		]
 	},
 	{ // Reason: Missing license file
-		"name": "emitter-listener",
-		"fullLicenseText": [
-			"This software is released under the BSD-2-Clause license:",
-			"Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:",
-			"",
-			"1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.",
-			"",
-			"2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer",
-			"in the documentation and/or other materials provided with the distribution.",
-			"",
-			"THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT",
-			"NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE",
-			"COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,",
-			"BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED",
-			"AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT",
-			"OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
-		]
-	},
-	{ // Reason: Missing license file
 		"name": "const_format_proc_macros",
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/rodrimati1992/const_format_crates/b2207af46bfbd9f1a6bd12dbffd10feeea3d9fd7/LICENSE-ZLIB.md"
 	},
@@ -536,5 +517,87 @@
 		"prependLicenseText": [
 			"Copyright (c) cacheable-request authors"
 		]
+	},
+	{
+		"name": "@vscode/ts-package-manager",
+		"fullLicenseText": [
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE"
+		]
+	},
+	{
+		// Reason: missing repository property on package.json
+		// Issue: https://github.com/microsoft/vscode-v8-heap-tools/issues/14
+		"name": "@vscode/v8-heap-parser",
+		"fullLicenseText": [
+			"The code in this package is built upon that in the Chrome devtools",
+			"(https://github.com/ChromeDevTools/devtools-frontend) which is made available",
+			"under the following license:",
+			"",
+			"// Copyright 2014 The Chromium Authors. All rights reserved.",
+			"//",
+			"// Redistribution and use in source and binary forms, with or without",
+			"// modification, are permitted provided that the following conditions are",
+			"// met:",
+			"//",
+			"//    * Redistributions of source code must retain the above copyright",
+			"// notice, this list of conditions and the following disclaimer.",
+			"//    * Redistributions in binary form must reproduce the above",
+			"// copyright notice, this list of conditions and the following disclaimer",
+			"// in the documentation and/or other materials provided with the",
+			"// distribution.",
+			"//    * Neither the name of Google Inc. nor the names of its",
+			"// contributors may be used to endorse or promote products derived from",
+			"// this software without specific prior written permission.",
+			"//",
+			"// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS",
+			"// 'AS IS' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT",
+			"// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR",
+			"// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT",
+			"// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,",
+			"// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT",
+			"// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,",
+			"// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY",
+			"// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT",
+			"// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE",
+			"// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
+		]
+	},
+	{
+		// Reason: missing copyright statement
+		// Issue: https://github.com/qiao/heap.js/issues/33
+		"name": "heap",
+		"prependLicenseText": [
+			"Copyright (c) heap.js authors"
+		]
+	},
+	{
+		// Reason: mono-repo where the individual packages are also dual-licensed under MIT and Apache-2.0
+		"name": "system-configuration",
+		"fullLicenseTextUri": "https://github.com/mullvad/system-configuration-rs/blob/main/system-configuration/LICENSE-MIT"
+	},
+	{
+		// Reason: mono-repo where the individual packages are also dual-licensed under MIT and Apache-2.0
+		"name": "system-configuration-sys",
+		"fullLicenseTextUri": "https://github.com/mullvad/system-configuration-rs/blob/main/system-configuration-sys/LICENSE-MIT"
 	}
 ]

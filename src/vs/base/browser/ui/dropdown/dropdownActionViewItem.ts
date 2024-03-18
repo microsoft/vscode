@@ -19,6 +19,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./dropdown';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;
@@ -90,7 +92,9 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			this.element.setAttribute('role', 'button');
 			this.element.setAttribute('aria-haspopup', 'true');
 			this.element.setAttribute('aria-expanded', 'false');
-			this.element.title = this._action.label || '';
+			if (this._action.label) {
+				this._register(setupCustomHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.element, this._action.label));
+			}
 			this.element.ariaLabel = this._action.label || '';
 
 			return null;
@@ -203,10 +207,14 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 			separator.classList.toggle('prominent', menuActionClassNames.includes('prominent'));
 			append(this.element, separator);
 
-			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames] });
+			this.dropdownMenuActionViewItem = this._register(new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames], hoverDelegate: this.options.hoverDelegate }));
 			this.dropdownMenuActionViewItem.render(this.element);
 
 			this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
+				// If we don't have any actions then the dropdown is hidden so don't try to focus it #164050
+				if (menuActionsProvider.getActions().length === 0) {
+					return;
+				}
 				const event = new StandardKeyboardEvent(e);
 				let handled: boolean = false;
 				if (this.dropdownMenuActionViewItem?.isFocused() && event.equals(KeyCode.LeftArrow)) {

@@ -70,7 +70,7 @@ export function onLanguage(languageId: string, callback: () => void): IDisposabl
 
 /**
  * An event emitted when a language is associated for the first time with a text model or
- * whena language is encountered during the tokenization of another language.
+ * when a language is encountered during the tokenization of another language.
  * @event
  */
 export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable {
@@ -460,6 +460,14 @@ export function registerRenameProvider(languageSelector: LanguageSelector, provi
 }
 
 /**
+ * Register a new symbol-name provider (e.g., when a symbol is being renamed, show new possible symbol-names)
+ */
+export function registerNewSymbolNameProvider(languageSelector: LanguageSelector, provider: languages.NewSymbolNamesProvider): IDisposable {
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.newSymbolNamesProvider.register(languageSelector, provider);
+}
+
+/**
  * Register a signature help provider (used by e.g. parameter hints).
  */
 export function registerSignatureHelpProvider(languageSelector: LanguageSelector, provider: languages.SignatureHelpProvider): IDisposable {
@@ -671,6 +679,11 @@ export function registerInlineCompletionsProvider(languageSelector: LanguageSele
 	return languageFeaturesService.inlineCompletionsProvider.register(languageSelector, provider);
 }
 
+export function registerInlineEditProvider(languageSelector: LanguageSelector, provider: languages.InlineEditProvider): IDisposable {
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.inlineEditProvider.register(languageSelector, provider);
+}
+
 /**
  * Register an inlay hints provider.
  */
@@ -755,6 +768,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		setMonarchTokensProvider: <any>setMonarchTokensProvider,
 		registerReferenceProvider: <any>registerReferenceProvider,
 		registerRenameProvider: <any>registerRenameProvider,
+		registerNewSymbolNameProvider: <any>registerNewSymbolNameProvider,
 		registerCompletionItemProvider: <any>registerCompletionItemProvider,
 		registerSignatureHelpProvider: <any>registerSignatureHelpProvider,
 		registerHoverProvider: <any>registerHoverProvider,
@@ -777,6 +791,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerDocumentSemanticTokensProvider: <any>registerDocumentSemanticTokensProvider,
 		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
 		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
+		registerInlineEditProvider: <any>registerInlineEditProvider,
 		registerInlayHintsProvider: <any>registerInlayHintsProvider,
 
 		// enums
@@ -791,7 +806,10 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlayHintKind: standaloneEnums.InlayHintKind,
 		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
+		InlineEditTriggerKind: standaloneEnums.InlineEditTriggerKind,
 		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
+		NewSymbolNameTag: standaloneEnums.NewSymbolNameTag,
+		PartialAcceptTriggerKind: standaloneEnums.PartialAcceptTriggerKind,
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,

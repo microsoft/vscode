@@ -7,7 +7,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
 import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -16,21 +15,18 @@ import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from 'vs/pl
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { registerContributions as notebookSearchContributions } from 'vs/workbench/contrib/search/browser/notebookSearchContributions';
+import { registerContributions as notebookSearchContributions } from 'vs/workbench/contrib/search/browser/notebookSearch/notebookSearchContributions';
 import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
@@ -42,8 +38,10 @@ import 'vs/workbench/contrib/search/browser/searchActionsNav';
 import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
+import 'vs/workbench/contrib/search/browser/searchActionsTextQuickAccess';
+import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
 
-registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
+registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
 
 replaceContributions();
@@ -54,7 +52,7 @@ const SEARCH_MODE_CONFIG = 'search.mode';
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: { value: nls.localize('name', "Search"), original: 'Search' },
+	title: nls.localize2('search', "Search"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,
 	icon: searchViewIcon,
@@ -64,7 +62,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 const viewDescriptor: IViewDescriptor = {
 	id: VIEW_ID,
 	containerIcon: searchViewIcon,
-	name: nls.localize('search', "Search"),
+	name: nls.localize2('search', "Search"),
 	ctorDescriptor: new SyncDescriptor(SearchView),
 	canToggleVisibility: false,
 	canMoveView: true,
@@ -83,22 +81,6 @@ const viewDescriptor: IViewDescriptor = {
 // Register search default location to sidebar
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDescriptor], viewContainer);
 
-// Migrate search location setting to new model
-class RegisterSearchViewContribution implements IWorkbenchContribution {
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
-	) {
-		const data = configurationService.inspect('search.location');
-		if (data.value === 'panel') {
-			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
-		}
-		Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
-			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
-	}
-}
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
-
 // Register Quick Access Handler
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
 
@@ -107,7 +89,11 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: AnythingQuickAccessProvider.PREFIX,
 	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
 	contextKey: defaultQuickAccessContextKeyValue,
-	helpEntries: [{ description: nls.localize('anythingQuickAccess', "Go to File"), commandId: 'workbench.action.quickOpen' }]
+	helpEntries: [{
+		description: nls.localize('anythingQuickAccess', "Go to File"),
+		commandId: 'workbench.action.quickOpen',
+		commandCenterOrder: 10
+	}]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
@@ -115,7 +101,21 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: SymbolsQuickAccessProvider.PREFIX,
 	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
 	contextKey: 'inWorkspaceSymbolsPicker',
-	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.ShowAllSymbolsActionId }]
+	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.SearchCommandIds.ShowAllSymbolsActionId }]
+});
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: TextSearchQuickAccess,
+	prefix: TEXT_SEARCH_QUICK_ACCESS_PREFIX,
+	contextKey: 'inTextSearchPicker',
+	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files (experimental)."),
+	helpEntries: [
+		{
+			description: nls.localize('textSearchPickerHelp', "Search for Text (Experimental)"),
+			commandId: Constants.SearchCommandIds.QuickTextSearchActionId,
+			commandCenterOrder: 65,
+		}
+	]
 });
 
 // Configuration
@@ -182,7 +182,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (e.g., from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
@@ -308,6 +308,16 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double-clicking a result in a search editor.")
 		},
+		'search.searchEditor.singleClickBehaviour': {
+			type: 'string',
+			enum: ['default', 'peekDefinition',],
+			default: 'default',
+			enumDescriptions: [
+				nls.localize('search.searchEditor.singleClickBehaviour.default', "Single-clicking does nothing."),
+				nls.localize('search.searchEditor.singleClickBehaviour.peekDefinition', "Single-clicking opens a Peek Definition window."),
+			],
+			markdownDescription: nls.localize('search.searchEditor.singleClickBehaviour', "Configure effect of single-clicking a result in a search editor.")
+		},
 		'search.searchEditor.reusePriorSearchConfiguration': {
 			type: 'boolean',
 			default: false,
@@ -356,7 +366,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
-		}
+		},
+		'search.experimental.quickAccess.preserveInput': {
+			'type': 'boolean',
+			'description': nls.localize('search.experimental.quickAccess.preserveInput', "Controls whether the last typed input to Quick Search should be restored when opening it the next time."),
+			'default': false
+		},
 	}
 });
 

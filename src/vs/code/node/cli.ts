@@ -15,7 +15,7 @@ import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage, NATIVE_CLI_COMMANDS, OPTIONS } from 'vs/platform/environment/node/argv';
 import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
 import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
@@ -27,12 +27,14 @@ import { FileAccess } from 'vs/base/common/network';
 import { cwd } from 'vs/base/common/process';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 import { URI } from 'vs/base/common/uri';
+import { DeferredPromise } from 'vs/base/common/async';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
 		|| !!argv['uninstall-extension']
+		|| !!argv['update-extensions']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];
 }
@@ -51,31 +53,33 @@ export async function main(argv: string[]): Promise<any> {
 		return;
 	}
 
-	if (args.tunnel) {
-		if (!product.tunnelApplicationName) {
-			console.error(`'tunnel' command not supported in ${product.applicationName}`);
-			return;
-		}
-		const tunnelArgs = argv.slice(argv.indexOf('tunnel') + 1); // all arguments behind `tunnel`
-		return new Promise((resolve, reject) => {
-			let tunnelProcess: ChildProcess;
-			const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
-			if (process.env['VSCODE_DEV']) {
-				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio });
-			} else {
-				const appPath = process.platform === 'darwin'
-					// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
-					? join(dirname(dirname(process.execPath)), 'Resources', 'app')
-					: dirname(process.execPath);
-				const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
-				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs], { cwd: cwd(), stdio });
+	for (const subcommand of NATIVE_CLI_COMMANDS) {
+		if (args[subcommand]) {
+			if (!product.tunnelApplicationName) {
+				console.error(`'${subcommand}' command not supported in ${product.applicationName}`);
+				return;
 			}
+			const tunnelArgs = argv.slice(argv.indexOf(subcommand) + 1); // all arguments behind `tunnel`
+			return new Promise((resolve, reject) => {
+				let tunnelProcess: ChildProcess;
+				const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
+				if (process.env['VSCODE_DEV']) {
+					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio });
+				} else {
+					const appPath = process.platform === 'darwin'
+						// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
+						? join(dirname(dirname(process.execPath)), 'Resources', 'app')
+						: dirname(process.execPath);
+					const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
+					tunnelProcess = spawn(tunnelCommand, [subcommand, ...tunnelArgs], { cwd: cwd(), stdio });
+				}
 
-			tunnelProcess.stdout!.pipe(process.stdout);
-			tunnelProcess.stderr!.pipe(process.stderr);
-			tunnelProcess.on('exit', resolve);
-			tunnelProcess.on('error', reject);
-		});
+				tunnelProcess.stdout!.pipe(process.stdout);
+				tunnelProcess.stderr!.pipe(process.stderr);
+				tunnelProcess.on('exit', resolve);
+				tunnelProcess.on('error', reject);
+			});
+		}
 	}
 
 	// Help
@@ -201,7 +205,7 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
-		const hasReadStdinArg = args._.some(a => a === '-');
+		const hasReadStdinArg = args._.some(arg => arg === '-');
 		if (hasReadStdinArg) {
 			// remove the "-" argument when we read from stdin
 			args._ = args._.filter(a => a !== '-');
@@ -218,17 +222,31 @@ export async function main(argv: string[]): Promise<any> {
 			if (hasReadStdinArg) {
 				stdinFilePath = getStdinFilePath();
 
-				// returns a file path where stdin input is written into (write in progress).
 				try {
-					await readFromStdin(stdinFilePath, !!args.verbose); // throws error if file can not be written
+					const readFromStdinDone = new DeferredPromise<void>();
+					await readFromStdin(stdinFilePath, !!args.verbose, () => readFromStdinDone.complete());
+					if (!args.wait) {
 
-					// Make sure to open tmp file
+						// if `--wait` is not provided, we keep this process alive
+						// for at least as long as the stdin stream is open to
+						// ensure that we read all the data.
+						// the downside is that the Code CLI process will then not
+						// terminate until stdin is closed, but users can always
+						// pass `--wait` to prevent that from happening (this is
+						// actually what we enforced until v1.85.x but then was
+						// changed to not enforce it anymore).
+						// a solution in the future would possibly be to exit, when
+						// the Code process exits. this would require some careful
+						// solution though in case Code is already running and this
+						// is a second instance telling the first instance what to
+						// open.
+
+						processCallbacks.push(() => readFromStdinDone.p);
+					}
+
+					// Make sure to open tmp file as editor but ignore it in the "recently open" list
 					addArg(argv, stdinFilePath);
-
-					// Enable --wait to get all data and ignore adding this to history
-					addArg(argv, '--wait');
 					addArg(argv, '--skip-add-to-recently-opened');
-					args.wait = true;
 
 					console.log(`Reading from stdin via: ${stdinFilePath}`);
 				} catch (e) {
@@ -385,8 +403,7 @@ export async function main(argv: string[]): Promise<any> {
 					const extHost = await extHostProfileRequest;
 					const renderer = await rendererProfileRequest;
 
-					// wait for the renderer to delete the
-					// marker file
+					// wait for the renderer to delete the marker file
 					await whenDeleted(filenamePrefix);
 
 					// stop profiling

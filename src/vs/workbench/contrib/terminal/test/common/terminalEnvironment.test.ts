@@ -9,8 +9,11 @@ import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI as Uri } from 'vs/base/common/uri';
 import { addTerminalEnvironmentKeys, createTerminalEnvironment, getCwd, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { PosixShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Workbench - TerminalEnvironment', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('addTerminalEnvironmentKeys', () => {
 		test('should set expected variables', () => {
 			const env: { [key: string]: any } = {};

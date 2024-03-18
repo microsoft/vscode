@@ -34,7 +34,7 @@ import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -62,13 +62,15 @@ import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsL
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, ISettingListChangeEvent, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = DOM.$;
 
@@ -409,12 +411,6 @@ export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], tar
 	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, languageFilter, configurationService).isConfigured);
 }
 
-function compareNullableIntegers(a?: number, b?: number) {
-	const firstElem = a ?? Number.MAX_SAFE_INTEGER;
-	const secondElem = b ?? Number.MAX_SAFE_INTEGER;
-	return firstElem - secondElem;
-}
-
 export async function createTocTreeForExtensionSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
 	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
 	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
@@ -452,9 +448,10 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 		const extGroups: ITOCEntry<ISetting>[] = [];
 		for (const extensionRootEntry of extGroupTree.values()) {
 			for (const child of extensionRootEntry.children!) {
-				// Sort the individual settings of the child.
+				// Sort the individual settings of the child by order.
+				// Leave the undefined order settings untouched.
 				child.settings?.sort((a, b) => {
-					return compareNullableIntegers(a.order, b.order);
+					return compareTwoNullableNumbers(a.order, b.order);
 				});
 			}
 
@@ -468,8 +465,9 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 				});
 			} else {
 				// Sort the categories.
+				// Leave the undefined order categories untouched.
 				extensionRootEntry.children!.sort((a, b) => {
-					return compareNullableIntegers(a.order, b.order);
+					return compareTwoNullableNumbers(a.order, b.order);
 				});
 
 				// If there is a category that matches the setting name,
@@ -800,13 +798,13 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
-		const labelElement = new SimpleIconLabel(labelElementContainer);
+		const labelElement = toDispose.add(new SimpleIconLabel(labelElementContainer));
 		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
 		toDispose.add(indicatorsLabel);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
+		toDispose.add(setupCustomHover(getDefaultHoverDelegate('mouse'), modifiedIndicatorElement, () => localize('modified', "The setting has been configured in the current scope.")));
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
@@ -874,6 +872,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	protected renderSettingElement(node: ITreeNode<SettingsTreeSettingElement, never>, index: number, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const element = node.element;
+
+		// The element must inspect itself to get information for
+		// the modified indicator and the overridden Settings indicators.
+		element.inspectSelf();
+
 		template.context = element;
 		template.toolbar.context = element;
 		const actions = this.disposableActionFactory(element.setting, element.settingsTarget);
@@ -888,7 +891,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const titleTooltip = setting.key + (element.isConfigured ? ' - Modified' : '');
 		template.categoryElement.textContent = element.displayCategory ? (element.displayCategory + ': ') : '';
-		template.categoryElement.title = titleTooltip;
+		template.elementDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), template.categoryElement, titleTooltip));
 
 		template.labelElement.text = element.displayLabel;
 		template.labelElement.title = titleTooltip;
@@ -1816,24 +1819,25 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		_container.classList.add('setting-item');
 		_container.classList.add('setting-item-bool');
 
+		const toDispose = new DisposableStore();
+
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 		container.classList.add('settings-row-inner-container');
 
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(titleElement, $('span.setting-item-label'));
-		const labelElement = new SimpleIconLabel(labelElementContainer);
+		const labelElement = toDispose.add(new SimpleIconLabel(labelElementContainer));
 		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
+		toDispose.add(setupCustomHover(getDefaultHoverDelegate('mouse'), modifiedIndicatorElement, localize('modified', "The setting has been configured in the current scope.")));
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose = new DisposableStore();
 		const checkbox = new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', ...unthemedToggleStyles });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
@@ -2370,7 +2374,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
 				findWidgetEnabled: false,
-				renderIndentGuides: RenderIndentGuides.None
+				renderIndentGuides: RenderIndentGuides.None,
+				transformOptimization: false // Disable transform optimization #177470
 			},
 			instantiationService,
 			contextKeyService,

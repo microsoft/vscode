@@ -12,6 +12,8 @@ import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService
 import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 /**
@@ -20,10 +22,14 @@ import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/
  * be more relevant).
  */
 export class TerminalMainContribution extends Disposable implements IWorkbenchContribution {
+	static ID = 'terminalMain';
+
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEmbedderTerminalService embedderTerminalService: IEmbedderTerminalService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@ILabelService labelService: ILabelService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
@@ -31,8 +37,50 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
+		this._init(
+			editorResolverService,
+			embedderTerminalService,
+			workbenchEnvironmentService,
+			labelService,
+			lifecycleService,
+			terminalService,
+			terminalEditorService,
+			terminalGroupService,
+			terminalInstanceService
+		);
+	}
+
+	private async _init(
+		editorResolverService: IEditorResolverService,
+		embedderTerminalService: IEmbedderTerminalService,
+		workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		labelService: ILabelService,
+		lifecycleService: ILifecycleService,
+		terminalService: ITerminalService,
+		terminalEditorService: ITerminalEditorService,
+		terminalGroupService: ITerminalGroupService,
+		terminalInstanceService: ITerminalInstanceService
+	) {
+		// Defer this for the local case only. This is important for the
+		// window.createTerminal web embedder API to work before the workbench
+		// is loaded on remote
+		if (workbenchEnvironmentService.remoteAuthority === undefined) {
+			await lifecycleService.when(LifecyclePhase.Restored);
+		}
+
+		this._register(embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
+			const terminal = await terminalService.createTerminal({
+				config: embedderTerminal,
+				location: TerminalLocation.Panel
+			});
+			terminalService.setActiveInstance(terminal);
+			await terminalService.revealActiveTerminal();
+		}));
+
+		await lifecycleService.when(LifecyclePhase.Restored);
+
 		// Register terminal editors
-		editorResolverService.registerEditor(
+		this._register(editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
 				id: terminalEditorId,
@@ -80,24 +128,15 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 					};
 				}
 			}
-		);
+		));
 
 		// Register a resource formatter for terminal URIs
-		labelService.registerFormatter({
+		this._register(labelService.registerFormatter({
 			scheme: Schemas.vscodeTerminal,
 			formatting: {
 				label: '${path}',
 				separator: ''
 			}
-		});
-
-		embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
-			const terminal = await terminalService.createTerminal({
-				config: embedderTerminal,
-				location: TerminalLocation.Panel
-			});
-			terminalService.setActiveInstance(terminal);
-			await terminalService.revealActiveTerminal();
-		});
+		}));
 	}
 }

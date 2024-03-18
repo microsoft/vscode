@@ -65,7 +65,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			quickAccessEntry.highlights = { label: highlights };
 			quickAccessEntry.trigger = (index) => {
 				if ((index === 1) && (quickAccessEntry.buttons?.length === 2)) {
-					const key = (task && !isString(task)) ? task.getRecentlyUsedKey() : undefined;
+					const key = (task && !isString(task)) ? task.getKey() : undefined;
 					if (key) {
 						this._taskService.removeRecentlyUsedTask(key);
 					}

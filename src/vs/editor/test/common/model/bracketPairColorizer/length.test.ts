@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Length, lengthAdd, lengthDiffNonNegative, lengthToObj, toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 
 suite('Bracket Pair Colorizer - Length', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function toStr(length: Length): string {
 		return lengthToObj(length).toString();
 	}

@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, append, EventHelper, EventType } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
@@ -34,6 +36,8 @@ class BaseDropdown extends ActionRunner {
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
+	private hover: ICustomHover | undefined;
+
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
 
@@ -56,7 +60,7 @@ class BaseDropdown extends ActionRunner {
 
 		for (const event of [EventType.MOUSE_DOWN, GestureEventType.Tap]) {
 			this._register(addDisposableListener(this._label, event, e => {
-				if (e instanceof MouseEvent && (e.detail > 1 || e.button !== 0)) {
+				if (isMouseEvent(e) && (e.detail > 1 || e.button !== 0)) {
 					// prevent right click trigger to allow separate context menu (https://github.com/microsoft/vscode/issues/151064)
 					// prevent multiple clicks to open multiple context menus (https://github.com/microsoft/vscode/issues/41363)
 					return;
@@ -101,7 +105,11 @@ class BaseDropdown extends ActionRunner {
 
 	set tooltip(tooltip: string) {
 		if (this._label) {
-			this._label.title = tooltip;
+			if (!this.hover && tooltip !== '') {
+				this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._label, tooltip));
+			} else if (this.hover) {
+				this.hover.update(tooltip);
+			}
 		}
 	}
 

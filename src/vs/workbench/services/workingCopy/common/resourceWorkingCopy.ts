@@ -91,7 +91,7 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
 				// Since we do not want to mark the working copy as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
-				await timeout(100);
+				await timeout(100, CancellationToken.None);
 
 				if (this.isDisposed()) {
 					newInOrphanModeValidated = true;
@@ -123,16 +123,13 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private disposed = false;
-
 	isDisposed(): boolean {
-		return this.disposed;
+		return this._store.isDisposed;
 	}
 
 	override dispose(): void {
 
 		// State
-		this.disposed = true;
 		this.orphaned = false;
 
 		// Event

@@ -12,6 +12,7 @@ import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/resources';
 import { consumeReadable, consumeStream, isReadable, isReadableStream } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -90,14 +91,14 @@ suite('UntitledFileWorkingCopy', () => {
 
 	const factory = new TestUntitledFileWorkingCopyModelFactory();
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	const resource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: UntitledFileWorkingCopy<TestUntitledFileWorkingCopyModel>;
 
 	function createWorkingCopy(uri: URI = resource, hasAssociatedFilePath = false, initialValue = '') {
-		return new UntitledFileWorkingCopy<TestUntitledFileWorkingCopyModel>(
+		return disposables.add(new UntitledFileWorkingCopy<TestUntitledFileWorkingCopyModel>(
 			'testUntitledWorkingCopyType',
 			uri,
 			basename(uri),
@@ -109,20 +110,18 @@ suite('UntitledFileWorkingCopy', () => {
 			accessor.workingCopyService,
 			accessor.workingCopyBackupService,
 			accessor.logService
-		);
+		));
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = createWorkingCopy();
+		workingCopy = disposables.add(createWorkingCopy());
 	});
 
 	teardown(() => {
-		workingCopy.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('registers with working copy service', async () => {
@@ -137,14 +136,14 @@ suite('UntitledFileWorkingCopy', () => {
 		assert.strictEqual(workingCopy.isDirty(), false);
 
 		let changeDirtyCounter = 0;
-		workingCopy.onDidChangeDirty(() => {
+		disposables.add(workingCopy.onDidChangeDirty(() => {
 			changeDirtyCounter++;
-		});
+		}));
 
 		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
+		disposables.add(workingCopy.onDidChangeContent(() => {
 			contentChangeCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 		assert.strictEqual(workingCopy.isResolved(), true);
@@ -191,14 +190,14 @@ suite('UntitledFileWorkingCopy', () => {
 
 	test('revert', async () => {
 		let revertCounter = 0;
-		workingCopy.onDidRevert(() => {
+		disposables.add(workingCopy.onDidRevert(() => {
 			revertCounter++;
-		});
+		}));
 
 		let disposeCounter = 0;
-		workingCopy.onWillDispose(() => {
+		disposables.add(workingCopy.onWillDispose(() => {
 			disposeCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 
@@ -214,9 +213,9 @@ suite('UntitledFileWorkingCopy', () => {
 
 	test('dispose', async () => {
 		let disposeCounter = 0;
-		workingCopy.onWillDispose(() => {
+		disposables.add(workingCopy.onWillDispose(() => {
 			disposeCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 		workingCopy.dispose();
@@ -259,9 +258,9 @@ suite('UntitledFileWorkingCopy', () => {
 		workingCopy = createWorkingCopy(resource, false, 'Hello Initial');
 
 		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
+		disposables.add(workingCopy.onDidChangeContent(() => {
 			contentChangeCounter++;
-		});
+		}));
 
 		assert.strictEqual(workingCopy.isDirty(), true);
 
@@ -321,9 +320,9 @@ suite('UntitledFileWorkingCopy', () => {
 		workingCopy = createWorkingCopy();
 
 		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
+		disposables.add(workingCopy.onDidChangeContent(() => {
 			contentChangeCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 
@@ -331,4 +330,6 @@ suite('UntitledFileWorkingCopy', () => {
 		assert.strictEqual(workingCopy.model?.contents, 'Hello Backup');
 		assert.strictEqual(contentChangeCounter, 1);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

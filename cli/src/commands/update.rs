@@ -23,6 +23,8 @@ pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i
 	);
 	let update_service = SelfUpdate::new(&update_service)?;
 
+	let _ = update_service.cleanup_old_update();
+
 	let current_version = update_service.get_current_release().await?;
 	if update_service.is_up_to_date_with(&current_version) {
 		ctx.log.result(format!(
