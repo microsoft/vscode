@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AriaLableChangedEvent, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -13,11 +13,13 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellKind, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
-export class NotebookAccessibilityProvider implements IListAccessibilityProvider<CellViewModel> {
-	private readonly _onDidAriaLabelChange = new Emitter<AriaLableChangedEvent<CellViewModel>>();
+export class NotebookAccessibilityProvider implements IListAccessibilityProvider<CellViewModel>, IDisposable {
+	private readonly _onDidAriaLabelChange = new Emitter<CellViewModel>();
 	readonly onDidAriaLabelChange = this._onDidAriaLabelChange.event;
+
+	private listener: IDisposable;
 
 	constructor(
 		private readonly notebookExecutionStateService: INotebookExecutionStateService,
@@ -25,22 +27,29 @@ export class NotebookAccessibilityProvider implements IListAccessibilityProvider
 		private readonly keybindingService: IKeybindingService,
 		private readonly configurationService: IConfigurationService
 	) {
+		this.listener = this.notebookExecutionStateService.onDidChangeExecution(e => {
+			const viewModel = this.viewModel();
+			if (viewModel && e.type === NotebookExecutionType.cell && e.affectsNotebook(viewModel.uri)) {
+				const cellModel = viewModel.getCellByHandle(e.cellHandle);
+				if (cellModel) {
+					this._onDidAriaLabelChange.fire(cellModel as CellViewModel);
+				}
 
+			}
+		});
+	}
+
+	dispose(): void {
+		this.listener.dispose();
 	}
 
 
-	getAriaLabel(element: CellViewModel, disposables: DisposableStore) {
+	getAriaLabel(element: CellViewModel) {
 		const viewModel = this.viewModel();
 		if (!viewModel) {
 			return '';
 		}
 		const index = viewModel.getCellIndex(element);
-
-		disposables?.add(this.notebookExecutionStateService.onDidChangeExecution(e => {
-			if ('affectsCell' in e && e.affectsCell(element.uri)) {
-				this._onDidAriaLabelChange.fire({ element, label: this.getLabel(index, element) });
-			}
-		}));
 
 		if (index >= 0) {
 			return this.getLabel(index, element);
