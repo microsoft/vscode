@@ -351,7 +351,7 @@ export class DiscardAction extends AbstractInlineChatAction {
 			icon: Codicon.discard,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.EditorContrib - 1,
 				primary: KeyCode.Escape,
 				when: CTX_INLINE_CHAT_USER_DID_EDIT.negate()
 			},
@@ -556,7 +556,7 @@ export class CancelSessionAction extends AbstractInlineChatAction {
 			icon: Codicon.clearAll,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib - 1,
+				weight: KeybindingWeight.EditorContrib - 1,
 				primary: KeyCode.Escape
 			},
 			menu: {

@@ -29,6 +29,7 @@ export class ChatRequestParser {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
 		const model = this.chatService.getSession(sessionId)!;
+		// TODO@jrieken put location on IChatModel
 
 		let lineNumber = 1;
 		let column = 1;

@@ -43,6 +43,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { TestWorkerService } from './testWorkerService';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 
 suite('ReplyResponse', function () {
@@ -132,7 +133,7 @@ suite('InlineChatSession', function () {
 		);
 
 		store.add(inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {

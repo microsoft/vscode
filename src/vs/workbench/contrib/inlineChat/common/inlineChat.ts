@@ -21,6 +21,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -116,7 +117,7 @@ export type IInlineChatFollowup = IInlineChatReplyFollowup | IInlineChatCommandF
 
 export interface IInlineChatSessionProvider {
 
-	debugName: string;
+	extensionId: ExtensionIdentifier;
 	label: string;
 	supportIssueReporting?: boolean;
 

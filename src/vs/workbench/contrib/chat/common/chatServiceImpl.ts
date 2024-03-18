@@ -459,7 +459,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		let defaultAgent = this.chatAgentService.getDefaultAgent()!;
-		if (location && defaultAgent?.locations.includes(location)) {
+		if (location && !defaultAgent?.locations.includes(location)) {
 			defaultAgent = this.chatAgentService.getActivatedAgents().find(a => a.locations.includes(location)) ?? defaultAgent;
 		}
 

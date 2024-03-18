@@ -614,7 +614,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				if (!progressiveChatResponse) {
 					const message = {
 						message: new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false }),
-						providerId: this._activeSession!.provider.debugName,
+						providerId: this._activeSession!.provider.label,
 						requestId: request.requestId,
 					};
 					progressiveChatResponse = this._widget?.inlineChatWidget.updateChatMessage(message, true);

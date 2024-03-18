@@ -13,9 +13,12 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { clamp } from 'vs/base/common/numbers';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -34,25 +37,38 @@ export class InlineChatContentWidget implements IContentWidget {
 
 	private _visible: boolean = false;
 	private _focusNext: boolean = false;
-	private readonly _widget: ChatInputPart;
+	private readonly _widget: ChatWidget;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 
-		this._widget = instaService.createInstance(ChatInputPart, {
-			renderFollowups: false, renderStyle: 'compact',
-			menus: {
-				executeToolbar: MENU_INLINE_CHAT_INPUT,
-				telemetrySource: 'inlineChat'
+		this._widget = instaService.createInstance(
+			ChatWidget,
+			ChatAgentLocation.Editor,
+			{ resource: true },
+			{
+				renderStyle: 'compact',
+				renderInputOnTop: true,
+				supportsFileReferences: false,
+				menus: {
+					// executeToolbar: MENU_INLINE_CHAT_INPUT,
+					// inputSideToolbar: undefined,
+					telemetrySource: 'inlineChat-content'
+				},
+				filter: item => !isWelcomeVM(item)
+			},
+			{
+				listForeground: editorForeground,
+				listBackground: inlineChatBackground,
+				inputEditorBackground: inputBackground,
+				resultEditorBackground: editorBackground
 			}
-		});
-
-		this._widget.render(this._inputContainer, '', null!);
-		this._widget.setImplicitContextKinds([]);
+		);
 		this._store.add(this._widget);
 		this._store.add(this._widget.onDidChangeHeight(() => _editor.layoutContentWidget(this)));
+		this._widget.render(this._inputContainer);
 
 		this._domNode.tabIndex = -1;
 		this._domNode.className = 'inline-chat-content-widget interactive-session';
@@ -101,7 +117,9 @@ export class InlineChatContentWidget implements IContentWidget {
 		const maxWidth = Math.round(contentWidth * 0.66);
 
 		const width = clamp(220, minWidth, maxWidth);
-		this._widget.layout(220, width);
+
+		const inputEditorHeight = this._widget.inputEditor.getContentHeight();
+		this._widget.inputEditor.layout(new dom.Dimension(width, inputEditorHeight));
 
 		// const actualHeight = this._widget.inputPartHeight;
 		// return new dom.Dimension(width, actualHeight);
@@ -109,13 +127,18 @@ export class InlineChatContentWidget implements IContentWidget {
 	}
 
 	afterRender(): void {
+		this._widget.setVisible(true);
 		if (this._focusNext) {
 			this._focusNext = false;
-			this._widget.focus();
+			this._widget.focusInput();
 		}
 	}
 
 	// ---
+
+	get chatWidget(): ChatWidget {
+		return this._widget;
+	}
 
 	get isVisible(): boolean {
 		return this._visible;
@@ -130,7 +153,7 @@ export class InlineChatContentWidget implements IContentWidget {
 			this._visible = true;
 			this._focusNext = true;
 
-			this._widget.setValue('');
+			this._widget.inputEditor.setValue('');
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
 
@@ -147,7 +170,7 @@ export class InlineChatContentWidget implements IContentWidget {
 	}
 
 	setSession(model: Session): void {
-		this._widget.setState(model.chatModel.providerId, '');
+		this._widget.setModel(model.chatModel, {});
 		this._updateMessage(model.session.message ?? '');
 	}
 
@@ -156,10 +179,5 @@ export class InlineChatContentWidget implements IContentWidget {
 		const renderedMessage = renderLabelWithIcons(message);
 		dom.reset(this._messageContainer, ...renderedMessage);
 		this._editor.layoutContentWidget(this);
-	}
-
-	acceptInput(): void {
-		this._widget.acceptInput(this._widget.inputEditor.getValue());
-		this._widget.saveState();
 	}
 }

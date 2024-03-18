@@ -45,7 +45,7 @@ import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatMode
 import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
-import { CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, MENU_INLINE_CHAT_INPUT, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { inputEditorOptions, codeEditorWidgetOptions, defaultAriaLabel } from './inlineChatInputWidget';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
@@ -197,7 +197,11 @@ export class InlineChatWidget {
 				renderStyle: 'compact',
 				renderInputOnTop: false,
 				supportsFileReferences: true,
-				menus: { executeToolbar: MENU_INLINE_CHAT_INPUT, inputSideToolbar: undefined, telemetrySource: options.telemetrySource },
+				menus: {
+					// executeToolbar: MENU_INLINE_CHAT_INPUT,
+					inputSideToolbar: undefined,
+					telemetrySource: options.telemetrySource
+				},
 				filter: item => {
 					if (isWelcomeVM(item)) {
 						return false;

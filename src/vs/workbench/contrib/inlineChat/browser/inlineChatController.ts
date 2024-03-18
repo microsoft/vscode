@@ -5,7 +5,7 @@
 
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Barrier, Queue, raceCancellation, raceCancellationError } from 'vs/base/common/async';
+import { Barrier, DeferredPromise, Queue, raceCancellation, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -48,11 +48,14 @@ import { StashedSession } from './inlineChatSession';
 import { IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { tail } from 'vs/base/common/arrays';
+import { IChatRequestModel } from 'vs/workbench/contrib/chat/common/chatModel';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
 	INIT_UI = 'INIT_UI',
 	WAIT_FOR_INPUT = 'WAIT_FOR_INPUT',
+	SHOW_REQUEST = 'SHOW_REQUEST',
 	MAKE_REQUEST = 'MAKE_REQUEST',
 	APPLY_RESPONSE = 'APPLY_RESPONSE',
 	SHOW_RESPONSE = 'SHOW_RESPONSE',
@@ -366,7 +369,7 @@ export class InlineChatController implements IEditorContribution {
 		this._sessionStore.add(this._input.value.onDidBlur(() => this.cancelSession()));
 
 		this._zone.value.widget.setChatModel(this._session.chatModel);
-		this._zone.value.widget.updateSlashCommands(this._session.session.slashCommands ?? []);
+		// this._zone.value.widget.updateSlashCommands(this._session.session.slashCommands ?? []);
 		this._updatePlaceholder();
 		const message = this._session.session.message ?? localize('welcome.1', "AI-generated code may be incorrect");
 
@@ -416,6 +419,18 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
+		// console.log(this._session.chatModel.getRequests());
+		// this._sessionStore.add(this._session.chatModel.onDidChange(e => {
+		// 	console.log(e.kind);
+		// 	if (e.kind === 'addRequest' && e.request.response) {
+		// 		console.log('REQUEST w/ response?', e.request.response);
+
+		// 		e.request.response.onDidChange(() => {
+		// 			console.log('RESPONSE changed', e.request.response?.edits.get(this._session!.textModelN.uri)?.length);
+		// 		});
+		// 	}
+		// }));
+
 		// Update context key
 		this._ctxSupportIssueReporting.set(this._session.provider.supportIssueReporting ?? false);
 
@@ -429,7 +444,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.WAIT_FOR_INPUT](options: InlineChatRunOptions): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
+	private async [State.WAIT_FOR_INPUT](options: InlineChatRunOptions): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST | State.SHOW_REQUEST> {
 		assertType(this._session);
 		assertType(this._strategy);
 
@@ -461,6 +476,12 @@ export class InlineChatController implements IEditorContribution {
 				message = m;
 				barrier.open();
 			}));
+
+			if (this._input.value.isVisible) {
+				// TODO@jrieken make this better...
+				store.add(this._input.value.chatWidget.onDidAcceptInput(this.acceptInput, this));
+			}
+
 			await barrier.wait();
 			store.dispose();
 		}
@@ -504,7 +525,7 @@ export class InlineChatController implements IEditorContribution {
 
 		const refer = this._session.session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
 		if (refer) {
-			this._log('[IE] seeing refer command, continuing outside editor', this._session.provider.debugName);
+			this._log('[IE] seeing refer command, continuing outside editor', this._session.provider.extensionId);
 			this._editor.setSelection(this._session.wholeRange.value);
 			let massagedInput = input;
 			if (input.startsWith(chatSubcommandLeader)) {
@@ -530,7 +551,103 @@ export class InlineChatController implements IEditorContribution {
 		}
 
 		this._session.addInput(new SessionPrompt(input));
-		return State.MAKE_REQUEST;
+		// return State.MAKE_REQUEST;
+		this._showWidget(false);
+		return State.SHOW_REQUEST;
+	}
+
+
+	// TODO@jrieken enter this state when the request is being made (chatmodel-event)
+	private async [State.SHOW_REQUEST](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT> {
+		assertType(this._session);
+
+		this._showWidget(false);
+
+		let request: IChatRequestModel | undefined = tail(this._session.chatModel.getRequests());
+		if (!request) {
+			await new Promise(resolve => {
+				this._session!.chatModel.onDidChange(e => {
+					if (e.kind === 'addRequest') {
+						request = e.request;
+						resolve(undefined);
+					}
+				});
+			});
+		}
+
+		if (!request || !request.response) {
+			return State.WAIT_FOR_INPUT;
+
+		}
+
+		const { response } = request;
+
+		const responsePromise = new DeferredPromise<void>();
+
+		const progressiveEditsAvgDuration = new MovingAverage();
+		const progressiveEditsClock = StopWatch.create();
+		const progressiveEditsCts = new CancellationTokenSource(); // TODO@jrieken
+		const progressiveEditsQueue = new Queue();
+
+		let lastLength = 0;
+
+		const listener = response.onDidChange(() => {
+
+			if (response.isCanceled) {
+				progressiveEditsCts.cancel();
+				responsePromise.complete();
+				return;
+			}
+
+			if (response.isComplete) {
+				responsePromise.complete();
+				return;
+			}
+
+			const editsShouldBeInstant = false; // TODO@jrieken
+
+			const edits = response.edits.get(this._session!.textModelN.uri) ?? [];
+			const newEdits = edits.slice(lastLength);
+			// console.log('NEW edits', newEdits, edits);
+			if (newEdits.length === 0) {
+				return; // NO change
+			}
+			lastLength = edits.length;
+			progressiveEditsAvgDuration.update(progressiveEditsClock.elapsed());
+			progressiveEditsClock.reset();
+
+			progressiveEditsQueue.queue(async () => {
+
+				const startThen = this._session!.wholeRange.value.getStartPosition();
+
+				// making changes goes into a queue because otherwise the async-progress time will
+				// influence the time it takes to receive the changes and progressive typing will
+				// become infinitely fast
+				await this._makeChanges(newEdits, editsShouldBeInstant
+					? undefined
+					: { duration: progressiveEditsAvgDuration.value, token: progressiveEditsCts.token }
+				);
+
+				// reshow the widget if the start position changed or shows at the wrong position
+				const startNow = this._session!.wholeRange.value.getStartPosition();
+				if (!startNow.equals(startThen) || !this._zone.value.position?.equals(startNow)) {
+					this._showWidget(false, startNow.delta(-1));
+				}
+			});
+		});
+
+		// (1) we must wait for the request to finish
+		// (2) we must wait for all edits that came in via progress to complete
+		await responsePromise.p;
+		await progressiveEditsQueue.whenIdle();
+
+		listener.dispose();
+		progressiveEditsCts.dispose();
+
+		this._zone.value.widget.updateInfo('');
+		this._zone.value.widget.updateToolbar(true);
+
+		return State.WAIT_FOR_INPUT;
 	}
 
 	private async [State.MAKE_REQUEST](options: InlineChatRunOptions): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT | State.MAKE_REQUEST> {
@@ -644,10 +761,10 @@ export class InlineChatController implements IEditorContribution {
 		if (options.existingExchange) {
 			task = options.existingExchange.response;
 			delete options.existingExchange;
-			this._log('using READY-response', this._session.provider.debugName, this._session.session);
+			this._log('using READY-response', this._session.provider.extensionId, this._session.session);
 		} else {
 			task = this._session.provider.provideResponse(this._session.session, request, progress, requestCts.token);
-			this._log('request started', this._session.provider.debugName, this._session.session, request);
+			this._log('request started', this._session.provider.extensionId, this._session.session, request);
 		}
 
 		let response: ReplyResponse | ErrorResponse | EmptyResponse;
@@ -693,11 +810,11 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateProgress(false);
 			this._zone.value.widget.updateInfo('');
 			this._zone.value.widget.updateToolbar(true);
-			this._log('request took', requestClock.elapsed(), this._session.provider.debugName);
+			this._log('request took', requestClock.elapsed(), this._session.provider.extensionId);
 			this._chatAccessibilityService.acceptResponse(a11yResponse, requestId);
 		}
 
-		this._input.value.acceptInput();
+		// this._input.value.acceptInput();
 		this._zone.value.widget.saveState();
 
 		// todo@jrieken we can likely remove 'trackEdit'
@@ -808,10 +925,10 @@ export class InlineChatController implements IEditorContribution {
 					followupCts.cancel();
 				});
 				const followupTask = this._session.provider.provideFollowups(this._session.session, response.raw, followupCts.token);
-				this._log('followup request started', this._session.provider.debugName, this._session.session, response.raw);
+				this._log('followup request started', this._session.provider.extensionId, this._session.session, response.raw);
 				raceCancellation(Promise.resolve(followupTask), followupCts.token).then(followupReply => {
 					if (followupReply && this._session) {
-						this._log('followup request received', this._session.provider.debugName, this._session.session, followupReply);
+						this._log('followup request received', this._session.provider.extensionId, this._session.session, followupReply);
 						this._zone.value.widget.updateFollowUps(followupReply, followup => {
 							if (followup.kind === 'reply') {
 								this.updateInput(followup.message);
@@ -960,7 +1077,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		const moreMinimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this._session.textModelN.uri, edits);
-		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._session.provider.debugName, edits, moreMinimalEdits);
+		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._session.provider.extensionId, edits, moreMinimalEdits);
 
 		if (moreMinimalEdits?.length === 0) {
 			// nothing left to do

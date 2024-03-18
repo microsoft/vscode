@@ -9,7 +9,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Command, Location, ProviderResult } from 'vs/editor/common/languages';
+import { Command, Location, ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -73,6 +73,11 @@ export function isIUsedContext(obj: unknown): obj is IChatUsedContext {
 	);
 }
 
+export interface IChatUsedSlashCommand {
+	slashCommand: string;
+	kind: 'usedSlashCommand';
+}
+
 export interface IChatContentReference {
 	reference: URI | Location;
 	kind: 'reference';
@@ -133,6 +138,12 @@ export interface IChatCommandButton {
 	kind: 'command';
 }
 
+export interface IChatTextEdit {
+	uri: URI;
+	edits: TextEdit[];
+	kind: 'textEdit';
+}
+
 export type IChatProgress =
 	| IChatContent
 	| IChatMarkdownContent
@@ -140,11 +151,13 @@ export type IChatProgress =
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatUsedContext
+	| IChatUsedSlashCommand
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatAgentDetection
 	| IChatProgressMessage
-	| IChatCommandButton;
+	| IChatCommandButton
+	| IChatTextEdit;
 
 export interface IChatProvider {
 	readonly id: string;

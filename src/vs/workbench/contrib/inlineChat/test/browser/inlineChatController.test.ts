@@ -167,7 +167,7 @@ suite('InteractiveChatController', function () {
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 
 		store.add(inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
@@ -219,7 +219,7 @@ suite('InteractiveChatController', function () {
 		ctrl = instaService.createInstance(TestController, editor);
 
 		const d = inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
@@ -248,7 +248,7 @@ suite('InteractiveChatController', function () {
 		ctrl = instaService.createInstance(TestController, editor);
 
 		const d = inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
@@ -298,7 +298,7 @@ suite('InteractiveChatController', function () {
 		editor.setSelection(new Range(3, 1, 3, 1));
 
 		const d = inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
@@ -340,7 +340,7 @@ suite('InteractiveChatController', function () {
 
 	test('Stuck inline chat widget #211', async function () {
 		const d = inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
@@ -367,7 +367,7 @@ suite('InteractiveChatController', function () {
 	test('[Bug] Inline Chat\'s streaming pushed broken iterations to the undo stack #2403', async function () {
 
 		const d = inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
@@ -413,7 +413,7 @@ suite('InteractiveChatController', function () {
 		return runWithFakedTimers({ maxTaskCount: Number.MAX_SAFE_INTEGER }, async () => {
 
 			const d = inlineChatService.addProvider({
-				debugName: 'Unit Test',
+				extensionId: nullExtensionDescription.identifier,
 				label: 'Unit Test',
 				prepareInlineChatSession() {
 					return {
@@ -500,7 +500,7 @@ suite('InteractiveChatController', function () {
 		const requests: IInlineChatRequest[] = [];
 
 		store.add(inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
@@ -543,7 +543,7 @@ suite('InteractiveChatController', function () {
 		// don't call this provider
 		let providerCalled = 0;
 		store.add(inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {

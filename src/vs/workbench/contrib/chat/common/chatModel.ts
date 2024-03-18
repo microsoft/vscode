@@ -8,12 +8,14 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { revive } from 'vs/base/common/marshalling';
 import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { TextEdit } from 'vs/editor/common/languages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -74,6 +76,7 @@ export interface IChatResponseModel {
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly response: IResponse;
+	readonly edits: ResourceMap<TextEdit[]>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
@@ -234,6 +237,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._response;
 	}
 
+	private _edits: ResourceMap<TextEdit[]>;
+	public get edits(): ResourceMap<TextEdit[]> {
+		return this._edits;
+	}
+
 	public get result(): IChatAgentResult | undefined {
 		return this._result;
 	}
@@ -299,6 +307,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		this._followups = followups ? [...followups] : undefined;
 		this._response = new Response(_response);
+		this._edits = new ResourceMap<TextEdit[]>();
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
@@ -308,6 +317,16 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	 */
 	updateContent(responsePart: IChatProgressResponseContent | IChatContent, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
+	}
+
+	updateTextEdits(uri: URI, edits: TextEdit[]) {
+		const array = this._edits.get(uri);
+		if (!array) {
+			this._edits.set(uri, edits);
+		} else {
+			array.push(...edits);
+		}
+		this._onDidChange.fire();
 	}
 
 	/**
@@ -707,6 +726,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
 			}
+		} else if (progress.kind === 'textEdit') {
+			request.response.updateTextEdits(progress.uri, progress.edits);
 		} else {
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		}

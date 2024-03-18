@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { EditMode, IInlineChatSession, IInlineChatService, IInlineChatSessionProvider, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSession, IInlineChatService, IInlineChatSessionProvider, InlineChatResponseFeedbackKind, IInlineChatProgressItem } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -28,7 +28,9 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { Progress } from 'vs/platform/progress/common/progress';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -107,7 +109,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	private _asChatProviderBrigdeName(provider: IInlineChatSessionProvider) {
-		return `editor-inline-chat:${provider.debugName}`;
+		return `editor-inline-chat:${ExtensionIdentifier.toKey(provider.extensionId)}`;
 	}
 
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
@@ -142,16 +144,16 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				token
 			);
 		} catch (error) {
-			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
+			this._logService.error('[IE] FAILED to prepare session', provider.extensionId);
 			this._logService.error(error);
 			return undefined;
 		}
 		if (!rawSession) {
-			this._logService.trace('[IE] NO session', provider.debugName);
+			this._logService.trace('[IE] NO session', provider.extensionId);
 			return undefined;
 		}
 
-		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${provider.debugName}`);
+		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${provider.extensionId}`);
 
 
 		store.add(this._chatService.onDidPerformUserAction(e => {
@@ -175,22 +177,61 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}));
 
 		store.add(this._chatAgentService.registerDynamicAgent({
-			id: provider.debugName,
-			extensionId: nullExtensionDescription.identifier,
+			id: `${ExtensionIdentifier.toKey(provider.extensionId)}/${rawSession.id}`,
+			extensionId: provider.extensionId,
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
+			slashCommands: rawSession.slashCommands?.map(c => ({ name: c.command, description: c.detail ?? '' })) ?? [],
 			defaultImplicitVariables: [],
-			metadata: { isSticky: true },
-			slashCommands: []
+			metadata: { isSticky: false },
 		}, {
 			async invoke(request, progress, history, token) {
-				return {};
+
+				const inlineRequest = {
+					requestId: request.requestId,
+					prompt: request.message,
+					attempt: session.lastInput?.attempt ?? 1, // TODO@jrieken
+					withIntentDetection: true, // TODO@jrieken
+					live: session.editMode !== EditMode.Preview,
+					previewDocument: session.textModelN.uri,
+					selection: editor.getSelection(),
+					wholeRange: session.wholeRange.trackedInitialRange,
+				};
+
+				const inlineProgress = new Progress<IInlineChatProgressItem>(data => {
+					if (data.slashCommand) {
+						progress({ kind: 'usedSlashCommand', slashCommand: data.slashCommand });
+						// progress({ kind: 'markdownContent', content: new MarkdownString(data.slashCommand) });
+					}
+					if (data.markdownFragment) {
+						progress({ kind: 'content', content: data.markdownFragment });
+					}
+					if (isNonEmptyArray(data.edits)) {
+						progress({ kind: 'textEdit', uri: session.textModelN.uri, edits: data.edits });
+					}
+				});
+
+				const result = await provider.provideResponse(rawSession, inlineRequest, inlineProgress, token);
+
+				if (result?.message) {
+					inlineProgress.report({ markdownFragment: result.message.value });
+				}
+				if (Array.isArray(result?.edits)) {
+					inlineProgress.report({ edits: result.edits });
+				}
+
+
+				// TODO@jrieken
+				// result?.placeholder
+				// result?.wholeRange
+
+				return { metadata: { inlineChatResponse: result } };
 			},
 		}));
 
 		store.add(this._inlineChatService.onDidChangeProviders(e => {
 			if (e.removed === provider) {
-				this._logService.trace(`[IE] provider GONE for ${editor.getId()}, ${provider.debugName}`);
+				this._logService.trace(`[IE] provider GONE for ${editor.getId()}, ${provider.extensionId}`);
 				this._releaseSession(session, true);
 			}
 		}));
@@ -277,7 +318,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				found = true;
 				this._sessions.delete(oldKey);
 				this._sessions.set(newKey, { ...data, editor: target });
-				this._logService.trace(`[IE] did MOVE session for ${data.editor.getId()} to NEW EDITOR ${target.getId()}, ${session.provider.debugName}`);
+				this._logService.trace(`[IE] did MOVE session for ${data.editor.getId()} to NEW EDITOR ${target.getId()}, ${session.provider.extensionId}`);
 				this._onDidMoveSession.fire({ session, editor: target });
 				break;
 			}
@@ -314,7 +355,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const [key, value] = tuple;
 		this._sessions.delete(key);
-		this._logService.trace(`[IE] did RELEASED session for ${value.editor.getId()}, ${session.provider.debugName}`);
+		this._logService.trace(`[IE] did RELEASED session for ${value.editor.getId()}, ${session.provider.extensionId}`);
 
 		this._onDidEndSession.fire({ editor: value.editor, session, endedByExternalCause: byServer });
 		value.store.dispose();
@@ -324,7 +365,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._keepRecording(session);
 		const result = this._instaService.createInstance(StashedSession, editor, session, undoCancelEdits);
 		this._onDidStashSession.fire({ editor, session });
-		this._logService.trace(`[IE] did STASH session for ${editor.getId()}, ${session.provider.debugName}`);
+		this._logService.trace(`[IE] did STASH session for ${editor.getId()}, ${session.provider.extensionId}`);
 		return result;
 	}
 
