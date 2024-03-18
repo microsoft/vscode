@@ -3059,6 +3059,18 @@ export interface IEditorMinimapOptions {
 	 * Relative size of the font in the minimap. Defaults to 1.
 	 */
 	scale?: number;
+	/**
+	 * Whether to show named regions as section headers. Defaults to true.
+	 */
+	showRegionSectionHeaders?: boolean;
+	/**
+	 * Whether to show MARK: comments as section headers. Defaults to true.
+	 */
+	showMarkSectionHeaders?: boolean;
+	/**
+	 * Font size of section headers. Defaults to 9.
+	 */
+	sectionHeaderFontSize?: number;
 }
 
 /**
@@ -3078,6 +3090,9 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			renderCharacters: true,
 			maxColumn: 120,
 			scale: 1,
+			showRegionSectionHeaders: true,
+			showMarkSectionHeaders: true,
+			sectionHeaderFontSize: 9,
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -3132,6 +3147,21 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'number',
 					default: defaults.maxColumn,
 					description: nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
+				},
+				'editor.minimap.showRegionSectionHeaders': {
+					type: 'boolean',
+					default: defaults.showRegionSectionHeaders,
+					description: nls.localize('minimap.showRegionSectionHeaders', "Controls whether named regions are shown as section headers in the minimap.")
+				},
+				'editor.minimap.showMarkSectionHeaders': {
+					type: 'boolean',
+					default: defaults.showMarkSectionHeaders,
+					description: nls.localize('minimap.showMarkSectionHeaders', "Controls whether MARK: comments are shown as section headers in the minimap.")
+				},
+				'editor.minimap.sectionHeaderFontSize': {
+					type: 'number',
+					default: defaults.sectionHeaderFontSize,
+					description: nls.localize('minimap.sectionHeaderFontSize', "Controls the font size of section headers in the minimap.")
 				}
 			}
 		);
@@ -3151,6 +3181,9 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			renderCharacters: boolean(input.renderCharacters, this.defaultValue.renderCharacters),
 			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 3),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
+			showRegionSectionHeaders: boolean(input.showRegionSectionHeaders, this.defaultValue.showRegionSectionHeaders),
+			showMarkSectionHeaders: boolean(input.showMarkSectionHeaders, this.defaultValue.showMarkSectionHeaders),
+			sectionHeaderFontSize: EditorFloatOption.clamp(input.sectionHeaderFontSize ?? this.defaultValue.sectionHeaderFontSize, 4, 32),
 		};
 	}
 }
