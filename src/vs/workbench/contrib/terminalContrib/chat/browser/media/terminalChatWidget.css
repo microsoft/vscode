@@ -22,3 +22,8 @@
 .terminal-inline-chat .chatMessageContent .value {
 	padding-top: 10px;
 }
+
+.terminal-inline-chat .inline-chat-input .monaco-editor-background {
+	/* Override the global panel rule for monaco backgrounds */
+	background-color: var(--vscode-inlineChatInput-background) !important;
+}
