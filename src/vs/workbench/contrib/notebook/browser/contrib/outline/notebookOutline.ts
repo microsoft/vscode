@@ -574,7 +574,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	submenu: MenuId.NotebookOutlineFilter,
 	title: localize('filter', "Filter Entries"),
 	icon: Codicon.filter,
-	group: 'filter',
+	group: 'navigation',
 	order: -1,
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', IOutlinePane.Id), NOTEBOOK_IS_ACTIVE_EDITOR),
 });
@@ -599,5 +599,28 @@ registerAction2(class ToggleCodeCellEntries extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const showCodeCells = configurationService.getValue<boolean>('notebook.outline.showCodeCells');
 		configurationService.updateValue('notebook.outline.showCodeCells', !showCodeCells);
+	}
+});
+
+registerAction2(class ToggleNonHeaderMarkdownCells extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.outline.toggleNonHeaderMarkdownCells',
+			title: localize('toggleNonHeaderMarkdownCells', "Toggle Non-Header Markdown Cells"),
+			f1: false,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.notebook.outline.showNonHeaderMarkdownCells', true)
+			},
+			menu: {
+				id: MenuId.NotebookOutlineFilter,
+				group: 'filter',
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const configurationService = accessor.get(IConfigurationService);
+		const showNonHeaderMarkdownCells = configurationService.getValue<boolean>('notebook.outline.showNonHeaderMarkdownCells');
+		configurationService.updateValue('notebook.outline.showNonHeaderMarkdownCells', !showNonHeaderMarkdownCells);
 	}
 });
