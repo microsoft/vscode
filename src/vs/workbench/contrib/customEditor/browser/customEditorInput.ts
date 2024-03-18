@@ -3,25 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from 'vs/base/browser/dom';
+import { CodeWindow } from 'vs/base/browser/window';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { dirname, isEqual } from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity, createEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
@@ -83,7 +89,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IFileService private readonly fileService: IFileService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
 	) {
 		super({ providedId: init.viewType, viewType: init.viewType, name: '' }, webview, webviewWorkbenchService);
 		this._editorResource = init.resource;
@@ -152,14 +159,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 		if (this.resource.scheme === Schemas.untitled) {
 			capabilities |= EditorInputCapabilities.Untitled;
-		}
-
-		if (this.isModified() && !this._modelRef?.object.isTextBased && !this.backupId) {
-			// Non-text based modified custom editors without associated
-			// backup should prevent to be moved across windows to prevent
-			// data loss. Their modified state is potentially stored within
-			// the `iframe` which will reset when moved across windows.
-			capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
 		}
 
 		return capabilities;
@@ -395,5 +394,26 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				override: this.viewType
 			}
 		};
+	}
+
+	public override claim(claimant: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void {
+		if (this.isModified() && this._modelRef?.object.isTextBased === false && !this.backupId) {
+			const webviewContainerWindow = getWindow(this.webview.container);
+			if (webviewContainerWindow.vscodeWindowId !== targetWindow.vscodeWindowId) {
+
+				// The custom editor is modified, not backed by a file and without a backup.
+				// We have to assume that the modified state is enclosed into the webview
+				// managed by an extension. As such, we cannot just `claim()` the webview
+				// into another window because that means, we potentally loose the modified
+				// state and thus trigger data loss.
+				// To mitigate this, we refuse to `claim` in this case and also make sure the
+				// editor is still opened in the window it was originally opened in.
+
+				this.editorGroupsService.getPart(webviewContainerWindow).activeGroup.openEditor(this, { preserveFocus: true });
+
+				throw createEditorOpenError(localize('editorUnsupportedInAuxWindow', "Save the editor first before opening in this window."), [], { forceMessage: true, forceSeverity: Severity.Warning });
+			}
+		}
+		return super.claim(claimant, targetWindow, scopedContextKeyService);
 	}
 }

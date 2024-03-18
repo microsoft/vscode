@@ -1459,21 +1459,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
-		const messageId = ++this._latestXtermWriteData;
 		if (ev.trackCommit) {
-			ev.writePromise = new Promise<void>(r => {
-				this.xterm?.raw.write(ev.data, () => {
-					this._latestXtermParseData = messageId;
-					this._processManager.acknowledgeDataEvent(ev.data.length);
-					r();
-				});
-			});
+			ev.writePromise = new Promise<void>(r => this._writeProcessData(ev, r));
 		} else {
-			this.xterm?.raw.write(ev.data, () => {
-				this._latestXtermParseData = messageId;
-				this._processManager.acknowledgeDataEvent(ev.data.length);
-			});
+			this._writeProcessData(ev);
 		}
+	}
+
+	private _writeProcessData(ev: IProcessDataEvent, cb?: () => void) {
+		const messageId = ++this._latestXtermWriteData;
+		this.xterm?.raw.write(ev.data, () => {
+			this._latestXtermParseData = messageId;
+			this._processManager.acknowledgeDataEvent(ev.data.length);
+			cb?.();
+		});
 	}
 
 	/**

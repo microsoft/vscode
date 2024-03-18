@@ -230,6 +230,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
+		'files.trimTrailingWhitespaceInRegexAndStrings': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('trimTrailingWhitespaceInRegexAndStrings', "When enabled, trailing whitespace will be removed from multiline strings and regexes will be removed on save or when executing 'editor.action.trimTrailingWhitespace'. This can cause whitespace to not be trimmed from lines when there isn't up-to-date token information."),
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,

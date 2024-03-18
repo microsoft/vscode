@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev, CollapseAllUnchangedRegions, ExitCompareMove, ShowAllUnchangedRegions, SwitchSide, ToggleCollapseUnchangedRegions, ToggleShowMovedCodeBlocks, ToggleUseInlineViewWhenSpaceIsLimited } from 'vs/editor/browser/widget/diffEditor/commands';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev, CollapseAllUnchangedRegions, ExitCompareMove, RevertHunkOrSelection, ShowAllUnchangedRegions, SwitchSide, ToggleCollapseUnchangedRegions, ToggleShowMovedCodeBlocks, ToggleUseInlineViewWhenSpaceIsLimited } from 'vs/editor/browser/widget/diffEditor/commands';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -44,6 +44,35 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.has('isInDiffEditor'),
 });
 
+registerAction2(RevertHunkOrSelection);
+
+for (const ctx of [
+	{ icon: Codicon.arrowRight, key: EditorContextKeys.diffEditorInlineMode.toNegated() },
+	{ icon: Codicon.discard, key: EditorContextKeys.diffEditorInlineMode }
+]) {
+	MenuRegistry.appendMenuItem(MenuId.DiffEditorHunkToolbar, {
+		command: {
+			id: new RevertHunkOrSelection().desc.id,
+			title: localize('revertHunk', "Revert Block"),
+			icon: ctx.icon,
+		},
+		when: ContextKeyExpr.and(EditorContextKeys.diffEditorModifiedWritable, ctx.key),
+		order: 5,
+		group: 'primary',
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.DiffEditorSelectionToolbar, {
+		command: {
+			id: new RevertHunkOrSelection().desc.id,
+			title: localize('revertSelection', "Revert Selection"),
+			icon: ctx.icon,
+		},
+		when: ContextKeyExpr.and(EditorContextKeys.diffEditorModifiedWritable, ctx.key),
+		order: 5,
+		group: 'primary',
+	});
+
+}
 
 registerAction2(SwitchSide);
 registerAction2(ExitCompareMove);
