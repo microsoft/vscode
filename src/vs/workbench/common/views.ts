@@ -284,6 +284,8 @@ export interface IViewDescriptor {
 
 	readonly containerTitle?: string;
 
+	readonly singleViewPaneContainerTitle?: string;
+
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
