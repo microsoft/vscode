@@ -17,7 +17,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { raceCancellation } from 'vs/base/common/async';
 import { Recording, IInlineChatSessionService, ISessionKeyComputer, IInlineChatSessionEvent, IInlineChatSessionEndEvent } from './inlineChatSessionService';
-import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
+import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
@@ -31,6 +31,8 @@ import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { TextEdit } from 'vs/editor/common/languages';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -185,7 +187,10 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			defaultImplicitVariables: [],
 			metadata: { isSticky: false },
 		}, {
-			async invoke(request, progress, history, token) {
+			invoke: async (request, progress, history, token) => {
+
+				const modelAltVersionIdNow = session.textModelN.getAlternativeVersionId();
+				const progressEdits: TextEdit[][] = [];
 
 				const inlineRequest = {
 					requestId: request.requestId,
@@ -207,25 +212,43 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 						progress({ kind: 'content', content: data.markdownFragment });
 					}
 					if (isNonEmptyArray(data.edits)) {
+						progressEdits.push(data.edits);
 						progress({ kind: 'textEdit', uri: session.textModelN.uri, edits: data.edits });
 					}
 				});
 
-				const result = await provider.provideResponse(rawSession, inlineRequest, inlineProgress, token);
+				let response: ReplyResponse | ErrorResponse | EmptyResponse;
 
-				if (result?.message) {
-					inlineProgress.report({ markdownFragment: result.message.value });
-				}
-				if (Array.isArray(result?.edits)) {
-					inlineProgress.report({ edits: result.edits });
+				try {
+					const result = await provider.provideResponse(rawSession, inlineRequest, inlineProgress, token);
+
+					if (result) {
+						if (result.message) {
+							inlineProgress.report({ markdownFragment: result.message.value });
+						}
+						if (Array.isArray(result.edits)) {
+							inlineProgress.report({ edits: result.edits });
+						}
+
+						const markdownContents = result.message ?? new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
+
+						response = this._instaService.createInstance(ReplyResponse, result, markdownContents, session.textModelN.uri, modelAltVersionIdNow, progressEdits, request.requestId);
+
+					} else {
+						response = new EmptyResponse();
+					}
+
+				} catch (e) {
+					response = new ErrorResponse(e);
 				}
 
+				session.addExchange(new SessionExchange(session.lastInput!, response));
 
 				// TODO@jrieken
 				// result?.placeholder
 				// result?.wholeRange
 
-				return { metadata: { inlineChatResponse: result } };
+				return {};
 			},
 		}));
 

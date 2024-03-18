@@ -419,17 +419,19 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
-		// console.log(this._session.chatModel.getRequests());
-		// this._sessionStore.add(this._session.chatModel.onDidChange(e => {
-		// 	console.log(e.kind);
-		// 	if (e.kind === 'addRequest' && e.request.response) {
-		// 		console.log('REQUEST w/ response?', e.request.response);
+		this._sessionStore.add(this._session.chatModel.onDidChange(e => {
+			if (e.kind === 'addRequest' && e.request.response) {
+				this._zone.value.widget.updateProgress(true);
 
-		// 		e.request.response.onDidChange(() => {
-		// 			console.log('RESPONSE changed', e.request.response?.edits.get(this._session!.textModelN.uri)?.length);
-		// 		});
-		// 	}
-		// }));
+				const listener = e.request.response.onDidChange(() => {
+
+					if (e.request.response?.isCanceled || e.request.response?.isComplete) {
+						this._zone.value.widget.updateProgress(false);
+						listener.dispose();
+					}
+				});
+			}
+		}));
 
 		// Update context key
 		this._ctxSupportIssueReporting.set(this._session.provider.supportIssueReporting ?? false);
@@ -558,10 +560,12 @@ export class InlineChatController implements IEditorContribution {
 
 
 	// TODO@jrieken enter this state when the request is being made (chatmodel-event)
-	private async [State.SHOW_REQUEST](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT> {
+	private async [State.SHOW_REQUEST](options: InlineChatRunOptions): Promise<State.APPLY_RESPONSE | State.CANCEL> {
 		assertType(this._session);
+		assertType(this._session.lastInput);
 
 		this._showWidget(false);
+		this._zone.value.widget.updateInfo('');
 
 		let request: IChatRequestModel | undefined = tail(this._session.chatModel.getRequests());
 		if (!request) {
@@ -576,8 +580,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 
 		if (!request || !request.response) {
-			return State.WAIT_FOR_INPUT;
-
+			return State.CANCEL;
 		}
 
 		const { response } = request;
@@ -586,7 +589,7 @@ export class InlineChatController implements IEditorContribution {
 
 		const progressiveEditsAvgDuration = new MovingAverage();
 		const progressiveEditsClock = StopWatch.create();
-		const progressiveEditsCts = new CancellationTokenSource(); // TODO@jrieken
+		const progressiveEditsCts = new CancellationTokenSource();
 		const progressiveEditsQueue = new Queue();
 
 		let lastLength = 0;
@@ -644,10 +647,14 @@ export class InlineChatController implements IEditorContribution {
 		listener.dispose();
 		progressiveEditsCts.dispose();
 
-		this._zone.value.widget.updateInfo('');
+		await this._session.hunkData.recompute();
+
+		// console.log(request.response.result);
+		// this._session.addExchange(new SessionExchange(this._session.lastInput, response));
+
 		this._zone.value.widget.updateToolbar(true);
 
-		return State.WAIT_FOR_INPUT;
+		return State.APPLY_RESPONSE;
 	}
 
 	private async [State.MAKE_REQUEST](options: InlineChatRunOptions): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT | State.MAKE_REQUEST> {
@@ -692,12 +699,12 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
-		const query = this._zone.value.widget.chatWidget.parsedInput;
-		const chatRequest = this._session.chatModel.addRequest(query, { variables: [] });
+		// const query = this._zone.value.widget.chatWidget.parsedInput;
+		// const chatRequest = this._session.chatModel.addRequest(query, { variables: [] });
 
-		const cancelListener = requestCts.token.onCancellationRequested(() => {
-			this._session?.chatModel.cancelRequest(chatRequest);
-		});
+		// const cancelListener = requestCts.token.onCancellationRequested(() => {
+		// 	this._session?.chatModel.cancelRequest(chatRequest);
+		// });
 
 		const progress = new Progress<IInlineChatProgressItem>(data => {
 			this._log('received chunk', data, request);
@@ -745,12 +752,12 @@ export class InlineChatController implements IEditorContribution {
 					}
 				});
 			}
-			if (data.markdownFragment) {
-				this._session!.chatModel.acceptResponseProgress(chatRequest, {
-					kind: 'markdownContent',
-					content: new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false })
-				});
-			}
+			// if (data.markdownFragment) {
+			// 	this._session!.chatModel.acceptResponseProgress(chatRequest, {
+			// 		kind: 'markdownContent',
+			// 		content: new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false })
+			// 	});
+			// }
 		});
 
 		let a11yResponse: string | undefined;
@@ -802,8 +809,8 @@ export class InlineChatController implements IEditorContribution {
 			response = new ErrorResponse(e);
 			a11yResponse = (<ErrorResponse>response).message;
 
-			this._session.chatModel.setResponse(chatRequest, { errorDetails: { message: (response as ErrorResponse).message } });
-			this._session.chatModel.cancelRequest(chatRequest);
+			// this._session.chatModel.setResponse(chatRequest, { errorDetails: { message: (response as ErrorResponse).message } });
+			// this._session.chatModel.cancelRequest(chatRequest);
 
 		} finally {
 			this._ctxHasActiveRequest.set(false);
@@ -821,7 +828,7 @@ export class InlineChatController implements IEditorContribution {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
 		this._session.wholeRange.fixup(diff?.changes ?? []);
 
-		cancelListener.dispose();
+		// cancelListener.dispose();
 		progressiveEditsCts.dispose(true);
 		requestCts.dispose();
 		msgListener.dispose();
@@ -831,15 +838,15 @@ export class InlineChatController implements IEditorContribution {
 			// update hunks after a reply response
 			await this._session.hunkData.recompute();
 
-			if (this._session.hunkData.pending === 1) {
-				this._session.chatModel.acceptResponseProgress(chatRequest, { kind: 'markdownContent', content: new MarkdownString(localize('changes.0', "\nMade 1 change.", this._session.hunkData.pending)) });
+			// if (this._session.hunkData.pending === 1) {
+			// 	this._session.chatModel.acceptResponseProgress(chatRequest, { kind: 'markdownContent', content: new MarkdownString(localize('changes.0', "\nMade 1 change.", this._session.hunkData.pending)) });
 
-			} else if (this._session.hunkData.pending > 1) {
-				this._session.chatModel.acceptResponseProgress(chatRequest, { kind: 'markdownContent', content: new MarkdownString(localize('changes.n', "\nMade {0} changes.", this._session.hunkData.pending)) });
-			}
+			// } else if (this._session.hunkData.pending > 1) {
+			// 	this._session.chatModel.acceptResponseProgress(chatRequest, { kind: 'markdownContent', content: new MarkdownString(localize('changes.n', "\nMade {0} changes.", this._session.hunkData.pending)) });
+			// }
 
-			this._session.chatModel.setResponse(chatRequest, { metadata: { inlineChatResponse: reply } });
-			this._session.chatModel.completeResponse(chatRequest);
+			// this._session.chatModel.setResponse(chatRequest, { metadata: { inlineChatResponse: reply } });
+			// this._session.chatModel.completeResponse(chatRequest);
 
 		} else if (request.live) {
 			// undo changes that might have been made when not
