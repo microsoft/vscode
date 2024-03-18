@@ -747,6 +747,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 			partDisposables.add(toDisposable(() => accessors.delete(accessor)));
 
 			entryDisposables.add(partDisposables);
+			partDisposables.add(toDisposable(() => entryDisposables.delete(partDisposables)));
 		}
 
 		for (const part of this.parts) {
