@@ -73,9 +73,9 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguag
 				languageId: cell.languageId
 			}
 		};
-	} else {
+	} else if (metadata.vscode) {
 		// cell current language is the same as the preferred cell language in the document, flush the vscode custom language id metadata
-		metadata.vscode = undefined;
+		delete metadata.vscode;
 	}
 
 	const codeCell: any = {

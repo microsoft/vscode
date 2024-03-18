@@ -582,6 +582,11 @@ export interface INotebookEditor {
 	 * Copy the image in the specific cell output to the clipboard
 	 */
 	copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void>;
+	/**
+	 * Select the contents of the first focused output of the cell.
+	 * Implementation of Ctrl+A for an output item.
+	 */
+	selectOutputContent(cell: ICellViewModel): void;
 
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 

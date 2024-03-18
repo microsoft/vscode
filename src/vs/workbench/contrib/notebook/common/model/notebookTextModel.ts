@@ -645,7 +645,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._changeCellLanguage(this._cells[edit.index], edit.language, computeUndoRedo, beginSelectionState, undoRedoGroup);
 					break;
 				case CellEditType.DocumentMetadata:
-					this._updateNotebookMetadata(edit.metadata, computeUndoRedo, beginSelectionState, undoRedoGroup);
+					this._updateNotebookCellMetadata(edit.metadata, computeUndoRedo, beginSelectionState, undoRedoGroup);
 					break;
 				case CellEditType.Move:
 					this._moveCellToIdx(edit.index, edit.length, edit.newIdx, synchronous, computeUndoRedo, beginSelectionState, undefined, undoRedoGroup);
@@ -786,7 +786,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._notebookSpecificAlternativeId = Number(newAlternativeVersionId.substring(0, newAlternativeVersionId.indexOf('_')));
 	}
 
-	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean, beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
+	private _updateNotebookCellMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean, beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
 		const oldMetadata = this.metadata;
 		const triggerDirtyChange = this._isDocumentMetadataChanged(this.metadata, metadata);
 
@@ -798,13 +798,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					get resource() {
 						return that.uri;
 					}
-					readonly label = 'Update Notebook Metadata';
+					readonly label = 'Update Cell Metadata';
 					readonly code = 'undoredo.notebooks.updateCellMetadata';
 					undo() {
-						that._updateNotebookMetadata(oldMetadata, false, beginSelectionState, undoRedoGroup);
+						that._updateNotebookCellMetadata(oldMetadata, false, beginSelectionState, undoRedoGroup);
 					}
 					redo() {
-						that._updateNotebookMetadata(metadata, false, beginSelectionState, undoRedoGroup);
+						that._updateNotebookCellMetadata(metadata, false, beginSelectionState, undoRedoGroup);
 					}
 				}(), beginSelectionState, undefined, this._alternativeVersionId, undoRedoGroup);
 			}

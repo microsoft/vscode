@@ -19,10 +19,6 @@
 	visibility: hidden;
 }
 
-.terminal-inline-chat .chatMessageContent {
-	width: 400px !important;
-}
-
 .terminal-inline-chat .chatMessageContent .value {
 	padding-top: 10px;
 }

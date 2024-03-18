@@ -114,6 +114,16 @@ body.web {
 	font-size: 100%;
 }
 
+.monaco-workbench table {
+	/*
+	 * Somehow this is required when tables show in floating windows
+	 * to override the user-agent style which sets a specific color
+	 * and font-size
+	 */
+	color: inherit;
+	font-size: inherit;
+}
+
 .monaco-workbench input::placeholder { color: var(--vscode-input-placeholderForeground); }
 .monaco-workbench input::-webkit-input-placeholder  { color: var(--vscode-input-placeholderForeground); }
 .monaco-workbench input::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }

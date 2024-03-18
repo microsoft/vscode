@@ -81,8 +81,7 @@ export class TreeItemCheckbox extends Disposable {
 	private setHover(checkbox: ITreeItemCheckboxState) {
 		if (this.toggle) {
 			if (!this.hover) {
-				this.hover = setupCustomHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox));
-				this._register(this.hover);
+				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox)));
 			} else {
 				this.hover.update(checkbox.tooltip);
 			}

@@ -492,11 +492,6 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
 
 	/**
-	 * Provides access to the currently active editor part.
-	 */
-	readonly activePart: IEditorPart;
-
-	/**
 	 * Provides access to the main window editor part.
 	 */
 	readonly mainPart: IEditorPart;

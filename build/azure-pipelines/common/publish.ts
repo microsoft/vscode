@@ -531,7 +531,7 @@ interface Asset {
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string): string {
+function getPlatform(product: string, os: string, arch: string, type: string, isLegacy: boolean): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -582,9 +582,12 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'client':
 							return `linux-${arch}`;
 						case 'server':
-							return `server-linux-${arch}`;
+							return isLegacy ? `legacy-server-linux-${arch}` : `server-linux-${arch}`;
 						case 'web':
-							return arch === 'standalone' ? 'web-standalone' : `server-linux-${arch}-web`;
+							if (arch === 'standalone') {
+								return 'web-standalone';
+							}
+							return isLegacy ? `legacy-server-linux-${arch}-web` : `server-linux-${arch}-web`;
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
@@ -639,7 +642,7 @@ function getRealType(type: string) {
 
 async function processArtifact(artifact: Artifact, artifactFilePath: string): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
-	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
+	const match = /^vscode(?:_legacy)?_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
 		throw new Error(`Invalid artifact name: ${artifact.name}`);
@@ -649,7 +652,8 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	const quality = e('VSCODE_QUALITY');
 	const commit = e('BUILD_SOURCEVERSION');
 	const { product, os, arch, unprocessedType } = match.groups!;
-	const platform = getPlatform(product, os, arch, unprocessedType);
+	const isLegacy = artifact.name.includes('_legacy');
+	const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
 	const type = getRealType(unprocessedType);
 	const size = fs.statSync(artifactFilePath).size;
 	const stream = fs.createReadStream(artifactFilePath);

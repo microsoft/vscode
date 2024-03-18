@@ -378,6 +378,11 @@
 	margin-bottom: 7px;
 }
 
+.interactive-session .interactive-input-part .interactive-execute-toolbar .monaco-action-bar .actions-container {
+	display: flex;
+	gap: 4px;
+}
+
 .interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
 	color: var(--vscode-icon-foreground) !important;
 }

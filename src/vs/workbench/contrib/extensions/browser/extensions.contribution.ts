@@ -261,7 +261,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
 				default: true
-			}
+			},
+			'extensions.experimental.supportWorkspaceExtensions': {
+				type: 'boolean',
+				description: localize('extensions.experimental.supportWorkspaceExtensions', "Enables support for workspace specific local extensions."),
+				default: false
+			},
 		}
 	});
 
