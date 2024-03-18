@@ -50,6 +50,16 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 			this.computeSectionHeaders.schedule(0);
 		}));
 
+		this._register(languageConfigurationService.onDidChange((e) => {
+			const editorLanguageId = this.editor.getModel()?.getLanguageId();
+			if (editorLanguageId && e.affects(editorLanguageId)) {
+				this.currentOccurrences = {};
+				this.options = this.createOptions(editor.getOption(EditorOption.minimap));
+				this.stop();
+				this.computeSectionHeaders.schedule(0);
+			}
+		}));
+
 		this._register(editor.onDidChangeConfiguration(e => {
 			if (this.options && !e.hasChanged(EditorOption.minimap)) {
 				return;
