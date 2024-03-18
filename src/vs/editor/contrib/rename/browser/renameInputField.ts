@@ -308,6 +308,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		this._currentName = currentName;
 
 		this._input.domNode.value = currentName;
+		this._input.domNode.setAttribute('selectionStart', selectionStart.toString());
+		this._input.domNode.setAttribute('selectionEnd', selectionEnd.toString());
 		this._input.domNode.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20); // determines width
 
 		const disposeOnDone = new DisposableStore();
@@ -388,7 +390,10 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		// TODO@ulugbekna: could this be simply run in `afterRender`?
 		setTimeout(() => {
 			this._input.domNode.focus();
-			this._input.domNode.select();
+			this._input.domNode.setSelectionRange(
+				parseInt(this._input!.domNode.getAttribute('selectionStart')!),
+				parseInt(this._input!.domNode.getAttribute('selectionEnd')!)
+			);
 		}, 100);
 	}
 
