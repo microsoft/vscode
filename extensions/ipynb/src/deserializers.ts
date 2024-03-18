@@ -151,22 +151,17 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 	}
 }
 
-function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
-	[key: string]: any;
-} {
-	const cellMetadata: { [key: string]: any } = {};
+function getNotebookCellMetadata(cell: nbformat.IBaseCell): CellMetadata {
+	const cellMetadata: CellMetadata = {};
 	// We put this only for VSC to display in diff view.
 	// Else we don't use this.
-	const custom: CellMetadata = {};
 	if (cell['metadata']) {
-		custom['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
+		cellMetadata.metadata = JSON.parse(JSON.stringify(cell['metadata']));
 	}
 
 	if ('id' in cell && typeof cell.id === 'string') {
-		custom.id = cell.id;
+		cellMetadata.id = cell.id;
 	}
-
-	cellMetadata.custom = custom;
 
 	if (cell['attachments']) {
 		cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
@@ -364,6 +359,6 @@ export function jupyterNotebookModelToNotebookData(
 		.filter((item): item is NotebookCellData => !!item);
 
 	const notebookData = new NotebookData(cells);
-	notebookData.metadata = { custom: notebookContentWithoutCells };
+	notebookData.metadata = notebookContentWithoutCells;
 	return notebookData;
 }

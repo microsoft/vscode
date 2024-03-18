@@ -25,7 +25,7 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 	e.contentChanges.forEach(change => {
 		change.addedCells.forEach(cell => {
 			const cellMetadata = getCellMetadata(cell);
-			if (cellMetadata?.id) {
+			if (cellMetadata.id) {
 				return;
 			}
 			const id = generateCellId(e.notebook);
@@ -33,7 +33,11 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 			// Don't edit the metadata directly, always get a clone (prevents accidental singletons and directly editing the objects).
 			const updatedMetadata: CellMetadata = { ...JSON.parse(JSON.stringify(cellMetadata || {})) };
 			updatedMetadata.id = id;
-			edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, { ...(cell.metadata), custom: updatedMetadata })]);
+			const newMetadata: CellMetadata = { ...cell.metadata };
+			Object.keys(updatedMetadata).map(key => key as keyof CellMetadata).forEach((key) => {
+				newMetadata[key] = updatedMetadata[key] as any;
+			});
+			edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, newMetadata)]);
 			workspace.applyEdit(edit);
 		});
 	});
@@ -60,7 +64,7 @@ function generateCellId(notebook: NotebookDocument) {
 		let duplicate = false;
 		for (let index = 0; index < notebook.cellCount; index++) {
 			const cell = notebook.cellAt(index);
-			const existingId = getCellMetadata(cell)?.id;
+			const existingId = getCellMetadata(cell).id;
 			if (!existingId) {
 				continue;
 			}

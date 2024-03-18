@@ -42,13 +42,13 @@ suite('ipynb serializer', () => {
 
 		const expectedCodeCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'print(1)', 'python');
 		expectedCodeCell.outputs = [];
-		expectedCodeCell.metadata = { custom: { metadata: {} } };
+		expectedCodeCell.metadata = { metadata: {} };
 		expectedCodeCell.executionSummary = { executionOrder: 10 };
 
 		const expectedMarkdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# HEAD', 'markdown');
 		expectedMarkdownCell.outputs = [];
 		expectedMarkdownCell.metadata = {
-			custom: { metadata: {} }
+			metadata: {}
 		};
 
 		assert.deepStrictEqual(notebook.cells, [expectedCodeCell, expectedMarkdownCell]);
@@ -63,11 +63,9 @@ suite('ipynb serializer', () => {
 					'image/png': 'abc'
 				}
 			},
-			custom: {
-				id: '123',
-				metadata: {
-					foo: 'bar'
-				}
+			id: '123',
+			metadata: {
+				foo: 'bar'
 			}
 		};
 
@@ -86,15 +84,13 @@ suite('ipynb serializer', () => {
 
 		const markdownCell2 = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown');
 		markdownCell2.metadata = {
-			custom: {
-				id: '123',
-				metadata: {
-					foo: 'bar'
-				},
-				attachments: {
-					'image.png': {
-						'image/png': 'abc'
-					}
+			id: '123',
+			metadata: {
+				foo: 'bar'
+			},
+			attachments: {
+				'image.png': {
+					'image/png': 'abc'
 				}
 			}
 		};

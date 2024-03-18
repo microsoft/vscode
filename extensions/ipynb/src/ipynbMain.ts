@@ -35,7 +35,10 @@ export function activate(context: vscode.ExtensionContext) {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
-			custom: false,
+			id: false,
+			cell_type: false,
+			metadata: false,
+			outputs: false,
 			attachments: false
 		},
 		cellContentMetadata: {
@@ -47,7 +50,10 @@ export function activate(context: vscode.ExtensionContext) {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
-			custom: false,
+			id: false,
+			cell_type: false,
+			metadata: false,
+			outputs: false,
 			attachments: false
 		},
 		cellContentMetadata: {
@@ -74,12 +80,10 @@ export function activate(context: vscode.ExtensionContext) {
 		const cell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '', language);
 		const data = new vscode.NotebookData([cell]);
 		data.metadata = {
-			custom: {
-				cells: [],
-				metadata: {},
-				nbformat: 4,
-				nbformat_minor: 2
-			}
+			cells: [],
+			metadata: {},
+			nbformat: 4,
+			nbformat_minor: 2
 		};
 		const doc = await vscode.workspace.openNotebookDocument('jupyter-notebook', data);
 		await vscode.window.showNotebookDocument(doc);
@@ -120,14 +124,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 			const edit = new vscode.WorkspaceEdit();
 			edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
-				...document.metadata,
-				custom: {
-					...(document.metadata.custom ?? {}),
-					metadata: <NotebookMetadata>{
-						...(document.metadata.custom?.metadata ?? {}),
-						...metadata
-					},
-				}
+				...(document.metadata ?? {}),
+				metadata: <NotebookMetadata>{
+					...(document.metadata?.metadata ?? {}),
+					...metadata
+				},
 			})]);
 			return vscode.workspace.applyEdit(edit);
 		},
