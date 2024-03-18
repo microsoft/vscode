@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/terminalChatWidget';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -14,6 +14,10 @@ import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+
+const enum Constants {
+	HorizontalMargin = 10
+}
 
 export class TerminalChatWidget extends Disposable {
 
@@ -28,11 +32,10 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _visibleContextKey: IContextKey<boolean>;
 
 	constructor(
-		terminalElement: HTMLElement,
+		private readonly _terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -41,7 +44,7 @@ export class TerminalChatWidget extends Disposable {
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
-		terminalElement.appendChild(this._container);
+		_terminalElement.appendChild(this._container);
 
 		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
@@ -53,10 +56,38 @@ export class TerminalChatWidget extends Disposable {
 				telemetrySource: 'terminal-inline-chat'
 			}
 		);
+		this._register(Event.any(
+			this._inlineChatWidget.onDidChangeHeight,
+			this._instance.onDimensionsChanged,
+		)(() => this._relayout()));
+
+		const observer = new ResizeObserver(() => this._relayout());
+		observer.observe(this._terminalElement);
+		this._register(toDisposable(() => observer.disconnect()));
+
 		this._reset();
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
+	}
+
+	private _dimension?: Dimension;
+
+	private _relayout() {
+		if (this._dimension) {
+			this._doLayout(this._inlineChatWidget.getHeight());
+		}
+	}
+
+	private _doLayout(heightInPixel: number) {
+		const width = Math.min(640, this._terminalElement.clientWidth - 12/* padding */ - 2/* border */ - Constants.HorizontalMargin);
+		const height = Math.min(480, heightInPixel, this._getTerminalWrapperHeight() ?? Number.MAX_SAFE_INTEGER);
+		if (width === 0 || height === 0) {
+			return;
+		}
+		this._dimension = new Dimension(width, height);
+		this._inlineChatWidget.layout(this._dimension);
+		this._updateVerticalPosition();
 	}
 
 	private _reset() {
@@ -65,36 +96,35 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	reveal(): void {
-		this._inlineChatWidget.layout(new Dimension(640, 150));
+		this._doLayout(this._inlineChatWidget.getHeight());
 		this._container.classList.remove('hide');
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
-		this.layoutVertically();
-		this._updateWidth();
-		this._register(this._instance.onDimensionsChanged(() => this._updateWidth()));
 	}
 
-	layoutVertically(): void {
+	private _updateVerticalPosition(): void {
 		const font = this._instance.xterm?.getFont();
 		if (!font?.charHeight) {
 			return;
 		}
+		const terminalWrapperHeight = this._getTerminalWrapperHeight() ?? 0;
+		const cellHeight = font.charHeight * font.lineHeight;
+		const topPadding = terminalWrapperHeight - (this._instance.rows * cellHeight);
 		const cursorY = (this._instance.xterm?.raw.buffer.active.cursorY ?? 0) + 1;
-		const height = font.charHeight * font.lineHeight;
-		const top = cursorY * height + 12;
+		const top = topPadding + cursorY * cellHeight;
 		this._container.style.top = `${top}px`;
-		const terminalHeight = this._instance.domElement.clientHeight;
-		if (terminalHeight && top > terminalHeight - this._inlineChatWidget.getHeight()) {
+		const widgetHeight = this._inlineChatWidget.getHeight();
+		if (!terminalWrapperHeight) {
+			return;
+		}
+		if (top > terminalWrapperHeight - widgetHeight) {
 			this._container.style.top = '';
 		}
 	}
 
-	private _updateWidth() {
-		const terminalWidth = this._instance.domElement.clientWidth;
-		if (terminalWidth && terminalWidth < 640) {
-			this._inlineChatWidget.layout(new Dimension(terminalWidth - 40, this._inlineChatWidget.getHeight()));
-		}
+	private _getTerminalWrapperHeight(): number | undefined {
+		return this._terminalElement.clientHeight;
 	}
 
 	hide(): void {
@@ -127,19 +157,11 @@ export class TerminalChatWidget extends Disposable {
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 	}
-	acceptCommand(shouldExecute: boolean): void {
-		const editor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
-		if (!editor) {
-			return;
-		}
-		const model = editor.getModel();
-		if (!model) {
-			return;
-		}
-		const code = editor.getValue();
+	acceptCommand(code: string, shouldExecute: boolean): void {
 		this._instance.runCommand(code, shouldExecute);
 		this.hide();
 	}
+
 	updateProgress(progress?: IChatProgress): void {
 		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
 	}

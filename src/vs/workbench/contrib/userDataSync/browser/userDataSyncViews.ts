@@ -97,7 +97,7 @@ export class UserDataSyncDataViews extends Disposable {
 			order: 300,
 		}], container);
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.editMachineName`,
@@ -116,9 +116,9 @@ export class UserDataSyncDataViews extends Disposable {
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.turnOffSyncOnMachine`,
@@ -134,7 +134,7 @@ export class UserDataSyncDataViews extends Disposable {
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 
 	}
 
@@ -221,7 +221,7 @@ export class UserDataSyncDataViews extends Disposable {
 	}
 
 	private registerDataViewActions(viewId: string) {
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.${viewId}.resolveResource`,
@@ -237,9 +237,9 @@ export class UserDataSyncDataViews extends Disposable {
 				const editorService = accessor.get(IEditorService);
 				await editorService.openEditor({ resource: URI.parse(resource), options: { pinned: true } });
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.${viewId}.compareWithLocal`,
@@ -262,9 +262,9 @@ export class UserDataSyncDataViews extends Disposable {
 					undefined
 				);
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.${viewId}.replaceCurrent`,
@@ -290,7 +290,7 @@ export class UserDataSyncDataViews extends Disposable {
 					return userDataSyncService.replace({ created: syncResourceHandle.created, uri: URI.revive(syncResourceHandle.uri) });
 				}
 			}
-		});
+		}));
 
 	}
 

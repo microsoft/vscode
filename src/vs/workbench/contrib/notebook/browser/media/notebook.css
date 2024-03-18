@@ -516,5 +516,5 @@
 /** Cell Chat **/
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-chatGenerationHighlight .cell-focus-indicator,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-chatGenerationHighlight {
-	background-color: var(--vscode-diffEditor-insertedTextBackground) !important;
+	background-color: var(--vscode-notebook-selectedCellBackground) !important;
 }

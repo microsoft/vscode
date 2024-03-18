@@ -396,7 +396,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					}
 
 					#container .nb-chatGenerationHighlight .output_container .output {
-						background-color: var(--vscode-diffEditor-insertedTextBackground);
+						background-color: var(--vscode-notebook-selectedCellBackground);
 					}
 
 					#container > div.nb-cellDeleted .output_container {
@@ -1679,6 +1679,18 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		this.webview?.focus();
+	}
+
+	selectOutputContents(cell: ICellViewModel) {
+		if (this._disposed) {
+			return;
+		}
+		const output = cell.outputsViewModels.find(o => o.model.outputId === cell.focusedOutputId);
+		const outputId = output ? this.insetMapping.get(output)?.outputId : undefined;
+		this._sendMessageToWebview({
+			type: 'select-output-contents',
+			cellOrOutputId: outputId || cell.id
+		});
 	}
 
 	focusOutput(cellOrOutputId: string, alternateId: string | undefined, viewFocused: boolean) {

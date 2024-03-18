@@ -476,7 +476,7 @@ export class BrowserMain extends Disposable {
 	}
 
 	private registerDeveloperActions(provider: IndexedDBFileSystemProvider): void {
-		registerAction2(class ResetUserDataAction extends Action2 {
+		this._register(registerAction2(class ResetUserDataAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.resetUserData',
@@ -511,7 +511,7 @@ export class BrowserMain extends Disposable {
 
 				hostService.reload();
 			}
-		});
+		}));
 	}
 
 	private async createStorageService(workspace: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfileService: IUserDataProfileService): Promise<IStorageService> {

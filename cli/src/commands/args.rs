@@ -655,6 +655,17 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Requests that extensions be preloaded and installed on connecting servers.
+	#[clap(long)]
+	pub install_extension: Vec<String>,
+}
+
+impl TunnelServeArgs {
+	pub fn apply_to_server_args(&self, csa: &mut CodeServerArgs) {
+		csa.install_extensions
+			.extend_from_slice(&self.install_extension);
+	}
 }
 
 #[derive(Args, Debug, Clone)]

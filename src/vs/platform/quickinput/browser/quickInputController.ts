@@ -18,11 +18,11 @@ import { isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
-import { QuickInputList, QuickInputListFocus } from 'vs/platform/quickinput/browser/quickInputList';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { mainWindow } from 'vs/base/browser/window';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { QuickInputListFocus, QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
 
 const $ = dom.$;
 
@@ -54,9 +54,10 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
-	constructor(private options: IQuickInputOptions,
-		private readonly themeService: IThemeService,
-		private readonly layoutService: ILayoutService
+	constructor(
+		private options: IQuickInputOptions,
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.idPrefix = options.idPrefix;
@@ -172,7 +173,7 @@ export class QuickInputController extends Disposable {
 		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const listId = this.idPrefix + 'list';
-		const list = this._register(new QuickInputList(container, listId, this.options, this.themeService));
+		const list = this._register(this.instantiationService.createInstance(QuickInputTree, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');

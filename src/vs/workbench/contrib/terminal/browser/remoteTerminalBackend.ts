@@ -32,6 +32,8 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 export class RemoteTerminalBackendContribution implements IWorkbenchContribution {
+	static ID = 'remoteTerminalBackend';
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
