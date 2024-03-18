@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { IRange } from 'vs/editor/common/core/range';
 import { FoldingRules } from 'vs/editor/common/languages/languageConfiguration';
-import { ICommentsConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export interface ISectionHeaderFinderTarget {
 	getLineCount(): number;
@@ -14,8 +12,6 @@ export interface ISectionHeaderFinderTarget {
 }
 
 export interface FindSectionHeaderOptions {
-	languageId: string;
-	commentsConfiguration?: ICommentsConfiguration | null;
 	foldingRules?: FoldingRules;
 	findRegionSectionHeaders: boolean;
 	findMarkSectionHeaders: boolean;
@@ -34,15 +30,12 @@ export interface SectionHeader {
 	 * Whether the section header includes a separator line.
 	 */
 	hasSeparatorLine: boolean;
+	/**
+	 * This section should be omitted before rendering if it's not in a comment.
+	 */
+	shouldBeInComments: boolean;
 }
 
-interface CommentRegExps {
-	lineCommentRegExp?: RegExp;
-	startBlockCommentRegExp?: RegExp;
-	endBlockCommentRegExp?: RegExp;
-}
-
-const languageCommentRegExps: { [languageId: string]: CommentRegExps } = {};
 const markRegex = /\bMARK:\s*(.*)$/d;
 const trimDashesRegex = /^-+|-+$/g;
 
@@ -59,8 +52,8 @@ export function findSectionHeaders(model: ISectionHeaderFinderTarget, options: F
 		const regionHeaders = collectRegionHeaders(model, options);
 		headers = headers.concat(regionHeaders);
 	}
-	if (options.findMarkSectionHeaders && options.commentsConfiguration) {
-		const markHeaders = collectMarkHeaders(model, options);
+	if (options.findMarkSectionHeaders) {
+		const markHeaders = collectMarkHeaders(model);
 		headers = headers.concat(markHeaders);
 	}
 	return headers;
@@ -75,7 +68,11 @@ function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSe
 		if (match) {
 			const range = { startLineNumber: lineNumber, startColumn: match[0].length + 1, endLineNumber: lineNumber, endColumn: lineContent.length + 1 };
 			if (range.endColumn > range.startColumn) {
-				const sectionHeader = { range, ...getHeaderText(lineContent.substring(match[0].length)) };
+				const sectionHeader = {
+					range,
+					...getHeaderText(lineContent.substring(match[0].length)),
+					shouldBeInComments: false
+				};
 				if (sectionHeader.text || sectionHeader.hasSeparatorLine) {
 					regionHeaders.push(sectionHeader);
 				}
@@ -85,74 +82,14 @@ function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSe
 	return regionHeaders;
 }
 
-function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: FindSectionHeaderOptions): SectionHeader[] {
+function collectMarkHeaders(model: ISectionHeaderFinderTarget): SectionHeader[] {
 	const markHeaders: SectionHeader[] = [];
 	const endLineNumber = model.getLineCount();
-	const commentRegExps = getCommentRegExps(options);
-	let inBlockComment = false;
 	for (let lineNumber = 1; lineNumber <= endLineNumber; lineNumber++) {
-
-		let lineContent = model.getLineContent(lineNumber);
-
-		if (!inBlockComment && commentRegExps.lineCommentRegExp) {
-			commentRegExps.lineCommentRegExp.lastIndex = 0;
-			const match = commentRegExps.lineCommentRegExp.exec(lineContent);
-			if (match) {
-				addMarkHeaderIfFound(lineContent, lineNumber, markHeaders);
-			}
-		}
-
-		if (commentRegExps.startBlockCommentRegExp) {
-			if (!inBlockComment) {
-				const startBlockMatch = lastMatch(lineContent, commentRegExps.startBlockCommentRegExp);
-				if (startBlockMatch) {
-					inBlockComment = true;
-					lineContent = lineContent.substring(startBlockMatch.index + startBlockMatch[0].length);
-				}
-			}
-
-			if (inBlockComment) {
-				commentRegExps.endBlockCommentRegExp!.lastIndex = 0;
-				const endBlockMatch = commentRegExps.endBlockCommentRegExp!.exec(lineContent);
-				if (endBlockMatch) {
-					inBlockComment = false;
-					lineContent = lineContent.substring(0, endBlockMatch.index);
-				}
-
-				addMarkHeaderIfFound(lineContent, lineNumber, markHeaders);
-			}
-		}
-
+		const lineContent = model.getLineContent(lineNumber);
+		addMarkHeaderIfFound(lineContent, lineNumber, markHeaders);
 	}
 	return markHeaders;
-}
-
-function getCommentRegExps(options: FindSectionHeaderOptions): CommentRegExps {
-	if (!languageCommentRegExps[options.languageId]) {
-		const commentsConfiguration = options.commentsConfiguration!;
-		const regExps: CommentRegExps = {};
-		if (!isFalsyOrWhitespace(commentsConfiguration.lineCommentToken)) {
-			// only match line comments at the start of the line
-			regExps.lineCommentRegExp = new RegExp('^\\s*' + escapeRegExpCharacters(commentsConfiguration.lineCommentToken!));
-		}
-		if (!isFalsyOrWhitespace(commentsConfiguration.blockCommentStartToken) && !isFalsyOrWhitespace(commentsConfiguration.blockCommentEndToken)) {
-			regExps.startBlockCommentRegExp = new RegExp(escapeRegExpCharacters(commentsConfiguration.blockCommentStartToken!), 'g');
-			regExps.endBlockCommentRegExp = new RegExp(escapeRegExpCharacters(commentsConfiguration.blockCommentEndToken!), 'g');
-		}
-		languageCommentRegExps[options.languageId] = regExps;
-	}
-	return languageCommentRegExps[options.languageId];
-}
-
-function lastMatch(lineContent: string, regExp: RegExp): RegExpExecArray | null {
-	regExp.lastIndex = 0;
-	let match: RegExpExecArray | null = null;
-	let result: RegExpExecArray | null;
-	do {
-		result = match;
-		match = regExp.exec(lineContent);
-	} while (match);
-	return result;
 }
 
 function addMarkHeaderIfFound(lineContent: string, lineNumber: number, sectionHeaders: SectionHeader[]) {
@@ -163,7 +100,11 @@ function addMarkHeaderIfFound(lineContent: string, lineNumber: number, sectionHe
 		const endColumn = match.indices![1][1] + 1;
 		const range = { startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: endColumn };
 		if (range.endColumn > range.startColumn) {
-			const sectionHeader = { range, ...getHeaderText(match[1]) };
+			const sectionHeader = {
+				range,
+				...getHeaderText(match[1]),
+				shouldBeInComments: true
+			};
 			if (sectionHeader.text || sectionHeader.hasSeparatorLine) {
 				sectionHeaders.push(sectionHeader);
 			}

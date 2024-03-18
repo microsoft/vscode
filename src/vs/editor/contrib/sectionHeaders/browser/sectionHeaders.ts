@@ -9,17 +9,18 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, IEditorMinimapOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelDeltaDecoration, MinimapPosition, MinimapSectionHeaderStyle, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { SectionHeader, FindSectionHeaderOptions } from 'vs/editor/common/services/findSectionHeaders';
+import { FindSectionHeaderOptions, SectionHeader } from 'vs/editor/common/services/findSectionHeaders';
 
 export class SectionHeaderDetector extends Disposable implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.sectionHeaderDetector';
 
-	private options?: FindSectionHeaderOptions;
+	private options: FindSectionHeaderOptions | undefined;
 	private decorations = this.editor.createDecorationsCollection();
 	private computeSectionHeaders: RunOnceScheduler;
 	private computePromise: CancelablePromise<SectionHeader[]> | null;
@@ -106,8 +107,6 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 		}
 
 		return {
-			languageId,
-			commentsConfiguration,
 			foldingRules,
 			findMarkSectionHeaders: minimap.showMarkSectionHeaders,
 			findRegionSectionHeaders: minimap.showRegionSectionHeaders,
@@ -128,7 +127,7 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 		const modelVersionId = model.getVersionId();
 		this.editorWorkerService.findSectionHeaders(model.uri, this.options)
 			.then((sectionHeaders) => {
-				if (model?.isDisposed() || model?.getVersionId() !== modelVersionId) {
+				if (model.isDisposed() || model.getVersionId() !== modelVersionId) {
 					// model changed in the meantime
 					return;
 				}
@@ -137,6 +136,23 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 	}
 
 	private updateDecorations(sectionHeaders: SectionHeader[]): void {
+
+		const model = this.editor.getModel();
+		if (model) {
+			// Remove all section headers that should be in comments and are not in comments
+			sectionHeaders = sectionHeaders.filter((sectionHeader) => {
+				if (!sectionHeader.shouldBeInComments) {
+					return true;
+				}
+				const validRange = model.validateRange(sectionHeader.range);
+				const tokens = model.tokenization.getLineTokens(validRange.startLineNumber);
+				const idx = tokens.findTokenIndexAtOffset(validRange.startColumn - 1);
+				const tokenType = tokens.getStandardTokenType(idx);
+				const languageId = tokens.getLanguageId(idx);
+				return (languageId === model.getLanguageId() && tokenType === StandardTokenType.Comment);
+			});
+		}
+
 		const oldDecorations = Object.values(this.currentOccurrences).map(occurrence => occurrence.decorationId);
 		const newDecorations = sectionHeaders.map(sectionHeader => decoration(sectionHeader));
 
