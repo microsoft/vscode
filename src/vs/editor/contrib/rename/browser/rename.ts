@@ -38,7 +38,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField, RenameInputFieldResult } from './renameInputField';
+import { CONTEXT_RENAME_INPUT_VISIBLE, NewNameSource, RenameInputField, RenameInputFieldResult } from './renameInputField';
 
 class RenameSkeleton {
 
@@ -346,7 +346,7 @@ class RenameController implements IEditorContribution {
 				nRenameSuggestionProviders: number;
 
 				/** provided only if kind = 'accepted' */
-				source?: RenameInputFieldResult['source'];
+				source?: NewNameSource['k'];
 				/** provided only if kind = 'accepted' */
 				nRenameSuggestions?: number;
 				/** provided only if kind = 'accepted' */
@@ -377,8 +377,8 @@ class RenameController implements IEditorContribution {
 				languageId,
 				nRenameSuggestionProviders,
 
-				source: inputFieldResult.source,
-				nRenameSuggestions: inputFieldResult.nRenameSuggestions,
+				source: inputFieldResult.stats.source.k,
+				nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
 				wantsPreview: inputFieldResult.wantsPreview,
 			};
 
