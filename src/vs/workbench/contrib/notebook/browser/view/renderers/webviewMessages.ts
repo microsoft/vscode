@@ -168,23 +168,6 @@ export interface IClearMessage {
 	readonly type: 'clear';
 }
 
-export interface IOutputRequestMetadata {
-	/**
-	 * Additional attributes of a cell metadata.
-	 */
-	readonly custom?: { readonly [key: string]: unknown };
-}
-
-export interface IOutputRequestDto {
-	/**
-	 * { mime_type: value }
-	 */
-	readonly data: { readonly [key: string]: unknown };
-
-	readonly metadata?: IOutputRequestMetadata;
-	readonly outputId: string;
-}
-
 export interface OutputItemEntry {
 	readonly mime: string;
 	readonly valueBytes: Uint8Array;
