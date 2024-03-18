@@ -94,21 +94,30 @@ interface IRenameInputField {
 
 export class RenameInputField implements IRenameInputField, IContentWidget, IDisposable {
 
-	private _position?: Position;
-	private _currentName?: string;
-	/** Is true if input field got changes when a rename candidate was focused; otherwise, false */
-	private _isEditingRenameCandidate: boolean;
+	// implement IContentWidget
+	readonly allowEditorOverflow: boolean = true;
+
+	// UI state
+
 	private _domNode?: HTMLElement;
 	private _input: RenameInput;
 	private _renameCandidateListView?: RenameCandidateListView;
 	private _label?: HTMLDivElement;
-	private _visible?: boolean;
+
 	private _nPxAvailableAbove?: number;
 	private _nPxAvailableBelow?: number;
+
+	// Model state
+
+	private _position?: Position;
+	private _currentName?: string;
+	/** Is true if input field got changes when a rename candidate was focused; otherwise, false */
+	private _isEditingRenameCandidate: boolean;
+
+	private _visible?: boolean;
+
 	private readonly _visibleContextKey: IContextKey<boolean>;
 	private readonly _disposables = new DisposableStore();
-
-	readonly allowEditorOverflow: boolean = true;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
