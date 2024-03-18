@@ -350,6 +350,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		const range = Range.lift(marker);
 		const editorPosition = this.editor.getPosition();
 		const position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
+		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 		super.show(position, this.computeRequiredHeight());
 
 		const model = this.editor.getModel();
@@ -361,7 +362,6 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		}
 		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
-		this.editor.revealPositionNearTop(position, ScrollType.Smooth);
 		this.editor.focus();
 	}
 
