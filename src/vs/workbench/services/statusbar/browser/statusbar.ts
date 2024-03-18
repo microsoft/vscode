@@ -182,6 +182,8 @@ export interface IStatusbarEntry {
 	 * The kind of status bar entry. This applies different colors to the entry.
 	 */
 	readonly kind?: StatusbarEntryKind;
+
+	readonly showInAllWindows?: boolean;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

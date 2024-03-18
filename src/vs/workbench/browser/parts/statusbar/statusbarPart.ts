@@ -675,6 +675,9 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 
 	readonly mainPart = this._register(this.instantiationService.createInstance(MainStatusbarPart));
 
+	private readonly _onDidCreateAuxiliaryStatusbarPart = this._register(new Emitter<IAuxiliaryStatusbarPart>());
+	private readonly onDidCreateAuxiliaryStatusbarPart = this._onDidCreateAuxiliaryStatusbarPart.event;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -703,6 +706,8 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 
 		Event.once(statusbarPart.onWillDispose)(() => disposable.dispose());
 
+		this._onDidCreateAuxiliaryStatusbarPart.fire(statusbarPart);
+
 		return statusbarPart;
 	}
 
@@ -717,7 +722,33 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 	readonly onDidChangeEntryVisibility = this.mainPart.onDidChangeEntryVisibility;
 
 	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+		if (entry.showInAllWindows) {
+			return this.doAddEntryToAllWindows(entry, id, alignment, priorityOrLocation);
+		}
+
 		return this.mainPart.addEntry(entry, id, alignment, priorityOrLocation);
+	}
+
+	private doAddEntryToAllWindows(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+		const disposables = new DisposableStore();
+
+		const accessors = new Set<IStatusbarEntryAccessor>();
+		for (const part of this.parts) {
+			accessors.add(disposables.add(part.addEntry(entry, id, alignment, priorityOrLocation)));
+		}
+
+		disposables.add(this.onDidCreateAuxiliaryStatusbarPart(part => {
+			accessors.add(disposables.add(part.addEntry(entry, id, alignment, priorityOrLocation)));
+		}));
+
+		return {
+			update: (entry: IStatusbarEntry) => {
+				for (const update of accessors) {
+					update.update(entry);
+				}
+			},
+			dispose: () => disposables.dispose()
+		};
 	}
 
 	isEntryVisible(id: string): boolean {
