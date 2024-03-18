@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { BugIndicatingError } from 'vs/base/common/errors';
@@ -255,9 +256,17 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	public readonly domNode: FastDomNode<HTMLElement>;
 	private readonly _linesCollection: RenderedLinesCollection<T>;
 
+	private readonly _canvas: HTMLCanvasElement;
+
 	constructor(host: IVisibleLinesHost<T>) {
 		this._host = host;
 		this.domNode = this._createDomNode();
+
+		this._canvas = document.createElement('canvas');
+		this._canvas.style.height = '100%';
+		this._canvas.style.width = '100%';
+		this.domNode.domNode.appendChild(this._canvas);
+
 		this._linesCollection = new RenderedLinesCollection<T>(() => this._host.createVisibleLine());
 	}
 
@@ -345,11 +354,18 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		return this._linesCollection.getLine(lineNumber);
 	}
 
-	public renderLines(viewportData: ViewportData): void {
-
+	public renderLines(viewportData: ViewportData, viewOverlays?: boolean): void {
 		const inp = this._linesCollection._get();
 
-		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._host, viewportData);
+		let renderer;
+		if (viewOverlays) {
+			renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._host, viewportData);
+		} else {
+			this._canvas.width = this.domNode.domNode.clientWidth;
+			this._canvas.height = this.domNode.domNode.clientHeight;
+			renderer = new CanvasViewLayerRenderer<T>(this._canvas, this._host, viewportData);
+		}
+
 
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inp.rendLineNumberStart,
@@ -617,5 +633,52 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				this._finishRenderingInvalidLines(ctx, sb.build(), wasInvalid);
 			}
 		}
+	}
+}
+
+
+class CanvasViewLayerRenderer<T extends IVisibleLine> {
+
+	readonly domNode: HTMLCanvasElement;
+	readonly host: IVisibleLinesHost<T>;
+	readonly viewportData: ViewportData;
+
+	private readonly _ctx: CanvasRenderingContext2D;
+
+	constructor(domNode: HTMLCanvasElement, host: IVisibleLinesHost<T>, viewportData: ViewportData) {
+		this.domNode = domNode;
+		this.host = host;
+		this.viewportData = viewportData;
+
+		this._ctx = this.domNode.getContext('2d')!;
+		this._ctx.fillStyle = '#fff';
+		const style = getActiveWindow().getComputedStyle(this.domNode);
+		this._ctx.font = `${style.fontSize} ${style.fontFamily}`;
+		this._ctx.textBaseline = 'top';
+	}
+
+	public render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
+
+		this._ctx.clearRect(0, 0, this.domNode.width, this.domNode.height);
+
+		const ctx: IRendererContext<T> = {
+			rendLineNumberStart: inContext.rendLineNumberStart,
+			lines: inContext.lines.slice(0),
+			linesLength: inContext.linesLength
+		};
+
+		let i = 0;
+		let scrollTop = parseInt(this.domNode.parentElement!.getAttribute('data-adjusted-scroll-top')!);
+		if (Number.isNaN(scrollTop)) {
+			scrollTop = 0;
+		}
+		for (let lineNumber = startLineNumber; lineNumber <= stopLineNumber; lineNumber++) {
+			const y = Math.round((-scrollTop + deltaTop[lineNumber - startLineNumber]) * getActiveWindow().devicePixelRatio);
+			// console.log(this.viewportData.getViewLineRenderingData(lineNumber).content, 0, y);
+			this._ctx.fillText(this.viewportData.getViewLineRenderingData(lineNumber).content, 0, y);
+			i++;
+		}
+
+		return ctx;
 	}
 }

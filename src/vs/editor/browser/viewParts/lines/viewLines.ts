@@ -605,8 +605,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		// (1) render lines - ensures lines are in the DOM
 		this._visibleLines.renderLines(viewportData);
 		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
-		this.domNode.setWidth(this._context.viewLayout.getScrollWidth());
-		this.domNode.setHeight(Math.min(this._context.viewLayout.getScrollHeight(), 1000000));
+		this.domNode.setWidth(this._context.viewLayout.getCurrentViewport().width);
+		this.domNode.setHeight(Math.min(this._context.viewLayout.getCurrentViewport().height, 1000000));
 
 		// (2) compute horizontal scroll position:
 		//  - this must happen after the lines are in the DOM since it might need a line that rendered just now
@@ -663,8 +663,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._linesContent.setLayerHinting(this._canUseLayerHinting);
 		this._linesContent.setContain('strict');
 		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
-		this._linesContent.setTop(-adjustedScrollTop);
-		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
+		this.domNode.domNode.setAttribute('data-adjusted-scroll-top', adjustedScrollTop.toString());
+		// this._linesContent.setTop(-adjustedScrollTop);
+		// this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
 	}
 
 	// --- width
