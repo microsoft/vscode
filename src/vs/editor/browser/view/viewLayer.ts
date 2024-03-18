@@ -257,6 +257,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	private readonly _linesCollection: RenderedLinesCollection<T>;
 
 	private readonly _canvas: HTMLCanvasElement;
+	private readonly _textureAtlasCanvas: HTMLCanvasElement;
 
 	constructor(host: IVisibleLinesHost<T>) {
 		this._host = host;
@@ -266,6 +267,15 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		this._canvas.style.height = '100%';
 		this._canvas.style.width = '100%';
 		this.domNode.domNode.appendChild(this._canvas);
+
+		const textureAtlasCanvas = this._textureAtlasCanvas = document.createElement('canvas');
+		const textureAtlasCtx = textureAtlasCanvas.getContext('2d')!;
+		const style = getActiveWindow().getComputedStyle(this.domNode.domNode);
+		textureAtlasCtx.fillStyle = '#fff';
+		textureAtlasCtx.font = `${style.fontSize} ${style.fontFamily}`;
+		textureAtlasCtx.textBaseline = 'top';
+		textureAtlasCtx.fillText(' ', 0, 0);
+		textureAtlasCtx.fillText('x', 50, 0);
 
 		this._linesCollection = new RenderedLinesCollection<T>(() => this._host.createVisibleLine());
 	}
@@ -363,7 +373,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		} else {
 			this._canvas.width = this.domNode.domNode.clientWidth;
 			this._canvas.height = this.domNode.domNode.clientHeight;
-			renderer = new CanvasViewLayerRenderer<T>(this._canvas, this._host, viewportData);
+			renderer = new CanvasViewLayerRenderer<T>(this._canvas, this._host, viewportData, this._textureAtlasCanvas);
 		}
 
 
@@ -636,6 +646,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 }
 
+const useWebgpu = true;
 
 class CanvasViewLayerRenderer<T extends IVisibleLine> {
 
@@ -645,38 +656,44 @@ class CanvasViewLayerRenderer<T extends IVisibleLine> {
 
 	private readonly _ctx: CanvasRenderingContext2D;
 
-	constructor(domNode: HTMLCanvasElement, host: IVisibleLinesHost<T>, viewportData: ViewportData) {
+	constructor(domNode: HTMLCanvasElement, host: IVisibleLinesHost<T>, viewportData: ViewportData, private readonly _textureAtlasCanvas: HTMLCanvasElement) {
 		this.domNode = domNode;
 		this.host = host;
 		this.viewportData = viewportData;
 
 		this._ctx = this.domNode.getContext('2d')!;
-		this._ctx.fillStyle = '#fff';
-		const style = getActiveWindow().getComputedStyle(this.domNode);
-		this._ctx.font = `${style.fontSize} ${style.fontFamily}`;
-		this._ctx.textBaseline = 'top';
+		// const style = getActiveWindow().getComputedStyle(this.domNode);
+		// this._ctx.font = `${style.fontSize} ${style.fontFamily}`;
+		// this._ctx.textBaseline = 'top';
 	}
 
 	public render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
-
-		this._ctx.clearRect(0, 0, this.domNode.width, this.domNode.height);
-
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inContext.rendLineNumberStart,
 			lines: inContext.lines.slice(0),
 			linesLength: inContext.linesLength
 		};
+		if (useWebgpu) {
+		} else {
+			this._ctx.clearRect(0, 0, this.domNode.width, this.domNode.height);
 
-		let i = 0;
-		let scrollTop = parseInt(this.domNode.parentElement!.getAttribute('data-adjusted-scroll-top')!);
-		if (Number.isNaN(scrollTop)) {
-			scrollTop = 0;
-		}
-		for (let lineNumber = startLineNumber; lineNumber <= stopLineNumber; lineNumber++) {
-			const y = Math.round((-scrollTop + deltaTop[lineNumber - startLineNumber]) * getActiveWindow().devicePixelRatio);
-			// console.log(this.viewportData.getViewLineRenderingData(lineNumber).content, 0, y);
-			this._ctx.fillText(this.viewportData.getViewLineRenderingData(lineNumber).content, 0, y);
-			i++;
+			let i = 0;
+			let scrollTop = parseInt(this.domNode.parentElement!.getAttribute('data-adjusted-scroll-top')!);
+			if (Number.isNaN(scrollTop)) {
+				scrollTop = 0;
+			}
+			for (let lineNumber = startLineNumber; lineNumber <= stopLineNumber; lineNumber++) {
+				const y = Math.round((-scrollTop + deltaTop[lineNumber - startLineNumber]));
+				// console.log(this.viewportData.getViewLineRenderingData(lineNumber).content, 0, y);
+				const content = this.viewportData.getViewLineRenderingData(lineNumber).content;
+				for (let x = 0; x < content.length; x++) {
+					if (content.charAt(x) === ' ') {
+						continue;
+					}
+					this._ctx.drawImage(this._textureAtlasCanvas, 50, 0, 7, this.viewportData.lineHeight, x * 7, y + 2/* offset x char */, 7, this.viewportData.lineHeight);
+				}
+				i++;
+			}
 		}
 
 		return ctx;
