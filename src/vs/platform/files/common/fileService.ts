@@ -353,16 +353,44 @@ export class FileService extends Disposable implements IFileService {
 
 	async createFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
-		// validate
-		await this.doValidateCreateFile(resource, options);
+		const resources = this.handleCurlyBrackets(resource);
+		const filesStats = [];
+		for (const cleanResource of resources) {
+			// validateReadFileLimits
+			await this.doValidateCreateFile(cleanResource, options);
 
-		// do write into file (this will create it too)
-		const fileStat = await this.writeFile(resource, bufferOrReadableOrStream);
+			// do write into file (this will create it too)
+			const fileStat = await this.writeFile(cleanResource, bufferOrReadableOrStream);
+			filesStats.push(fileStat);
 
-		// events
-		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+			// events
+			this._onDidRunOperation.fire(new FileOperationEvent(cleanResource, FileOperation.CREATE, fileStat));
+		}
 
-		return fileStat;
+		return filesStats[0];
+	}
+
+	private handleCurlyBrackets(resource: URI): URI[] {
+		if (!resource.path.match('{') || !resource.path.match('}')) {
+			return [resource];
+		}
+		const patterns = resource.path.match(/\{(,?[^,}]*)*\}/g);
+		if (patterns === null) {
+			return [resource];
+		}
+		let filePaths = [resource.path];
+		for (const pattern of patterns) {
+			const filePathsWithFragmentReplaced = [];
+			const fragments = pattern.slice(1, pattern.length - 1)?.split(',');
+			for (const filePath of filePaths) {
+				for (const fragment of fragments) {
+					filePathsWithFragmentReplaced.push(filePath.replace(pattern, fragment));
+				}
+			}
+			filePaths = filePathsWithFragmentReplaced;
+		}
+
+		return filePaths.map(filePath => URI.parse(filePath));
 	}
 
 	async writeFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
