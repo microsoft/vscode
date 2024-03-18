@@ -51,7 +51,7 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 		}));
 
 		this._register(editor.onDidChangeConfiguration(e => {
-			if (this.options && !e.hasChanged(EditorOption.layoutInfo)) {
+			if (this.options && !e.hasChanged(EditorOption.minimap)) {
 				return;
 			}
 
