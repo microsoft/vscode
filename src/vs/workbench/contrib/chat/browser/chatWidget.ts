@@ -277,6 +277,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void {
+		if (!isResponseVM(item)) {
+			return;
+		}
 		const items = this.viewModel?.getItems();
 		if (!items) {
 			return;
