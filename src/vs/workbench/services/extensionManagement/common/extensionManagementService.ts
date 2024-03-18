@@ -29,7 +29,7 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isString, isUndefined } from 'vs/base/common/types';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -792,8 +792,11 @@ class WorkspaceExtensionsManagementService extends Disposable {
 	) {
 		super();
 
-		this._register(this.fileService.onDidFilesChange(e => {
-			const changedInvalidExtensions = this.extensions.filter(extension => !extension.isValid && e.affects(extension.location));
+		this._register(Event.debounce<FileChangesEvent, FileChangesEvent[]>(this.fileService.onDidFilesChange, (last, e) => {
+			(last = last ?? []).push(e);
+			return last;
+		}, 1000)(events => {
+			const changedInvalidExtensions = this.extensions.filter(extension => !extension.isValid && events.some(e => e.affects(extension.location)));
 			if (changedInvalidExtensions.length) {
 				this.checkExtensionsValidity(changedInvalidExtensions);
 			}
