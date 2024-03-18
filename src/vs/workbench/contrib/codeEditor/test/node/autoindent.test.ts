@@ -271,6 +271,34 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		assert.deepEqual(editOperations.length, 0);
 	});
 
+	test('Issue #116843', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/116843
+		// explanation: When you have an arrow function, you don't have { or }, but you would expect indentation to still be done in that way
+
+		const fileContents = [
+			'const add1 = (n) =>',
+			'	n + 1;',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepEqual(editOperations.length, 0);
+	});
+
+	test('Issue #185252', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/185252
+		// explanation: Reindenting the comment correctly
+
+		const fileContents = [
+			'/*',
+			' * This is a comment.',
+			' * /',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepEqual(editOperations.length, 0);
+	});
 });
 
 function getIRange(range: IRange): IRange {

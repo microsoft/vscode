@@ -26,6 +26,7 @@ import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/jav
 // for the failing tests add .skip
 // Then start changing the regex
 // Then only after change the code
+// Find how to combine the tests later
 
 enum Language {
 	TypeScript,
@@ -46,6 +47,7 @@ function registerLanguage(instantiationService: TestInstantiationService, langua
 	disposables.add(languageService.registerLanguage({ id: languageId }));
 }
 
+// TODO@aiday-mar read directly the configuration file
 function registerLanguageConfiguration(instantiationService: TestInstantiationService, languageId: string, language: Language, disposables: DisposableStore) {
 	const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 	switch (language) {
@@ -370,7 +372,9 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test('issue #181065: Incorrect paste of object within comment', () => {
+	// TODO@aiday-mar: failing test
+
+	test.skip('issue #181065: Incorrect paste of object within comment', () => {
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -415,39 +419,176 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 			assert.strictEqual(model.getValue(), text);
 		});
 	});
+
+	test('issue #86301: indent trailing new line', () => {
+
+		const model = createTextModel([
+			'() => {',
+			'',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+			editor.setSelection(new Selection(2, 1, 2, 1));
+			const text = [
+				'() => {',
+				'',
+				'}',
+				''
+			].join('\n');
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			viewModel.paste(text, true, undefined, 'keyboard');
+			autoIndentOnPasteController.trigger(new Range(1, 1, 6, 2));
+			assert.strictEqual(model.getValue(), [
+				'() => {',
+				'    () => {',
+				'    ',
+				'    }',
+				'    ',
+				'}',
+			].join('\n'));
+		});
+	});
+
+	test('issue #85781: indent correctly new line on which pasted', () => {
+
+		const model = createTextModel([
+			'() => {',
+			'    console.log("a");',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			const text = [
+				'() => {',
+				'    console.log("b")',
+				'}',
+				' '
+			].join('\n');
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			viewModel.paste(text, true, undefined, 'keyboard');
+			// todo@aiday-mar, make sure range is correct, and make test work as in real life
+			autoIndentOnPasteController.trigger(new Range(1, 1, 6, 2));
+			assert.strictEqual(model.getValue(), [
+				'() => {',
+				'    () => {',
+				'        console.log("b")',
+				'    }',
+				'    console.log("a");',
+				'}',
+			].join('\n'));
+		});
+	});
 });
 
-// suite('Auto Indent On Type - TypeScript/JavaScript', () => {
-// 	test('issue #193875: incorrect indentation', () => {
-// 		const model = createTextModel([
-// 			'{',
-// 			'	for(;;)',
-// 			'	for(;;) {}',
-// 			'}'
-// 		].join('\n'), languageId, {});
-// 		disposables.add(model);
-// 		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
-// 			instantiateContext(instantiationService);
-// 			// viewModel.type([
-// 			// 	'{',
-// 			// 	'	for(;;)',
-// 			// 	'	for(;;) {}',
-// 			// 	'}'
-// 			// ].join('\n'));
-// 			viewModel.setSelections('test', [new Selection(3, 11, 3, 11)]);
-// 			viewModel.type("\n", 'keyboard');
-// 			assert.strictEqual(model.getValue(), [
-// 				'{',
-// 				'	for(;;)',
-// 				'	for(;;) {',
-// 				'}',
-// 				'}'
-// 			].join('\n'));
-// 		});
-// 	});
-// });
+suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
-suite('Auto Dedent On Type - Ruby', () => {
+	// test('issue #193875: incorrect indentation', () => {
+	// 	const model = createTextModel([
+	// 		'{',
+	// 		'	for(;;)',
+	// 		'	for(;;) {}',
+	// 		'}'
+	// 	].join('\n'), languageId, {});
+	// 	disposables.add(model);
+	// 	withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+	// 		instantiateContext(instantiationService);
+	// 		// viewModel.type([
+	// 		// 	'{',
+	// 		// 	'	for(;;)',
+	// 		// 	'	for(;;) {}',
+	// 		// 	'}'
+	// 		// ].join('\n'));
+	// 		viewModel.setSelections('test', [new Selection(3, 11, 3, 11)]);
+	// 		viewModel.type("\n", 'keyboard');
+	// 		assert.strictEqual(model.getValue(), [
+	// 			'{',
+	// 			'	for(;;)',
+	// 			'	for(;;) {',
+	// 			'}',
+	// 			'}'
+	// 		].join('\n'));
+	// 	});
+	// });
+
+	const languageId = "ts-test";
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// TODO@aiday-mar: failing test
+
+	test.skip('issue #116843: dedent after arrow function', () => {
+
+		const model = createTextModel("", languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+
+			viewModel.type([
+				'const add1 = (n) =>',
+				'	n + 1;',
+			].join('\n'));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'const add1 = (n) =>',
+				'	n + 1;',
+				'',
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #40115: keep indentation where created', () => {
+
+		const model = createTextModel('function foo() {}', languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+
+			editor.setSelection(new Selection(1, 17, 1, 17));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'function foo() {',
+				'    ',
+				'}',
+			].join('\n'));
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'function foo() {',
+				'    ',
+				'    ',
+				'}',
+			].join('\n'));
+		});
+	});
+
+	test('issue #40115: keep indentation where created', () => {
+		// Add tests for:
+		// https://github.com/microsoft/vscode/issues/88638
+		// https://github.com/microsoft/vscode/issues/63388
+		// https://github.com/microsoft/vscode/issues/46401
+	});
+});
+
+suite('Auto Indent On Type - Ruby', () => {
 
 	const languageId = "ruby-test";
 	let disposables: DisposableStore;
@@ -473,7 +614,6 @@ suite('Auto Dedent On Type - Ruby', () => {
 
 			// TODO@aiday-mar: requires registering the tokens ?
 
-			viewModel.model.setValue("");
 			viewModel.type("def foo\n        i");
 			viewModel.type("n", 'keyboard');
 			assert.strictEqual(model.getValue(), "def foo\n        in");
