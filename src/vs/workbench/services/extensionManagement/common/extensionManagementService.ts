@@ -791,6 +791,14 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+
+		this._register(this.fileService.onDidFilesChange(e => {
+			const changedInvalidExtensions = this.extensions.filter(extension => !extension.isValid && e.affects(extension.location));
+			if (changedInvalidExtensions.length) {
+				this.checkExtensionsValidity(changedInvalidExtensions);
+			}
+		}));
+
 		this.initializePromise = this.initialize();
 	}
 
@@ -822,19 +830,12 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		}));
 
 		this.saveWorkspaceExtensions();
-
-		this._register(this.fileService.onDidFilesChange(e => {
-			const changedInvalidExtensions = this.extensions.filter(extension => !extension.isValid && e.affects(extension.location));
-			if (changedInvalidExtensions.length) {
-				this.checkExtensionsValidity(changedInvalidExtensions);
-			}
-		}));
 	}
 
 	private watchInvalidExtensions(): void {
 		this.invalidExtensionWatchers.clear();
 		for (const extension of this.extensions) {
-			if (extension.isValid) {
+			if (!extension.isValid) {
 				this.invalidExtensionWatchers.add(this.fileService.watch(extension.location));
 			}
 		}
@@ -878,7 +879,9 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		}
 
 		const existingExtensionIndex = this.extensions.findIndex(e => areSameExtensions(e.identifier, extension.identifier));
-		if (existingExtensionIndex !== -1) {
+		if (existingExtensionIndex === -1) {
+			this.extensions.push(workspaceExtension);
+		} else {
 			this.extensions.splice(existingExtensionIndex, 1, workspaceExtension);
 		}
 
