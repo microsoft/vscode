@@ -714,7 +714,13 @@ export class InlineChatController implements IEditorContribution {
 			// update hunks after a reply response
 			await this._session.hunkData.recompute();
 
-			this._session.chatModel.acceptResponseProgress(chatRequest, { kind: 'markdownContent', content: new MarkdownString(localize('changes', "Made {0} changes", this._session.hunkData.pending)) });
+			if (this._session.hunkData.pending === 1) {
+				this._session.chatModel.acceptResponseProgress(chatRequest, { kind: 'markdownContent', content: new MarkdownString(localize('changes.0', "\nMade 1 change.", this._session.hunkData.pending)) });
+
+			} else if (this._session.hunkData.pending > 1) {
+				this._session.chatModel.acceptResponseProgress(chatRequest, { kind: 'markdownContent', content: new MarkdownString(localize('changes.n', "\nMade {0} changes.", this._session.hunkData.pending)) });
+			}
+
 			this._session.chatModel.setResponse(chatRequest, { metadata: { inlineChatResponse: reply } });
 			this._session.chatModel.completeResponse(chatRequest);
 
