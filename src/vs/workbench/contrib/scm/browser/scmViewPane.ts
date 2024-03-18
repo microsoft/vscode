@@ -372,6 +372,9 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 			}
 		}));
 
+		// Reset widget height so it's recalculated
+		templateData.inputWidgetHeight = InputRenderer.DEFAULT_HEIGHT;
+
 		// Rerender the element whenever the editor content height changes
 		const onDidChangeContentHeight = () => {
 			const contentHeight = templateData.inputWidget.getContentHeight();
