@@ -850,8 +850,14 @@ export interface IStyleController {
 	style(styles: IListStyles): void;
 }
 
+export interface AriaLableChangedEvent<T> {
+	element: T;
+	label: string;
+}
+
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
-	getAriaLabel(element: T, updateCallback?: (label: string) => void, disposables?: DisposableStore): string | null;
+	getAriaLabel(element: T, disposables?: DisposableStore): string | null;
+	onDidAriaLabelChange?: Event<AriaLableChangedEvent<T>>;
 	getWidgetAriaLabel(): string;
 	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
@@ -1268,9 +1274,17 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 	}
 
 	renderElement(element: T, index: number, data: ITraitTemplateData): void {
-		const ariaLabel = this.accessibilityProvider.getAriaLabel(element, (label) => this.setAriaLabel(label, data.container), data.disposables);
+		const ariaLabel = this.accessibilityProvider.getAriaLabel(element, data.disposables);
 
 		this.setAriaLabel(ariaLabel, data.container);
+
+		if (this.accessibilityProvider.onDidAriaLabelChange) {
+			data.disposables?.add(this.accessibilityProvider.onDidAriaLabelChange((e) => {
+				if (e.element === element) {
+					this.setAriaLabel(e.label, data.container);
+				}
+			}));
+		}
 
 		const ariaLevel = this.accessibilityProvider.getAriaLevel && this.accessibilityProvider.getAriaLevel(element);
 

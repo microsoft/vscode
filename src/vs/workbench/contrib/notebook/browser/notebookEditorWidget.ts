@@ -74,7 +74,7 @@ import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser
 import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookOverviewRuler';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, INotebookSearchOptions, NotebookCellExecutionState, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUPTUT_INPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -100,9 +100,9 @@ import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/brows
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { NotebookAccessibilityProvider } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityProvider';
 
 const $ = DOM.$;
 
@@ -896,16 +896,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate, DOM.getWindow(this.getDomNode()));
 		this._register(this._listDelegate);
 
-		const createNotebookAriaLabel = () => {
-			const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
-
-			if (this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook)) {
-				return keybinding
-					? nls.localize('notebookTreeAriaLabelHelp', "Notebook\nUse {0} for accessibility help", keybinding)
-					: nls.localize('notebookTreeAriaLabelHelpNoKb', "Notebook\nRun the Open Accessibility Help command for more information", keybinding);
-			}
-			return nls.localize('notebookTreeAriaLabel', "Notebook");
-		};
+		const accessibilityProvider = new NotebookAccessibilityProvider(this.notebookExecutionStateService, () => this.viewModel, this.keybindingService, this.configurationService);
 
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,
@@ -947,38 +938,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					listInactiveFocusBackground: notebookEditorBackground,
 					listInactiveFocusOutline: notebookEditorBackground,
 				},
-				accessibilityProvider: {
-					getAriaLabel: (element: CellViewModel, updateCallback: (label: string) => void, disposables: DisposableStore) => {
-						const getLabel = (index: number, cellKind: CellKind) => {
-							const executionState = this.notebookExecutionStateService.getCellExecution(element.uri)?.state;
-							const executionLabel =
-								executionState === NotebookCellExecutionState.Executing
-									? ', executing'
-									: executionState === NotebookCellExecutionState.Pending
-										? ', pending'
-										: '';
-							return `Cell ${index}, ${element.cellKind === CellKind.Markup ? 'markdown' : 'code'} cell${executionLabel}`;
-						};
-
-						if (!this.viewModel) {
-							return '';
-						}
-						const index = this.viewModel.getCellIndex(element);
-
-						disposables.add(this.notebookExecutionStateService.onDidChangeExecution(e => {
-							if ('affectsCell' in e && e.affectsCell(element.uri)) {
-								updateCallback(getLabel(index, element.cellKind));
-							}
-						}));
-
-						if (index >= 0) {
-							return getLabel(index, element.cellKind);
-						}
-
-						return '';
-					},
-					getWidgetAriaLabel: createNotebookAriaLabel
-				},
+				accessibilityProvider
 			},
 		);
 		this._dndController.setList(this._list);
@@ -1062,7 +1022,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Notebook)) {
-				this._list.ariaLabel = createNotebookAriaLabel();
+				this._list.ariaLabel = accessibilityProvider?.getWidgetAriaLabel();
 			}
 		}));
 	}
