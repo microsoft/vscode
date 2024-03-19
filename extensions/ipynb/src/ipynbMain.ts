@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { NotebookSerializer } from './notebookSerializer';
-import { ensureAllNewCellsHaveCellIds } from './cellIdService';
+import { activate as keepNotebookModelStoreInSync } from './notebookModelStoreSync';
 import { notebookImagePasteSetup } from './notebookImagePaste';
 import { AttachmentCleaner } from './notebookAttachmentCleaner';
 
@@ -30,7 +30,7 @@ type NotebookMetadata = {
 
 export function activate(context: vscode.ExtensionContext) {
 	const serializer = new NotebookSerializer(context);
-	ensureAllNewCellsHaveCellIds(context);
+	keepNotebookModelStoreInSync(context);
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
 		transientOutputs: false,
 		transientCellMetadata: {

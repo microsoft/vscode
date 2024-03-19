@@ -169,7 +169,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private claimWebview(input: WebviewInput): void {
-		input.webview.claim(this, this.window, this.scopedContextKeyService);
+		input.claim(this, this.window, this.scopedContextKeyService);
 
 		if (this._element) {
 			this._element.setAttribute('aria-flowto', input.webview.container.id);

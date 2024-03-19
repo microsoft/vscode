@@ -289,6 +289,20 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Indicates if this editor can be moved to another window. By default
+	 * editors can freely be moved around windows. If an editor cannot be
+	 * moved, a message should be returned to show to the user.
+	 *
+	 * @param targetWindowId the target window to move the editor to.
+	 * @returns `true` if the editor can be moved to the target window, or
+	 * a string with a message to show to the user if the editor cannot be
+	 * moved.
+	 */
+	canMove(targetWindowId: number): true | string {
+		return true;
+	}
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

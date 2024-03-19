@@ -183,6 +183,7 @@ export class MenuId {
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
+	static readonly NotebookOutlineFilter = new MenuId('NotebookOutlineFilter');
 	static readonly NotebookOutlineActionMenu = new MenuId('NotebookOutlineActionMenu');
 	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
 	static readonly NotebookKernelSource = new MenuId('NotebookKernelSource');

@@ -29,7 +29,7 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isString, isUndefined } from 'vs/base/common/types';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -62,7 +62,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	protected readonly servers: IExtensionManagementServer[] = [];
 
-	private readonly workspaceExtensionManagementService: WorkspaceExtensionsManagementService;
+	private readonly workspaceExtensionManagementService?: WorkspaceExtensionsManagementService;
 
 	constructor(
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -83,8 +83,12 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	) {
 		super();
 
-		this.workspaceExtensionManagementService = this._register(this.instantiationService.createInstance(WorkspaceExtensionsManagementService));
-		this.onDidEnableExtensions = this.workspaceExtensionManagementService.onDidChangeInvalidExtensions;
+		if (this.productService.quality !== 'stable' && this.configurationService.getValue('extensions.experimental.supportWorkspaceExtensions') === true) {
+			this.workspaceExtensionManagementService = this._register(this.instantiationService.createInstance(WorkspaceExtensionsManagementService));
+			this.onDidEnableExtensions = this.workspaceExtensionManagementService.onDidChangeInvalidExtensions;
+		} else {
+			this.onDidEnableExtensions = Event.None;
+		}
 
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
 			this.servers.push(this.extensionManagementServerService.localExtensionManagementServer);
@@ -126,6 +130,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			this._register(onDidUpdateExtensionMetadaEventMultiplexer.add(server.extensionManagementService.onDidUpdateExtensionMetadata));
 			this._register(onDidChangeProfileEventMultiplexer.add(Event.map(server.extensionManagementService.onDidChangeProfile, e => ({ ...e, server }))));
 		}
+	}
+
+	isWorkspaceExtensionsSupported(): boolean {
+		return !!this.workspaceExtensionManagementService;
 	}
 
 	async getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {
@@ -405,10 +413,13 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	async getExtensions(locations: URI[]): Promise<IResourceExtension[]> {
+		if (!this.workspaceExtensionManagementService) {
+			return [];
+		}
 		const scannedExtensions = await this.extensionsScannerService.scanMultipleExtensions(locations, ExtensionType.User, { includeInvalid: true });
 		const result: IResourceExtension[] = [];
 		await Promise.all(scannedExtensions.map(async scannedExtension => {
-			const workspaceExtension = await this.workspaceExtensionManagementService.toLocalWorkspaceExtension(scannedExtension);
+			const workspaceExtension = await this.workspaceExtensionManagementService?.toLocalWorkspaceExtension(scannedExtension);
 			if (workspaceExtension) {
 				result.push({
 					identifier: workspaceExtension.identifier,
@@ -422,13 +433,17 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return result;
 	}
 
-	getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]> {
-		return this.workspaceExtensionManagementService.getInstalled(includeInvalid);
+	async getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]> {
+		return this.workspaceExtensionManagementService?.getInstalled(includeInvalid) ?? [];
 	}
 
 	async installResourceExtension(extension: IResourceExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
 		if (!installOptions.isWorkspaceScoped) {
 			return this.installFromLocation(extension.location);
+		}
+
+		if (!this.workspaceExtensionManagementService) {
+			throw new Error('Workspace Extensions are not supported');
 		}
 
 		this.logService.info(`Installing the extension ${extension.identifier.id} from ${extension.location.toString()} in workspace`);
@@ -478,6 +493,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			throw new Error('The extension is not a workspace extension');
 		}
 
+		if (!this.workspaceExtensionManagementService) {
+			throw new Error('Workspace Extensions are not supported');
+		}
+
 		this.logService.info(`Uninstalling the workspace extension ${extension.identifier.id} from ${extension.location.toString()}`);
 		const server = this.getWorkspaceExtensionsServer();
 		this._onUninstallExtension.fire({
@@ -488,7 +507,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		});
 
 		try {
-			this.workspaceExtensionManagementService.uninstall(extension);
+			await this.workspaceExtensionManagementService.uninstall(extension);
 			this.logService.info(`Successfully uninstalled the workspace extension ${extension.identifier.id} from ${extension.location.toString()}`);
 			this.telemetryService.publicLog2<{}, {
 				owner: 'sandy081';
@@ -791,6 +810,17 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+
+		this._register(Event.debounce<FileChangesEvent, FileChangesEvent[]>(this.fileService.onDidFilesChange, (last, e) => {
+			(last = last ?? []).push(e);
+			return last;
+		}, 1000)(events => {
+			const changedInvalidExtensions = this.extensions.filter(extension => !extension.isValid && events.some(e => e.affects(extension.location)));
+			if (changedInvalidExtensions.length) {
+				this.checkExtensionsValidity(changedInvalidExtensions);
+			}
+		}));
+
 		this.initializePromise = this.initialize();
 	}
 
@@ -822,19 +852,12 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		}));
 
 		this.saveWorkspaceExtensions();
-
-		this._register(this.fileService.onDidFilesChange(e => {
-			const changedInvalidExtensions = this.extensions.filter(extension => !extension.isValid && e.affects(extension.location));
-			if (changedInvalidExtensions.length) {
-				this.checkExtensionsValidity(changedInvalidExtensions);
-			}
-		}));
 	}
 
 	private watchInvalidExtensions(): void {
 		this.invalidExtensionWatchers.clear();
 		for (const extension of this.extensions) {
-			if (extension.isValid) {
+			if (!extension.isValid) {
 				this.invalidExtensionWatchers.add(this.fileService.watch(extension.location));
 			}
 		}
@@ -878,7 +901,9 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		}
 
 		const existingExtensionIndex = this.extensions.findIndex(e => areSameExtensions(e.identifier, extension.identifier));
-		if (existingExtensionIndex !== -1) {
+		if (existingExtensionIndex === -1) {
+			this.extensions.push(workspaceExtension);
+		} else {
 			this.extensions.splice(existingExtensionIndex, 1, workspaceExtension);
 		}
 

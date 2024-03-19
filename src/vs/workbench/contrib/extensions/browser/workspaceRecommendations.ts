@@ -55,13 +55,15 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 			this._register(this.fileService.watch(this.uriIdentityService.extUri.joinPath(folder.uri, WORKSPACE_EXTENSIONS_FOLDER)));
 		}
 
-		this._register(this.fileService.onDidFilesChange(e => {
-			if (this.contextService.getWorkspace().folders.some(folder =>
-				e.affects(this.uriIdentityService.extUri.joinPath(folder.uri, WORKSPACE_EXTENSIONS_FOLDER), FileChangeType.ADDED, FileChangeType.DELETED))
-			) {
-				this.onDidChangeWorkspaceExtensionsScheduler.schedule();
-			}
-		}));
+		if (this.workbenchExtensionManagementService.isWorkspaceExtensionsSupported()) {
+			this._register(this.fileService.onDidFilesChange(e => {
+				if (this.contextService.getWorkspace().folders.some(folder =>
+					e.affects(this.uriIdentityService.extUri.joinPath(folder.uri, WORKSPACE_EXTENSIONS_FOLDER), FileChangeType.ADDED, FileChangeType.DELETED))
+				) {
+					this.onDidChangeWorkspaceExtensionsScheduler.schedule();
+				}
+			}));
+		}
 	}
 
 	private async onDidChangeWorkspaceExtensionsFolders(): Promise<void> {
@@ -73,6 +75,9 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	}
 
 	private async fetchWorkspaceExtensions(): Promise<URI[]> {
+		if (!this.workbenchExtensionManagementService.isWorkspaceExtensionsSupported()) {
+			return [];
+		}
 		const workspaceExtensions: URI[] = [];
 		for (const workspaceFolder of this.contextService.getWorkspace().folders) {
 			const extensionsLocaiton = this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_EXTENSIONS_FOLDER);

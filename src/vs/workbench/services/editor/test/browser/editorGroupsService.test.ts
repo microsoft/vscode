@@ -1573,6 +1573,25 @@ suite('EditorGroupsService', () => {
 		rightGroupListener.dispose();
 	});
 
+	test('moveEditor disabled', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = createTestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+		const thirdInput = createTestFileEditorInput(URI.file('foo/bar/third'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }, { editor: thirdInput }]);
+
+		input.setMoveDisabled('disabled');
+		group.moveEditor(input, rightGroup);
+
+		assert.strictEqual(group.count, 3);
+	});
+
 	test('onWillOpenEditor', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;
