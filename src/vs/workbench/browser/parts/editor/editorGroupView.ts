@@ -42,7 +42,7 @@ import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -156,7 +156,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(themeService);
 
@@ -1246,7 +1247,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region moveEditor()
 
-	moveEditors(editors: { editor: EditorInput; options?: IEditorOptions }[], target: EditorGroupView): void {
+	moveEditors(editors: { editor: EditorInput; options?: IEditorOptions }[], target: EditorGroupView): boolean {
 
 		// Optimization: knowing that we move many editors, we
 		// delay the title update to a later point for this group
@@ -1257,29 +1258,38 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			skipTitleUpdate: this !== target
 		};
 
+		let moveFailed = false;
+
+		const movedEditors = new Set<EditorInput>();
 		for (const { editor, options } of editors) {
-			this.moveEditor(editor, target, options, internalOptions);
+			if (this.moveEditor(editor, target, options, internalOptions)) {
+				movedEditors.add(editor);
+			} else {
+				moveFailed = true;
+			}
 		}
 
 		// Update the title control all at once with all editors
 		// in source and target if the title update was skipped
 		if (internalOptions.skipTitleUpdate) {
-			const movedEditors = editors.map(({ editor }) => editor);
-			target.titleControl.openEditors(movedEditors);
-			this.titleControl.closeEditors(movedEditors);
+			target.titleControl.openEditors(Array.from(movedEditors));
+			this.titleControl.closeEditors(Array.from(movedEditors));
 		}
+
+		return !moveFailed;
 	}
 
-	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalMoveCopyOptions): void {
+	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalMoveCopyOptions): boolean {
 
 		// Move within same group
 		if (this === target) {
 			this.doMoveEditorInsideGroup(editor, options);
+			return true;
 		}
 
 		// Move across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: false });
+			return this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: false });
 		}
 	}
 
@@ -1320,8 +1330,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): void {
+	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): boolean {
 		const keepCopy = internalOptions?.keepCopy;
+
+		// Validate that we can move
+		if (!keepCopy || editor.hasCapability(EditorInputCapabilities.Singleton) /* singleton editors will always move */) {
+			const canMoveVeto = editor.canMove(this.id, target.id);
+			if (typeof canMoveVeto === 'string') {
+				this.dialogService.error(canMoveVeto, localize('moveErrorDetails', "Try saving or reverting the editor first and then try again."));
+
+				return false;
+			}
+		}
 
 		// When moving/copying an editor, try to preserve as much view state as possible
 		// by checking for the editor to be a text editor and creating the options accordingly
@@ -1348,6 +1368,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!keepCopy) {
 			this.doCloseEditor(editor, true /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
 		}
+
+		return true;
 	}
 
 	//#endregion

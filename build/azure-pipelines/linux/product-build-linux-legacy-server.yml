@@ -171,7 +171,7 @@ steps:
       export VSCODE_NODE_GLIBC="-glibc-2.17"
       yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
-      ARCHIVE_PATH=".build/linux/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
+      ARCHIVE_PATH=".build/linux/server/legacy-vscode-server-linux-$(VSCODE_ARCH).tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)
       echo "##vso[task.setvariable variable=LEGACY_SERVER_PATH]$ARCHIVE_PATH"
@@ -184,7 +184,7 @@ steps:
       export VSCODE_NODE_GLIBC="-glibc-2.17"
       yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
-      ARCHIVE_PATH=".build/linux/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"
+      ARCHIVE_PATH=".build/linux/web/legacy-vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)-web
       echo "##vso[task.setvariable variable=LEGACY_WEB_PATH]$ARCHIVE_PATH"

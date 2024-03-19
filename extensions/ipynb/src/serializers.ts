@@ -5,7 +5,7 @@
 
 import type * as nbformat from '@jupyterlab/nbformat';
 import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellOutputMetadata } from './common';
+import { CellOutputMetadata, useCustomPropertyInMetadata, type CellMetadata } from './common';
 import { textMimeTypes } from './deserializers';
 
 const textDecoder = new TextDecoder();
@@ -54,28 +54,49 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 	return obj;
 }
 
-export function getCellMetadata(cell: NotebookCell | NotebookCellData) {
-	return {
-		// it contains the cell id, and the cell metadata, along with other nb cell metadata
-		...(cell.metadata?.custom ?? {}),
+export function getCellMetadata(cell: NotebookCell | NotebookCellData): CellMetadata {
+	if (useCustomPropertyInMetadata()) {
+		const metadata = {
+			// it contains the cell id, and the cell metadata, along with other nb cell metadata
+			...(cell.metadata?.custom ?? {})
+		};
+
 		// promote the cell attachments to the top level
-		attachments: cell.metadata?.custom?.attachments ?? cell.metadata?.attachments
+		const attachments = cell.metadata?.custom?.attachments ?? cell.metadata?.attachments;
+		if (attachments) {
+			metadata.attachments = attachments;
+		}
+		return metadata;
+	}
+	const metadata = {
+		// it contains the cell id, and the cell metadata, along with other nb cell metadata
+		...(cell.metadata ?? {})
 	};
+
+	return metadata;
+}
+
+export function getVSCodeCellLanguageId(metadata: CellMetadata): string | undefined {
+	return metadata.metadata?.vscode?.languageId;
+}
+export function setVSCodeCellLanguageId(metadata: CellMetadata, languageId: string) {
+	metadata.metadata = metadata.metadata || {};
+	metadata.metadata.vscode = { languageId };
+}
+export function removeVSCodeCellLanguageId(metadata: CellMetadata) {
+	if (metadata.metadata?.vscode) {
+		delete metadata.metadata.vscode;
+	}
 }
 
 function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguage: string | undefined): nbformat.ICodeCell {
-	const cellMetadata = getCellMetadata(cell);
-	let metadata = cellMetadata?.metadata || {}; // This cannot be empty.
+	const cellMetadata: CellMetadata = JSON.parse(JSON.stringify(getCellMetadata(cell)));
+	cellMetadata.metadata = cellMetadata.metadata || {}; // This cannot be empty.
 	if (cell.languageId !== preferredLanguage) {
-		metadata = {
-			...metadata,
-			vscode: {
-				languageId: cell.languageId
-			}
-		};
-	} else if (metadata.vscode) {
+		setVSCodeCellLanguageId(cellMetadata, cell.languageId);
+	} else {
 		// cell current language is the same as the preferred cell language in the document, flush the vscode custom language id metadata
-		delete metadata.vscode;
+		removeVSCodeCellLanguageId(cellMetadata);
 	}
 
 	const codeCell: any = {
@@ -83,7 +104,7 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguag
 		execution_count: cell.executionSummary?.executionOrder ?? null,
 		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
-		metadata: metadata
+		metadata: cellMetadata.metadata
 	};
 	if (cellMetadata?.id) {
 		codeCell.id = cellMetadata.id;

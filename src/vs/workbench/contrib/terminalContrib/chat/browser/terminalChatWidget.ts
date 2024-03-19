@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 const enum Constants {
 	HorizontalMargin = 10
@@ -51,7 +51,18 @@ export class TerminalChatWidget extends Disposable {
 			{
 				inputMenuId: MENU_TERMINAL_CHAT_INPUT,
 				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,
-				statusMenuId: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+				statusMenuId: {
+					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+					options: {
+						buttonConfigProvider: action => {
+							if (action.id === TerminalChatCommandId.ViewInChat || action.id === TerminalChatCommandId.RunCommand) {
+								return { isSecondary: false };
+							} else {
+								return { isSecondary: true };
+							}
+						}
+					}
+				},
 				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
 				telemetrySource: 'terminal-inline-chat'
 			}
@@ -69,6 +80,7 @@ export class TerminalChatWidget extends Disposable {
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
+		this.hide();
 	}
 
 	private _dimension?: Dimension;

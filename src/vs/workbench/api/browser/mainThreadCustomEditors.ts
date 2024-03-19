@@ -346,8 +346,6 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	// this seed.
 	readonly typeId = NO_TYPE_ID;
 
-	readonly isTextBased = false;
-
 	public static async create(
 		instantiationService: IInstantiationService,
 		proxy: extHostProtocol.ExtHostCustomEditorsShape,
@@ -665,6 +663,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			return true;
 		}
 	}
+
+	public get canHotExit() { return typeof this._backupId === 'string' && this._hotExitState.type === HotExitState.Type.Allowed; }
 
 	public async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const editors = this._getEditors();

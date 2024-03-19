@@ -218,7 +218,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			{
 				extensionId: p.extensionId,
 				id: p.name,
-				metadata: { description: p.description },
+				metadata: this._agents.has(p.name) ? this._agents.get(p.name)!.data.metadata : { description: p.description },
 				isDefault: p.isDefault,
 				defaultImplicitVariables: p.defaultImplicitVariables,
 				locations: isNonEmptyArray(p.locations) ? p.locations.map(ChatAgentLocation.fromRaw) : [ChatAgentLocation.Panel],

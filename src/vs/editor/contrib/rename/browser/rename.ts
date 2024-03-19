@@ -38,7 +38,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField, RenameInputFieldResult } from './renameInputField';
+import { CONTEXT_RENAME_INPUT_VISIBLE, NewNameSource, RenameInputField, RenameInputFieldResult } from './renameInputField';
 
 class RenameSkeleton {
 
@@ -251,6 +251,8 @@ class RenameController implements IEditorContribution {
 		if (newSymbolNamesProviders.length > 0) { // @ulugbekna: we're interested only in telemetry for rename suggestions currently
 			this._reportTelemetry(newSymbolNamesProviders.length, model.getLanguageId(), inputFieldResult);
 		}
+		// TODO@ulugbekna: remove before stable release
+		this._reportTelemetry(newSymbolNamesProviders.length, model.getLanguageId(), inputFieldResult, 'inDebugMode');
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
@@ -338,7 +340,7 @@ class RenameController implements IEditorContribution {
 		this._renameInputField.focusPreviousRenameSuggestion();
 	}
 
-	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameInputFieldResult) {
+	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameInputFieldResult, inDebugMode?: 'inDebugMode') {
 		type RenameInvokedEvent =
 			{
 				kind: 'accepted' | 'cancelled';
@@ -346,9 +348,11 @@ class RenameController implements IEditorContribution {
 				nRenameSuggestionProviders: number;
 
 				/** provided only if kind = 'accepted' */
-				source?: RenameInputFieldResult['source'];
+				source?: NewNameSource['k'];
 				/** provided only if kind = 'accepted' */
 				nRenameSuggestions?: number;
+				/** provided only if kind = 'accepted' */
+				timeBeforeFirstInputFieldEdit?: number;
 				/** provided only if kind = 'accepted' */
 				wantsPreview?: boolean;
 			};
@@ -363,6 +367,7 @@ class RenameController implements IEditorContribution {
 
 			source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the new name came from the input field or rename suggestions.' };
 			nRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename suggestions user has got'; isMeasurement: true };
+			timeBeforeFirstInputFieldEdit?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Milliseconds before user edits the input field for the first time'; isMeasurement: true };
 			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.'; isMeasurement: true };
 		};
 
@@ -377,12 +382,17 @@ class RenameController implements IEditorContribution {
 				languageId,
 				nRenameSuggestionProviders,
 
-				source: inputFieldResult.source,
-				nRenameSuggestions: inputFieldResult.nRenameSuggestions,
+				source: inputFieldResult.stats.source.k,
+				nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
+				timeBeforeFirstInputFieldEdit: inputFieldResult.stats.timeBeforeFirstInputFieldEdit,
 				wantsPreview: inputFieldResult.wantsPreview,
 			};
 
-		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);
+		if (inDebugMode) {
+			this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEventDebug', value);
+		} else {
+			this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);
+		}
 	}
 }
 

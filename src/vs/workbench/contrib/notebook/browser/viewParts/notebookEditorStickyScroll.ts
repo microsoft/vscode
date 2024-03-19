@@ -99,7 +99,6 @@ class StickyFoldingIcon {
 export class NotebookStickyScroll extends Disposable {
 	private readonly _disposables = new DisposableStore();
 	private currentStickyLines = new Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>();
-	private filteredOutlineEntries: OutlineEntry[] = [];
 
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
@@ -194,18 +193,16 @@ export class NotebookStickyScroll extends Disposable {
 				this.updateDisplay();
 			}
 		} else if (e.stickyScrollMode && this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight()));
 		}
 	}
 
 	private init() {
 		this.notebookOutline.init();
-		this.filteredOutlineEntries = this.notebookOutline.entries.filter(entry => entry.level !== 7);
-		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
+		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight()));
 
 		this._disposables.add(this.notebookOutline.onDidChange(() => {
-			this.filteredOutlineEntries = this.notebookOutline.entries.filter(entry => entry.level !== 7);
-			const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight());
+			const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight());
 			if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 				this.updateContent(recompute);
 			}
@@ -213,14 +210,14 @@ export class NotebookStickyScroll extends Disposable {
 
 		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
 			this.notebookOutline.init();
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight()));
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
 			const d = new Delayer(100);
 			d.trigger(() => {
 				d.dispose();
-				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight());
+				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight());
 				if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 					this.updateContent(recompute);
 				}
@@ -405,7 +402,7 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 		}
 		cellEntry = NotebookStickyScroll.getVisibleOutlineEntry(currentIndex, notebookOutlineEntries);
 		if (!cellEntry) {
-			return new Map();
+			continue;
 		}
 
 		const nextCell = notebookEditor.cellAt(currentIndex + 1);
@@ -417,7 +414,7 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 		}
 		const nextCellEntry = NotebookStickyScroll.getVisibleOutlineEntry(currentIndex + 1, notebookOutlineEntries);
 		if (!nextCellEntry) {
-			return new Map();
+			continue;
 		}
 
 		// check next cell, if markdown with non level 7 entry, that means this is the end of the section (new header) ---------------------
