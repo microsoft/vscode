@@ -29,8 +29,8 @@ if [ -f "/tmp/vscode-skip-server-requirements-check" ]; then
 fi
 
 # Default to legacy server if the following file is present.
-if [ -f "$HOME/@@SERVER_APPLICATION_NAME@@-use-legacy" ]; then
-    echo "!!! WARNING: Using legacy server due to the presence of $HOME/@@SERVER_APPLICATION_NAME@@-use-legacy !!!"
+if [ -f "$HOME/@@SERVER_DATA_FOLDER_NAME@@-use-legacy" ]; then
+    echo "!!! WARNING: Using legacy server due to the presence of $HOME/@@SERVER_DATA_FOLDER_NAME@@-use-legacy !!!"
     exit 100
 fi
 
