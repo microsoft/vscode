@@ -80,6 +80,7 @@ export class TerminalChatWidget extends Disposable {
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
+		this.hide();
 	}
 
 	private _dimension?: Dimension;
