@@ -35,6 +35,7 @@ import 'vs/css!./media/tree';
 import { localize } from 'vs/nls';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { autorun, constObservable } from 'vs/base/common/observable';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -1678,7 +1679,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		stickyElement.setAttribute('data-index', `${nodeIndex}`);
 		stickyElement.setAttribute('data-parity', nodeIndex % 2 === 0 ? 'even' : 'odd');
 		stickyElement.setAttribute('id', this.view.getElementID(nodeIndex));
-		this.setAccessibilityAttributes(stickyElement, stickyNode.node.element, stickyIndex, stickyNodesTotal);
+		const accessibilityDisposable = this.setAccessibilityAttributes(stickyElement, stickyNode.node.element, stickyIndex, stickyNodesTotal);
 
 		// Get the renderer for the node
 		const nodeTemplateId = this.treeDelegate.getTemplateId(stickyNode.node);
@@ -1700,6 +1701,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 		// Remove the element from the DOM when state is disposed
 		const disposable = toDisposable(() => {
+			accessibilityDisposable.dispose();
 			renderer.disposeElement(nodeCopy, stickyNode.startIndex, templateData, stickyNode.height);
 			renderer.disposeTemplate(templateData);
 			stickyElement.remove();
@@ -1708,9 +1710,9 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		return { element: stickyElement, disposable };
 	}
 
-	private setAccessibilityAttributes(container: HTMLElement, element: T, stickyIndex: number, stickyNodesTotal: number): void {
+	private setAccessibilityAttributes(container: HTMLElement, element: T, stickyIndex: number, stickyNodesTotal: number): IDisposable {
 		if (!this.accessibilityProvider) {
-			return;
+			return Disposable.None;
 		}
 
 		if (this.accessibilityProvider.getSetSize) {
@@ -1724,8 +1726,20 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		}
 
 		const ariaLabel = this.accessibilityProvider.getAriaLabel(element);
-		if (ariaLabel) {
-			container.setAttribute('aria-label', ariaLabel);
+		const observable = (ariaLabel && typeof ariaLabel !== 'string') ? ariaLabel : constObservable(ariaLabel);
+		const result = autorun(reader => {
+			const value = reader.readObservable(observable);
+
+			if (value) {
+				container.setAttribute('aria-label', value);
+			} else {
+				container.removeAttribute('aria-label');
+			}
+		});
+
+		if (typeof ariaLabel === 'string') {
+		} else if (ariaLabel) {
+			container.setAttribute('aria-label', ariaLabel.get());
 		}
 
 		const ariaLevel = this.accessibilityProvider.getAriaLevel && this.accessibilityProvider.getAriaLevel(element);
@@ -1735,6 +1749,8 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 		// Sticky Scroll elements can not be selected
 		container.setAttribute('aria-selected', String(false));
+
+		return result;
 	}
 
 	private setVisible(visible: boolean): void {

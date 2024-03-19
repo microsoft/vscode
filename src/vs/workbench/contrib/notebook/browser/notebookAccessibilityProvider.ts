@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUpdateableAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { observableFromEvent } from 'vs/base/common/observable';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -15,9 +16,9 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { CellKind, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
-export class NotebookAccessibilityProvider implements IUpdateableAccessibilityProvider<CellViewModel>, IDisposable {
+export class NotebookAccessibilityProvider implements IListAccessibilityProvider<CellViewModel>, IDisposable {
 	private readonly _onDidAriaLabelChange = new Emitter<CellViewModel>();
-	readonly onDidAriaLabelChange = this._onDidAriaLabelChange.event;
+	private readonly onDidAriaLabelChange = this._onDidAriaLabelChange.event;
 
 	private listener: IDisposable;
 
@@ -49,17 +50,20 @@ export class NotebookAccessibilityProvider implements IUpdateableAccessibilityPr
 	}
 
 	getAriaLabel(element: CellViewModel) {
-		const viewModel = this.viewModel();
-		if (!viewModel) {
+		const event = Event.filter(this.onDidAriaLabelChange, e => e === element);
+		return observableFromEvent(event, () => {
+			const viewModel = this.viewModel();
+			if (!viewModel) {
+				return '';
+			}
+			const index = viewModel.getCellIndex(element);
+
+			if (index >= 0) {
+				return this.getLabel(index, element);
+			}
+
 			return '';
-		}
-		const index = viewModel.getCellIndex(element);
-
-		if (index >= 0) {
-			return this.getLabel(index, element);
-		}
-
-		return '';
+		});
 	}
 
 	private getLabel(index: number, element: CellViewModel) {
