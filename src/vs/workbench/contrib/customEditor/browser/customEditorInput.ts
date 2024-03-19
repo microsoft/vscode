@@ -438,7 +438,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				// into another window because that means, we potentally loose the modified
 				// state and thus trigger data loss.
 
-				return localize('editorCannotMove', "Unable to move '{0}': editor contains changes that can only be saved in its current window.", this.getName());
+				return localize('editorCannotMove', "Unable to move '{0}': The editor contains changes that can only be saved in its current window.", this.getName());
 			}
 		}
 
