@@ -58,5 +58,5 @@ export interface CellMetadata {
 	/**
 	 * Stores cell metadata.
 	 */
-	metadata?: Partial<nbformat.ICellMetadata>;
+	metadata?: Partial<nbformat.ICellMetadata> & { vscode?: { languageId?: string } };
 }
