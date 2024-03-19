@@ -416,24 +416,18 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public override canMove(targetWindowId: number): true | string {
-		if (
-			!this.isModified() ||
-			!this._modelRef ||
-			this._modelRef.object.supportsBackup
-		) {
-			return true; // modified custom backups can be moved assuming they restore from the backup
-		}
+		if (this.isModified() && this._modelRef?.object.canHotExit === false) {
+			const sourceWindowId = getWindow(this.webview.container).vscodeWindowId;
+			if (sourceWindowId !== targetWindowId) {
 
-		const sourceWindowId = getWindow(this.webview.container).vscodeWindowId;
-		if (sourceWindowId !== targetWindowId) {
+				// The custom editor is modified, not backed by a file and without a backup.
+				// We have to assume that the modified state is enclosed into the webview
+				// managed by an extension. As such, we cannot just move the webview
+				// into another window because that means, we potentally loose the modified
+				// state and thus trigger data loss.
 
-			// The custom editor is modified, not backed by a file and without a backup.
-			// We have to assume that the modified state is enclosed into the webview
-			// managed by an extension. As such, we cannot just move the webview
-			// into another window because that means, we potentally loose the modified
-			// state and thus trigger data loss.
-
-			return localize('editorCannotMove', "Unable to move the editor from this window, it contains modifications that can only be saved in the this window.");
+				return localize('editorCannotMove', "Unable to move the editor from this window, it contains modifications that can only be saved in the this window.");
+			}
 		}
 
 		return true;

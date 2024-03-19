@@ -664,7 +664,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		}
 	}
 
-	public get supportsBackup() { return typeof this._backupId === 'string' && this._hotExitState.type === HotExitState.Type.Allowed; }
+	public get canHotExit() { return typeof this._backupId === 'string' && this._hotExitState.type === HotExitState.Type.Allowed; }
 
 	public async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const editors = this._getEditors();

@@ -177,7 +177,11 @@ export class AuxiliaryEditorPart {
 				for (const editor of group.editors) {
 					const canMove = editor.canMove(mainWindow.vscodeWindowId);
 					if (typeof canMove === 'string') {
-						group.openEditor(editor); // move to front
+						// Closing an auxiliary window with opened editors
+						// will move the editors to the main window. As such,
+						// we need to validate that we can move and otherwise
+						// prevent the window from closing.
+						group.openEditor(editor);
 						event.veto(canMove);
 						break;
 					}

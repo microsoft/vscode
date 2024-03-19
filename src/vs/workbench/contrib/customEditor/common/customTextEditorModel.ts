@@ -72,7 +72,7 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		return undefined;
 	}
 
-	public get supportsBackup() {
+	public get canHotExit() {
 		return true; // ensured via backups from text file models
 	}
 
