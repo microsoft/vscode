@@ -178,10 +178,10 @@ export class AuxiliaryEditorPart {
 					// will move the editors to the main window. As such,
 					// we need to validate that we can move and otherwise
 					// prevent the window from closing.
-					const canMove = editor.canMove(group.id, this.editorPartsView.mainPart.activeGroup.id);
-					if (typeof canMove === 'string') {
+					const canMoveVeto = editor.canMove(group.id, this.editorPartsView.mainPart.activeGroup.id);
+					if (typeof canMoveVeto === 'string') {
 						group.openEditor(editor);
-						event.veto(canMove);
+						event.veto(canMoveVeto);
 						break;
 					}
 				}
