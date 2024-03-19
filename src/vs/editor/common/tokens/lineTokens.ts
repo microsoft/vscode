@@ -102,7 +102,10 @@ export class LineTokens implements IViewLineTokens {
 	}
 
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
+		console.log('tokenIndex : ', tokenIndex);
+		console.log('this._tokens : ', JSON.stringify(this._tokens));
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
+		console.log('metadata : ', metadata);
 		return TokenMetadata.getTokenType(metadata);
 	}
 

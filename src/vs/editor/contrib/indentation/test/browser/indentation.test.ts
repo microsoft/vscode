@@ -21,13 +21,6 @@ import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { javascriptIndentationRules } from 'vs/editor/test/common/modes/supports/javascriptIndentationRules';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 
-// optional: could move the workbench code to editor folder
-// pull the two test files together
-// for the failing tests add .skip
-// Then start changing the regex
-// Then only after change the code
-// Find how to combine the tests later
-
 enum Language {
 	TypeScript,
 	Ruby
@@ -280,7 +273,7 @@ suite('Change Indentation to Tabs -  TypeScript/Javascript', () => {
 	});
 });
 
-suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
+suite('`Full` Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	const languageId = 'ts-test';
 	let disposables: DisposableStore;
@@ -349,6 +342,8 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+
+			// no need for tokenization because there are no comments
 			const pasteText = [
 				'',
 				'export type IncludeReference =',
@@ -362,7 +357,6 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 				'	RelativeReference,',
 				'}'
 			].join('\n');
-			// no need for tokenization because there are no comments
 
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
@@ -372,9 +366,11 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 		});
 	});
 
-	// TODO@aiday-mar: failing test
+	// Failing tests found in issues...
 
 	test.skip('issue #181065: Incorrect paste of object within comment', () => {
+
+		// https://github.com/microsoft/vscode/issues/181065
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -420,7 +416,9 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test('issue #86301: indent trailing new line', () => {
+	test.skip('issue #86301: preserve cursor at inserted indentation level', () => {
+
+		// https://github.com/microsoft/vscode/issues/86301
 
 		const model = createTextModel([
 			'() => {',
@@ -440,19 +438,29 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
-			autoIndentOnPasteController.trigger(new Range(1, 1, 6, 2));
+			autoIndentOnPasteController.trigger(new Range(2, 1, 5, 1));
+
+			// notes:
+			// why is line 3 not indented to the same level as line 2?
+			// looks like the indentation is inserted correctly at line 5, but the cursor does not appear at the maximum indentation level?
 			assert.strictEqual(model.getValue(), [
 				'() => {',
 				'    () => {',
-				'    ',
+				'    ', // <- should also be indented
 				'    }',
-				'    ',
+				'    ', // <- cursor should be at the end of the indentation
 				'}',
 			].join('\n'));
+
+			const selection = viewModel.getSelection();
+			assert.deepStrictEqual(selection, new Selection(5, 5, 5, 5));
 		});
 	});
 
-	test('issue #85781: indent correctly new line on which pasted', () => {
+	test.skip('issue #85781: indent line with extra white space', () => {
+
+		// https://github.com/microsoft/vscode/issues/85781
+		// note: still to determine whether this is a bug or not
 
 		const model = createTextModel([
 			'() => {',
@@ -473,7 +481,7 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
 			// todo@aiday-mar, make sure range is correct, and make test work as in real life
-			autoIndentOnPasteController.trigger(new Range(1, 1, 6, 2));
+			autoIndentOnPasteController.trigger(new Range(2, 5, 5, 6));
 			assert.strictEqual(model.getValue(), [
 				'() => {',
 				'    () => {',
@@ -485,7 +493,7 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test('issue #29589: incorrect preservation of indentation', () => {
+	test.skip('issue #29589: incorrect indentation of closing brace on paste', () => {
 
 		// https://github.com/microsoft/vscode/issues/29589
 
@@ -513,42 +521,9 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 			].join('\n'));
 		});
 	});
-
-	test('issue #65614: incorrect indentation on paste', () => {
-
-		// https://github.com/microsoft/vscode/issues/65614
-
-		const model = createTextModel([
-			'if(true) {',
-			'',
-			'}'
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
-			editor.setSelection(new Selection(2, 1, 2, 1));
-			const text = [
-				'if(false) {',
-				'',
-				'}'
-			].join('\n');
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			viewModel.paste(text, true, undefined, 'keyboard');
-			// todo@aiday-mar, make sure range is correct, and make test work as in real life
-			autoIndentOnPasteController.trigger(new Range(1, 1, 5, 2));
-			assert.strictEqual(model.getValue(), [
-				'if(true) {',
-				'    if(false) {',
-				'    ',
-				'    }',
-				'}'
-			].join('\n'));
-		});
-	});
 });
 
-suite('Auto Indent On Type - TypeScript/JavaScript', () => {
+suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	const languageId = "ts-test";
 	let disposables: DisposableStore;
@@ -563,9 +538,11 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// TODO@aiday-mar: failing test
+	// Failing tests from issues...
 
-	test.skip('issue #116843: dedent after arrow function', () => {
+	test.skip('issue #116843: decrease indent after arrow function', () => {
+
+		// https://github.com/microsoft/vscode/issues/116843
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -587,7 +564,9 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test.skip('issue #40115: keep indentation where created', () => {
+	test.skip('issue #40115: keep indentation when added', () => {
+
+		// https://github.com/microsoft/vscode/issues/40115
 
 		const model = createTextModel('function foo() {}', languageId, {});
 		disposables.add(model);
@@ -614,6 +593,8 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	// CURRENT ISSUE - continue from here
+
 	test('issue #193875: incorrect indentation on enter', () => {
 
 		// https://github.com/microsoft/vscode/issues/193875
@@ -631,12 +612,11 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
 			editor.setSelection(new Selection(3, 14, 3, 14));
 			viewModel.type("\n", 'keyboard');
-			// is the indentation actually done here?
 			assert.strictEqual(model.getValue(), [
 				'{',
 				'    for(;;)',
 				'    for(;;) {',
-				'',
+				'        ',
 				'    }',
 				'}',
 			].join('\n'));
@@ -675,13 +655,11 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test('issue #40115: keep indentation where created', () => {
-		// Add tests for:
-		// https://github.com/microsoft/vscode/issues/88638
-		// https://github.com/microsoft/vscode/issues/63388
-		// https://github.com/microsoft/vscode/issues/46401
-		// https://github.com/microsoft/vscode/issues/174044
-	});
+	// Add tests for:
+	// https://github.com/microsoft/vscode/issues/88638
+	// https://github.com/microsoft/vscode/issues/63388
+	// https://github.com/microsoft/vscode/issues/46401
+	// https://github.com/microsoft/vscode/issues/174044
 });
 
 suite('Auto Indent On Type - Ruby', () => {

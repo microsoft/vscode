@@ -378,8 +378,13 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 
 		this.callOnModel.add(this.editor.onDidPaste(({ range }) => {
+			console.log('range : ', range);
 			this.trigger(range);
+			const model = this.editor.getModel();
 			console.log('this.editor.getModel()?.getValue(); : ', this.editor.getModel()?.getValue());
+			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+				console.log('line length for ', i, ' ', model?.getLineContent(i).length);
+			}
 		}));
 	}
 
@@ -425,6 +430,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			break;
 		}
 
+		console.log('startLineNumber : ', startLineNumber);
 		if (startLineNumber > range.endLineNumber) {
 			console.log('return 4');
 			return;
@@ -476,6 +482,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			break;
 		}
 
+		console.log('startLineNumber !== range.endLineNumber : ', startLineNumber !== range.endLineNumber);
 		if (startLineNumber !== range.endLineNumber) {
 			const virtualModel = {
 				tokenization: {
@@ -498,20 +505,24 @@ export class AutoIndentOnPaste implements IEditorContribution {
 				}
 			};
 			const indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter, this._languageConfigurationService);
-
+			console.log('indentOfSecondLine : ', indentOfSecondLine?.length);
 			if (indentOfSecondLine !== null) {
 				const newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
 				const oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
 
+				console.log('newSpaceCntOfSecondLine : ', newSpaceCntOfSecondLine);
+				console.log('oldSpaceCntOfSecondLine : ', oldSpaceCntOfSecondLine);
 				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
 					const spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
 					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
+						console.log('i : ', i);
 						const lineContent = model.getLineContent(i);
 						const originalIndent = strings.getLeadingWhitespace(lineContent);
 						const originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);
 						const newSpacesCnt = originalSpacesCnt + spaceCntOffset;
 						const newIndent = indentUtils.generateIndent(newSpacesCnt, tabSize, insertSpaces);
-
+						console.log('newIndent : ', newIndent.length);
+						console.log('originalIndent : ', originalIndent.length);
 						if (newIndent !== originalIndent) {
 							textEdits.push({
 								range: new Range(i, 1, i, originalIndent.length + 1),
@@ -540,12 +551,14 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (nonWhitespaceColumn === 0) {
 			return true;
 		}
+		console.log('lineNumber : ', lineNumber);
 		const tokens = model.tokenization.getLineTokens(lineNumber);
 		console.log('tokens : ', JSON.stringify(tokens));
 
 		if (tokens.getCount() > 0) {
 			const firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
 			console.log('firstNonWhitespaceTokenIndex : ', firstNonWhitespaceTokenIndex);
+			console.log('tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) : ', tokens.getStandardTokenType(firstNonWhitespaceTokenIndex));
 			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
 				return true;
 			}

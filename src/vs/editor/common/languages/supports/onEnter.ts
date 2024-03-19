@@ -84,6 +84,7 @@ export class OnEnterSupport {
 				for (let i = 0, len = this._brackets.length; i < len; i++) {
 					const bracket = this._brackets[i];
 					if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
+						console.log('return IndentAction.IndentOutdent');
 						return { indentAction: IndentAction.IndentOutdent };
 					}
 				}
@@ -97,6 +98,7 @@ export class OnEnterSupport {
 				for (let i = 0, len = this._brackets.length; i < len; i++) {
 					const bracket = this._brackets[i];
 					if (bracket.openRegExp.test(beforeEnterText)) {
+						console.log('return : ', IndentAction.Indent);
 						return { indentAction: IndentAction.Indent };
 					}
 				}
