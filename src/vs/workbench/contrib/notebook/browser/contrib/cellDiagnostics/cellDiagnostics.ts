@@ -5,7 +5,6 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IRange } from 'vs/editor/common/core/range';
 import { ICellExecutionError, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -15,7 +14,7 @@ import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCo
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 
 
-export class CellDiagnostics extends Disposable implements IWorkbenchContribution {
+export class CellDiagnostics extends Disposable {
 
 	static ID: string = 'workbench.notebook.cellDiagnostics';
 
