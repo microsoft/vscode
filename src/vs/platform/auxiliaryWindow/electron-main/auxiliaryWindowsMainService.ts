@@ -74,7 +74,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
 		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, this.validateWindowState(details), {
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.cjs').fsPath
 			}
 		});
 	}

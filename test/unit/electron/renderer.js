@@ -5,7 +5,7 @@
 
 /*eslint-env mocha*/
 
-const fs = require('fs');
+import fs from 'node:fs';
 
 (function () {
 	const originals = {};
@@ -60,14 +60,14 @@ const fs = require('fs');
 	});
 })();
 
-const { ipcRenderer } = require('electron');
-const assert = require('assert');
-const path = require('path');
-const glob = require('glob');
-const util = require('util');
-const bootstrap = require('../../../src/bootstrap');
-const coverage = require('../coverage');
-const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
+import { ipcRenderer } from 'electron';
+import assert from 'assert';
+import path from 'path';
+import glob from 'glob';
+import util from 'util';
+import bootstrap from '../../../src/bootstrap-esm.js';
+import coverage from '../coverage';
+import { takeSnapshotAndCountClasses } from '../analyzeSnapshot';
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {

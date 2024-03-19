@@ -564,7 +564,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, {
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				webPreferences: {
-					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
+					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.cjs').fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				}

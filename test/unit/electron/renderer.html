@@ -10,7 +10,7 @@
 	<div id="mocha"></div>
 	<script src="../../../node_modules/mocha/mocha.js"></script>
 
-	<script>
+	<script type="module">
 
 		// !!! DO NOT CHANGE !!!
 		// Our unit tests may run in environments without
@@ -28,7 +28,7 @@
 			timeout: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' ? 30000 : 5000,
 			forbidOnly: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' // disallow .only() when running on build machine
 		});
-		require('./renderer');
+		import('./renderer.js');
 	</script>
 </body>
 
