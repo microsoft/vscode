@@ -43,6 +43,7 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebo
 import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { SearchFindInput } from 'vs/workbench/contrib/search/browser/searchFindInput';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -171,6 +172,7 @@ export class SearchWidget extends Widget {
 	public contextLinesInput!: InputBox;
 
 	private _notebookFilters: NotebookFindFilters;
+	private _toggleReplaceButtonListener: MutableDisposable<IDisposable>;
 
 	constructor(
 		container: HTMLElement,
@@ -220,6 +222,7 @@ export class SearchWidget extends Widget {
 		}));
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
+		this._toggleReplaceButtonListener = this._register(new MutableDisposable<IDisposable>());
 
 		this.render(container, options);
 
@@ -380,8 +383,7 @@ export class SearchWidget extends Widget {
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
 		this.toggleReplaceButton.element.classList.add('toggle-replace-button');
 		this.toggleReplaceButton.icon = searchHideReplaceIcon;
-		// TODO@joao need to dispose this listener eventually
-		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
+		this._toggleReplaceButtonListener.value = this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
