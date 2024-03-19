@@ -29,7 +29,7 @@ export class NotebookAccessibilityProvider implements IListAccessibilityProvider
 	) {
 		this.listener = Event.debounce<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent, number[]>(
 			this.notebookExecutionStateService.onDidChangeExecution,
-			this.mergeEvents,
+			(last: number[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent) => this.mergeEvents(last, e),
 			100
 		)((cellHandles: number[]) => {
 			const viewModel = this.viewModel();
@@ -41,7 +41,7 @@ export class NotebookAccessibilityProvider implements IListAccessibilityProvider
 					}
 				}
 			}
-		});
+		}, this);
 	}
 
 	dispose(): void {
