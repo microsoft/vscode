@@ -28,6 +28,8 @@ import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
+import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network.js';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -824,6 +826,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				resolve(getAllMethodNames(this._foreignModule));
 			};
 
+			const isEsm = true
 			if (isEsm) {
 				const url = FileAccess.asBrowserUri(moduleId + '.js' as AppResourcePath).toString(true);
 				globalThis.exports = {}
