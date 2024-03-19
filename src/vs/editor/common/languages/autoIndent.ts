@@ -310,13 +310,18 @@ export function getGoodIndentForLine(
 				}
 			}
 			// Suppose we want to apply the enter rules
-			// CONTINUE FROM HERE
 			if (shouldApplyEnterRules) {
+				// Pass in the auto indent strategy
+				// For some reason previousLineText is empty?
+				// The beforeEnterText is the line content of the inherited line
+				// There is no afterEnterText
 				const enterResult = richEditSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
 
 				if (enterResult) {
+					// Get the indentation or the leading white spaces at the inherited line
 					let indentation = strings.getLeadingWhitespace(virtualModel.getLineContent(inheritLine));
 
+					// We remove 'removeText' characters from the indentation to get the new indentation string
 					if (enterResult.removeText) {
 						indentation = indentation.substring(0, indentation.length - enterResult.removeText);
 					}
@@ -325,16 +330,21 @@ export function getGoodIndentForLine(
 						(enterResult.indentAction === IndentAction.Indent) ||
 						(enterResult.indentAction === IndentAction.IndentOutdent)
 					) {
+						// Shift the indent when we want to indent or indent/outdent
 						indentation = indentConverter.shiftIndent(indentation);
 					} else if (enterResult.indentAction === IndentAction.Outdent) {
 						indentation = indentConverter.unshiftIndent(indentation);
 					}
 
+					// But I thought the shouldDecrease method is used to determine if the indentation should decrease for the next lines, not for the current line?
 					if (indentRulesSupport.shouldDecrease(lineContent)) {
 						indentation = indentConverter.unshiftIndent(indentation);
 					}
 
+					// add some text to the indentation result
 					if (enterResult.appendText) {
+						// indentation not necessarily made of just whitespaces, can contain other characters
+						// Added in case the appendText contains whitespaces that should be taken into account in the return statement
 						indentation += enterResult.appendText;
 					}
 
@@ -343,16 +353,23 @@ export function getGoodIndentForLine(
 			}
 		}
 
+		// If previously did not return (for example if inheritLine is undefined)
+		// check if the indentation should decrease from the current line content
 		if (indentRulesSupport.shouldDecrease(lineContent)) {
+			// If the inherited indent action is to indent, then we return the inherited indent indentation
 			if (indent.action === IndentAction.Indent) {
 				return indent.indentation;
 			} else {
+				// Otherwise we want to unshift the indentation
 				return indentConverter.unshiftIndent(indent.indentation);
 			}
 		} else {
+			// Inherited indent mentions to increase indent
 			if (indent.action === IndentAction.Indent) {
+				// Then increase indentation
 				return indentConverter.shiftIndent(indent.indentation);
 			} else {
+				// Otherwise do not change current indent
 				return indent.indentation;
 			}
 		}
