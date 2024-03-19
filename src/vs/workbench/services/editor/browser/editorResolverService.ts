@@ -504,9 +504,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If the editor states it can only be opened once per resource we must close all existing ones except one and move the new one into the group
 		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource;
 		if (singleEditorPerResource) {
-			const foundInput = await this.moveExistingEditorForResource(resource, selectedEditor.editorInfo.id, group);
-			if (foundInput) {
-				return { editor: foundInput, options };
+			const moveResult = await this.moveExistingEditorForResource(resource, selectedEditor.editorInfo.id, group);
+			if (moveResult) {
+				return { editor: moveResult, options };
+			} else if (moveResult === false) {
+				return; // unsupported
 			}
 		}
 
@@ -535,7 +537,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		resource: URI,
 		viewType: string,
 		targetGroup: IEditorGroup,
-	): Promise<EditorInput | undefined> {
+	): Promise<EditorInput | undefined | false /* unsupported */> {
 		const editorInfoForResource = this.findExistingEditorsForResource(resource, viewType);
 		if (!editorInfoForResource.length) {
 			return;
@@ -557,7 +559,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (targetGroup.id !== editorToUse.group.id) {
 			const moved = editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
 			if (!moved) {
-				return;
+				return false;
 			}
 			return editorToUse.editor;
 		}

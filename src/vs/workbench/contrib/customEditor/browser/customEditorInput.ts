@@ -400,7 +400,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override claim(claimant: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void {
 		if (this.doCanMove(targetWindow.vscodeWindowId) !== true) {
-			throw createEditorOpenError(localize('editorUnsupportedInWindow', "Unable to open the editor in this window, it contains modifications that can only be saved in the original window."), [
+			throw createEditorOpenError(localize('editorUnsupportedInWindow', "Unable to open the editor into this window, it contains modifications that can only be saved in the original window."), [
 				toAction({
 					id: 'openInOriginalWindow',
 					label: localize('reopenInOriginalWindow', "Open in Original Window"),
@@ -438,7 +438,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				// into another window because that means, we potentally loose the modified
 				// state and thus trigger data loss.
 
-				return localize('editorCannotMove', "Unable to move the editor out of the window, it contains modifications that can only be saved in the this window.");
+				return localize('editorCannotMove', "Unable to move '{0}': it contains changes that can only be saved in its current window.", this.getName());
 			}
 		}
 

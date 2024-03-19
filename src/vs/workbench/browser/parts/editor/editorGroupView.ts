@@ -1337,7 +1337,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!keepCopy || editor.hasCapability(EditorInputCapabilities.Singleton) /* singleton editors will always move */) {
 			const canMove = editor.canMove(this.id, target.id);
 			if (typeof canMove === 'string') {
-				this.dialogService.error(canMove);
+				this.dialogService.prompt({
+					type: 'error',
+					message: canMove,
+					detail: localize('moveErrorDetails', "Try saving or reverting the editor first and then try again."),
+					buttons: [
+						{
+							label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+							run: () => false // veto
+						}
+					]
+				});
+
 				return false;
 			}
 		}
