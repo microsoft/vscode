@@ -399,7 +399,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public override claim(claimant: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void {
-		if (typeof this.doCanMove(targetWindow.vscodeWindowId) === 'string') {
+		if (this.doCanMove(targetWindow.vscodeWindowId) !== true) {
 			throw createEditorOpenError(localize('editorUnsupportedInWindow', "Unable to open the editor in this window, it contains modifications that can only be saved in the original window."), [
 				toAction({
 					id: 'openInOriginalWindow',
