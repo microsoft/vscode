@@ -303,6 +303,7 @@
 
 .quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .action-label.always-visible,
 .quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
+.quick-input-list .quick-input-list-entry.focus-inside .quick-input-list-entry-action-bar .action-label,
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label,
 .quick-input-list .monaco-list-row.passive-focused .quick-input-list-entry-action-bar .action-label {
 	display: flex;
@@ -331,4 +332,9 @@
 /* Give sticky row the same padding as the scrollable list */
 .quick-input-list .monaco-tree-sticky-row {
 	padding: 0 5px;
+}
+
+/* Hide the twistie containers so that there isn't blank indent */
+.quick-input-list .monaco-tl-twistie {
+	display: none !important;
 }
