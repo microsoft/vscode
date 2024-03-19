@@ -5,6 +5,7 @@
 
 import { onDidChangeFullscreen } from 'vs/base/browser/browser';
 import { hide, show } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
@@ -171,6 +172,18 @@ export class AuxiliaryEditorPart {
 			disposables.dispose();
 		}));
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
+		disposables.add(auxiliaryWindow.onBeforeUnload(event => {
+			for (const group of editorPart.groups) {
+				for (const editor of group.editors) {
+					const canMove = editor.canMove(mainWindow.vscodeWindowId);
+					if (typeof canMove === 'string') {
+						group.openEditor(editor); // move to front
+						event.veto(canMove);
+						break;
+					}
+				}
+			}
+		}));
 
 		// Layout: specifically `onWillLayout` to have a chance
 		// to build the aux editor part before other components

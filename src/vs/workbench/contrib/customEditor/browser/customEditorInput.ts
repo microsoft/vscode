@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, getWindowById } from 'vs/base/browser/dom';
+import { getWindow } from 'vs/base/browser/dom';
 import { CodeWindow } from 'vs/base/browser/window';
 import { toAction } from 'vs/base/common/actions';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -399,32 +399,43 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public override claim(claimant: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void {
-		if (this.isModified() && this._modelRef?.object.isTextBased === false && !this.backupId) {
-			const webviewContainerWindowId = getWindow(this.webview.container).vscodeWindowId;
-			const targetWindowId = targetWindow.vscodeWindowId;
-			if (webviewContainerWindowId !== targetWindowId) {
-
-				// The custom editor is modified, not backed by a file and without a backup.
-				// We have to assume that the modified state is enclosed into the webview
-				// managed by an extension. As such, we cannot just `claim()` the webview
-				// into another window because that means, we potentally loose the modified
-				// state and thus trigger data loss.
-				// To mitigate this, we refuse to `claim` in this case and also make sure the
-				// editor is still opened in the window it was originally opened in.
-
-				throw createEditorOpenError(localize('editorUnsupportedInAuxWindow', "Unable to open the editor in this window, it contains modifications that can only be saved in the original window."), [
-					toAction({
-						id: 'openInOriginalWindow',
-						label: localize('reopenInOriginalWindow', "Open in Original Window"),
-						run: async () => {
-							const originalPart = this.editorGroupsService.getPart(this.layoutService.getContainer(getWindowById(webviewContainerWindowId, true).window));
-							const currentPart = this.editorGroupsService.getPart(this.layoutService.getContainer(getWindowById(targetWindowId, true).window));
-							currentPart.activeGroup.moveEditor(this, originalPart.activeGroup);
-						}
-					})
-				], { forceMessage: true });
-			}
+		if (typeof this.canMove(targetWindow.vscodeWindowId) === 'string') {
+			throw createEditorOpenError(localize('editorUnsupportedInWindow', "Unable to open the editor in this window, it contains modifications that can only be saved in the original window."), [
+				toAction({
+					id: 'openInOriginalWindow',
+					label: localize('reopenInOriginalWindow', "Open in Original Window"),
+					run: async () => {
+						const originalPart = this.editorGroupsService.getPart(this.layoutService.getContainer(getWindow(this.webview.container).window));
+						const currentPart = this.editorGroupsService.getPart(this.layoutService.getContainer(targetWindow.window));
+						currentPart.activeGroup.moveEditor(this, originalPart.activeGroup);
+					}
+				})
+			], { forceMessage: true });
 		}
 		return super.claim(claimant, targetWindow, scopedContextKeyService);
+	}
+
+	public override canMove(targetWindowId: number): true | string {
+		if (
+			!this.isModified() ||
+			!this._modelRef ||
+			this._modelRef.object.supportsBackup
+		) {
+			return true; // modified custom backups can be moved assuming they restore from the backup
+		}
+
+		const sourceWindowId = getWindow(this.webview.container).vscodeWindowId;
+		if (sourceWindowId !== targetWindowId) {
+
+			// The custom editor is modified, not backed by a file and without a backup.
+			// We have to assume that the modified state is enclosed into the webview
+			// managed by an extension. As such, we cannot just move the webview
+			// into another window because that means, we potentally loose the modified
+			// state and thus trigger data loss.
+
+			return localize('editorCannotMove', "Unable to move the editor from this window, it contains modifications that can only be saved in the this window.");
+		}
+
+		return true;
 	}
 }
