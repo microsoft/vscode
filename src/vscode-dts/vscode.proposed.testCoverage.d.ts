@@ -34,7 +34,7 @@ declare module 'vscode' {
 	 * A class that contains information about a covered resource. A count can
 	 * be give for lines, branches, and declarations in a file.
 	 */
-	export class CoveredCount {
+	export class TestCoverageCount {
 		/**
 		 * Number of items covered in the file.
 		 */
@@ -45,8 +45,8 @@ declare module 'vscode' {
 		total: number;
 
 		/**
-		 * @param covered Value for {@link CovereredCount.covered}
-		 * @param total Value for {@link CovereredCount.total}
+		 * @param covered Value for {@link TestCoverageCount.covered}
+		 * @param total Value for {@link TestCoverageCount.total}
 		 */
 		constructor(covered: number, total: number);
 	}
@@ -64,18 +64,18 @@ declare module 'vscode' {
 		 * Statement coverage information. If the reporter does not provide statement
 		 * coverage information, this can instead be used to represent line coverage.
 		 */
-		statementCoverage: CoveredCount;
+		statementCoverage: TestCoverageCount;
 
 		/**
 		 * Branch coverage information.
 		 */
-		branchCoverage?: CoveredCount;
+		branchCoverage?: TestCoverageCount;
 
 		/**
 		 * Declaration coverage information. Depending on the reporter and
 		 * language, this may be types such as functions, methods, or namespaces.
 		 */
-		declarationCoverage?: CoveredCount;
+		declarationCoverage?: TestCoverageCount;
 
 		/**
 		 * Creates a {@link FileCoverage} instance with counts filled in from
@@ -95,9 +95,9 @@ declare module 'vscode' {
 		 */
 		constructor(
 			uri: Uri,
-			statementCoverage: CoveredCount,
-			branchCoverage?: CoveredCount,
-			declarationCoverage?: CoveredCount,
+			statementCoverage: TestCoverageCount,
+			branchCoverage?: TestCoverageCount,
+			declarationCoverage?: TestCoverageCount,
 		);
 	}
 
