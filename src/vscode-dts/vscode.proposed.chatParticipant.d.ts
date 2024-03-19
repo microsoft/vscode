@@ -35,7 +35,7 @@ declare module 'vscode' {
 		 */
 		readonly variables: ChatResolvedVariable[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; name: string });
+		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: string);
 	}
 
 	/**
@@ -63,7 +63,7 @@ declare module 'vscode' {
 		 */
 		readonly command?: string;
 
-		private constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatResult, participant: { extensionId: string; name: string });
+		private constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatResult, participant: string);
 	}
 
 	export interface ChatContext {

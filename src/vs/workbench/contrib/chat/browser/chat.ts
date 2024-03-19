@@ -112,8 +112,8 @@ export interface IChatWidget {
 	readonly providerId: string;
 	readonly supportsFileReferences: boolean;
 	readonly parsedInput: IParsedChatRequest;
+	lastSelectedAgent: IChatAgentData | undefined;
 
-	setLastSelectedAgent(agent: IChatAgentData | undefined): void;
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
 	focus(item: ChatTreeItem): void;

@@ -91,7 +91,9 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 			range: this.range,
 			editorRange: this.editorRange,
 			agent: {
-				id: this.agent.id, // TODO
+				id: this.agent.id,
+				name: this.agent.name,
+				description: this.agent.description,
 				metadata: this.agent.metadata
 			}
 		};
@@ -167,10 +169,19 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestVariablePart).variableArg
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
+				let agent = (part as ChatRequestAgentPart).agent;
+				if (!('name' in agent)) {
+					// Port old format
+					agent = {
+						...(agent as any),
+						name: (agent as any).id
+					};
+				}
+
 				return new ChatRequestAgentPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestAgentPart).agent
+					agent
 				);
 			} else if (part.kind === ChatRequestAgentSubcommandPart.Kind) {
 				return new ChatRequestAgentSubcommandPart(

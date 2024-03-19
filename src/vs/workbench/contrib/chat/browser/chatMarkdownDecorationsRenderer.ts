@@ -15,7 +15,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatAgentMarkdownContentWithVulnerability, IChatAgentVulnerabilityDetails, IChatContentInlineReference } from 'vs/workbench/contrib/chat/common/chatService';
 
 const variableRefUrl = 'http://_vscodedecoration_';
@@ -35,7 +35,9 @@ export class ChatMarkdownDecorationsRenderer {
 			} else {
 				const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
 					|| undefined;
-				const title = uri ? encodeURIComponent(this.labelService.getUriLabel(uri, { relative: true })) : '';
+				const title = uri ? encodeURIComponent(this.labelService.getUriLabel(uri, { relative: true })) :
+					part instanceof ChatRequestAgentPart ? part.agent.id :
+						'';
 
 				result += `[${part.text}](${variableRefUrl}?${title})`;
 			}

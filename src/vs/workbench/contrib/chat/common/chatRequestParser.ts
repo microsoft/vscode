@@ -16,6 +16,7 @@ const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an
 const slashReg = /\/([\w_\-]+)(?=(\s|$|\b))/i; // A / command
 
 export interface IChatParserContext {
+	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
 	selectedAgent?: IChatAgentData;
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
@@ -210,9 +211,10 @@ class InputEditorDecorations extends Disposable {
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
-			textDecorations.push({ range: agentPart.editorRange });
+			const agentHover = `(${agentPart.agent.id}) ${agentPart.agent.description}`;
+			textDecorations.push({ range: agentPart.editorRange, hoverMessage: new MarkdownString(agentHover) });
 			if (agentSubcommandPart) {
-				textDecorations.push({ range: agentSubcommandPart.editorRange });
+				textDecorations.push({ range: agentSubcommandPart.editorRange, hoverMessage: new MarkdownString(agentSubcommandPart.command.description) });
 			}
 		}
 
@@ -349,16 +351,15 @@ class AgentCompletions extends Disposable {
 					.filter(a => !a.isDefault);
 				return <CompletionList>{
 					suggestions: agents.map((a, i) => {
-						// The trailing space is important- this will display inline in the suggest widget with newlines removed,
-						// or in the suggest detail flyout with newlines preserved.
-						let detail = a.description ? `${a.description} \n\n` : '';
-						detail += `(${a.extensionId.value})`;
-
 						const withAt = `@${a.name}`;
+						const isDupe = !!agents.find(other => other.name === a.name && other.id !== a.id);
 						return <CompletionItem>{
-							label: withAt,
+							// Leading space is important because detail has no space at the start by design
+							label: isDupe ?
+								{ label: withAt, description: a.description, detail: ` (${a.id})` } :
+								withAt,
 							insertText: `${withAt} `,
-							detail,
+							detail: a.description,
 							range: new Range(1, 1, 1, 1),
 							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent: a, widget } satisfies AssignSelectedAgentActionArgs] },
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
@@ -438,11 +439,14 @@ class AgentCompletions extends Disposable {
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
-						let detail = agent.description ? `${agent.description} \n\n` : '';
-						detail += `(${agent.extensionId.value})`;
-						const agentLabel = `${chatAgentLeader}${agent.name}`;
+						const isDupe = !!agents.find(other => other.name === agent.name && other.id !== agent.id);
+						const detail = agent.description;
+						const agentLabel = `${chatAgentLeader}${agent.name} (${agent.id})`;
+
 						return {
-							label: agentLabel,
+							label: isDupe ?
+								{ label: agentLabel, description: agent.description, detail: ` (${agent.id})` } :
+								agentLabel,
 							detail,
 							filterText: `${chatSubcommandLeader}${agent.name}`,
 							insertText: `${agentLabel} `,
@@ -462,7 +466,7 @@ class AgentCompletions extends Disposable {
 								filterText: `${chatSubcommandLeader}${agent.name}${c.name}`,
 								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
-								detail: `(${agentLabel}, ${agent.extensionId.value}) ${c.description ?? ''}`,
+								detail: `(${agentLabel}) ${c.description ?? ''}`,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
 								sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
@@ -496,7 +500,7 @@ class AssignSelectedAgentAction extends Action2 {
 			return;
 		}
 
-		arg.widget.setLastSelectedAgent(arg.agent);
+		arg.widget.lastSelectedAgent = arg.agent;
 	}
 }
 registerAction2(AssignSelectedAgentAction);
@@ -628,12 +632,14 @@ class ChatTokenDeleter extends Disposable {
 		const parser = this.instantiationService.createInstance(ChatRequestParser);
 		const inputValue = this.widget.inputEditor.getValue();
 		let previousInputValue: string | undefined;
+		let previousSelectedAgent: IChatAgentData | undefined;
 
 		// A simple heuristic to delete the previous token when the user presses backspace.
 		// The sophisticated way to do this would be to have a parse tree that can be updated incrementally.
 		this._register(this.widget.inputEditor.onDidChangeModelContent(e => {
 			if (!previousInputValue) {
 				previousInputValue = inputValue;
+				previousSelectedAgent = this.widget.lastSelectedAgent;
 			}
 
 			// Don't try to handle multicursor edits right now
@@ -641,7 +647,7 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue);
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, { selectedAgent: previousSelectedAgent });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart);
@@ -661,6 +667,7 @@ class ChatTokenDeleter extends Disposable {
 			}
 
 			previousInputValue = this.widget.inputEditor.getValue();
+			previousSelectedAgent = this.widget.lastSelectedAgent;
 		}));
 	}
 }

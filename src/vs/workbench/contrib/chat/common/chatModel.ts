@@ -590,9 +590,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					{ variables: [] };
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
-					// TODO old entries may not have name/description
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
-						revive<ISerializableChatAgentData>(raw.agent) : undefined;
+						this.reviveSerializedAgent(raw.agent) : undefined;
 
 					// Port entries from old format
 					const result = 'responseErrorDetails' in raw ?
@@ -612,6 +611,16 @@ export class ChatModel extends Disposable implements IChatModel {
 			this.logService.error('Failed to parse chat data', error);
 			return [];
 		}
+	}
+
+	private reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
+		const agent = 'name' in raw ?
+			raw :
+			{
+				...(raw as any),
+				name: (raw as any).id,
+			};
+		return revive(agent);
 	}
 
 	private getParsedRequestFromString(message: string): IParsedChatRequest {

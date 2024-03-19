@@ -213,8 +213,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
-	setLastSelectedAgent(agent: IChatAgentData | undefined): void {
+	set lastSelectedAgent(agent: IChatAgentData | undefined) {
 		this._lastSelectedAgent = agent;
+	}
+
+	get lastSelectedAgent(): IChatAgentData | undefined {
+		return this._lastSelectedAgent;
 	}
 
 	get supportsFileReferences(): boolean {
