@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const { constants } = require('mocha/lib/runner');
-const BaseRunner = require('mocha/lib/reporters/base');
+import runner from 'mocha/lib/runner.js';
+import BaseRunner from 'mocha/lib/reporters/base.js';
+
+const { constants } = runner
 
 const {
 	EVENT_TEST_BEGIN,
@@ -21,7 +23,7 @@ const {
  *
  * Writes a superset of the data that json-stream normally would.
  */
-module.exports = class FullJsonStreamReporter extends BaseRunner {
+export default class FullJsonStreamReporter extends BaseRunner {
 	constructor(runner, options) {
 		super(runner, options);
 

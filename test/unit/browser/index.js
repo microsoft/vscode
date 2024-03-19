@@ -6,21 +6,26 @@
 //@ts-check
 'use strict';
 
-const path = require('path');
-const glob = require('glob');
-const events = require('events');
-const mocha = require('mocha');
-const createStatsCollector = require('../../../node_modules/mocha/lib/stats-collector');
-const MochaJUnitReporter = require('mocha-junit-reporter');
-const url = require('url');
-const minimatch = require('minimatch');
-const fs = require('fs');
-const playwright = require('@playwright/test');
-const { applyReporter } = require('../reporter');
-const yaserver = require('yaserver');
-const http = require('http');
-const { randomBytes } = require('crypto');
-const minimist = require('minimist');
+import path from 'path';
+import glob from 'glob';
+import events from 'events';
+import mocha from 'mocha';
+import createStatsCollector from '../../../node_modules/mocha/lib/stats-collector.js';
+import MochaJUnitReporter from 'mocha-junit-reporter';
+import url from 'url';
+import minimatch from 'minimatch';
+import fs from 'fs';
+import playwright from '@playwright/test';
+import { applyReporter } from '../reporter.js';
+import * as yaserver from 'yaserver';
+import http from 'http';
+import { randomBytes } from 'crypto';
+import minimist from 'minimist';
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
 
 /**
  * @type {{
@@ -227,6 +232,7 @@ async function createServer() {
 
 async function runTestsInBrowser(testModules, browserType) {
 	const server = await createServer();
+	console.log({ browserType, playwright })
 	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();

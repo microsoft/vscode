@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const mocha = require('mocha');
-const FullJsonStreamReporter = require('./fullJsonStreamReporter');
-const path = require('path');
+import mocha from 'mocha';
+import FullJsonStreamReporter from './fullJsonStreamReporter.js';
+import path from 'path';
 
 function parseReporterOption(value) {
 	const r = /^([^=]+)=(.*)$/.exec(value);
 	return r ? { [r[1]]: r[2] } : {};
 }
 
-exports.importMochaReporter = name => {
+export const importMochaReporter = name => {
 	if (name === 'full-json-stream') {
 		return FullJsonStreamReporter;
 	}
@@ -21,10 +21,10 @@ exports.importMochaReporter = name => {
 	return require(reporterPath);
 };
 
-exports.applyReporter = (runner, argv) => {
+export const applyReporter = (runner, argv) => {
 	let Reporter;
 	try {
-		Reporter = exports.importMochaReporter(argv.reporter);
+		Reporter = importMochaReporter(argv.reporter);
 	} catch (err) {
 		try {
 			Reporter = require(argv.reporter);
