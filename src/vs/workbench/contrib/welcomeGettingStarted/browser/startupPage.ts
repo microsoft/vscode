@@ -10,15 +10,15 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
+import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -27,6 +27,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
+import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -35,10 +37,45 @@ const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
 
-export class StartupPageContribution implements IWorkbenchContribution {
+export class StartupPageEditorResolverContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.startupPageEditorResolver';
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorResolverService editorResolverService: IEditorResolverService
+	) {
+		editorResolverService.registerEditor(
+			`${GettingStartedInput.RESOURCE.scheme}:/**`,
+			{
+				id: GettingStartedInput.ID,
+				label: localize('welcome.displayName', "Welcome Page"),
+				priority: RegisteredEditorPriority.builtin,
+			},
+			{
+				singlePerResource: false,
+				canSupportResource: uri => uri.scheme === GettingStartedInput.RESOURCE.scheme,
+			},
+			{
+				createEditorInput: ({ resource, options }) => {
+					return {
+						editor: this.instantiationService.createInstance(GettingStartedInput, options as GettingStartedEditorOptions),
+						options: {
+							...options,
+							pinned: false
+						}
+					};
+				}
+			}
+		);
+	}
+}
+
+export class StartupPageRunnerContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.startupPageRunner';
+
+	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
@@ -57,6 +94,9 @@ export class StartupPageContribution implements IWorkbenchContribution {
 	}
 
 	private async run() {
+
+		// Wait for resolving startup editor until we are restored to reduce startup pressure
+		await this.lifecycleService.when(LifecyclePhase.Restored);
 
 		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
 		if (
@@ -100,6 +140,8 @@ export class StartupPageContribution implements IWorkbenchContribution {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
 					await this.openGettingStarted();
+				} else if (startupEditorSetting.value === 'terminal') {
+					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
 			}
 		}
@@ -113,12 +155,11 @@ export class StartupPageContribution implements IWorkbenchContribution {
 		else {
 			const restoreData: RestoreWalkthroughsConfigurationValue = JSON.parse(toRestore);
 			const currentWorkspace = this.contextService.getWorkspace();
-			if (restoreData.folder === currentWorkspace.folders[0].uri.toString()) {
-				this.editorService.openEditor(
-					this.instantiationService.createInstance(
-						GettingStartedInput,
-						{ selectedCategory: restoreData.category, selectedStep: restoreData.step }),
-					{ pinned: false });
+			if (restoreData.folder === UNKNOWN_EMPTY_WINDOW_WORKSPACE.id || restoreData.folder === currentWorkspace.folders[0].uri.toString()) {
+				this.editorService.openEditor({
+					resource: GettingStartedInput.RESOURCE,
+					options: <GettingStartedEditorOptions>{ selectedCategory: restoreData.category, selectedStep: restoreData.step, pinned: false },
+				});
 				this.storageService.remove(restoreWalkthroughsConfigurationKey, StorageScope.PROFILE);
 				return true;
 			}
@@ -147,6 +188,9 @@ export class StartupPageContribution implements IWorkbenchContribution {
 					}),
 					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
 				]);
+			} else {
+				// If no readme is found, default to showing the welcome page.
+				await this.openGettingStarted();
 			}
 		}
 	}
@@ -162,7 +206,10 @@ export class StartupPageContribution implements IWorkbenchContribution {
 
 		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };
 		if (startupEditorTypeID === gettingStartedInputTypeId) {
-			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { showTelemetryNotice }), options);
+			this.editorService.openEditor({
+				resource: GettingStartedInput.RESOURCE,
+				options: <GettingStartedEditorOptions>{ showTelemetryNotice, ...options },
+			});
 		}
 	}
 }
@@ -182,5 +229,6 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 
 	return startupEditor.value === 'welcomePage'
 		|| startupEditor.value === 'readme' && (startupEditor.userValue === 'readme' || startupEditor.defaultValue === 'readme')
-		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && startupEditor.value === 'welcomePageInEmptyWorkbench');
+		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && startupEditor.value === 'welcomePageInEmptyWorkbench')
+		|| startupEditor.value === 'terminal';
 }

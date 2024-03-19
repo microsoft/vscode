@@ -5,6 +5,7 @@
 
 :root {
 	--vscode-sash-size: 4px;
+	--vscode-sash-hover-size: 4px;
 }
 
 .monaco-sash {

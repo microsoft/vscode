@@ -13,6 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 suite('Debug - Debugger', () => {
@@ -130,6 +131,8 @@ suite('Debug - Debugger', () => {
 			return Promise.resolve(undefined);
 		}
 	};
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const configurationService = new TestConfigurationService();
 	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);

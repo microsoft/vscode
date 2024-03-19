@@ -5,7 +5,7 @@
 
 import type * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
-import { CellMetadata, CellOutputMetadata } from './common';
+import { CellMetadata, CellOutputMetadata, useCustomPropertyInMetadata } from './common';
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -139,6 +139,8 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 			}
 		} else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
 			return NotebookCellOutputItem.text(JSON.stringify(value), mime);
+		} else if (mime === 'application/json') {
+			return NotebookCellOutputItem.json(value, mime);
 		} else {
 			// For everything else, treat the data as strings (or multi-line strings).
 			value = Array.isArray(value) ? concatMultilineString(value) : value;
@@ -152,24 +154,42 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
 	[key: string]: any;
 } {
-	const cellMetadata: { [key: string]: any } = {};
-	// We put this only for VSC to display in diff view.
-	// Else we don't use this.
-	const custom: CellMetadata = {};
-	if (cell['metadata']) {
-		custom['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
-	}
+	if (useCustomPropertyInMetadata()) {
+		const cellMetadata: { [key: string]: any } = {};
+		// We put this only for VSC to display in diff view.
+		// Else we don't use this.
+		const custom: CellMetadata = {};
+		if (cell['metadata']) {
+			custom['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
+		}
 
-	if ('id' in cell && typeof cell.id === 'string') {
-		custom.id = cell.id;
-	}
+		if ('id' in cell && typeof cell.id === 'string') {
+			custom.id = cell.id;
+		}
 
-	cellMetadata.custom = custom;
+		cellMetadata.custom = custom;
 
-	if (cell['attachments']) {
-		cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
+		if (cell['attachments']) {
+			cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
+		}
+		return cellMetadata;
+	} else {
+		// We put this only for VSC to display in diff view.
+		// Else we don't use this.
+		const cellMetadata: CellMetadata = {};
+		if (cell['metadata']) {
+			cellMetadata['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
+		}
+
+		if ('id' in cell && typeof cell.id === 'string') {
+			cellMetadata.id = cell.id;
+		}
+
+		if (cell['attachments']) {
+			cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
+		}
+		return cellMetadata;
 	}
-	return cellMetadata;
 }
 
 function getOutputMetadata(output: nbformat.IOutput): CellOutputMetadata {
@@ -362,6 +382,6 @@ export function jupyterNotebookModelToNotebookData(
 		.filter((item): item is NotebookCellData => !!item);
 
 	const notebookData = new NotebookData(cells);
-	notebookData.metadata = { custom: notebookContentWithoutCells };
+	notebookData.metadata = useCustomPropertyInMetadata() ? { custom: notebookContentWithoutCells } : notebookContentWithoutCells;
 	return notebookData;
 }

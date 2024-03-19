@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -35,7 +35,7 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 	private readonly _disposables = new DisposableStore();
 	private _combinedEntry?: IStatusbarEntryAccessor;
 	private _delayer = new ThrottledDelayer(1000);
-	private _renderDisposables = new DisposableStore();
+	private readonly _renderDisposables = new DisposableStore();
 
 	constructor(
 		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService,
@@ -123,7 +123,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: detectLanguageCommandId,
-			title: { value: localize('detectlang', 'Detect Language from Content'), original: 'Detect Language from Content' },
+			title: localize2('detectlang', "Detect Language from Content"),
 			f1: true,
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_EDITABLE.toNegated(), EditorContextKeys.editorTextFocus),
 			keybinding: { primary: KeyCode.KeyD | KeyMod.Alt | KeyMod.Shift, weight: KeybindingWeight.WorkbenchContrib }

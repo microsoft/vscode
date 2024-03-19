@@ -9,9 +9,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { formatCellDuration } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 
 suite('notebookBrowser', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('formatCellDuration', function () {
 		assert.strictEqual(formatCellDuration(0, false), '0.0s');
 		assert.strictEqual(formatCellDuration(0), '0ms');

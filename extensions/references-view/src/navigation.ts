@@ -18,7 +18,6 @@ export class Navigation {
 		this._disposables.push(
 			vscode.commands.registerCommand('references-view.next', () => this.next(false)),
 			vscode.commands.registerCommand('references-view.prev', () => this.previous(false)),
-			_view.onDidChangeSelection(() => this._ensureSelectedElementIsVisible()),
 		);
 	}
 
@@ -29,20 +28,6 @@ export class Navigation {
 	update(delegate: SymbolItemNavigation<unknown> | undefined) {
 		this._delegate = delegate;
 		this._ctxCanNavigate.set(Boolean(this._delegate));
-	}
-
-	private _ensureSelectedElementIsVisible(): void {
-		if (this._view.selection.length === 0) {
-			return;
-		}
-		const [item] = this._view.selection;
-		const location = this._delegate?.location(item);
-		if (!location) {
-			return;
-		}
-		if (vscode.window.activeTextEditor?.document.uri.toString() !== location.uri.toString()) {
-			this._open(location, true);
-		}
 	}
 
 	private _anchor(): undefined | unknown {

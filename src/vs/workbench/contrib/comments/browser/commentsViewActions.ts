@@ -123,7 +123,7 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleUnResolvedComments`,
-			title: localize('toggle unresolved', "Toggle Unresolved Comments"),
+			title: localize('toggle unresolved', "Show Unresolved"),
 			category: localize('comments', "Comments"),
 			toggled: {
 				condition: CONTEXT_KEY_SHOW_UNRESOLVED,
@@ -148,7 +148,7 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleResolvedComments`,
-			title: localize('toggle resolved', "Toggle Resolved Comments"),
+			title: localize('toggle resolved', "Show Resolved"),
 			category: localize('comments', "Comments"),
 			toggled: {
 				condition: CONTEXT_KEY_SHOW_RESOLVED,

@@ -31,16 +31,17 @@ const getFreshLensLocation = () => workspace.getConfiguration().get(Constants.Co
  */
 export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 	private lensLocation = getFreshLensLocation();
-	private changeEmitter = new EventEmitter<void>();
+	private readonly changeEmitter = new EventEmitter<void>();
 	private subscriptions: Disposable[] = [];
 
 	/**
 	 * @inheritdoc
 	 */
-	public onDidChangeCodeLenses = this.changeEmitter.event;
+	public readonly onDidChangeCodeLenses = this.changeEmitter.event;
 
 	constructor() {
 		this.subscriptions.push(
+			this.changeEmitter,
 			workspace.onDidChangeConfiguration(evt => {
 				if (evt.affectsConfiguration(Constants.ConfigKey)) {
 					this.lensLocation = getFreshLensLocation();

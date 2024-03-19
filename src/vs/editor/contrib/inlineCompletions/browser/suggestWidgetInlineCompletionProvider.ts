@@ -14,9 +14,11 @@ import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { ITextModel } from 'vs/editor/common/model';
-import { compareBy, findMaxBy, numberComparator } from 'vs/base/common/arrays';
+import { compareBy, numberComparator } from 'vs/base/common/arrays';
+import { findFirstMaxBy } from 'vs/base/common/arraysFind';
+import { singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 export class SuggestWidgetAdaptor extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;
@@ -24,7 +26,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 	private _isActive = false;
 	private _currentSuggestItemInfo: SuggestItemInfo | undefined = undefined;
 
-	private readonly _selectedItem = observableValue('suggestWidgetInlineCompletionProvider.selectedItem', undefined as SuggestItemInfo | undefined);
+	private readonly _selectedItem = observableValue(this, undefined as SuggestItemInfo | undefined);
 
 	public get selectedItem(): IObservable<SuggestItemInfo | undefined> {
 		return this._selectedItem;
@@ -34,6 +36,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 		private readonly editor: ICodeEditor,
 		private readonly suggestControllerPreselector: () => SingleTextEdit | undefined,
 		private readonly checkModelVersion: (tx: ITransaction) => void,
+		private readonly onWillAccept: (item: SuggestItemInfo) => void,
 	) {
 		super();
 
@@ -64,7 +67,8 @@ export class SuggestWidgetAdaptor extends Disposable {
 						return -1;
 					}
 
-					const itemToPreselect = this.suggestControllerPreselector()?.removeCommonPrefix(textModel);
+					const i = this.suggestControllerPreselector();
+					const itemToPreselect = i ? singleTextRemoveCommonPrefix(i, textModel) : undefined;
 					if (!itemToPreselect) {
 						return -1;
 					}
@@ -73,13 +77,13 @@ export class SuggestWidgetAdaptor extends Disposable {
 					const candidates = suggestItems
 						.map((suggestItem, index) => {
 							const suggestItemInfo = SuggestItemInfo.fromSuggestion(suggestController, textModel, position, suggestItem, this.isShiftKeyPressed);
-							const suggestItemTextEdit = suggestItemInfo.toSingleTextEdit().removeCommonPrefix(textModel);
-							const valid = itemToPreselect.augments(suggestItemTextEdit);
+							const suggestItemTextEdit = singleTextRemoveCommonPrefix(suggestItemInfo.toSingleTextEdit(), textModel);
+							const valid = singleTextEditAugments(itemToPreselect, suggestItemTextEdit);
 							return { index, valid, prefixLength: suggestItemTextEdit.text.length, suggestItem };
 						})
 						.filter(item => item && item.valid && item.prefixLength > 0);
 
-					const result = findMaxBy(
+					const result = findFirstMaxBy(
 						candidates,
 						compareBy(s => s!.prefixLength, numberComparator)
 					);
@@ -111,6 +115,22 @@ export class SuggestWidgetAdaptor extends Disposable {
 			this._register(Event.once(suggestController.model.onDidTrigger)(e => {
 				bindToSuggestWidget();
 			}));
+
+			this._register(suggestController.onWillInsertSuggestItem(e => {
+				const position = this.editor.getPosition();
+				const model = this.editor.getModel();
+				if (!position || !model) { return undefined; }
+
+				const suggestItemInfo = SuggestItemInfo.fromSuggestion(
+					suggestController,
+					model,
+					position,
+					e.item,
+					this.isShiftKeyPressed
+				);
+
+				this.onWillAccept(suggestItemInfo);
+			}));
 		}
 		this.update(this._isActive);
 	}
@@ -123,6 +143,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 			this._currentSuggestItemInfo = newInlineCompletion;
 
 			transaction(tx => {
+				/** @description Update state from suggest widget */
 				this.checkModelVersion(tx);
 				this._selectedItem.set(this._isActive ? this._currentSuggestItemInfo : undefined, tx);
 			});

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { asArray } from 'vs/base/common/arrays';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverAction } from 'vs/platform/hover/browser/hover';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export function getInstanceHoverInfo(instance: ITerminalInstance): { content: MarkdownString; actions: IHoverAction[] } {
@@ -54,7 +54,7 @@ export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown
 export function getShellProcessTooltip(instance: ITerminalInstance, markdown: boolean): string {
 	const lines: string[] = [];
 
-	if (instance.processId) {
+	if (instance.processId && instance.processId > 0) {
 		lines.push(localize({ key: 'shellProcessTooltip.processId', comment: ['The first arg is "PID" which shouldn\'t be translated'] }, "Process ID ({0}): {1}", 'PID', instance.processId) + '\n');
 	}
 

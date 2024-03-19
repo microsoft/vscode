@@ -9,6 +9,8 @@ interface ICSSPluginConfig {
 
 /**
  * Invoked by the loader at run-time
+ *
+ * @skipMangle
  */
 export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
 	config = config || {};
@@ -39,7 +41,8 @@ function loadCSS(name: string, cssUrl: string, callback: () => void, errorback: 
 }
 
 function linkTagExists(name: string, cssUrl: string): boolean {
-	const links = document.getElementsByTagName('link');
+	// eslint-disable-next-line no-restricted-globals
+	const links = window.document.getElementsByTagName('link');
 	for (let i = 0, len = links.length; i < len; i++) {
 		const nameAttr = links[i].getAttribute('data-name');
 		const hrefAttr = links[i].getAttribute('href');
@@ -59,7 +62,8 @@ function createLinkTag(name: string, cssUrl: string, callback: () => void, error
 	attachListeners(name, linkNode, callback, errorback);
 	linkNode.setAttribute('href', cssUrl);
 
-	const head = document.head || document.getElementsByTagName('head')[0];
+	// eslint-disable-next-line no-restricted-globals
+	const head = window.document.head || window.document.getElementsByTagName('head')[0];
 	head.appendChild(linkNode);
 }
 

@@ -16,9 +16,10 @@ use serde::{Deserialize, Serialize};
 #[allow(non_camel_case_types)]
 pub enum ClientRequestMethod<'a> {
 	servermsg(RefServerMessageParams<'a>),
+	serverclose(ServerClosedParams),
 	serverlog(ServerLog<'a>),
 	makehttpreq(HttpRequestParams<'a>),
-	version(VersionParams),
+	version(VersionResponse),
 }
 
 #[derive(Deserialize, Debug)]
@@ -58,14 +59,6 @@ pub struct ForwardResult {
 	pub uri: String,
 }
 
-/// The `install_local` method in the wsl control server
-#[derive(Deserialize, Debug)]
-pub struct InstallFromLocalFolderParams {
-	pub archive_path: String,
-	#[serde(flatten)]
-	pub inner: ServeParams,
-}
-
 #[derive(Deserialize, Debug)]
 pub struct ServeParams {
 	pub socket_id: u16,
@@ -95,6 +88,11 @@ pub struct ServerMessageParams {
 	pub i: u16,
 	#[serde(with = "serde_bytes")]
 	pub body: Vec<u8>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ServerClosedParams {
+	pub i: u16,
 }
 
 #[derive(Serialize, Debug)]
@@ -135,9 +133,53 @@ pub struct GetEnvResponse {
 	pub os_release: String,
 }
 
+/// Method: `kill`. Sends a generic, platform-specific kill command to the process.
 #[derive(Deserialize)]
-pub struct FsStatRequest {
+pub struct SysKillRequest {
+	pub pid: u32,
+}
+
+#[derive(Serialize)]
+pub struct SysKillResponse {
+	pub success: bool,
+}
+
+/// Methods: `fs_read`/`fs_write`/`fs_rm`/`fs_mkdirp`/`fs_stat`
+///  - fs_read: reads into a stream returned from the method,
+///  - fs_write: writes from a stream passed to the method.
+///  - fs_rm: recursively removes the file
+///  - fs_mkdirp: recursively creates the directory
+///  - fs_readdir: reads directory contents
+///  - fs_stat: stats the given path
+///  - fs_connect: connect to the given unix or named pipe socket, streaming
+///    data in and out from the method's stream.
+#[derive(Deserialize)]
+pub struct FsSinglePathRequest {
 	pub path: String,
+}
+
+#[derive(Serialize)]
+pub enum FsFileKind {
+	#[serde(rename = "dir")]
+	Directory,
+	#[serde(rename = "file")]
+	File,
+	#[serde(rename = "link")]
+	Link,
+}
+
+impl From<std::fs::FileType> for FsFileKind {
+	fn from(kind: std::fs::FileType) -> Self {
+		if kind.is_dir() {
+			Self::Directory
+		} else if kind.is_file() {
+			Self::File
+		} else if kind.is_symlink() {
+			Self::Link
+		} else {
+			unreachable!()
+		}
+	}
 }
 
 #[derive(Serialize, Default)]
@@ -145,7 +187,33 @@ pub struct FsStatResponse {
 	pub exists: bool,
 	pub size: Option<u64>,
 	#[serde(rename = "type")]
-	pub kind: Option<&'static str>,
+	pub kind: Option<FsFileKind>,
+}
+
+#[derive(Serialize)]
+pub struct FsReadDirResponse {
+	pub contents: Vec<FsReadDirEntry>,
+}
+
+#[derive(Serialize)]
+pub struct FsReadDirEntry {
+	pub name: String,
+	#[serde(rename = "type")]
+	pub kind: Option<FsFileKind>,
+}
+
+/// Method: `fs_reaname`. Renames a file.
+#[derive(Deserialize)]
+pub struct FsRenameRequest {
+	pub from_path: String,
+	pub to_path: String,
+}
+
+/// Method: `net_connect`. Connects to a port.
+#[derive(Deserialize)]
+pub struct NetConnectRequest {
+	pub port: u16,
+	pub host: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -165,12 +233,12 @@ pub struct CallServerHttpResult {
 }
 
 #[derive(Serialize, Debug)]
-pub struct VersionParams {
+pub struct VersionResponse {
 	pub version: &'static str,
 	pub protocol_version: u32,
 }
 
-impl Default for VersionParams {
+impl Default for VersionResponse {
 	fn default() -> Self {
 		Self {
 			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
@@ -204,8 +272,60 @@ pub struct SpawnResult {
 	pub exit_code: i32,
 }
 
+pub const METHOD_CHALLENGE_ISSUE: &str = "challenge_issue";
+pub const METHOD_CHALLENGE_VERIFY: &str = "challenge_verify";
+
+#[derive(Serialize, Deserialize)]
+pub struct ChallengeIssueParams {
+	pub token: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ChallengeIssueResponse {
+	pub challenge: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ChallengeVerifyParams {
+	pub response: String,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum PortPrivacy {
+	Public,
+	Private,
+}
+
+pub mod forward_singleton {
+	use serde::{Deserialize, Serialize};
+
+	use super::PortPrivacy;
+
+	pub const METHOD_SET_PORTS: &str = "set_ports";
+
+	#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
+	pub struct PortRec {
+		pub number: u16,
+		pub privacy: PortPrivacy,
+	}
+
+	pub type PortList = Vec<PortRec>;
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsParams {
+		pub ports: PortList,
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsResponse {
+		pub port_format: Option<String>,
+	}
+}
+
 pub mod singleton {
 	use crate::log;
+	use chrono::{DateTime, Utc};
 	use serde::{Deserialize, Serialize};
 
 	pub const METHOD_RESTART: &str = "restart";
@@ -228,17 +348,41 @@ pub mod singleton {
 		pub message: String,
 	}
 
-	#[derive(Serialize, Deserialize)]
+	#[derive(Serialize, Deserialize, Clone, Default)]
+	pub struct StatusWithTunnelName {
+		pub name: Option<String>,
+		#[serde(flatten)]
+		pub status: Status,
+	}
+
+	#[derive(Serialize, Deserialize, Clone)]
 	pub struct Status {
+		pub started_at: DateTime<Utc>,
 		pub tunnel: TunnelState,
+		pub last_connected_at: Option<DateTime<Utc>>,
+		pub last_disconnected_at: Option<DateTime<Utc>>,
+		pub last_fail_reason: Option<String>,
+	}
+
+	impl Default for Status {
+		fn default() -> Self {
+			Self {
+				started_at: Utc::now(),
+				tunnel: TunnelState::Disconnected,
+				last_connected_at: None,
+				last_disconnected_at: None,
+				last_fail_reason: None,
+			}
+		}
 	}
 
 	#[derive(Deserialize, Serialize, Debug)]
 	pub struct LogReplayFinished {}
 
-	#[derive(Deserialize, Serialize, Debug)]
+	#[derive(Deserialize, Serialize, Debug, Default, Clone)]
 	pub enum TunnelState {
+		#[default]
 		Disconnected,
-		Connected { name: String },
+		Connected,
 	}
 }

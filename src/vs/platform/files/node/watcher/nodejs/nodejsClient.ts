@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiskFileChange, ILogMessage, AbstractNonRecursiveWatcherClient, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IFileChange } from 'vs/platform/files/common/files';
+import { ILogMessage, AbstractNonRecursiveWatcherClient, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 
 export class NodeJSWatcherClient extends AbstractNonRecursiveWatcherClient {
 
 	constructor(
-		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onFileChanges: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	) {
@@ -18,7 +20,7 @@ export class NodeJSWatcherClient extends AbstractNonRecursiveWatcherClient {
 		this.init();
 	}
 
-	protected override createWatcher(): INonRecursiveWatcher {
-		return new NodeJSWatcher();
+	protected override createWatcher(disposables: DisposableStore): INonRecursiveWatcher {
+		return disposables.add(new NodeJSWatcher()) satisfies INonRecursiveWatcher;
 	}
 }

@@ -57,11 +57,13 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesReadonlyService } from 'vs/platform/userDataProfile/node/userDataProfile';
-import { resolveMachineId } from 'vs/platform/telemetry/node/telemetryUtils';
+import { resolveMachineId, resolveSqmId } from 'vs/platform/telemetry/node/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { localize } from 'vs/nls';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
 
 class CliMain extends Disposable {
 
@@ -120,8 +122,8 @@ class CliMain extends Disposable {
 
 		// Init folders
 		await Promise.all([
-			environmentService.appSettingsHome.fsPath,
-			environmentService.extensionsPath
+			this.allowWindowsUNCPath(environmentService.appSettingsHome.with({ scheme: Schemas.file }).fsPath),
+			this.allowWindowsUNCPath(environmentService.extensionsPath)
 		].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Logger
@@ -154,6 +156,10 @@ class CliMain extends Disposable {
 		const userDataProfilesService = new UserDataProfilesReadonlyService(stateService, uriIdentityService, environmentService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
+		// Use FileUserDataProvider for user data to
+		// enable atomic read / write operations.
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService));
+
 		// Policy
 		const policyService = isWindows && productService.win32RegValueName ? this._register(new NativePolicyService(logService, productService.win32RegValueName))
 			: environmentService.policyFile ? this._register(new FilePolicyService(environmentService.policyFile, fileService, logService))
@@ -179,6 +185,7 @@ class CliMain extends Disposable {
 				logService.error(error);
 			}
 		}
+		const sqmId = await resolveSqmId(stateService, logService);
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesService.init();
@@ -187,7 +194,8 @@ class CliMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
+		const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+		services.set(IRequestService, requestService);
 
 		// Download Service
 		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
@@ -207,13 +215,13 @@ class CliMain extends Disposable {
 		const isInternal = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
 			if (productService.aiConfig && productService.aiConfig.ariaKey) {
-				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
+				appenders.push(new OneDataSystemAppender(requestService, isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, isInternal),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, isInternal),
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
@@ -224,6 +232,17 @@ class CliMain extends Disposable {
 		}
 
 		return [new InstantiationService(services), appenders];
+	}
+
+	private allowWindowsUNCPath(path: string): string {
+		if (isWindows) {
+			const host = getUNCHost(path);
+			if (host) {
+				addUNCHostToAllowlist(host);
+			}
+		}
+
+		return path;
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
@@ -271,6 +290,10 @@ class CliMain extends Disposable {
 		// Uninstall Extension
 		else if (this.argv['uninstall-extension']) {
 			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force'], profileLocation);
+		}
+
+		else if (this.argv['update-extensions']) {
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).updateExtensions(profileLocation);
 		}
 
 		// Locate Extension

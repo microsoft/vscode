@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -23,6 +24,12 @@ suite('MainThreadDiagnostics', function () {
 	setup(function () {
 		markerService = new MarkerService();
 	});
+
+	teardown(function () {
+		markerService.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('clear markers on dispose', function () {
 
@@ -111,6 +118,8 @@ suite('MainThreadDiagnostics', function () {
 			assert.strictEqual(changedData.length, 1);
 			assert.strictEqual(changedData[0].length, 1);
 			assert.strictEqual(changedData[0][0][1][0].message, 'forgein_owner');
+
+			diag.dispose();
 		});
 	});
 
@@ -158,6 +167,8 @@ suite('MainThreadDiagnostics', function () {
 			await timeout(0);
 			assert.strictEqual(markerService.read().length, 0);
 			assert.strictEqual(changedData.length, 1);
+
+			diag.dispose();
 		});
 	});
 });

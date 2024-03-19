@@ -23,7 +23,6 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/b
 import { asCssVariable, editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { Promises, timeout } from 'vs/base/common/async';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { defaultInputBoxStyles, defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -59,15 +58,15 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(parent, options, contextViewService, instantiationService, contextKeyService, keybindingService);
+
 		this._register(toDisposable(() => this.stopRecordingKeys()));
+
 		this._chords = null;
 		this._inputValue = '';
-
-		this._reset();
 	}
 
 	override clear(): void {
-		this._reset();
+		this._chords = null;
 		super.clear();
 	}
 
@@ -81,17 +80,13 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	}
 
 	stopRecordingKeys(): void {
-		this._reset();
+		this._chords = null;
 		this.recordDisposables.clear();
 	}
 
 	setInputValue(value: string): void {
 		this._inputValue = value;
 		this.inputBox.value = this._inputValue;
-	}
-
-	private _reset() {
-		this._chords = null;
 	}
 
 	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
@@ -103,10 +98,6 @@ export class KeybindingsSearchWidget extends SearchWidget {
 			return;
 		}
 		if (keyboardEvent.equals(KeyCode.Escape)) {
-			if (this._chords !== null) {
-				this.clear();
-			}
-
 			this._onEscape.fire();
 			return;
 		}
@@ -150,6 +141,7 @@ export class DefineKeybindingWidget extends Widget {
 	private _keybindingInputWidget: KeybindingsSearchWidget;
 	private _outputNode: HTMLElement;
 	private _showExistingKeybindingsNode: HTMLElement;
+	private _keybindingDisposables = this._register(new DisposableStore());
 
 	private _chords: ResolvedKeybinding[] | null = null;
 	private _isVisible: boolean = false;
@@ -185,8 +177,8 @@ export class DefineKeybindingWidget extends Widget {
 		this._keybindingInputWidget.startRecordingKeys();
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
-		this._register(this._keybindingInputWidget.onEscape(() => this.onEscape()));
-		this._register(this._keybindingInputWidget.onBlur(() => this.onBlur()));
+		this._register(this._keybindingInputWidget.onEscape(() => this.clearOrHide()));
+		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
 
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
 		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
@@ -247,23 +239,20 @@ export class DefineKeybindingWidget extends Widget {
 	}
 
 	private onKeybinding(keybinding: ResolvedKeybinding[] | null): void {
+		this._keybindingDisposables.clear();
 		this._chords = keybinding;
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
 
-
-
-		const firstLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
-		firstLabel.set(withNullAsUndefined(this._chords?.[0]));
-
+		const firstLabel = this._keybindingDisposables.add(new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles));
+		firstLabel.set(this._chords?.[0] ?? undefined);
 
 		if (this._chords) {
 			for (let i = 1; i < this._chords.length; i++) {
 				this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
-				const chordLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
+				const chordLabel = this._keybindingDisposables.add(new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles));
 				chordLabel.set(this._chords[i]);
 			}
-
 		}
 
 		const label = this.getUserSettingsLabel();
@@ -280,19 +269,20 @@ export class DefineKeybindingWidget extends Widget {
 		return label;
 	}
 
-	private onBlur(): void {
+	private onCancel(): void {
 		this._chords = null;
 		this.hide();
 	}
 
-	private onEscape(): void {
-		if (this._chords !== null) {
+	private clearOrHide(): void {
+		if (this._chords === null) {
+			this.hide();
+		} else {
 			this._chords = null;
+			this._keybindingInputWidget.clear();
 			dom.clearNode(this._outputNode);
 			dom.clearNode(this._showExistingKeybindingsNode);
-			return;
 		}
-		this.hide();
 	}
 
 	private hide(): void {
@@ -313,7 +303,7 @@ export class DefineKeybindingOverlayWidget extends Disposable implements IOverla
 	) {
 		super();
 
-		this._widget = instantiationService.createInstance(DefineKeybindingWidget, null);
+		this._widget = this._register(instantiationService.createInstance(DefineKeybindingWidget, null));
 		this._editor.addOverlayWidget(this);
 	}
 

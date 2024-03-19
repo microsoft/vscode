@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 
 export const Categories = Object.freeze({
-	View: { value: localize('view', "View"), original: 'View' },
-	Help: { value: localize('help', "Help"), original: 'Help' },
-	Test: { value: localize('test', "Test"), original: 'Test' },
-	File: { value: localize('file', "File"), original: 'File' },
-	Preferences: { value: localize('preferences', "Preferences"), original: 'Preferences' },
-	Developer: { value: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' }
+	View: localize2('view', 'View'),
+	Help: localize2('help', 'Help'),
+	Test: localize2('test', 'Test'),
+	File: localize2('file', 'File'),
+	Preferences: localize2('preferences', 'Preferences'),
+	Developer: localize2({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"),
 });

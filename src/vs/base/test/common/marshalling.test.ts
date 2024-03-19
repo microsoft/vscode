@@ -5,8 +5,11 @@
 import * as assert from 'assert';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Marshalling', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('RegExp', () => {
 		const value = /foo/img;

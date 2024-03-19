@@ -312,7 +312,12 @@
 	justify-content: center;
 }
 
-.debug-pane .debug-breakpoints .breakpoint > .access-type,
+.debug-pane .debug-breakpoints .breakpoint > .access-type {
+	opacity: 0.7;
+	margin-left: 0.9em;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
 .debug-pane .debug-breakpoints .breakpoint > .file-path,
 .debug-pane .debug-breakpoints .breakpoint > .condition {
 	opacity: 0.7;

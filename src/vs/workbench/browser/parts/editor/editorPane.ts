@@ -24,6 +24,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { getWindowById } from 'vs/base/browser/dom';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -70,8 +71,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	protected _options: IEditorOptions | undefined;
 	get options(): IEditorOptions | undefined { return this._options; }
 
-	private _group: IEditorGroup | undefined;
-	get group(): IEditorGroup | undefined { return this._group; }
+	get window() { return getWindowById(this.group.windowId, true).window; }
 
 	/**
 	 * Should be overridden by editors that have their own ScopedContextKeyService
@@ -80,6 +80,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 	constructor(
 		id: string,
+		readonly group: IEditorGroup,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		storageService: IStorageService
@@ -145,22 +146,20 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		this._options = options;
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup): void {
+	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
 
 		// Propagate to Editor
-		this.setEditorVisible(visible, group);
+		this.setEditorVisible(visible);
 	}
 
 	/**
-	 * Indicates that the editor control got visible or hidden in a specific group. A
-	 * editor instance will only ever be visible in one editor group.
+	 * Indicates that the editor control got visible or hidden.
 	 *
 	 * @param visible the state of visibility of this editor
-	 * @param group the editor group this editor is in.
 	 */
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		this._group = group;
+	protected setEditorVisible(visible: boolean): void {
+		// Subclasses can implement
 	}
 
 	setBoundarySashes(_sashes: IBoundarySashes) {
@@ -220,11 +219,11 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 
 	constructor(
 		readonly id: string,
-		private key: string,
-		private memento: MementoObject,
-		private limit: number,
-		private editorGroupService: IEditorGroupsService,
-		private configurationService: ITextResourceConfigurationService
+		private readonly key: string,
+		private readonly memento: MementoObject,
+		private readonly limit: number,
+		private readonly editorGroupService: IEditorGroupsService,
+		private readonly configurationService: ITextResourceConfigurationService
 	) {
 		super();
 

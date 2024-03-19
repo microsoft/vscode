@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-layering, local/code-import-patterns */
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-
 import { hostname, release } from 'os';
+import { MessagePortMain, MessageEvent } from 'vs/base/parts/sandbox/node/electronTypes';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { firstOrDefault } from 'vs/base/common/arrays';
+import { Emitter } from 'vs/base/common/event';
 import { ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as UtilityProcessMessagePortServer, once } from 'vs/base/parts/ipc/node/ipc.mp';
+import { IClientConnectionFilter, Server as UtilityProcessMessagePortServer, once } from 'vs/base/parts/ipc/node/ipc.mp';
 import { CodeCacheCleaner } from 'vs/code/node/sharedProcess/contrib/codeCacheCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/node/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { LocalizationsUpdater } from 'vs/code/node/sharedProcess/contrib/localizationsUpdater';
@@ -28,7 +28,6 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsServ
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { SharedProcessEnvironmentService } from 'vs/platform/sharedProcess/node/sharedProcessEnvironmentService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -57,21 +56,19 @@ import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
-import { LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
-import { UserDataAutoSyncChannel, UserDataSyncAccountServiceChannel, UserDataSyncMachinesServiceChannel, UserDataSyncStoreManagementServiceChannel, UserDataSyncUtilServiceClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { UserDataSyncLocalStoreService } from 'vs/platform/userDataSync/common/userDataSyncLocalStoreService';
+import { UserDataSyncAccountServiceChannel, UserDataSyncStoreManagementServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
+import { UserDataSyncServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { NativeUserDataProfileStorageService } from 'vs/platform/userDataProfile/node/userDataProfileStorageService';
@@ -109,16 +106,26 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/common/extensionRecommendationsIpc';
 import { INativeHostService } from 'vs/platform/native/common/native';
+import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataAutoSyncService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { RemoteStorageService } from 'vs/platform/storage/common/storageService';
+import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
+import { getOSReleaseInfo } from 'vs/base/node/osReleaseInfo';
+import { getDesktopEnvironment } from 'vs/base/common/desktopEnvironmentInfo';
 
-class SharedProcessMain extends Disposable {
+class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
-	private readonly server = this._register(new UtilityProcessMessagePortServer());
+	private readonly server = this._register(new UtilityProcessMessagePortServer(this));
 
 	private lifecycleService: SharedProcessLifecycleService | undefined = undefined;
+
+	private readonly onDidWindowConnectRaw = this._register(new Emitter<MessagePortMain>());
 
 	constructor(private configuration: ISharedProcessConfiguration) {
 		super();
@@ -139,7 +146,7 @@ class SharedProcessMain extends Disposable {
 			}
 		};
 		process.once('exit', onExit);
-		once(process.parentPort, 'vscode:electron-main->shared-process=exit', onExit);
+		once(process.parentPort, SharedProcessLifecycle.exit, onExit);
 	}
 
 	async init(): Promise<void> {
@@ -152,6 +159,8 @@ class SharedProcessMain extends Disposable {
 
 		instantiationService.invokeFunction(accessor => {
 			const logService = accessor.get(ILogService);
+			const telemetryService = accessor.get(ITelemetryService);
+			const userDataProfilesService = accessor.get(IUserDataProfilesService);
 
 			// Log info
 			logService.trace('sharedProcess configuration', JSON.stringify(this.configuration));
@@ -161,6 +170,13 @@ class SharedProcessMain extends Disposable {
 
 			// Error handler
 			this.registerErrorHandler(logService);
+
+			// Report Profiles Info
+			this.reportProfilesInfo(telemetryService, userDataProfilesService);
+			this._register(userDataProfilesService.onDidChangeProfiles(() => this.reportProfilesInfo(telemetryService, userDataProfilesService)));
+
+			// Report Client OS/DE Info
+			this.reportClientOSInfo(telemetryService, logService);
 		});
 
 		// Instantiate Contributions
@@ -192,7 +208,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IPolicyService, policyService);
 
 		// Environment
-		const environmentService = new SharedProcessEnvironmentService(this.configuration.args, productService);
+		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Logger
@@ -216,6 +232,14 @@ class SharedProcessMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// URI Identity
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
+
+		// User Data Profiles
+		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
+		services.set(IUserDataProfilesService, userDataProfilesService);
+
 		const userDataFileSystemProvider = this._register(new FileUserDataProvider(
 			Schemas.file,
 			// Specifically for user data, use the disk file system provider
@@ -224,13 +248,11 @@ class SharedProcessMain extends Disposable {
 			// processes, we want a single process handling these operations.
 			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
 			Schemas.vscodeUserData,
+			userDataProfilesService,
+			uriIdentityService,
 			logService
 		));
 		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
-
-		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
-		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, policyService, logService));
@@ -247,12 +269,9 @@ class SharedProcessMain extends Disposable {
 			storageService.initialize()
 		]);
 
-		// URI Identity
-		const uriIdentityService = new UriIdentityService(fileService);
-		services.set(IUriIdentityService, uriIdentityService);
-
 		// Request
-		services.set(IRequestService, new RequestChannelClient(mainProcessService.getChannel('request')));
+		const requestService = new RequestChannelClient(mainProcessService.getChannel('request'));
+		services.set(IRequestService, requestService);
 
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));
@@ -261,7 +280,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService, undefined, false /* proxied to other processes */));
 
 		// Native Host
-		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'));
+		const nativeHostService = new NativeHostService(-1 /* we are not running in a browser window context */, mainProcessService) as INativeHostService;
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
@@ -279,15 +298,15 @@ class SharedProcessMain extends Disposable {
 		if (supportsTelemetry(productService, environmentService)) {
 			const logAppender = new TelemetryLogAppender(logService, loggerService, environmentService, productService);
 			appenders.push(logAppender);
-			if (productService.aiConfig?.ariaKey) {
-				const collectorAppender = new OneDataSystemAppender(internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+			if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
+				const collectorAppender = new OneDataSystemAppender(requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
 			}
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, internalTelemetry),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService, productService);
@@ -325,39 +344,26 @@ class SharedProcessMain extends Disposable {
 		// Settings Sync
 		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService, undefined, true));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService, undefined, true));
-		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(this.server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
+		services.set(IUserDataSyncUtilService, ProxyChannel.toService(this.server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
 		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService, undefined, false /* Eagerly resets installed extensions */));
 		services.set(IIgnoredExtensionsManagementService, new SyncDescriptor(IgnoredExtensionsManagementService, undefined, true));
 		services.set(IExtensionStorageService, new SyncDescriptor(ExtensionStorageService));
 		services.set(IUserDataSyncStoreManagementService, new SyncDescriptor(UserDataSyncStoreManagementService, undefined, true));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService, undefined, true));
 		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService, undefined, true));
-		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService, undefined, false /* Eagerly cleans up old backups */));
+		services.set(IUserDataSyncLocalStoreService, new SyncDescriptor(UserDataSyncLocalStoreService, undefined, false /* Eagerly cleans up old backups */));
 		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService, undefined, true));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService, undefined, false /* Initializes the Sync State */));
 		services.set(IUserDataProfileStorageService, new SyncDescriptor(NativeUserDataProfileStorageService, undefined, true));
 		services.set(IUserDataSyncResourceProviderService, new SyncDescriptor(UserDataSyncResourceProviderService, undefined, true));
 
-		// Terminal
-
-		const ptyHostService = new PtyHostService({
-			graceTime: LocalReconnectConstants.GraceTime,
-			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
-			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		},
-			configurationService,
-			environmentService,
-			logService,
-			loggerService
-		);
-		ptyHostService.initialize();
-
-		services.set(ILocalPtyService, this._register(ptyHostService));
-
 		// Signing
 		services.set(ISignService, new SyncDescriptor(SignService, undefined, false /* proxied to other processes */));
 
 		// Tunnel
+		const remoteSocketFactoryService = new RemoteSocketFactoryService();
+		services.set(IRemoteSocketFactoryService, remoteSocketFactoryService);
+		remoteSocketFactoryService.register(RemoteConnectionType.WebSocket, nodeSocketFactory);
 		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 
@@ -369,16 +375,18 @@ class SharedProcessMain extends Disposable {
 
 	private initChannels(accessor: ServicesAccessor): void {
 
+		// const disposables = this._register(new DisposableStore());
+
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
 
 		// Language Packs
-		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService));
+		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService), this._store);
 		this.server.registerChannel('languagePacks', languagePacksChannel);
 
 		// Diagnostics
-		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));
+		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService), this._store);
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Extension Tips
@@ -386,19 +394,19 @@ class SharedProcessMain extends Disposable {
 		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
 
 		// Checksum
-		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService));
+		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService), this._store);
 		this.server.registerChannel('checksum', checksumChannel);
 
 		// Profiling
-		const profilingChannel = ProxyChannel.fromService(accessor.get(IV8InspectProfilingService));
+		const profilingChannel = ProxyChannel.fromService(accessor.get(IV8InspectProfilingService), this._store);
 		this.server.registerChannel('v8InspectProfiling', profilingChannel);
 
 		// Settings Sync
-		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(accessor.get(IUserDataSyncMachinesService));
+		const userDataSyncMachineChannel = ProxyChannel.fromService(accessor.get(IUserDataSyncMachinesService), this._store);
 		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService));
+		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService), this._store);
 		this.server.registerChannel('customEndpointTelemetry', customEndpointTelemetryChannel);
 
 		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
@@ -407,24 +415,20 @@ class SharedProcessMain extends Disposable {
 		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(accessor.get(IUserDataSyncStoreManagementService));
 		this.server.registerChannel('userDataSyncStoreManagement', userDataSyncStoreManagementChannel);
 
-		const userDataSyncChannel = new UserDataSyncChannel(accessor.get(IUserDataSyncService), accessor.get(IUserDataProfilesService), accessor.get(ILogService));
+		const userDataSyncChannel = new UserDataSyncServiceChannel(accessor.get(IUserDataSyncService), accessor.get(IUserDataProfilesService), accessor.get(ILogService));
 		this.server.registerChannel('userDataSync', userDataSyncChannel);
 
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));
-		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
-		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
+		this.server.registerChannel('userDataAutoSync', ProxyChannel.fromService(userDataAutoSync, this._store));
 
-		// Terminal
-		const localPtyService = accessor.get(ILocalPtyService);
-		const localPtyChannel = ProxyChannel.fromService(localPtyService);
-		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
+		this.server.registerChannel('IUserDataSyncResourceProviderService', ProxyChannel.fromService(accessor.get(IUserDataSyncResourceProviderService), this._store));
 
 		// Tunnel
-		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));
+		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService), this._store);
 		this.server.registerChannel(ipcSharedProcessTunnelChannelName, sharedProcessTunnelChannel);
 
 		// Remote Tunnel
-		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService));
+		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService), this._store);
 		this.server.registerChannel('remoteTunnel', remoteTunnelChannel);
 	}
 
@@ -444,6 +448,70 @@ class SharedProcessMain extends Disposable {
 			logService.error(`[uncaught exception in sharedProcess]: ${message}`);
 		});
 	}
+
+	private reportProfilesInfo(telemetryService: ITelemetryService, userDataProfilesService: IUserDataProfilesService): void {
+		type ProfilesInfoClassification = {
+			owner: 'sandy081';
+			comment: 'Report profiles information';
+			count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of profiles' };
+		};
+		type ProfilesInfoEvent = {
+			count: number;
+		};
+		telemetryService.publicLog2<ProfilesInfoEvent, ProfilesInfoClassification>('profilesInfo', {
+			count: userDataProfilesService.profiles.length
+		});
+	}
+
+	private async reportClientOSInfo(telemetryService: ITelemetryService, logService: ILogService): Promise<void> {
+		if (isLinux) {
+			const releaseInfo = await getOSReleaseInfo(logService.error.bind(logService));
+			const desktopEnvironment = getDesktopEnvironment();
+			if (releaseInfo) {
+				type ClientPlatformInfoClassification = {
+					platformId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system without any version information.' };
+					platformVersionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system version excluding any name information or release code.' };
+					platformIdLike: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system the current OS derivate is closely related to.' };
+					desktopEnvironment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the desktop environment the user is using.' };
+					owner: 'benibenj';
+					comment: 'Provides insight into the distro and desktop environment information on Linux.';
+				};
+				type ClientPlatformInfoEvent = {
+					platformId: string;
+					platformVersionId: string | undefined;
+					platformIdLike: string | undefined;
+					desktopEnvironment: string | undefined;
+				};
+				telemetryService.publicLog2<ClientPlatformInfoEvent, ClientPlatformInfoClassification>('clientPlatformInfo', {
+					platformId: releaseInfo.id,
+					platformVersionId: releaseInfo.version_id,
+					platformIdLike: releaseInfo.id_like,
+					desktopEnvironment: desktopEnvironment
+				});
+			}
+		}
+	}
+
+	handledClientConnection(e: MessageEvent): boolean {
+
+		// This filter on message port messages will look for
+		// attempts of a window to connect raw to the shared
+		// process to handle these connections separate from
+		// our IPC based protocol.
+
+		if (e.data !== SharedProcessRawConnection.response) {
+			return false;
+		}
+
+		const port = firstOrDefault(e.ports);
+		if (port) {
+			this.onDidWindowConnectRaw.fire(port);
+
+			return true;
+		}
+
+		return false;
+	}
 }
 
 export async function main(configuration: ISharedProcessConfiguration): Promise<void> {
@@ -451,15 +519,24 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 	// create shared process and signal back to main that we are
 	// ready to accept message ports as client connections
 
-	const sharedProcess = new SharedProcessMain(configuration);
-	process.parentPort.postMessage('vscode:shared-process->electron-main=ipc-ready');
+	try {
+		const sharedProcess = new SharedProcessMain(configuration);
+		process.parentPort.postMessage(SharedProcessLifecycle.ipcReady);
 
-	// await initialization and signal this back to electron-main
-	await sharedProcess.init();
+		// await initialization and signal this back to electron-main
+		await sharedProcess.init();
 
-	process.parentPort.postMessage('vscode:shared-process->electron-main=init-done');
+		process.parentPort.postMessage(SharedProcessLifecycle.initDone);
+	} catch (error) {
+		process.parentPort.postMessage({ error: error.toString() });
+	}
 }
 
+const handle = setTimeout(() => {
+	process.parentPort.postMessage({ warning: '[SharedProcess] did not receive configuration within 30s...' });
+}, 30000);
+
 process.parentPort.once('message', (e: Electron.MessageEvent) => {
+	clearTimeout(handle);
 	main(e.data as ISharedProcessConfiguration);
 });

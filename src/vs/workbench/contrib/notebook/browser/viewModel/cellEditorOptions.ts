@@ -83,8 +83,7 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 
 	private _computeEditorOptions() {
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
-		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
-		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
+		const editorOptionsOverrideRaw = this.notebookOptions.getDisplayOptions().editorOptionsCustomizations ?? {};
 		const editorOptionsOverride: { [key: string]: any } = {};
 		for (const key in editorOptionsOverrideRaw) {
 			if (key.indexOf('editor.') === 0) {

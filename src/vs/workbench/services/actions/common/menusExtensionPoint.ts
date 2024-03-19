@@ -11,12 +11,20 @@ import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } fr
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData, Extensions as ExtensionFeaturesExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { IExtensionManifest, IKeyBinding } from 'vs/platform/extensions/common/extensions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { platform } from 'vs/base/common/process';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 interface IAPIMenu {
 	readonly key: string;
@@ -103,6 +111,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
 	},
 	{
+		key: 'notebook/variables/context',
+		id: MenuId.NotebookVariablesContext,
+		description: localize('menus.notebookVariablesContext', "The notebook variables view context menu")
+	},
+	{
 		key: 'menuBar/home',
 		id: MenuId.MenubarHomeMenu,
 		description: localize('menus.home', "The home indicator context menu (web only)"),
@@ -125,6 +138,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.scmSourceControl', "The Source Control menu")
 	},
 	{
+		key: 'scm/sourceControl/title',
+		id: MenuId.SCMSourceControlTitle,
+		description: localize('menus.scmSourceControlTitle', "The Source Control title menu"),
+		proposed: 'contribSourceControlTitleMenu'
+	},
+	{
 		key: 'scm/resourceState/context',
 		id: MenuId.SCMResourceContext,
 		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
@@ -145,10 +164,74 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.changeTitle', "The Source Control inline change menu")
 	},
 	{
+		key: 'scm/inputBox',
+		id: MenuId.SCMInputBox,
+		description: localize('menus.input', "The Source Control input box menu"),
+		proposed: 'contribSourceControlInputBoxMenu'
+	},
+	{
+		key: 'scm/incomingChanges',
+		id: MenuId.SCMIncomingChanges,
+		description: localize('menus.incomingChanges', "The Source Control incoming changes menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
+		key: 'scm/incomingChanges/context',
+		id: MenuId.SCMIncomingChangesContext,
+		description: localize('menus.incomingChangesContext', "The Source Control incoming changes context menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
+		key: 'scm/outgoingChanges',
+		id: MenuId.SCMOutgoingChanges,
+		description: localize('menus.outgoingChanges', "The Source Control outgoing changes menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/context',
+		id: MenuId.SCMOutgoingChangesContext,
+		description: localize('menus.outgoingChangesContext', "The Source Control outgoing changes context menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
+		key: 'scm/incomingChanges/allChanges/context',
+		id: MenuId.SCMIncomingChangesAllChangesContext,
+		description: localize('menus.incomingChangesAllChangesContext', "The Source Control all incoming changes context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/incomingChanges/historyItem/context',
+		id: MenuId.SCMIncomingChangesHistoryItemContext,
+		description: localize('menus.incomingChangesHistoryItemContext', "The Source Control incoming changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/allChanges/context',
+		id: MenuId.SCMOutgoingChangesAllChangesContext,
+		description: localize('menus.outgoingChangesAllChangesContext', "The Source Control all outgoing changes context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/historyItem/context',
+		id: MenuId.SCMOutgoingChangesHistoryItemContext,
+		description: localize('menus.outgoingChangesHistoryItemContext', "The Source Control outgoing changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
 		key: 'statusBar/remoteIndicator',
 		id: MenuId.StatusBarRemoteIndicatorMenu,
 		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),
 		supportsSubmenus: false
+	},
+	{
+		key: 'terminal/context',
+		id: MenuId.TerminalInstanceContext,
+		description: localize('menus.terminalContext', "The terminal context menu")
+	},
+	{
+		key: 'terminal/title/context',
+		id: MenuId.TerminalTabContext,
+		description: localize('menus.terminalTabContext', "The terminal tabs context menu")
 	},
 	{
 		key: 'view/title',
@@ -208,6 +291,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribCommentPeekContext'
 	},
 	{
+		key: 'commentsView/commentThread/context',
+		id: MenuId.CommentsViewThreadActions,
+		description: localize('commentsView.threadActions', "The contributed comment thread context menu in the comments view"),
+		proposed: 'contribCommentsViewThreadMenus'
+	},
+	{
 		key: 'notebook/toolbar',
 		id: MenuId.NotebookToolbar,
 		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
@@ -239,6 +328,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
 	},
 	{
+		key: 'issue/reporter',
+		id: MenuId.IssueReporter,
+		description: localize('issue.reporter', "The contributed issue reporter menu"),
+		proposed: 'contribIssueReporter'
+	},
+	{
 		key: 'testing/item/context',
 		id: MenuId.TestItem,
 		description: localize('testing.item.context', "The contributed test item menu"),
@@ -247,6 +342,21 @@ const apiMenus: IAPIMenu[] = [
 		key: 'testing/item/gutter',
 		id: MenuId.TestItemGutter,
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
+	},
+	{
+		key: 'testing/item/result',
+		id: MenuId.TestPeekElement,
+		description: localize('testing.item.result.title', "The menu for an item in the Test Results view or peek."),
+	},
+	{
+		key: 'testing/message/context',
+		id: MenuId.TestMessageContext,
+		description: localize('testing.message.context.title', "A prominent button overlaying editor content where the message is displayed"),
+	},
+	{
+		key: 'testing/message/content',
+		id: MenuId.TestMessageContent,
+		description: localize('testing.message.content.title', "Context menu for the message in the results tree"),
 	},
 	{
 		key: 'extension/context',
@@ -303,6 +413,13 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'inlineCompletionsAdditions'
 	},
 	{
+		key: 'editor/inlineEdit/actions',
+		id: MenuId.InlineEditActions,
+		description: localize('inlineEdit.actions', "The actions shown when hovering on an inline edit"),
+		supportsSubmenus: false,
+		proposed: 'inlineEdit'
+	},
+	{
 		key: 'editor/content',
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
@@ -319,6 +436,24 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
 		proposed: 'contribMergeEditorMenus'
 	},
+	{
+		key: 'multiDiffEditor/resource/title',
+		id: MenuId.MultiDiffEditorFileToolbar,
+		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
+		proposed: 'contribMultiDiffEditorMenus'
+	},
+	{
+		key: 'diffEditor/gutter/hunk',
+		id: MenuId.DiffEditorHunkToolbar,
+		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
+		proposed: 'contribDiffEditorGutterToolBarMenus'
+	},
+	{
+		key: 'diffEditor/gutter/selection',
+		id: MenuId.DiffEditorSelectionToolbar,
+		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
+		proposed: 'contribDiffEditorGutterToolBarMenus'
+	}
 ];
 
 namespace schema {
@@ -894,4 +1029,117 @@ menusExtensionPoint.setHandler(extensions => {
 			}
 		}
 	}
+});
+
+class CommandsTableRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	constructor(
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) { super(); }
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.commands;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const rawCommands = manifest.contributes?.commands || [];
+		const commands = rawCommands.map(c => ({
+			id: c.command,
+			title: c.title,
+			keybindings: [] as ResolvedKeybinding[],
+			menus: [] as string[]
+		}));
+
+		const byId = index(commands, c => c.id);
+
+		const menus = manifest.contributes?.menus || {};
+
+		for (const context in menus) {
+			for (const menu of menus[context]) {
+				if (menu.command) {
+					let command = byId[menu.command];
+					if (command) {
+						command.menus.push(context);
+					} else {
+						command = { id: menu.command, title: '', keybindings: [], menus: [context] };
+						byId[command.id] = command;
+						commands.push(command);
+					}
+				}
+			}
+		}
+
+		const rawKeybindings = manifest.contributes?.keybindings ? (Array.isArray(manifest.contributes.keybindings) ? manifest.contributes.keybindings : [manifest.contributes.keybindings]) : [];
+
+		rawKeybindings.forEach(rawKeybinding => {
+			const keybinding = this.resolveKeybinding(rawKeybinding);
+
+			if (!keybinding) {
+				return;
+			}
+
+			let command = byId[rawKeybinding.command];
+
+			if (command) {
+				command.keybindings.push(keybinding);
+			} else {
+				command = { id: rawKeybinding.command, title: '', keybindings: [keybinding], menus: [] };
+				byId[command.id] = command;
+				commands.push(command);
+			}
+		});
+
+		if (!commands.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('command name', "ID"),
+			localize('command title', "Title"),
+			localize('keyboard shortcuts', "Keyboard Shortcuts"),
+			localize('menuContexts', "Menu Contexts")
+		];
+
+		const rows: IRowData[][] = commands.sort((a, b) => a.id.localeCompare(b.id))
+			.map(command => {
+				return [
+					new MarkdownString().appendMarkdown(`\`${command.id}\``),
+					typeof command.title === 'string' ? command.title : command.title.value,
+					command.keybindings,
+					new MarkdownString().appendMarkdown(`${command.menus.map(menu => `\`${menu}\``).join('&nbsp;')}`),
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+
+	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding | undefined {
+		let key: string | undefined;
+
+		switch (platform) {
+			case 'win32': key = rawKeyBinding.win; break;
+			case 'linux': key = rawKeyBinding.linux; break;
+			case 'darwin': key = rawKeyBinding.mac; break;
+		}
+
+		return this._keybindingService.resolveUserBinding(key ?? rawKeyBinding.key)[0];
+	}
+
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'commands',
+	label: localize('commands', "Commands"),
+	access: {
+		canToggle: false,
+	},
+	renderer: new SyncDescriptor(CommandsTableRenderer),
 });

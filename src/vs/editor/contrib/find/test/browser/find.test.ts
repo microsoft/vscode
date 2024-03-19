@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/browser/findController';
@@ -11,6 +12,8 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 
 suite('Find', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('search string at position', () => {
 		withTestCodeEditor([

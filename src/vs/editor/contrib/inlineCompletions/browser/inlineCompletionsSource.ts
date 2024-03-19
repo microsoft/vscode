@@ -6,8 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { matchesSubString } from 'vs/base/common/filters';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction, derived } from 'vs/base/common/observable';
-import { IObservable, IReader, disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
+import { IObservable, IReader, ITransaction, derived, disposableObservableValue, transaction } from 'vs/base/common/observable';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
@@ -15,8 +14,9 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
+import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
+import { singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
@@ -57,7 +57,7 @@ export class InlineCompletionsSource extends Disposable {
 			const shouldDebounce = updateOngoing || context.triggerKind === InlineCompletionTriggerKind.Automatic;
 			if (shouldDebounce) {
 				// This debounces the operation
-				await wait(this._debounceValue.get(this.textModel));
+				await wait(this._debounceValue.get(this.textModel), source.token);
 			}
 
 			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {
@@ -89,10 +89,11 @@ export class InlineCompletionsSource extends Disposable {
 				}
 			}
 
+			this._updateOperation.clear();
 			transaction(tx => {
+				/** @description Update completions with provider result */
 				target.set(completions, tx);
 			});
-			this._updateOperation.clear();
 
 			return true;
 		})();
@@ -183,7 +184,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 	private readonly _prependedInlineCompletionItems: InlineCompletionItem[] = [];
 
 	private _rangeVersionIdValue = 0;
-	private readonly _rangeVersionId = derived('ranges', reader => {
+	private readonly _rangeVersionId = derived(this, reader => {
 		this.versionId.read(reader);
 		let changed = false;
 		for (const i of this._inlineCompletions) {
@@ -221,7 +222,13 @@ export class UpToDateInlineCompletions implements IDisposable {
 	public dispose(): void {
 		this._refCount--;
 		if (this._refCount === 0) {
-			this.textModel.deltaDecorations(this._inlineCompletions.map(i => i.decorationId), []);
+			setTimeout(() => {
+				// To fix https://github.com/microsoft/vscode/issues/188348
+				if (!this.textModel.isDisposed()) {
+					// This is just cleanup. It's ok if it happens with a delay.
+					this.textModel.deltaDecorations(this._inlineCompletions.map(i => i.decorationId), []);
+				}
+			}, 0);
 			this.inlineCompletionProviderResult.dispose();
 			for (const i of this._prependedInlineCompletionItems) {
 				i.source.removeRef();
@@ -276,7 +283,7 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	public isVisible(model: ITextModel, cursorPosition: Position, reader: IReader | undefined): boolean {
-		const minimizedReplacement = this._toFilterTextReplacement(reader).removeCommonPrefix(model);
+		const minimizedReplacement = singleTextRemoveCommonPrefix(this._toFilterTextReplacement(reader), model);
 
 		if (
 			!this._isValid
@@ -286,8 +293,9 @@ export class InlineCompletionWithUpdatedRange {
 			return false;
 		}
 
-		const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF).toLowerCase();
-		const filterText = minimizedReplacement.text.toLowerCase();
+		// We might consider comparing by .toLowerText, but this requires GhostTextReplacement
+		const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF);
+		const filterText = minimizedReplacement.text;
 
 		const cursorPosIndex = Math.max(0, cursorPosition.column - minimizedReplacement.range.startColumn);
 

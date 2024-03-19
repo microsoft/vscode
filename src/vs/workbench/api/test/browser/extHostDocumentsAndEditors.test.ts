@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtHostDocumentsAndEditors', () => {
 
@@ -16,6 +17,8 @@ suite('ExtHostDocumentsAndEditors', () => {
 	setup(function () {
 		editors = new ExtHostDocumentsAndEditors(new TestRPCProtocol(), new NullLogService());
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('The value of TextDocument.isClosed is incorrect when a text document is closed, #27949', () => {
 
@@ -35,7 +38,7 @@ suite('ExtHostDocumentsAndEditors', () => {
 
 		return new Promise((resolve, reject) => {
 
-			editors.onDidRemoveDocuments(e => {
+			const d = editors.onDidRemoveDocuments(e => {
 				try {
 
 					for (const data of e) {
@@ -44,6 +47,8 @@ suite('ExtHostDocumentsAndEditors', () => {
 					resolve(undefined);
 				} catch (e) {
 					reject(e);
+				} finally {
+					d.dispose();
 				}
 			});
 

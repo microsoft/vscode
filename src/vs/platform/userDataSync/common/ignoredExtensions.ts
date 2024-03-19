@@ -78,7 +78,7 @@ export class IgnoredExtensionsManagementService implements IIgnoredExtensionsMan
 				}
 			}
 		}
-		return distinct([...defaultIgnoredExtensions, ...added,].filter(setting => removed.indexOf(setting) === -1));
+		return distinct([...defaultIgnoredExtensions, ...added,].filter(setting => !removed.includes(setting)));
 	}
 
 	private getConfiguredIgnoredExtensions(): ReadonlyArray<string> {

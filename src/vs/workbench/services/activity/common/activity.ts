@@ -6,10 +6,11 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { Event } from 'vs/base/common/event';
+import { ViewContainer } from 'vs/workbench/common/views';
 
 export interface IActivity {
 	readonly badge: IBadge;
-	readonly clazz?: string;
 	readonly priority?: number;
 }
 
@@ -20,9 +21,19 @@ export interface IActivityService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Emitted when activity changes for a view container or when the activity of the global actions change.
+	 */
+	readonly onDidChangeActivity: Event<string | ViewContainer>;
+
+	/**
 	 * Show activity for the given view container
 	 */
 	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
+
+	/**
+	 * Returns the activity for the given view container
+	 */
+	getViewContainerActivities(viewContainerId: string): IActivity[];
 
 	/**
 	 * Show activity for the given view
@@ -38,6 +49,11 @@ export interface IActivityService {
 	 * Show global activity
 	 */
 	showGlobalActivity(activity: IActivity): IDisposable;
+
+	/**
+	 * Return the activity for the given action
+	 */
+	getActivity(id: string): IActivity[];
 }
 
 export interface IBadge {
@@ -65,13 +81,6 @@ export class NumberBadge extends BaseBadge {
 
 	override getDescription(): string {
 		return this.descriptorFn(this.number);
-	}
-}
-
-export class TextBadge extends BaseBadge {
-
-	constructor(readonly text: string, descriptorFn: () => string) {
-		super(descriptorFn);
 	}
 }
 

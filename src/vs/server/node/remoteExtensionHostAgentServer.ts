@@ -15,15 +15,16 @@ import { CharCode } from 'vs/base/common/charCode';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { connectionTokenQueryName, FileAccess, Schemas } from 'vs/base/common/network';
+import { connectionTokenQueryName, FileAccess, getServerRootPath, Schemas } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
 import * as perf from 'vs/base/common/performance';
 import * as platform from 'vs/base/common/platform';
 import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { getOSReleaseInfo } from 'vs/base/node/osReleaseInfo';
 import { findFreePort } from 'vs/base/node/ports';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -32,7 +33,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionHostConnection } from 'vs/server/node/extensionHostConnection';
 import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
@@ -74,6 +74,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		private readonly _connectionToken: ServerConnectionToken,
 		private readonly _vsdaMod: typeof vsda | null,
 		hasWebClient: boolean,
+		serverBasePath: string | undefined,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
@@ -81,13 +82,13 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	) {
 		super();
 
-		this._serverRootPath = getRemoteServerRootPath(_productService);
+		this._serverRootPath = getServerRootPath(_productService, serverBasePath);
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
 		this._webClientServer = (
 			hasWebClient
-				? this._instantiationService.createInstance(WebClientServer, this._connectionToken)
+				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverRootPath)
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
@@ -203,7 +204,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 		// https://tools.ietf.org/html/rfc6455#section-4
 		const requestNonce = req.headers['sec-websocket-key'];
-		const hash = crypto.createHash('sha1');
+		const hash = crypto.createHash('sha1');// CodeQL [SM04514] SHA1 must be used here to respect the WebSocket protocol specification
 		hash.update(requestNonce + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
 		const responseNonce = hash.digest('base64');
 
@@ -550,7 +551,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			const socket = net.createConnection(
 				{
 					host: host,
-					port: port
+					port: port,
+					autoSelectFamily: true
 				}, () => {
 					socket.removeListener('error', e);
 					socket.pause();
@@ -663,6 +665,7 @@ export interface IServerAPI {
 }
 
 export async function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string): Promise<IServerAPI> {
+
 	const connectionToken = await determineServerConnectionToken(args);
 	if (connectionToken instanceof ServerConnectionTokenParseError) {
 		console.warn(connectionToken.message);
@@ -719,7 +722,11 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		const configurationService = accessor.get(IConfigurationService);
 
 		if (platform.isWindows) {
-			addUNCHostToAllowlist(configurationService.getValue('security.allowedUNCHosts'));
+			if (configurationService.getValue('security.restrictUNCAccess') === false) {
+				disableUNCAccessRestrictions();
+			} else {
+				addUNCHostToAllowlist(configurationService.getValue('security.allowedUNCHosts'));
+			}
 		}
 	});
 
@@ -768,15 +775,20 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		return null;
 	});
 
+	let serverBasePath = args['server-base-path'];
+	if (serverBasePath && !serverBasePath.startsWith('/')) {
+		serverBasePath = `/${serverBasePath}`;
+	}
+
 	const hasWebClient = fs.existsSync(FileAccess.asFileUri('vs/code/browser/workbench/workbench.html').fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!
 		const queryPart = (connectionToken.type !== ServerConnectionTokenType.None ? `?${connectionTokenQueryName}=${connectionToken.value}` : '');
-		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/${queryPart}`);
+		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}${serverBasePath ?? ''}${queryPart}`);
 	}
 
-	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, vsdaMod, hasWebClient);
+	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, vsdaMod, hasWebClient, serverBasePath);
 
 	perf.mark('code/server/ready');
 	const currentTime = performance.now();
@@ -784,7 +796,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	const vscodeServerListenTime: number = (<any>global).vscodeServerListenTime;
 	const vscodeServerCodeLoadedTime: number = (<any>global).vscodeServerCodeLoadedTime;
 
-	instantiationService.invokeFunction((accessor) => {
+	instantiationService.invokeFunction(async (accessor) => {
 		const telemetryService = accessor.get(ITelemetryService);
 
 		type ServerStartClassification = {
@@ -807,6 +819,30 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			codeLoadedTime: vscodeServerCodeLoadedTime,
 			readyTime: currentTime
 		});
+
+		if (platform.isLinux) {
+			const logService = accessor.get(ILogService);
+			const releaseInfo = await getOSReleaseInfo(logService.error.bind(logService));
+			if (releaseInfo) {
+				type ServerPlatformInfoClassification = {
+					platformId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system without any version information.' };
+					platformVersionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system version excluding any name information or release code.' };
+					platformIdLike: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system the current OS derivate is closely related to.' };
+					owner: 'deepak1556';
+					comment: 'Provides insight into the distro information on Linux.';
+				};
+				type ServerPlatformInfoEvent = {
+					platformId: string;
+					platformVersionId: string | undefined;
+					platformIdLike: string | undefined;
+				};
+				telemetryService.publicLog2<ServerPlatformInfoEvent, ServerPlatformInfoClassification>('serverPlatformInfo', {
+					platformId: releaseInfo.id,
+					platformVersionId: releaseInfo.version_id,
+					platformIdLike: releaseInfo.id_like
+				});
+			}
+		}
 	});
 
 	if (args['print-startup-performance']) {

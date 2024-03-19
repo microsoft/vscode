@@ -33,15 +33,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		addExtensionIdentifiers(extSet, this._diff.changed.values());
 
 		let message = localize('extensionEnvironmentContributionInfoStale', "The following extensions want to relaunch the terminal to contribute to its environment:");
-		message += '\n';
-		const descriptionMap = this._collection.getDescriptionMap(scope);
-		for (const ext of extSet) {
-			message += `\n- \`${getExtensionName(ext, this._extensionService)}\``;
-			const description = descriptionMap.get(ext);
-			if (description) {
-				message += `: ${description}`;
-			}
-		}
+		message += getMergedDescription(this._collection, scope, this._extensionService, extSet);
 		return message;
 	}
 
@@ -79,15 +71,7 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 		addExtensionIdentifiers(extSet, this._collection.getVariableMap(scope).values());
 
 		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
-		message += '\n';
-		const descriptionMap = this._collection.getDescriptionMap(scope);
-		for (const ext of extSet) {
-			message += `\n- \`${getExtensionName(ext, this._extensionService)}\``;
-			const description = descriptionMap.get(ext);
-			if (description) {
-				message += `: ${description}`;
-			}
-		}
+		message += getMergedDescription(this._collection, scope, this._extensionService, extSet);
 		return message;
 	}
 
@@ -107,6 +91,30 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 			hoverActions: this._getActions(scope)
 		};
 	}
+}
+
+function getMergedDescription(collection: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined, extensionService: IExtensionService, extSet: Set<string>): string {
+	const message = ['\n'];
+	const globalDescriptions = collection.getDescriptionMap(undefined);
+	const workspaceDescriptions = collection.getDescriptionMap(scope);
+	for (const ext of extSet) {
+		const globalDescription = globalDescriptions.get(ext);
+		if (globalDescription) {
+			message.push(`\n- \`${getExtensionName(ext, extensionService)}\``);
+			message.push(`: ${globalDescription}`);
+		}
+		const workspaceDescription = workspaceDescriptions.get(ext);
+		if (workspaceDescription) {
+			// Only show '(workspace)' suffix if there is already a description for the extension.
+			const workspaceSuffix = globalDescription ? ` (${localize('ScopedEnvironmentContributionInfo', 'workspace')})` : '';
+			message.push(`\n- \`${getExtensionName(ext, extensionService)}${workspaceSuffix}\``);
+			message.push(`: ${workspaceDescription}`);
+		}
+		if (!globalDescription && !workspaceDescription) {
+			message.push(`\n- \`${getExtensionName(ext, extensionService)}\``);
+		}
+	}
+	return message.join('');
 }
 
 function addExtensionIdentifiers(extSet: Set<string>, diff: IterableIterator<IExtensionOwnedEnvironmentVariableMutator[]>): void {

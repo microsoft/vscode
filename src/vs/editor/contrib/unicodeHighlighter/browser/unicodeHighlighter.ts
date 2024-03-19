@@ -405,6 +405,8 @@ export class UnicodeHighlighterHover implements IHoverPart {
 	}
 }
 
+const configureUnicodeHighlightOptionsStr = nls.localize('unicodeHighlight.configureUnicodeHighlightOptions', 'Configure Unicode Highlight Options');
+
 export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	public readonly hoverOrdinal: number = 5;
@@ -429,6 +431,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		}
 
 		const result: MarkdownHover[] = [];
+		const existedReason = new Set<string>();
 		let index = 300;
 		for (const d of lineDecorations) {
 
@@ -480,6 +483,11 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 					break;
 			}
 
+			if (existedReason.has(reason)) {
+				continue;
+			}
+			existedReason.add(reason);
+
 			const adjustSettingsArgs: ShowExcludeOptionsArgs = {
 				codePoint: codePoint,
 				reason: highlightInfo.reason,
@@ -492,7 +500,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 			const markdown = new MarkdownString('', true)
 				.appendMarkdown(reason)
 				.appendText(' ')
-				.appendLink(uri, adjustSettings);
+				.appendLink(uri, adjustSettings, configureUnicodeHighlightOptionsStr);
 			result.push(new MarkdownHover(this, d.range, [markdown], false, index++));
 		}
 		return result;
@@ -761,7 +769,7 @@ export class ShowExcludeOptions extends EditorAction {
 
 		const result = await quickPickService.pick(
 			options,
-			{ title: nls.localize('unicodeHighlight.configureUnicodeHighlightOptions', 'Configure Unicode Highlight Options') }
+			{ title: configureUnicodeHighlightOptionsStr }
 		);
 
 		if (result) {

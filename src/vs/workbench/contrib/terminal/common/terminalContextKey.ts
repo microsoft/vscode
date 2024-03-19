@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const enum TerminalContextKeyStrings {
 	IsOpen = 'terminalIsOpen',
@@ -14,7 +16,9 @@ export const enum TerminalContextKeyStrings {
 	HasFixedWidth = 'terminalHasFixedWidth',
 	ProcessSupported = 'terminalProcessSupported',
 	Focus = 'terminalFocus',
+	FocusInAny = 'terminalFocusInAny',
 	AccessibleBufferFocus = 'terminalAccessibleBufferFocus',
+	AccessibleBufferOnLastLine = 'terminalAccessibleBufferOnLastLine',
 	EditorFocus = 'terminalEditorFocus',
 	TabsFocus = 'terminalTabsFocus',
 	WebExtensionContributedProfile = 'terminalWebExtensionContributedProfile',
@@ -26,6 +30,7 @@ export const enum TerminalContextKeyStrings {
 	A11yTreeFocus = 'terminalA11yTreeFocus',
 	ViewShowing = 'terminalViewShowing',
 	TextSelected = 'terminalTextSelected',
+	TextSelectedInFocused = 'terminalTextSelectedInFocused',
 	FindVisible = 'terminalFindVisible',
 	FindInputFocused = 'terminalFindInputFocused',
 	FindFocused = 'terminalFindFocused',
@@ -43,8 +48,8 @@ export namespace TerminalContextKeys {
 	/** Whether the terminal is focused. */
 	export const focus = new RawContextKey<boolean>(TerminalContextKeyStrings.Focus, false, localize('terminalFocusContextKey', "Whether the terminal is focused."));
 
-	/** Whether the accessible buffer is focused. */
-	export const accessibleBufferFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.AccessibleBufferFocus, false, localize('terminalAccessibleBufferFocusContextKey', "Whether the terminal accessible buffer is focused."));
+	/** Whether any terminal is focused, including detached terminals used in other UI. */
+	export const focusInAny = new RawContextKey<boolean>(TerminalContextKeyStrings.FocusInAny, false, localize('terminalFocusInAnyContextKey', "Whether any terminal is focused, including detached terminals used in other UI."));
 
 	/** Whether a terminal in the editor area is focused. */
 	export const editorFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.EditorFocus, false, localize('terminalEditorFocusContextKey', "Whether a terminal in the editor area is focused."));
@@ -94,6 +99,9 @@ export namespace TerminalContextKeys {
 	/** Whether text is selected in the active terminal. */
 	export const textSelected = new RawContextKey<boolean>(TerminalContextKeyStrings.TextSelected, false, localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal."));
 
+	/** Whether text is selected in a focused terminal. `textSelected` counts text selected in an active in a terminal view or an editor, where `textSelectedInFocused` simply counts text in an element with DOM focus. */
+	export const textSelectedInFocused = new RawContextKey<boolean>(TerminalContextKeyStrings.TextSelectedInFocused, false, localize('terminalTextSelectedInFocusedContextKey', "Whether text is selected in a focused terminal."));
+
 	/** Whether text is NOT selected in the active terminal. */
 	export const notTextSelected = textSelected.toNegated();
 
@@ -126,4 +134,28 @@ export namespace TerminalContextKeys {
 
 	/** Whether shell integration is enabled in the active terminal. This only considers full VS Code shell integration. */
 	export const terminalShellIntegrationEnabled = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalShellIntegrationEnabled, false, localize('terminalShellIntegrationEnabled', "Whether shell integration is enabled in the active terminal"));
+
+	export const shouldShowViewInlineActions = ContextKeyExpr.and(
+		ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+		ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
+		ContextKeyExpr.or(
+			ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
+				ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
+					ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
+				)
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
+				ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+			),
+			ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+		)
+	);
 }

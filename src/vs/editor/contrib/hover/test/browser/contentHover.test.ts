@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
-import { Range } from 'vs/editor/common/core/range';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
 import { IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { TestCodeEditorInstantiationOptions, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('Content Hover', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #151235: Gitlens hover shows up in the wrong place', () => {
 		const text = 'just some text';
 		withTestCodeEditor(text, {}, (editor) => {

@@ -7,10 +7,9 @@ import { Emitter } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -39,7 +38,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService
 	) {
 		super();
 	}
@@ -85,7 +84,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 	getCellExecutionsByHandleForNotebook(notebook: URI): Map<number, INotebookCellExecution> | undefined {
 		const exeMap = this._executions.get(notebook);
-		return withNullAsUndefined(exeMap);
+		return exeMap ? new Map(exeMap.entries()) : undefined;
 	}
 
 	private _onCellExecutionDidChange(notebookUri: URI, cellHandle: number, exe: CellExecution): void {
@@ -113,11 +112,11 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		if (lastRunSuccess !== undefined) {
 			if (lastRunSuccess) {
 				if (this._executions.size === 0) {
-					this._audioCueService.playAudioCue(AudioCue.notebookCellCompleted);
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.notebookCellCompleted);
 				}
 				this._clearLastFailedCell(notebookUri);
 			} else {
-				this._audioCueService.playAudioCue(AudioCue.notebookCellFailed);
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.notebookCellFailed);
 				this._setLastFailedCell(notebookUri, cellHandle);
 			}
 		}
@@ -528,6 +527,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 					lastRunSuccess: completionData.lastRunSuccess,
 					runStartTime: this._didPause ? null : cellModel.internalMetadata.runStartTime,
 					runEndTime: this._didPause ? null : completionData.runEndTime,
+					error: completionData.error
 				}
 			};
 			this._applyExecutionEdits([edit]);

@@ -1,0 +1,46 @@
+{
+	"original": {
+		"content": "\n\tprivate doAddView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {\n\t\tif (this.state !== State.Idle) {\n\t\t\tthrow new Error('Cant modify splitview');\n\t\t}\n\n\t\tthis.state = State.Busy;\n\n\t\t// Add view\n\t\tconst container = $('.split-view-view');\n\n\t\tif (index === this.viewItems.length) {\n\t\t\tthis.viewContainer.appendChild(container);\n\t\t} else {\n\t\t\tthis.viewContainer.insertBefore(container, this.viewContainer.children.item(index));\n\t\t}\n\n\t\tconst onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));\n\t\tconst containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));\n\t\tconst disposable = combinedDisposable(onChangeDisposable, containerDisposable);\n\n\t\tlet viewSize: ViewItemSize;\n\n\t\tif (typeof size === 'number') {\n\t\t\tviewSize = size;\n\t\t} else if (size.type === 'split') {\n\t\t\tviewSize = this.getViewSize(size.index) / 2;\n\t\t} else if (size.type === 'invisible') {\n\t\t\tviewSize = { cachedVisibleSize: size.cachedVisibleSize };\n\t\t} else {\n\t\t\tviewSize = view.minimumSize;\n\t\t}\n\n\t\tconst item = this.orientation === Orientation.VERTICAL\n\t\t\t? new VerticalViewItem(container, view, viewSize, disposable)\n\t\t\t: new HorizontalViewItem(container, view, viewSize, disposable);\n\n\t\tthis.viewItems.splice(index, 0, item);\n\n",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "\n\tprivate doAddView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {\n\t\tif (this.state !== State.Idle) {\n\t\t\tthrow new Error('Cant modify splitview');\n\t\t}\n\n\t\tthis.state = State.Busy;\n\n\t\t// Add view\n\t\tconst container = $('.split-view-view');\n\n\t\tif (index === this.viewItems.length) {\n\t\t\tthis.viewContainer.appendChild(container);\n\t\t} else {\n\t\t\tthis.viewContainer.insertBefore(container, this.viewContainer.children.item(index));\n\t\t}\n\n\t\tconst onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));\n\t\tconst containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));\n\t\tconst disposable = combinedDisposable(onChangeDisposable, containerDisposable);\n\n\t\tlet viewSize: ViewItemSize;\n\n\t\tif (typeof size === 'number') {\n\t\t\tviewSize = size;\n\t\t} else {\n\t\t\tif (size.type === 'auto') {\n\t\t\t\tif (this.areViewsDistributed()) {\n\t\t\t\t\tsize = { type: 'distribute' };\n\t\t\t\t} else {\n\t\t\t\t\tsize = { type: 'split', index: size.index };\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tif (size.type === 'split') {\n\t\t\t\tviewSize = this.getViewSize(size.index) / 2;\n\t\t\t} else if (size.type === 'invisible') {\n\t\t\t\tviewSize = { cachedVisibleSize: size.cachedVisibleSize };\n\t\t\t} else {\n\t\t\t\tviewSize = view.minimumSize;\n\t\t\t}\n\t\t}\n\n\t\tconst item = this.orientation === Orientation.VERTICAL\n\t\t\t? new VerticalViewItem(container, view, viewSize, disposable)\n\t\t\t: new HorizontalViewItem(container, view, viewSize, disposable);\n\n\t\tthis.viewItems.splice(index, 0, item);\n\n",
+		"fileName": "./2.txt"
+	},
+	"diffs": [
+		{
+			"originalRange": "[26,32)",
+			"modifiedRange": "[26,42)",
+			"innerChanges": [
+				{
+					"originalRange": "[26,10 -> 26,10]",
+					"modifiedRange": "[26,10 -> 35,4]"
+				},
+				{
+					"originalRange": "[27,1 -> 27,1]",
+					"modifiedRange": "[36,1 -> 36,2]"
+				},
+				{
+					"originalRange": "[28,1 -> 28,1]",
+					"modifiedRange": "[37,1 -> 37,2]"
+				},
+				{
+					"originalRange": "[29,1 -> 29,1]",
+					"modifiedRange": "[38,1 -> 38,2]"
+				},
+				{
+					"originalRange": "[30,1 -> 30,1]",
+					"modifiedRange": "[39,1 -> 39,2]"
+				},
+				{
+					"originalRange": "[31,1 -> 31,1]",
+					"modifiedRange": "[40,1 -> 40,2]"
+				},
+				{
+					"originalRange": "[32,1 -> 32,1]",
+					"modifiedRange": "[41,1 -> 42,1]"
+				}
+			]
+		}
+	]
+}
