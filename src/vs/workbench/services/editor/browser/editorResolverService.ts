@@ -537,7 +537,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		resource: URI,
 		viewType: string,
 		targetGroup: IEditorGroup,
-	): Promise<EditorInput | undefined | false /* unsupported */> {
+	): Promise<EditorInput | undefined /* not existing yet */ | false /* unsupported */> {
 		const editorInfoForResource = this.findExistingEditorsForResource(resource, viewType);
 		if (!editorInfoForResource.length) {
 			return;
