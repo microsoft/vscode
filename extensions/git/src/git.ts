@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
-import * as which from 'which';
+import which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
