@@ -17,6 +17,9 @@ interface IFilenameAttributes {
 	// grand-parent/parent/filename.ext1.ext2 -> parent
 	dirname: string;
 
+	// grand-parent/parent/filename.ext1.ext2 -> [grand-parent, parent]
+	pathFragments: string[];
+
 	// grand-parent/parent/filename.ext1.ext2 -> filename.ext1
 	filename: string;
 
@@ -138,7 +141,11 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 	private getFileAttributes(resource: URI): IFilenameAttributes {
 		// grand-parent/parent/filename.ext1.ext2 -> parent
-		const directoryName = basename(dirname(resource));
+		const directoryURI = dirname(resource);
+		const directoryName = basename(directoryURI);
+
+		// grand-parent/parent/filename.ext1.ext2 -> [grand-parent, parent]
+		const pathFragments = directoryURI.path.split('/');
 
 		// grand-parent/parent/filename.ext1.ext2 -> filename.ext1
 		const base = basename(resource);
@@ -148,13 +155,25 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		// grand-parent/parent/filename.ext1.ext2 -> ext2
 		const ext = extname(resource).slice(1);
 
-		return { dirname: directoryName, filename, extname: ext };
+		return { dirname: directoryName, filename, extname: ext, pathFragments };
 	}
 
 	private applyTempate(template: string, attrs: IFilenameAttributes): string {
 		return template.replace(/\$\{dirname\}/g, attrs.dirname)
 			.replace(/\$\{filename\}/g, attrs.filename)
-			.replace(/\$\{extname\}/g, attrs.extname);
+			.replace(/\$\{extname\}/g, attrs.extname)
+			.replace(/\$\{dirname\((\d+)\)\}/g, (_, n) => {
+				const length = attrs.pathFragments.length;
+				const nth = length - 1 - parseInt(n);
+				if (nth < 0) {
+					return '${dirname(' + n + ')}';
+				}
+				const nthDir = attrs.pathFragments[nth];
+				if (nthDir === undefined || nthDir === '') {
+					return '${dirname(' + n + ')}';
+				}
+				return nthDir;
+			});
 	}
 }
 
