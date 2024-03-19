@@ -12,15 +12,17 @@ import { isStandalone } from 'vs/base/browser/browser';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { CustomEditorLabel } from 'vs/workbench/common/editor/editorLabels';
+import { CustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
 
-let customEditorLabelDescription = localize(CustomEditorLabel.SETTING_ID_ENABLED, "Controls the rendering of the editor label. Each __Item__ is a pattern that matches a file path. Each __Value__ is the template for the rendered editor when the __Item__ matches. Variables are substituted based on the context:");
+// Custom Editor Label Description
+let customEditorLabelDescription = localize(CustomEditorLabelService.SETTING_ID_ENABLED, "Controls the rendering of the editor label. Each __Item__ is a pattern that matches a file path. Both relative and absolute file paths are supported. In case multiple patterns match, the longest matching path will be picked. Each __Value__ is the template for the rendered editor when the __Item__ matches. Variables are substituted based on the context:");
 customEditorLabelDescription += '\n- ' + [
-	localize('dirname', "`${dirname}`: name of the folder in which the file is located (e.g. root/folder/file.txt -> folder)."),
-	localize('filename', "`${filename}`: name of the file without the file extension (e.g. root/folder/file.txt -> file)."),
-	localize('extname', "`${extname}`: the file extension (e.g. root/folder/file.txt -> txt)."),
+	localize('workbench.editor.label.dirname', "`${dirname}`: name of the folder in which the file is located (e.g. root/folder/file.txt -> folder)."),
+	localize('workbench.editor.label.filename', "`${filename}`: name of the file without the file extension (e.g. root/folder/file.txt -> file)."),
+	localize('workbench.editor.label.extname', "`${extname}`: the file extension (e.g. root/folder/file.txt -> txt)."),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 customEditorLabelDescription += '\n\n' + localize('customEditorLabelDescriptionExample', "Example: `\"**/static/**/*.html\": \"${filename} - ${dirname} (${extname})\"` will render a file `root/static/folder/file.html` as `file - folder (html)`.");
+
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -94,22 +96,19 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'markdownDescription': localize('decorations.colors', "Controls whether editor file decorations should use colors."),
 				'default': true
 			},
-			[CustomEditorLabel.SETTING_ID_ENABLED]: {
+			[CustomEditorLabelService.SETTING_ID_ENABLED]: {
 				'type': 'boolean',
-				'markdownDescription': localize(CustomEditorLabel.SETTING_ID_ENABLED, "Controls whether the custom workbench editor labels should be applied."),
-				'default': true
+				'markdownDescription': localize(CustomEditorLabelService.SETTING_ID_ENABLED, "Controls whether the custom workbench editor labels should be applied."),
+				'default': true,
 			},
-			[CustomEditorLabel.SETTING_ID_PATTERNS]: {
+			[CustomEditorLabelService.SETTING_ID_PATTERNS]: {
 				'type': 'object',
 				scope: ConfigurationScope.RESOURCE,
 				'markdownDescription': customEditorLabelDescription,
-				additionalProperties: {
-					anyOf: [
-						{
-							type: 'string',
-							markdownDescription: localize('workbench.editor.label.template', "The template which should be rendered when the pattern mtches. May include the variables ${dirname}, ${filename} and ${extname}."),
-						},
-					]
+				additionalProperties:
+				{
+					type: 'string',
+					markdownDescription: localize('workbench.editor.label.template', "The template which should be rendered when the pattern mtches. May include the variables ${dirname}, ${filename} and ${extname}."),
 				},
 				'default': {}
 			},

@@ -31,6 +31,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -71,9 +72,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
 	) {
-		super(resource, preferredResource, labelService, fileService, filesConfigurationService, textResourceConfigurationService, configurationService);
+		super(resource, preferredResource, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 		this._defaultDirtyState = !!options.startDirty;
 
 		// Automatically resolve this input when the "wanted" model comes to life via

@@ -11,9 +11,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname, isEqual } from 'vs/base/common/resources';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IConfigurationService, isConfigured } from 'vs/platform/configuration/common/configuration';
+import { isConfigured } from 'vs/platform/configuration/common/configuration';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { CustomEditorLabel } from 'vs/workbench/common/editor/editorLabels';
+import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
 
 /**
  * The base class for all editor inputs that open resources.
@@ -41,8 +41,6 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	private _preferredResource: URI;
 	get preferredResource(): URI { return this._preferredResource; }
 
-	private readonly editorLabel: CustomEditorLabel;
-
 	constructor(
 		readonly resource: URI,
 		preferredResource: URI | undefined,
@@ -50,12 +48,11 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		@IFileService protected readonly fileService: IFileService,
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@ICustomEditorLabelService protected readonly customEditorLabelService: ICustomEditorLabelService
 	) {
 		super();
 
 		this._preferredResource = preferredResource || resource;
-		this.editorLabel = this._register(new CustomEditorLabel(configurationService));
 
 		this.registerListeners();
 	}
@@ -67,7 +64,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
 
-		this._register(this.editorLabel.onDidChange(() => this.updateLabel()));
+		this._register(this.customEditorLabelService.onDidChange(() => this.updateLabel()));
 	}
 
 	private onLabelEvent(scheme: string): void {
@@ -102,7 +99,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	private _name: string | undefined = undefined;
 	override getName(): string {
 		if (typeof this._name !== 'string') {
-			const customName = this.editorLabel.getName(this._preferredResource);
+			const customName = this.customEditorLabelService.getName(this._preferredResource);
 			this._name = customName ?? this.labelService.getUriBasenameLabel(this._preferredResource);
 		}
 

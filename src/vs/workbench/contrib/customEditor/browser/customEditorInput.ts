@@ -24,7 +24,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity, createEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { CustomEditorLabel } from 'vs/workbench/common/editor/editorLabels';
+import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
@@ -80,8 +80,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private _modelRef?: IReference<ICustomEditorModel>;
 
-	private readonly _customEditorLabel: CustomEditorLabel;
-
 	constructor(
 		init: CustomEditorInputInitInfo,
 		webview: IOverlayWebview,
@@ -96,6 +94,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
 	) {
 		super({ providedId: init.viewType, viewType: init.viewType, name: '' }, webview, webviewWorkbenchService);
 		this._editorResource = init.resource;
@@ -103,8 +102,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;
 		this._untitledDocumentData = options.untitledDocumentData;
-
-		this._customEditorLabel = this._register(instantiationService.createInstance(CustomEditorLabel));
 
 		this.registerListeners();
 	}
@@ -116,7 +113,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
 
-		this._register(this._customEditorLabel.onDidChange(() => this.updateLabel()));
+		this._register(this.customEditorLabelService.onDidChange(() => this.updateLabel()));
 	}
 
 	private onLabelEvent(scheme: string): void {
@@ -174,7 +171,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getName(): string {
-		const customName = this._customEditorLabel.getName(this.resource);
+		const customName = this.customEditorLabelService.getName(this.resource);
 		return customName ?? basename(this.labelService.getUriLabel(this.resource));
 	}
 

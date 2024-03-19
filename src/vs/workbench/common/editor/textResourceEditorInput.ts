@@ -20,6 +20,7 @@ import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -35,9 +36,9 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
 	) {
-		super(resource, preferredResource, labelService, fileService, filesConfigurationService, textResourceConfigurationService, configurationService);
+		super(resource, preferredResource, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 	}
 
 	override save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IUntypedEditorInput | undefined> {
@@ -110,9 +111,10 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		@ILabelService labelService: ILabelService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
 	) {
-		super(resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, configurationService);
+		super(resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 	}
 
 	override getName(): string {

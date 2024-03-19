@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { match } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, dirname, extname } from 'vs/base/common/resources';
+import { basename, dirname, extname, isAbsolutePath, relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 interface IFilenameAttributes {
 	// grand-parent/parent/filename.ext1.ext2 -> parent
@@ -30,7 +33,9 @@ interface ICustomEditorLabelPattern {
 	template: string;
 }
 
-export class CustomEditorLabel extends Disposable {
+export class CustomEditorLabelService extends Disposable implements ICustomEditorLabelService {
+
+	readonly _serviceBrand: undefined;
 
 	static readonly SETTING_ID_PATTERNS = 'workbench.editor.label.patterns';
 	static readonly SETTING_ID_ENABLED = 'workbench.editor.label.enabled';
@@ -43,6 +48,7 @@ export class CustomEditorLabel extends Disposable {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -53,19 +59,18 @@ export class CustomEditorLabel extends Disposable {
 	}
 
 	private registerListernes(): void {
-		// Cache the enabled state
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CustomEditorLabel.SETTING_ID_ENABLED)) {
+			// Cache the enabled state
+			if (e.affectsConfiguration(CustomEditorLabelService.SETTING_ID_ENABLED)) {
+				const oldEnablement = this.enabled;
 				this.storeEnablementState();
-				if (this.patterns.length > 0) {
+				if (oldEnablement !== this.enabled && this.patterns.length > 0) {
 					this._onDidChange.fire();
 				}
 			}
-		}));
 
-		// Cache the patterns
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CustomEditorLabel.SETTING_ID_PATTERNS)) {
+			// Cache the patterns
+			else if (e.affectsConfiguration(CustomEditorLabelService.SETTING_ID_PATTERNS)) {
 				this.storeCustomPatterns();
 				this._onDidChange.fire();
 			}
@@ -73,16 +78,37 @@ export class CustomEditorLabel extends Disposable {
 	}
 
 	private storeEnablementState(): void {
-		this.enabled = this.configurationService.getValue<boolean>(CustomEditorLabel.SETTING_ID_ENABLED);
+		this.enabled = this.configurationService.getValue<boolean>(CustomEditorLabelService.SETTING_ID_ENABLED);
 	}
 
 	private storeCustomPatterns(): void {
 		this.patterns = [];
-		const customLabelPatterns = this.configurationService.getValue<IEditorCustomLabelObject>(CustomEditorLabel.SETTING_ID_PATTERNS);
+		const customLabelPatterns = this.configurationService.getValue<IEditorCustomLabelObject>(CustomEditorLabelService.SETTING_ID_PATTERNS);
 		for (const pattern in customLabelPatterns) {
 			const template = customLabelPatterns[pattern];
 			this.patterns.push({ pattern, template });
 		}
+
+		this.patterns.sort((a, b) => this.patternWeight(b.pattern) - this.patternWeight(a.pattern));
+	}
+
+	private patternWeight(pattern: string): number {
+		pattern = pattern.replace('\\\\', '/');
+
+		let weight = 0;
+		for (const fragment of pattern.split('/')) {
+			if (fragment === '**') {
+				weight += 1;
+			} else if (fragment === '*') {
+				weight += 10;
+			} else if (fragment.includes('*') || fragment.includes('?')) {
+				weight += 50;
+			} else if (fragment !== '') {
+				weight += 100;
+			}
+		}
+
+		return weight;
 	}
 
 	getName(resource: URI): string | undefined {
@@ -93,32 +119,36 @@ export class CustomEditorLabel extends Disposable {
 	}
 
 	private applyPatterns(resource: URI): string | undefined {
+		const root = this.workspaceContextService.getWorkspaceFolder(resource);
 		for (const { pattern, template } of this.patterns) {
-			const attrs = this.matchPattern(resource, pattern);
-			if (attrs) {
+			if (this.matchPattern(root, resource, pattern)) {
+				const attrs = this.getFileAttributes(resource);
 				return this.applyTempate(template, attrs);
 			}
 		}
 		return undefined;
 	}
 
-	private matchPattern(resource: URI, pattern: string): IFilenameAttributes | undefined {
-		const matches = match(pattern, resource.fsPath);
-		if (matches) {
-			// grand-parent/parent/filename.ext1.ext2 -> parent
-			const directoryName = basename(dirname(resource));
+	private matchPattern(root: IWorkspaceFolder | null, resource: URI, pattern: string): boolean {
+		const patternURI = URI.from({ scheme: 'glob', path: pattern }); // Used to figure out if the pattern is absolute
+		const relevantPath = !root || isAbsolutePath(patternURI) ? resource.fsPath : relativePath(root.uri, resource) ?? resource.fsPath;
 
-			// grand-parent/parent/filename.ext1.ext2 -> filename.ext1
-			const base = basename(resource);
-			const baseSplit = base.split('.');
-			const filename = baseSplit.length > 1 ? baseSplit.slice(0, -1).join('.') : baseSplit[0];
+		return match(pattern, relevantPath);
+	}
 
-			// grand-parent/parent/filename.ext1.ext2 -> ext2
-			const ext = extname(resource).slice(1);
+	private getFileAttributes(resource: URI): IFilenameAttributes {
+		// grand-parent/parent/filename.ext1.ext2 -> parent
+		const directoryName = basename(dirname(resource));
 
-			return { dirname: directoryName, filename, extname: ext };
-		}
-		return undefined;
+		// grand-parent/parent/filename.ext1.ext2 -> filename.ext1
+		const base = basename(resource);
+		const baseSplit = base.split('.');
+		const filename = baseSplit.length > 1 ? baseSplit.slice(0, -1).join('.') : baseSplit[0];
+
+		// grand-parent/parent/filename.ext1.ext2 -> ext2
+		const ext = extname(resource).slice(1);
+
+		return { dirname: directoryName, filename, extname: ext };
 	}
 
 	private applyTempate(template: string, attrs: IFilenameAttributes): string {
@@ -127,3 +157,13 @@ export class CustomEditorLabel extends Disposable {
 			.replace(/\$\{extname\}/g, attrs.extname);
 	}
 }
+
+export const ICustomEditorLabelService = createDecorator<ICustomEditorLabelService>('ICustomEditorLabelService');
+
+export interface ICustomEditorLabelService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChange: Event<void>;
+	getName(resource: URI): string | undefined;
+}
+
+registerSingleton(ICustomEditorLabelService, CustomEditorLabelService, InstantiationType.Delayed);

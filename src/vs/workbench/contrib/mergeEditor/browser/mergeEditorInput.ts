@@ -16,6 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IResourceMergeEditorInput, IRevertOptions, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
+import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IMergeEditorInputModel, TempFileMergeEditorModeFactory, WorkspaceMergeEditorModeFactory } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
@@ -60,11 +61,12 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService,
 	) {
-		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, configurationService);
+		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 	}
 
 	override dispose(): void {

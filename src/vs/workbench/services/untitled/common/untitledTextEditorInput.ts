@@ -20,7 +20,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore, dispose, IReference } from 'vs/base/common/lifecycle';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -52,9 +52,9 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
 	) {
-		super(model.resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, configurationService);
+		super(model.resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 
 		this.registerModelListeners(model);
 
