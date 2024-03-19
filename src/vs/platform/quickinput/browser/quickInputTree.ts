@@ -37,6 +37,8 @@ import { ltrim } from 'vs/base/common/strings';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
+import { Checkbox } from 'vs/base/browser/ui/toggle/toggle';
+import { defaultCheckboxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = dom.$;
 
@@ -77,7 +79,7 @@ interface IQuickPickElement extends IQuickInputItemLazyParts {
 
 interface IQuickInputItemTemplateData {
 	entry: HTMLDivElement;
-	checkbox: HTMLInputElement;
+	checkbox: Checkbox;
 	icon: HTMLDivElement;
 	label: IconLabel;
 	keybinding: KeybindingLabel;
@@ -340,16 +342,11 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 
 		// Checkbox
 		const label = dom.append(data.entry, $('label.quick-input-list-label'));
-		data.toDisposeTemplate.add(dom.addStandardDisposableListener(label, dom.EventType.CLICK, e => {
-			if (!data.checkbox.offsetParent) { // If checkbox not visible:
-				e.preventDefault(); // Prevent toggle of checkbox when it is immediately shown afterwards. #91740
-			}
-		}));
-		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-list-checkbox'));
-		data.checkbox.type = 'checkbox';
-		data.toDisposeTemplate.add(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
+		data.checkbox = data.toDisposeTemplate.add(new Checkbox(localize('quickInputCheckbox', "Checkbox"), false, defaultCheckboxStyles));
+		data.toDisposeTemplate.add(data.checkbox.onChange((e => {
 			data.element.checked = data.checkbox.checked;
-		}));
+		})));
+		dom.append(label, data.checkbox.domNode);
 
 		// Rows
 		const rows = dom.append(label, $('.quick-input-list-rows'));
@@ -419,8 +416,15 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		element.element = data.entry ?? undefined;
 		const mainItem: IQuickPickItem = element.item;
 
-		data.checkbox.checked = element.checked;
-		data.toDisposeElement.add(element.onChecked(checked => data.checkbox.checked = checked));
+		if (element.hasCheckbox) {
+			data.checkbox.domNode.style.display = '';
+			data.checkbox.checked = element.checked;
+			data.toDisposeElement.add(element.onChecked(checked => {
+				data.checkbox.checked = checked;
+			}));
+		} else {
+			data.checkbox.domNode.style.display = 'none';
+		}
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
