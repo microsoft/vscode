@@ -438,7 +438,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				// into another window because that means, we potentally loose the modified
 				// state and thus trigger data loss.
 
-				return localize('editorCannotMove', "Unable to move the editor from this window, it contains modifications that can only be saved in the this window.");
+				return localize('editorCannotMove', "Unable to move the editor out of the window, it contains modifications that can only be saved in the this window.");
 			}
 		}
 
