@@ -73,11 +73,6 @@ export function isIUsedContext(obj: unknown): obj is IChatUsedContext {
 	);
 }
 
-export interface IChatUsedSlashCommand {
-	slashCommand: string;
-	kind: 'usedSlashCommand';
-}
-
 export interface IChatContentReference {
 	reference: URI | Location;
 	kind: 'reference';
@@ -151,7 +146,6 @@ export type IChatProgress =
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatUsedContext
-	| IChatUsedSlashCommand
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatAgentDetection
