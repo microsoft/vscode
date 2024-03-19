@@ -3,48 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorPane, IEditorPaneScrollPosition, isEditorPaneWithScrolling } from 'vs/workbench/common/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-
-class SyncScrollStatusEntry extends Disposable {
-
-	private readonly syncScrollEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-
-	constructor(@IStatusbarService private readonly statusbarService: IStatusbarService) {
-		super();
-	}
-
-	updateSyncScroll(visible: boolean): void {
-		if (visible) {
-			if (!this.syncScrollEntry.value) {
-				this.syncScrollEntry.value = this.statusbarService.addEntry({
-					name: 'Scrolling Locked',
-					text: 'Scrolling Locked',
-					tooltip: 'Lock Scrolling enabled',
-					ariaLabel: 'Scrolling Locked',
-					command: {
-						id: 'workbench.action.toggleLockedScrolling',
-						title: ''
-					},
-					kind: 'prominent'
-				}, 'status.scrollLockingEnabled', StatusbarAlignment.RIGHT, 102);
-			}
-		} else {
-			this.syncScrollEntry.clear();
-		}
-	}
-}
 
 export class SyncScroll extends Disposable implements IWorkbenchContribution {
 
@@ -55,14 +24,13 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 	private readonly syncScrollDispoasbles = this._register(new DisposableStore());
 	private readonly paneDisposables = new DisposableStore();
 
-	private statusBarEntries = new Set<SyncScrollStatusEntry>();
+	private statusBarEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private isActive: boolean = false;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super();
 
@@ -175,36 +143,29 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 
 	// Actions & Commands
 
-	private createStatusBarItem(instantiationService: IInstantiationService, disposables: DisposableStore): SyncScrollStatusEntry {
-		const entry = disposables.add(instantiationService.createInstance(SyncScrollStatusEntry));
-
-		this.statusBarEntries.add(entry);
-		disposables.add(toDisposable(() => this.statusBarEntries.delete(entry)));
-
-		return entry;
-	}
-
-	private registerStatusBarItems() {
-		const entry = this.createStatusBarItem(this.instantiationService, this._store);
-		entry.updateSyncScroll(this.isActive);
-
-		this._register(this.editorGroupsService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables }) => {
-			const entry = this.createStatusBarItem(instantiationService, disposables);
-			entry.updateSyncScroll(this.isActive);
-		}));
-	}
-
 	private toggleStatusbarItem(active: boolean): void {
-		for (const item of this.statusBarEntries) {
-			item.updateSyncScroll(active);
+		if (active) {
+			if (!this.statusBarEntry.value) {
+				this.statusBarEntry.value = this.statusbarService.addEntry({
+					name: 'Scrolling Locked',
+					text: 'Scrolling Locked',
+					tooltip: 'Lock Scrolling enabled',
+					ariaLabel: 'Scrolling Locked',
+					command: {
+						id: 'workbench.action.toggleLockedScrolling',
+						title: ''
+					},
+					kind: 'prominent',
+					showInAllWindows: true
+				}, 'status.scrollLockingEnabled', StatusbarAlignment.RIGHT, 102);
+			}
+		} else {
+			this.statusBarEntry.clear();
 		}
 	}
 
 	private registerActions() {
 		const $this = this;
-
-		this.registerStatusBarItems();
-
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -253,7 +214,6 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 	}
 
 	override dispose(): void {
-		this.statusBarEntries.forEach(entry => entry.dispose());
 		this.deactivate();
 		super.dispose();
 	}
