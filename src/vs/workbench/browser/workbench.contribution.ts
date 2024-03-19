@@ -15,7 +15,7 @@ import { defaultWindowTitle, defaultWindowTitleSeparator } from 'vs/workbench/br
 import { CustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
 
 // Custom Editor Label Description
-let customEditorLabelDescription = localize(CustomEditorLabelService.SETTING_ID_ENABLED, "Controls the rendering of the editor label. Each __Item__ is a pattern that matches a file path. Both relative and absolute file paths are supported. In case multiple patterns match, the longest matching path will be picked. Each __Value__ is the template for the rendered editor when the __Item__ matches. Variables are substituted based on the context:");
+let customEditorLabelDescription = localize('workbench.editor.label.patterns', "Controls the rendering of the editor label. Each __Item__ is a pattern that matches a file path. Both relative and absolute file paths are supported. In case multiple patterns match, the longest matching path will be picked. Each __Value__ is the template for the rendered editor when the __Item__ matches. Variables are substituted based on the context:");
 customEditorLabelDescription += '\n- ' + [
 	localize('workbench.editor.label.dirname', "`${dirname}`: name of the folder in which the file is located (e.g. root/folder/file.txt -> folder)."),
 	localize('workbench.editor.label.nthdirname', "`${dirname(N)}`: name of the nth parent folder in which the file is located (e.g. N=1: root/folder/file.txt -> root)."),
@@ -99,7 +99,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			[CustomEditorLabelService.SETTING_ID_ENABLED]: {
 				'type': 'boolean',
-				'markdownDescription': localize(CustomEditorLabelService.SETTING_ID_ENABLED, "Controls whether the custom workbench editor labels should be applied."),
+				'markdownDescription': localize('workbench.editor.label.enabled', "Controls whether the custom workbench editor labels should be applied."),
 				'default': true,
 			},
 			[CustomEditorLabelService.SETTING_ID_PATTERNS]: {
