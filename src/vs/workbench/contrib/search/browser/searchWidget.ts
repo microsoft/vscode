@@ -598,6 +598,7 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 
 		if (this.searchConfiguration.searchOnType) {
+			const delayMultiplierFromAISearch = (this.searchInput && this.searchInput.isAIEnabled) ? 5 : 1; // expand debounce period to multiple by 5 if AI is enabled
 			if (this.searchInput?.getRegex()) {
 				try {
 					const regex = new RegExp(this.searchInput.getValue(), 'ug');
@@ -616,12 +617,13 @@ export class SearchWidget extends Widget {
 							matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
 								10; // only things matching empty string
 
-					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
+
+					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier * delayMultiplierFromAISearch);
 				} catch {
 					// pass
 				}
 			} else {
-				this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod);
+				this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplierFromAISearch);
 			}
 		}
 	}
