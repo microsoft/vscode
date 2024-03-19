@@ -6,12 +6,14 @@ use crate::async_pipe::get_socket_rw_stream;
 use crate::constants::{CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
 use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
+use crate::options::Quality;
 use crate::rpc::{MaybeSync, RpcBuilder, RpcCaller, RpcDispatcher};
 use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
 use crate::tunnels::protocol::{HttpRequestParams, METHOD_CHALLENGE_ISSUE};
 use crate::tunnels::socket_signal::CloseReason;
 use crate::update_service::{Platform, Release, TargetKind, UpdateService};
+use crate::util::command::new_tokio_command;
 use crate::util::errors::{
 	wrap, AnyError, CodeError, MismatchedLaunchModeError, NoAttachedServerError,
 };
@@ -20,6 +22,7 @@ use crate::util::http::{
 };
 use crate::util::io::SilentCopyProgress;
 use crate::util::is_integrated_cli;
+use crate::util::machine::kill_pid;
 use crate::util::os::os_release;
 use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 
@@ -28,7 +31,9 @@ use futures::FutureExt;
 use opentelemetry::trace::SpanKind;
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::process::Stdio;
+use tokio::net::TcpStream;
 use tokio::pin;
 use tokio::process::{ChildStderr, ChildStdin};
 use tokio_util::codec::Decoder;
@@ -48,12 +53,13 @@ use super::dev_tunnels::ActiveTunnel;
 use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
-	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ChallengeIssueResponse,
-	ChallengeVerifyParams, ClientRequestMethod, EmptyObject, ForwardParams, ForwardResult,
-	FsStatRequest, FsStatResponse, GetEnvResponse, GetHostnameResponse, HttpBodyParams,
-	HttpHeadersParams, ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult,
-	ToClientRequest, UnforwardParams, UpdateParams, UpdateResult, VersionResponse,
-	METHOD_CHALLENGE_VERIFY,
+	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ChallengeIssueParams,
+	ChallengeIssueResponse, ChallengeVerifyParams, ClientRequestMethod, EmptyObject, ForwardParams,
+	ForwardResult, FsReadDirEntry, FsReadDirResponse, FsRenameRequest, FsSinglePathRequest,
+	FsStatResponse, GetEnvResponse, GetHostnameResponse, HttpBodyParams, HttpHeadersParams,
+	NetConnectRequest, ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult,
+	SysKillRequest, SysKillResponse, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult,
+	VersionResponse, METHOD_CHALLENGE_VERIFY,
 };
 use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
@@ -94,8 +100,8 @@ struct HandlerContext {
 
 /// Handler auth state.
 enum AuthState {
-	/// Auth is required, we're waiting for the client to send its challenge.
-	WaitingForChallenge,
+	/// Auth is required, we're waiting for the client to send its challenge optionally bearing a token.
+	WaitingForChallenge(Option<String>),
 	/// A challenge has been issued. Waiting for a verification.
 	ChallengeIssued(String),
 	/// Auth is no longer required.
@@ -139,6 +145,31 @@ pub struct ServerTermination {
 	pub tunnel: ActiveTunnel,
 }
 
+async fn preload_extensions(
+	log: &log::Logger,
+	platform: Platform,
+	mut args: CodeServerArgs,
+	launcher_paths: LauncherPaths,
+) -> Result<(), AnyError> {
+	args.start_server = false;
+
+	let params_raw = ServerParamsRaw {
+		commit_id: None,
+		quality: Quality::Stable,
+		code_server_args: args.clone(),
+		headless: true,
+		platform,
+	};
+
+	// cannot use delegated HTTP here since there's no remote connection yet
+	let http = Arc::new(ReqwestSimpleHttp::new());
+	let resolved = params_raw.resolve(log, http.clone()).await?;
+	let sb = ServerBuilder::new(log, &resolved, &launcher_paths, http.clone());
+
+	sb.setup().await?;
+	sb.install_extensions().await
+}
+
 // Runs the launcher server. Exits on a ctrl+c or when requested by a user.
 // Note that client connections may not be closed when this returns; use
 // `close_all_clients()` on the ServerTermination to make this happen.
@@ -154,6 +185,26 @@ pub async fn serve(
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
+
+	if !code_server_args.install_extensions.is_empty() {
+		info!(
+			log,
+			"Preloading extensions using stable server: {:?}", code_server_args.install_extensions
+		);
+		let log = log.clone();
+		let code_server_args = code_server_args.clone();
+		let launcher_paths = launcher_paths.clone();
+		// This is run async to the primary tunnel setup to be speedy.
+		tokio::spawn(async move {
+			if let Err(e) =
+				preload_extensions(&log, platform, code_server_args, launcher_paths).await
+			{
+				warning!(log, "Failed to preload extensions: {:?}", e);
+			} else {
+				info!(log, "Extension install complete");
+			}
+		});
+	}
 
 	loop {
 		tokio::select! {
@@ -215,7 +266,7 @@ pub async fn serve(
 						code_server_args: own_code_server_args,
 						platform,
 						exit_barrier: own_exit,
-						requires_auth: false,
+						requires_auth: AuthRequired::None,
 					}).with_context(cx.clone()).await;
 
 					cx.span().add_event(
@@ -233,12 +284,20 @@ pub async fn serve(
 	}
 }
 
+#[derive(Clone)]
+pub enum AuthRequired {
+	None,
+	VSDA,
+	VSDAWithToken(String),
+}
+
+#[derive(Clone)]
 pub struct ServeStreamParams {
 	pub log: log::Logger,
 	pub launcher_paths: LauncherPaths,
 	pub code_server_args: CodeServerArgs,
 	pub platform: Platform,
-	pub requires_auth: bool,
+	pub requires_auth: AuthRequired,
 	pub exit_barrier: Barrier<ShutdownSignal>,
 }
 
@@ -268,16 +327,17 @@ fn make_socket_rpc(
 	launcher_paths: LauncherPaths,
 	code_server_args: CodeServerArgs,
 	port_forwarding: Option<PortForwarding>,
-	requires_auth: bool,
+	requires_auth: AuthRequired,
 	platform: Platform,
+	http_requests: HttpRequestsMap,
 ) -> RpcDispatcher<MsgPackSerializer, HandlerContext> {
-	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
 	let server_bridges = ServerMultiplexer::new();
 	let mut rpc = RpcBuilder::new(MsgPackSerializer {}).methods(HandlerContext {
 		did_update: Arc::new(AtomicBool::new(false)),
 		auth_state: Arc::new(std::sync::Mutex::new(match requires_auth {
-			true => AuthState::WaitingForChallenge,
-			false => AuthState::Authenticated,
+			AuthRequired::VSDAWithToken(t) => AuthState::WaitingForChallenge(Some(t)),
+			AuthRequired::VSDA => AuthState::WaitingForChallenge(None),
+			AuthRequired::None => AuthState::Authenticated,
 		})),
 		socket_tx,
 		log: log.clone(),
@@ -296,16 +356,68 @@ fn make_socket_rpc(
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
 	rpc.register_sync("gethostname", |_: EmptyObject, _| handle_get_hostname());
-	rpc.register_sync("fs_stat", |p: FsStatRequest, c| {
+	rpc.register_sync("sys_kill", |p: SysKillRequest, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_sys_kill(p.pid)
+	});
+	rpc.register_sync("fs_stat", |p: FsSinglePathRequest, c| {
 		ensure_auth(&c.auth_state)?;
 		handle_stat(p.path)
+	});
+	rpc.register_duplex(
+		"fs_read",
+		1,
+		move |mut streams, p: FsSinglePathRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_fs_read(streams.remove(0), p.path).await
+		},
+	);
+	rpc.register_duplex(
+		"fs_write",
+		1,
+		move |mut streams, p: FsSinglePathRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_fs_write(streams.remove(0), p.path).await
+		},
+	);
+	rpc.register_duplex(
+		"fs_connect",
+		1,
+		move |mut streams, p: FsSinglePathRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_fs_connect(streams.remove(0), p.path).await
+		},
+	);
+	rpc.register_duplex(
+		"net_connect",
+		1,
+		move |mut streams, n: NetConnectRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_net_connect(streams.remove(0), n).await
+		},
+	);
+	rpc.register_async("fs_rm", move |p: FsSinglePathRequest, c| async move {
+		ensure_auth(&c.auth_state)?;
+		handle_fs_remove(p.path).await
+	});
+	rpc.register_sync("fs_mkdirp", |p: FsSinglePathRequest, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_fs_mkdirp(p.path)
+	});
+	rpc.register_sync("fs_rename", |p: FsRenameRequest, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_fs_rename(p.from_path, p.to_path)
+	});
+	rpc.register_sync("fs_readdir", |p: FsSinglePathRequest, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_fs_readdir(p.path)
 	});
 	rpc.register_sync("get_env", |_: EmptyObject, c| {
 		ensure_auth(&c.auth_state)?;
 		handle_get_env()
 	});
-	rpc.register_sync(METHOD_CHALLENGE_ISSUE, |_: EmptyObject, c| {
-		handle_challenge_issue(&c.auth_state)
+	rpc.register_sync(METHOD_CHALLENGE_ISSUE, |p: ChallengeIssueParams, c| {
+		handle_challenge_issue(p, &c.auth_state)
 	});
 	rpc.register_sync(METHOD_CHALLENGE_VERIFY, |p: ChallengeVerifyParams, c| {
 		handle_challenge_verify(p.response, &c.auth_state)
@@ -368,7 +480,10 @@ fn make_socket_rpc(
 	);
 	rpc.register_sync("httpheaders", |p: HttpHeadersParams, c| {
 		if let Some(req) = c.http_requests.lock().unwrap().get(&p.req_id) {
+			trace!(c.log, "got {} response for req {}", p.status_code, p.req_id);
 			req.initial_response(p.status_code, p.headers);
+		} else {
+			warning!(c.log, "got response for unknown req {}", p.req_id);
 		}
 		Ok(EmptyObject {})
 	});
@@ -379,6 +494,7 @@ fn make_socket_rpc(
 				req.body(p.segment);
 			}
 			if p.complete {
+				trace!(c.log, "delegated request {} completed", p.req_id);
 				reqs.remove(&p.req_id);
 			}
 		}
@@ -422,6 +538,7 @@ async fn process_socket(
 	let rx_counter = Arc::new(AtomicUsize::new(0));
 	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
 
+	let already_authed = matches!(requires_auth, AuthRequired::None);
 	let rpc = make_socket_rpc(
 		log.clone(),
 		socket_tx.clone(),
@@ -431,6 +548,7 @@ async fn process_socket(
 		port_forwarding,
 		requires_auth,
 		platform,
+		http_requests.clone(),
 	);
 
 	{
@@ -439,7 +557,7 @@ async fn process_socket(
 		let socket_tx = socket_tx.clone();
 		let exit_barrier = exit_barrier.clone();
 		tokio::spawn(async move {
-			if !requires_auth {
+			if already_authed {
 				send_version(&socket_tx).await;
 			}
 
@@ -487,6 +605,7 @@ async fn process_socket(
 					}),
 				})
 				.unwrap();
+
 				http_requests.lock().unwrap().insert(id, r);
 
 				tx_counter += serialized.len();
@@ -611,6 +730,7 @@ async fn handle_serve(
 ) -> Result<EmptyObject, AnyError> {
 	// fill params.extensions into code_server_args.install_extensions
 	let mut csa = c.code_server_args.clone();
+	csa.connection_token = params.connection_token.or(csa.connection_token);
 	csa.install_extensions.extend(params.extensions.into_iter());
 
 	let params_raw = ServerParamsRaw {
@@ -760,6 +880,8 @@ async fn handle_update(
 	let latest_release = updater.get_current_release().await?;
 	let up_to_date = updater.is_up_to_date_with(&latest_release);
 
+	let _ = updater.cleanup_old_update();
+
 	if !params.do_update || up_to_date {
 		return Ok(UpdateResult {
 			up_to_date,
@@ -800,14 +922,99 @@ fn handle_stat(path: String) -> Result<FsStatResponse, AnyError> {
 		.map(|m| FsStatResponse {
 			exists: true,
 			size: Some(m.len()),
-			kind: Some(match m.file_type() {
-				t if t.is_dir() => "dir",
-				t if t.is_file() => "file",
-				t if t.is_symlink() => "link",
-				_ => "unknown",
-			}),
+			kind: Some(m.file_type().into()),
 		})
 		.unwrap_or_default())
+}
+
+async fn handle_fs_read(mut out: DuplexStream, path: String) -> Result<EmptyObject, AnyError> {
+	let mut f = tokio::fs::File::open(path)
+		.await
+		.map_err(|e| wrap(e, "file not found"))?;
+
+	tokio::io::copy(&mut f, &mut out)
+		.await
+		.map_err(|e| wrap(e, "error reading file"))?;
+
+	Ok(EmptyObject {})
+}
+
+async fn handle_fs_write(mut input: DuplexStream, path: String) -> Result<EmptyObject, AnyError> {
+	let mut f = tokio::fs::File::create(path)
+		.await
+		.map_err(|e| wrap(e, "file not found"))?;
+
+	tokio::io::copy(&mut input, &mut f)
+		.await
+		.map_err(|e| wrap(e, "error writing file"))?;
+
+	Ok(EmptyObject {})
+}
+
+async fn handle_net_connect(
+	mut stream: DuplexStream,
+	req: NetConnectRequest,
+) -> Result<EmptyObject, AnyError> {
+	let mut s = TcpStream::connect((req.host, req.port))
+		.await
+		.map_err(|e| wrap(e, "could not connect to address"))?;
+
+	tokio::io::copy_bidirectional(&mut stream, &mut s)
+		.await
+		.map_err(|e| wrap(e, "error copying stream data"))?;
+
+	Ok(EmptyObject {})
+}
+async fn handle_fs_connect(
+	mut stream: DuplexStream,
+	path: String,
+) -> Result<EmptyObject, AnyError> {
+	let mut s = get_socket_rw_stream(&PathBuf::from(path))
+		.await
+		.map_err(|e| wrap(e, "could not connect to socket"))?;
+
+	tokio::io::copy_bidirectional(&mut stream, &mut s)
+		.await
+		.map_err(|e| wrap(e, "error copying stream data"))?;
+
+	Ok(EmptyObject {})
+}
+
+async fn handle_fs_remove(path: String) -> Result<EmptyObject, AnyError> {
+	tokio::fs::remove_dir_all(path)
+		.await
+		.map_err(|e| wrap(e, "error removing directory"))?;
+	Ok(EmptyObject {})
+}
+
+fn handle_fs_rename(from_path: String, to_path: String) -> Result<EmptyObject, AnyError> {
+	std::fs::rename(from_path, to_path).map_err(|e| wrap(e, "error renaming"))?;
+	Ok(EmptyObject {})
+}
+
+fn handle_fs_mkdirp(path: String) -> Result<EmptyObject, AnyError> {
+	std::fs::create_dir_all(path).map_err(|e| wrap(e, "error creating directory"))?;
+	Ok(EmptyObject {})
+}
+
+fn handle_fs_readdir(path: String) -> Result<FsReadDirResponse, AnyError> {
+	let mut entries = std::fs::read_dir(path).map_err(|e| wrap(e, "error listing directory"))?;
+
+	let mut contents = Vec::new();
+	while let Some(Ok(child)) = entries.next() {
+		contents.push(FsReadDirEntry {
+			name: child.file_name().to_string_lossy().into_owned(),
+			kind: child.file_type().ok().map(|v| v.into()),
+		});
+	}
+
+	Ok(FsReadDirResponse { contents })
+}
+
+fn handle_sys_kill(pid: u32) -> Result<SysKillResponse, AnyError> {
+	Ok(SysKillResponse {
+		success: kill_pid(pid),
+	})
 }
 
 fn handle_get_env() -> Result<GetEnvResponse, AnyError> {
@@ -824,13 +1031,22 @@ fn handle_get_env() -> Result<GetEnvResponse, AnyError> {
 }
 
 fn handle_challenge_issue(
+	params: ChallengeIssueParams,
 	auth_state: &Arc<std::sync::Mutex<AuthState>>,
 ) -> Result<ChallengeIssueResponse, AnyError> {
 	let challenge = create_challenge();
 
 	let mut auth_state = auth_state.lock().unwrap();
-	*auth_state = AuthState::ChallengeIssued(challenge.clone());
+	if let AuthState::WaitingForChallenge(Some(s)) = &*auth_state {
+		println!("looking for token {}, got {:?}", s, params.token);
+		match &params.token {
+			Some(t) if s != t => return Err(CodeError::AuthChallengeBadToken.into()),
+			None => return Err(CodeError::AuthChallengeBadToken.into()),
+			_ => {}
+		}
+	}
 
+	*auth_state = AuthState::ChallengeIssued(challenge.clone());
 	Ok(ChallengeIssueResponse { challenge })
 }
 
@@ -842,7 +1058,7 @@ fn handle_challenge_verify(
 
 	match &*auth_state {
 		AuthState::Authenticated => Ok(EmptyObject {}),
-		AuthState::WaitingForChallenge => Err(CodeError::AuthChallengeNotIssued.into()),
+		AuthState::WaitingForChallenge(_) => Err(CodeError::AuthChallengeNotIssued.into()),
 		AuthState::ChallengeIssued(c) => match verify_challenge(c, &response) {
 			false => Err(CodeError::AuthChallengeNotIssued.into()),
 			true => {
@@ -991,7 +1207,7 @@ where
 		};
 	}
 
-	let mut p = tokio::process::Command::new(&params.command);
+	let mut p = new_tokio_command(&params.command);
 	p.args(&params.args);
 	p.envs(&params.env);
 	p.stdin(pipe_if!(stdin.is_some()));
@@ -1001,20 +1217,24 @@ where
 		p.current_dir(cwd);
 	}
 
+	#[cfg(target_os = "windows")]
+	p.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+
 	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
 
-	let futs = FuturesUnordered::new();
+	let block_futs = FuturesUnordered::new();
+	let poll_futs = FuturesUnordered::new();
 	if let (Some(mut a), Some(mut b)) = (p.stdout.take(), stdout) {
-		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+		block_futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
 	}
 	if let (Some(mut a), Some(mut b)) = (p.stderr.take(), stderr) {
-		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+		block_futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
 	}
 	if let (Some(mut b), Some(mut a)) = (p.stdin.take(), stdin) {
-		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+		poll_futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
 	}
 
-	wait_for_process_exit(log, &params.command, p, futs).await
+	wait_for_process_exit(log, &params.command, p, block_futs, poll_futs).await
 }
 
 async fn handle_spawn_cli(
@@ -1029,13 +1249,12 @@ async fn handle_spawn_cli(
 		"requested to spawn cli {} with args {:?}", params.command, params.args
 	);
 
-	let mut p = tokio::process::Command::new(&params.command);
+	let mut p = new_tokio_command(&params.command);
 	p.args(&params.args);
 
 	// CLI args to spawn a server; contracted with clients that they should _not_ provide these.
 	p.arg("--verbose");
-	p.arg("tunnel");
-	p.arg("stdio");
+	p.arg("command-shell");
 
 	p.envs(&params.env);
 	p.stdin(Stdio::piped());
@@ -1063,28 +1282,41 @@ async fn handle_spawn_cli(
 	}
 
 	debug!(log, "cli authenticated, attaching stdio");
-	let futs = FuturesUnordered::new();
-	futs.push(async move { tokio::io::copy(&mut protocol_in, &mut stdin).await }.boxed());
-	futs.push(async move { tokio::io::copy(&mut stderr, &mut protocol_out).await }.boxed());
-	futs.push(async move { log_pump.await.unwrap() }.boxed());
+	let block_futs = FuturesUnordered::new();
+	let poll_futs = FuturesUnordered::new();
+	poll_futs.push(async move { tokio::io::copy(&mut protocol_in, &mut stdin).await }.boxed());
+	block_futs.push(async move { tokio::io::copy(&mut stderr, &mut protocol_out).await }.boxed());
+	block_futs.push(async move { log_pump.await.unwrap() }.boxed());
 
-	wait_for_process_exit(log, &params.command, p, futs).await
+	wait_for_process_exit(log, &params.command, p, block_futs, poll_futs).await
 }
 
 type TokioCopyFuture = dyn futures::Future<Output = Result<u64, std::io::Error>> + Send;
 
+async fn get_joined_result(
+	mut process: tokio::process::Child,
+	block_futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
+) -> Result<std::process::ExitStatus, std::io::Error> {
+	let (_, r) = tokio::join!(futures::future::join_all(block_futs), process.wait());
+	r
+}
+
+/// Wait for the process to exit and sends the spawn result. Waits until the
+/// `block_futs` and the process have exited, and polls the `poll_futs` while
+/// doing so.
 async fn wait_for_process_exit(
 	log: &log::Logger,
 	command: &str,
-	mut process: tokio::process::Child,
-	futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
+	process: tokio::process::Child,
+	block_futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
+	poll_futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
 ) -> Result<SpawnResult, AnyError> {
-	let closed = process.wait();
-	pin!(closed);
+	let joined = get_joined_result(process, block_futs);
+	pin!(joined);
 
 	let r = tokio::select! {
-		_ = futures::future::join_all(futs) => closed.await,
-		r = &mut closed => r
+		_ = futures::future::join_all(poll_futs) => joined.await,
+		r = &mut joined => r,
 	};
 
 	let r = match r {

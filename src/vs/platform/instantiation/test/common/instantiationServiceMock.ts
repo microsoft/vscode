@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
@@ -17,7 +17,7 @@ interface IServiceMock<T> {
 
 const isSinonSpyLike = (fn: Function): fn is sinon.SinonSpy => fn && 'callCount' in fn;
 
-export class TestInstantiationService extends InstantiationService {
+export class TestInstantiationService extends InstantiationService implements IDisposable {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
@@ -129,6 +129,10 @@ export class TestInstantiationService extends InstantiationService {
 	override createChild(services: ServiceCollection): TestInstantiationService {
 		return new TestInstantiationService(services, false, this);
 	}
+
+	dispose() {
+		sinon.restore();
+	}
 }
 
 interface SinonOptions {
@@ -157,7 +161,7 @@ export function createServices(disposables: DisposableStore, services: ServiceId
 		define(id, ctor);
 	}
 
-	const instantiationService = new TestInstantiationService(serviceCollection, true);
+	const instantiationService = disposables.add(new TestInstantiationService(serviceCollection, true));
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = serviceCollection.get(id);

@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
+import { IWindowsConfiguration, IWindowSettings, TitleBarSetting, TitlebarStyle } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isMacintosh, isNative, isLinux, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,7 +26,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } }; restrictUNCAccess?: boolean };
-	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean } } };
+	window: IWindowSettings;
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 }
@@ -34,8 +34,7 @@ interface IConfiguration extends IWindowsConfiguration {
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private static SETTINGS = [
-		'window.titleBarStyle',
-		'window.experimental.windowControlsOverlay.enabled',
+		TitleBarSetting.TITLE_BAR_STYLE,
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -47,8 +46,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'security.restrictUNCAccess'
 	];
 
-	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
-	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
+	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -87,10 +85,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		if (isNative) {
 
 			// Titlebar style
-			processChanged((config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom') && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
-
-			// Windows: Window Controls Overlay
-			processChanged(isWindows && this.windowControlsOverlayEnabled.handleChange(config.window?.experimental?.windowControlsOverlay?.enabled));
+			processChanged((config.window.titleBarStyle === TitlebarStyle.NATIVE || config.window.titleBarStyle === TitlebarStyle.CUSTOM) && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
@@ -204,7 +199,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			if (environmentService.remoteAuthority) {
 				hostService.reload(); // TODO@aeschli, workaround
 			} else if (isNative) {
-				const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restart Extension Host."));
+				const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restarting extension host due to a workspace folder change."));
 				if (stopped) {
 					extensionService.startExtensionHosts();
 				}

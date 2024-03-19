@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as strings from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', () => {
@@ -132,8 +133,26 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('foo bar', 5), 'foo bar');
 		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3), '2.3');
 
+		assert.strictEqual(strings.lcut('foo bar', 0, '…'), '…');
+		assert.strictEqual(strings.lcut('foo bar', 1, '…'), '…bar');
+		assert.strictEqual(strings.lcut('foo bar', 3, '…'), '…bar');
+		assert.strictEqual(strings.lcut('foo bar', 4, '…'), '…bar'); // Leading whitespace trimmed
+		assert.strictEqual(strings.lcut('foo bar', 5, '…'), 'foo bar');
+		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3, '…'), '…2.3');
+
 		assert.strictEqual(strings.lcut('', 10), '');
 		assert.strictEqual(strings.lcut('a', 10), 'a');
+		assert.strictEqual(strings.lcut(' a', 10), 'a');
+		assert.strictEqual(strings.lcut('            a', 10), 'a');
+		assert.strictEqual(strings.lcut(' bbbb       a', 10), 'bbbb       a');
+		assert.strictEqual(strings.lcut('............a', 10), '............a');
+
+		assert.strictEqual(strings.lcut('', 10, '…'), '');
+		assert.strictEqual(strings.lcut('a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut(' a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut('            a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut(' bbbb       a', 10, '…'), 'bbbb       a');
+		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
 	});
 
 	test('escape', () => {
@@ -265,22 +284,6 @@ suite('Strings', () => {
 		assert(regExpWithFlags.multiline);
 	});
 
-	test('regExpContainsBackreference', () => {
-		assert(strings.regExpContainsBackreference('foo \\5 bar'));
-		assert(strings.regExpContainsBackreference('\\2'));
-		assert(strings.regExpContainsBackreference('(\\d)(\\n)(\\1)'));
-		assert(strings.regExpContainsBackreference('(A).*?\\1'));
-		assert(strings.regExpContainsBackreference('\\\\\\1'));
-		assert(strings.regExpContainsBackreference('foo \\\\\\1'));
-
-		assert(!strings.regExpContainsBackreference(''));
-		assert(!strings.regExpContainsBackreference('\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\\\1'));
-		assert(!strings.regExpContainsBackreference('(A).*?\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\d1 bar'));
-		assert(!strings.regExpContainsBackreference('123'));
-	});
-
 	test('getLeadingWhitespace', () => {
 		assert.strictEqual(strings.getLeadingWhitespace('  foo'), '  ');
 		assert.strictEqual(strings.getLeadingWhitespace('  foo', 2), '');
@@ -385,6 +388,11 @@ suite('Strings', () => {
 	test('truncate', () => {
 		assert.strictEqual('hello world', strings.truncate('hello world', 100));
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
+	});
+
+	test('truncateMiddle', () => {
+		assert.strictEqual('hello world', strings.truncateMiddle('hello world', 100));
+		assert.strictEqual('he…ld', strings.truncateMiddle('hello world', 5));
 	});
 
 	test('replaceAsync', async () => {
@@ -520,5 +528,25 @@ suite('Strings', () => {
 		for (const sequence of sequences) {
 			assert.strictEqual(strings.removeAnsiEscapeCodes(`hello${sequence}world`), 'helloworld', `expect to remove ${JSON.stringify(sequence)}`);
 		}
+
+		for (const sequence of sequences) {
+			assert.deepStrictEqual(
+				[...strings.forAnsiStringParts(`hello${sequence}world`)],
+				[{ isCode: false, str: 'hello' }, { isCode: true, str: sequence }, { isCode: false, str: 'world' }],
+				`expect to forAnsiStringParts ${JSON.stringify(sequence)}`
+			);
+		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+test('htmlAttributeEncodeValue', () => {
+	assert.strictEqual(strings.htmlAttributeEncodeValue(''), '');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('abc'), 'abc');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('<script>alert("Hello")</script>'), '&lt;script&gt;alert(&quot;Hello&quot;)&lt;/script&gt;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('Hello & World'), 'Hello &amp; World');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('"Hello"'), '&quot;Hello&quot;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('\'Hello\''), '&apos;Hello&apos;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('<>&\'"'), '&lt;&gt;&amp;&apos;&quot;');
 });

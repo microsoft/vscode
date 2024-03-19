@@ -1,0 +1,36 @@
+{
+	"original": {
+		"content": "import { Stack, Text } from '@fluentui/react';\nimport { View } from '../../layout/layout';\n\nexport const WelcomeView = () => {\n\treturn (\n\t\t<View title='VS Code Tools'>\n\t\t\t<Stack grow={true} verticalFill={true}>\n\t\t\t\t<Stack.Item>\n\t\t\t\t\t<Text>\n\t\t\t\t\t\tWelcome to the VS Code Tools application.\n\t\t\t\t\t</Text>\n\t\t\t\t</Stack.Item>\n\t\t\t</Stack>\n\t\t</View>\n\t);\n}\n",
+		"fileName": "./1.tsx"
+	},
+	"modified": {
+		"content": "import { Nav } from '@fluentui/react';\nimport { View } from '../../layout/layout';\n\nexport const WelcomeView = () => {\n\treturn (\n\t\t<View title='VS Code Tools'>\n\t\t\t<Nav\n\t\t\t\tgroups={[\n\t\t\t\t\t{\n\t\t\t\t\t\tlinks: [\n\t\t\t\t\t\t\t{ name: 'VS Code Standup (Redmond)', url: 'https://vscode-standup.azurewebsites.net', icon: 'JoinOnlineMeeting', target: '_blank' },\n\t\t\t\t\t\t\t{ name: 'VS Code Standup (Zurich)', url: 'https://stand.azurewebsites.net/', icon: 'JoinOnlineMeeting', target: '_blank' },\n\t\t\t\t\t\t\t{ name: 'VS Code Errors', url: 'https://errors.code.visualstudio.com', icon: 'ErrorBadge', target: '_blank' },\n\t\t\t\t\t\t]\n\t\t\t\t\t}\n\t\t\t\t]}>\n\t\t\t</Nav>\n\t\t</View>\n\t);\n}\n",
+		"fileName": "./2.tsx"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,10 -> 1,21]",
+					"modifiedRange": "[1,10 -> 1,13]"
+				}
+			]
+		},
+		{
+			"originalRange": "[7,14)",
+			"modifiedRange": "[7,18)",
+			"innerChanges": [
+				{
+					"originalRange": "[7,1 -> 13,1]",
+					"modifiedRange": "[7,1 -> 17,1]"
+				},
+				{
+					"originalRange": "[13,6 -> 13,11]",
+					"modifiedRange": "[17,6 -> 17,9]"
+				}
+			]
+		}
+	]
+}

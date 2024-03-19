@@ -13,11 +13,11 @@ const electron = require('@vscode/gulp-electron');
 const { config } = require('./lib/electron');
 const filter = require('gulp-filter');
 const deps = require('./lib/dependencies');
+const { existsSync, readdirSync } = require('fs');
 
 const root = path.dirname(__dirname);
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: null, opts: { stats: true } },
@@ -46,8 +46,9 @@ BUILD_TARGETS.forEach(buildTarget => {
 	if (platform === 'win32') {
 		tasks.push(
 			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true }),
-			util.rimraf(path.join(destinationExe, 'swiftshader')),
-			util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')));
+			util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')),
+			() => confirmPdbsExist(destinationExe, destinationPdb)
+		);
 	}
 
 	if (platform === 'linux') {
@@ -105,4 +106,16 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 	}
 
 	return exe;
+}
+
+function confirmPdbsExist(destinationExe, destinationPdb) {
+	readdirSync(destinationExe).forEach(file => {
+		if (file.endsWith('.dll') || file.endsWith('.exe')) {
+			const pdb = `${file}.pdb`;
+			if (!existsSync(path.join(destinationPdb, pdb))) {
+				throw new Error(`Missing pdb file for ${file}. Tried searching for ${pdb} in ${destinationPdb}.`);
+			}
+		}
+	});
+	return Promise.resolve();
 }

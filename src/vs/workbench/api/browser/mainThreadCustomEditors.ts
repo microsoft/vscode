@@ -106,26 +106,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 		// Working copy operations
 		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => this.onWillRunWorkingCopyFileOperation(e)));
-
-		this._register(extensionService.onWillStop(e => {
-			const dirtyCustomEditors = workingCopyService.workingCopies.filter(workingCopy => {
-				return workingCopy instanceof MainThreadCustomEditorModel && workingCopy.isDirty();
-			});
-			if (!dirtyCustomEditors.length) {
-				return;
-			}
-
-			e.veto((async () => {
-				for (const dirtyCustomEditor of dirtyCustomEditors) {
-					const didSave = await dirtyCustomEditor.save();
-					if (!didSave) {
-						// Veto
-						return true;
-					}
-				}
-				return false; // Don't veto
-			})(), localize('vetoExtHostRestart', "One or more custom editors could not be saved."));
-		}));
 	}
 
 	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: extHostProtocol.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void {
@@ -399,6 +379,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IPathService private readonly _pathService: IPathService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(MainThreadCustomEditorModel.toWorkingCopyResource(_viewType, _editorResource), fileService);
 
@@ -406,6 +387,21 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
+
+			this._register(extensionService.onWillStop(e => {
+				if (!this.isDirty()) {
+					return;
+				}
+
+				e.veto((async () => {
+					const didSave = await this.save();
+					if (!didSave) {
+						// Veto
+						return true;
+					}
+					return false; // Don't veto
+				})(), localize('vetoExtHostRestart', "Custom editor '{0}' could not be saved.", this.name));
+			}));
 		}
 
 		// Normally means we're re-opening an untitled file
@@ -668,6 +664,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		}
 	}
 
+	public get canHotExit() { return typeof this._backupId === 'string' && this._hotExitState.type === HotExitState.Type.Allowed; }
+
 	public async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const editors = this._getEditors();
 		if (!editors.length) {
@@ -739,6 +737,6 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			return backupData;
 		}
 
-		throw new Error(`Cannot back up in this state: ${errorMessage}`);
+		throw new Error(`Cannot backup in this state: ${errorMessage}`);
 	}
 }

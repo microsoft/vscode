@@ -18,7 +18,7 @@ class ContextMenuContribution implements IWorkbenchContribution {
 		@ILayoutService layoutService: ILayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		const update = (visible: boolean) => layoutService.container.classList.toggle('context-menu-visible', visible);
+		const update = (visible: boolean) => layoutService.activeContainer.classList.toggle('context-menu-visible', visible);
 		contextMenuService.onDidShowContextMenu(() => update(true), null, this.disposables);
 		contextMenuService.onDidHideContextMenu(() => update(false), null, this.disposables);
 	}

@@ -6,8 +6,11 @@
 import * as assert from 'assert';
 import { IFullSemanticTokensDto, IDeltaSemanticTokensDto, encodeSemanticTokensDto, ISemanticTokensDto, decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('SemanticTokensDto', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function toArr(arr: Uint32Array): number[] {
 		const result: number[] = [];

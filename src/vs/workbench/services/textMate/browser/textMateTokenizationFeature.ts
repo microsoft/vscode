@@ -11,7 +11,7 @@ export const ITextMateTokenizationService = createDecorator<ITextMateTokenizatio
 export interface ITextMateTokenizationService {
 	readonly _serviceBrand: undefined;
 
-	createGrammar(languageId: string): Promise<IGrammar | null>;
+	createTokenizer(languageId: string): Promise<IGrammar | null>;
 
 	startDebugMode(printFn: (str: string) => void, onStop: () => void): void;
 }

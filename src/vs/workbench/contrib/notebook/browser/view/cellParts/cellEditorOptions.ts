@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -21,14 +21,56 @@ import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cell
 import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { ITextModelUpdateOptions } from 'vs/editor/common/model';
 
-export class CellEditorOptions extends CellContentPart {
+//todo@Yoyokrazy implenets is needed or not?
+export class CellEditorOptions extends CellContentPart implements ITextModelUpdateOptions {
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
+	private _tabSize?: number;
+	private _indentSize?: number | 'tabSize';
+	private _insertSpaces?: boolean;
+
+	set tabSize(value: number | undefined) {
+		if (this._tabSize !== value) {
+			this._tabSize = value;
+			this._onDidChange.fire();
+		}
+	}
+
+	get tabSize() {
+		return this._tabSize;
+	}
+
+	set indentSize(value: number | 'tabSize' | undefined) {
+		if (this._indentSize !== value) {
+			this._indentSize = value;
+			this._onDidChange.fire();
+		}
+	}
+
+	get indentSize() {
+		return this._indentSize;
+	}
+
+	set insertSpaces(value: boolean | undefined) {
+		if (this._insertSpaces !== value) {
+			this._insertSpaces = value;
+			this._onDidChange.fire();
+		}
+	}
+
+	get insertSpaces() {
+		return this._insertSpaces;
+	}
+
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private _value: IEditorOptions;
 
-	constructor(private readonly base: IBaseCellEditorOptions, readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService) {
+	constructor(
+		private readonly base: IBaseCellEditorOptions,
+		readonly notebookOptions: NotebookOptions,
+		readonly configurationService: IConfigurationService) {
 		super();
 
 		this._register(base.onDidChange(() => {
@@ -50,7 +92,23 @@ export class CellEditorOptions extends CellContentPart {
 	}
 
 	private _computeEditorOptions() {
-		const value = this.base.value;
+		const value = this.base.value; // base IEditorOptions
+
+		// TODO @Yoyokrazy find a different way to get the editor overrides, this is not the right way
+		const cellEditorOverridesRaw = this.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
+		const indentSize = cellEditorOverridesRaw['editor.indentSize'];
+		if (indentSize !== undefined) {
+			this.indentSize = indentSize;
+		}
+		const insertSpaces = cellEditorOverridesRaw['editor.insertSpaces'];
+		if (insertSpaces !== undefined) {
+			this.insertSpaces = insertSpaces;
+		}
+		const tabSize = cellEditorOverridesRaw['editor.tabSize'];
+		if (tabSize !== undefined) {
+			this.tabSize = tabSize;
+		}
+
 		let cellRenderLineNumber = value.lineNumbers;
 
 		switch (this._lineNumbers) {
@@ -134,7 +192,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLineNumbers',
-			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
+			title: localize2('notebook.toggleLineNumbers', 'Toggle Notebook Line Numbers'),
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [
 				{

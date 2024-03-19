@@ -8,7 +8,7 @@
  * using regular expressions.
  */
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as languages from 'vs/editor/common/languages';
 import { NullState, nullTokenizeEncoded, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
 import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
@@ -387,7 +387,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 
 export type ILoadStatus = { loaded: true } | { loaded: false; promise: Promise<void> };
 
-export class MonarchTokenizer implements languages.ITokenizationSupport, IDisposable {
+export class MonarchTokenizer extends Disposable implements languages.ITokenizationSupport, IDisposable {
 
 	private readonly _languageService: ILanguageService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
@@ -395,10 +395,10 @@ export class MonarchTokenizer implements languages.ITokenizationSupport, IDispos
 	private readonly _lexer: monarchCommon.ILexer;
 	private readonly _embeddedLanguages: { [languageId: string]: boolean };
 	public embeddedLoaded: Promise<void>;
-	private readonly _tokenizationRegistryListener: IDisposable;
 	private _maxTokenizationLineLength: number;
 
 	constructor(languageService: ILanguageService, standaloneThemeService: IStandaloneThemeService, languageId: string, lexer: monarchCommon.ILexer, @IConfigurationService private readonly _configurationService: IConfigurationService) {
+		super();
 		this._languageService = languageService;
 		this._standaloneThemeService = standaloneThemeService;
 		this._languageId = languageId;
@@ -408,7 +408,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport, IDispos
 
 		// Set up listening for embedded modes
 		let emitting = false;
-		this._tokenizationRegistryListener = languages.TokenizationRegistry.onDidChange((e) => {
+		this._register(languages.TokenizationRegistry.onDidChange((e) => {
 			if (emitting) {
 				return;
 			}
@@ -425,21 +425,17 @@ export class MonarchTokenizer implements languages.ITokenizationSupport, IDispos
 				languages.TokenizationRegistry.handleChange([this._languageId]);
 				emitting = false;
 			}
-		});
+		}));
 		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
 			overrideIdentifier: this._languageId
 		});
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
 				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
 					overrideIdentifier: this._languageId
 				});
 			}
-		});
-	}
-
-	public dispose(): void {
-		this._tokenizationRegistryListener.dispose();
+		}));
 	}
 
 	public getLoadStatus(): ILoadStatus {

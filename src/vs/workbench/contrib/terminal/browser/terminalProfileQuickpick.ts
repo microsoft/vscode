@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService, IKeyMods, IPickOptions, IQuickPickSeparator, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
-import { getUriClasses, getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { getUriClasses, getColorClass, createColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import * as nls from 'vs/nls';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -196,11 +196,10 @@ export class TerminalProfileQuickpick {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
 			quickPickItems.push(...this._sortProfileQuickPickItems(autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
 		}
-		const styleElement = getColorStyleElement(this._themeService.getColorTheme());
-		document.body.appendChild(styleElement);
+		const colorStyleDisposable = createColorStyleElement(this._themeService.getColorTheme());
 
 		const result = await this._quickInputService.pick(quickPickItems, options);
-		document.body.removeChild(styleElement);
+		colorStyleDisposable.dispose();
 		if (!result) {
 			return undefined;
 		}
@@ -266,7 +265,7 @@ export class TerminalProfileQuickpick {
 			}
 			const argsString = profile.args.map(e => {
 				if (e.includes(' ')) {
-					return `"${e.replace(/"/g, '\\"')}"`;
+					return `"${e.replace(/"/g, '\\"')}"`; // CodeQL [SM02383] js/incomplete-sanitization This is only used as a label on the UI so this isn't a problem
 				}
 				return e;
 			}).join(' ');

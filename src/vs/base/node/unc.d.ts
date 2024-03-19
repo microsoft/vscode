@@ -23,3 +23,8 @@ export function addUNCHostToAllowlist(allowedHost: string | string[]): void;
  * path validation.
  */
 export function disableUNCAccessRestrictions(): void;
+
+/**
+ * Whether UNC Host allow list in node.js is disabled.
+ */
+export function isUNCAccessRestrictionsDisabled(): boolean;

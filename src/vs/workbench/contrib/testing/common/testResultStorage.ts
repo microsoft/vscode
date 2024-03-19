@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { bufferToStream, newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -11,6 +12,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { HydratedTestResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -44,19 +46,21 @@ export const ITestResultStorage = createDecorator('ITestResultStorage');
  */
 const currentRevision = 1;
 
-export abstract class BaseTestResultStorage implements ITestResultStorage {
+export abstract class BaseTestResultStorage extends Disposable implements ITestResultStorage {
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly stored = new StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>({
+	protected readonly stored = this._register(new StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>({
 		key: 'storedTestResults',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.MACHINE
-	}, this.storageService);
+	}, this.storageService));
 
 	constructor(
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 	) {
+		super();
 	}
 
 	/**
@@ -74,7 +78,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 					return undefined;
 				}
 
-				return new HydratedTestResult(contents);
+				return new HydratedTestResult(this.uriIdentityService, contents);
 			} catch (e) {
 				this.logService.warn(`Error deserializing stored test result ${id}`, e);
 				return undefined;
@@ -204,13 +208,14 @@ export class TestResultStorage extends BaseTestResultStorage {
 	private readonly directory: URI;
 
 	constructor(
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContext: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		super(storageService, logService);
+		super(uriIdentityService, storageService, logService);
 		this.directory = URI.joinPath(environmentService.workspaceStorageHome, workspaceContext.getWorkspace().id, 'testResults');
 	}
 

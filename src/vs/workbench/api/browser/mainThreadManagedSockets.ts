@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, ExtHostContext, MainThreadManagedSocketsShape, ExtHostManagedSocketsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ManagedRemoteConnection, RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ISocket, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { ManagedSocket, RemoteSocketHalf, connectManagedSocket } from 'vs/platform/remote/common/managedSocket';
+import { ManagedRemoteConnection, RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteSocketFactoryService, ISocketFactory } from 'vs/platform/remote/common/remoteSocketFactoryService';
-import { ISocket, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { makeRawSocketHeaders, socketRawEndHeaderSequence } from 'vs/platform/remote/common/managedSocket';
+import { ExtHostContext, ExtHostManagedSocketsShape, MainContext, MainThreadManagedSocketsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadManagedSockets)
 export class MainThreadManagedSockets extends Disposable implements MainThreadManagedSocketsShape {
@@ -51,7 +51,7 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 						};
 						that._remoteSockets.set(socketId, half);
 
-						ManagedSocket.connect(socketId, that._proxy, path, query, debugLabel, half)
+						MainThreadManagedSocket.connect(socketId, that._proxy, path, query, debugLabel, half)
 							.then(
 								socket => {
 									socket.onDidDispose(() => that._remoteSockets.delete(socketId));
@@ -91,117 +91,35 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 	}
 }
 
-export interface RemoteSocketHalf {
-	onData: Emitter<VSBuffer>;
-	onClose: Emitter<SocketCloseEvent>;
-	onEnd: Emitter<void>;
-}
-
-export class ManagedSocket extends Disposable implements ISocket {
+export class MainThreadManagedSocket extends ManagedSocket {
 	public static connect(
 		socketId: number,
 		proxy: ExtHostManagedSocketsShape,
 		path: string, query: string, debugLabel: string,
-
 		half: RemoteSocketHalf
-	): Promise<ManagedSocket> {
-		const socket = new ManagedSocket(socketId, proxy, debugLabel, half.onClose, half.onData, half.onEnd);
-
-		socket.write(VSBuffer.fromString(makeRawSocketHeaders(path, query, debugLabel)));
-
-		const d = new DisposableStore();
-		return new Promise<ManagedSocket>((resolve, reject) => {
-			let dataSoFar: VSBuffer | undefined;
-			d.add(socket.onData(d => {
-				if (!dataSoFar) {
-					dataSoFar = d;
-				} else {
-					dataSoFar = VSBuffer.concat([dataSoFar, d], dataSoFar.byteLength + d.byteLength);
-				}
-
-				const index = dataSoFar.indexOf(socketRawEndHeaderSequence);
-				if (index === -1) {
-					return;
-				}
-
-				resolve(socket);
-				// pause data events until the socket consumer is hooked up. We may
-				// immediately emit remaining data, but if not there may still be
-				// microtasks queued which would fire data into the abyss.
-				socket.pauseData();
-
-				const rest = dataSoFar.slice(index + socketRawEndHeaderSequence.byteLength);
-				if (rest.byteLength) {
-					half.onData.fire(rest);
-				}
-			}));
-
-			d.add(socket.onClose(err => reject(err ?? new Error('socket closed'))));
-			d.add(socket.onEnd(() => reject(new Error('socket ended'))));
-		}).finally(() => d.dispose());
+	): Promise<MainThreadManagedSocket> {
+		const socket = new MainThreadManagedSocket(socketId, proxy, debugLabel, half);
+		return connectManagedSocket(socket, path, query, debugLabel, half);
 	}
-
-	private readonly pausableDataEmitter = this._register(new PauseableEmitter<VSBuffer>());
-
-	public onData: Event<VSBuffer> = (...args) => {
-		if (this.pausableDataEmitter.isPaused) {
-			queueMicrotask(() => this.pausableDataEmitter.resume());
-		}
-		return this.pausableDataEmitter.event(...args);
-	};
-	public onClose: Event<SocketCloseEvent>;
-	public onEnd: Event<void>;
-
-	private readonly didDisposeEmitter = this._register(new Emitter<void>());
-	public onDidDispose = this.didDisposeEmitter.event;
-
-	private ended = false;
 
 	private constructor(
 		private readonly socketId: number,
 		private readonly proxy: ExtHostManagedSocketsShape,
-		private readonly debugLabel: string,
-		onCloseEmitter: Emitter<SocketCloseEvent>,
-		onDataEmitter: Emitter<VSBuffer>,
-		onEndEmitter: Emitter<void>,
+		debugLabel: string,
+		half: RemoteSocketHalf,
 	) {
-		super();
-
-		this._register(onDataEmitter);
-		this._register(onDataEmitter.event(data => this.pausableDataEmitter.fire(data)));
-
-		this.onClose = this._register(onCloseEmitter).event;
-		this.onEnd = this._register(onEndEmitter).event;
+		super(debugLabel, half);
 	}
 
-	/** Pauses data events until a new listener comes in onData() */
-	pauseData() {
-		this.pausableDataEmitter.pause();
-	}
-
-	write(buffer: VSBuffer): void {
+	public override write(buffer: VSBuffer): void {
 		this.proxy.$remoteSocketWrite(this.socketId, buffer);
 	}
 
-	end(): void {
-		this.ended = true;
+	protected override  closeRemote(): void {
 		this.proxy.$remoteSocketEnd(this.socketId);
 	}
 
-	drain(): Promise<void> {
+	public override drain(): Promise<void> {
 		return this.proxy.$remoteSocketDrain(this.socketId);
-	}
-
-	traceSocketEvent(type: SocketDiagnosticsEventType, data?: any): void {
-		SocketDiagnostics.traceSocketEvent(this, this.debugLabel, type, data);
-	}
-
-	override dispose(): void {
-		if (!this.ended) {
-			this.proxy.$remoteSocketEnd(this.socketId);
-		}
-
-		this.didDisposeEmitter.fire();
-		super.dispose();
 	}
 }

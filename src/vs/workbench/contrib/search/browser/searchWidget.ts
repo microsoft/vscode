@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
-import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
+import { IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 import { IInputBoxStyles, IMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -31,7 +31,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { ToggleSearchEditorContextLinesCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
@@ -42,6 +42,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { SearchFindInput } from 'vs/workbench/contrib/search/browser/searchFindInput';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -60,6 +61,7 @@ export interface ISearchWidgetOptions {
 	inputBoxStyles: IInputBoxStyles;
 	toggleStyles: IToggleStyles;
 	notebookOptions?: NotebookToggleState;
+	initialAIButtonVisibility?: boolean;
 }
 
 interface NotebookToggleState {
@@ -119,7 +121,7 @@ export class SearchWidget extends Widget {
 
 	domNode: HTMLElement | undefined;
 
-	searchInput: FindInput | undefined;
+	searchInput: SearchFindInput | undefined;
 	searchInputFocusTracker: dom.IFocusTracker | undefined;
 	private searchInputBoxFocused: IContextKey<boolean>;
 
@@ -184,9 +186,9 @@ export class SearchWidget extends Widget {
 		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
-		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
-		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
-		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
+		this.replaceActive = Constants.SearchContext.ReplaceActiveKey.bindTo(this.contextKeyService);
+		this.searchInputBoxFocused = Constants.SearchContext.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
+		this.replaceInputBoxFocused = Constants.SearchContext.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 
 		const notebookOptions = options.notebookOptions ??
 		{
@@ -205,12 +207,12 @@ export class SearchWidget extends Widget {
 
 		this._register(
 			this._notebookFilters.onDidChange(() => {
-				if (this.searchInput instanceof SearchFindInput) {
+				if (this.searchInput) {
 					this.searchInput.updateStyles();
 				}
 			}));
 		this._register(this.editorService.onDidEditorsChange((e) => {
-			if (this.searchInput instanceof SearchFindInput &&
+			if (this.searchInput &&
 				e.event.editor instanceof NotebookEditorInput &&
 				(e.event.kind === GroupModelChangeKind.EDITOR_OPEN || e.event.kind === GroupModelChangeKind.EDITOR_CLOSE)) {
 				this.searchInput.filterVisible = this._hasNotebookOpen();
@@ -300,6 +302,14 @@ export class SearchWidget extends Widget {
 		return this.replaceInput?.inputBox.getHistory() ?? [];
 	}
 
+	prependSearchHistory(history: string[]): void {
+		this.searchInput?.inputBox.prependHistory(history);
+	}
+
+	prependReplaceHistory(history: string[]): void {
+		this.replaceInput?.inputBox.prependHistory(history);
+	}
+
 	clearHistory(): void {
 		this.searchInput?.inputBox.clearHistory();
 		this.replaceInput?.inputBox.clearHistory();
@@ -362,7 +372,9 @@ export class SearchWidget extends Widget {
 			buttonSecondaryBackground: undefined,
 			buttonSecondaryForeground: undefined,
 			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined
+			buttonSeparator: undefined,
+			title: nls.localize('search.replace.toggle.button.title', "Toggle Replace"),
+			hoverDelegate: getDefaultHoverDelegate('element'),
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
@@ -370,7 +382,6 @@ export class SearchWidget extends Widget {
 		this.toggleReplaceButton.icon = searchHideReplaceIcon;
 		// TODO@joao need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
-		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -378,9 +389,9 @@ export class SearchWidget extends Widget {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
-			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId)),
-			appendWholeWordsLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId)),
-			appendRegexLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleRegexCommandId)),
+			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleCaseSensitiveCommandId)),
+			appendWholeWordsLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleWholeWordCommandId)),
+			appendRegexLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleRegexCommandId)),
 			history: options.searchHistory,
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
@@ -392,7 +403,19 @@ export class SearchWidget extends Widget {
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
 
-		this.searchInput = this._register(new SearchFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, this.contextMenuService, this.instantiationService, this._notebookFilters, this._hasNotebookOpen()));
+		this.searchInput = this._register(
+			new SearchFindInput(
+				searchInputContainer,
+				this.contextViewService,
+				inputOptions,
+				this.contextKeyService,
+				this.contextMenuService,
+				this.instantiationService,
+				this._notebookFilters,
+				options.initialAIButtonVisibility ?? false,
+				this._hasNotebookOpen()
+			)
+		);
 
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
@@ -433,6 +456,7 @@ export class SearchWidget extends Widget {
 			isChecked: false,
 			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId)),
 			icon: searchShowContextIcon,
+			hoverDelegate: getDefaultHoverDelegate('element'),
 			...defaultToggleStyles
 		});
 		this._register(this.showContextToggle.onChange(() => this.onContextLinesChanged()));
@@ -478,7 +502,7 @@ export class SearchWidget extends Widget {
 		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
 			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
-			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.TogglePreserveCaseId)),
+			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.TogglePreserveCaseId)),
 			history: options.replaceHistory,
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
@@ -751,7 +775,7 @@ export function registerContributions() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: ReplaceAllAction.ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
+		when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
 			const viewsService = accessor.get(IViewsService);

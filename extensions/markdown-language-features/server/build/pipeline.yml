@@ -32,3 +32,4 @@ extends:
             displayName: Compile
 
         publishPackage: ${{ parameters.publishPackage }}
+        packagePlatform: 'Windows'

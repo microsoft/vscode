@@ -309,7 +309,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -351,7 +351,7 @@
 	},
 	{
 		"c": "new",
-		"t": "source.fsharp keyword.symbol.new",
+		"t": "source.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -631,7 +631,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -785,16 +785,16 @@
 	},
 	{
 		"c": "()",
-		"t": "source.fsharp binding.fsharp constant.language.unit.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
-			"dark_plus": "constant.language: #569CD6",
-			"light_plus": "constant.language: #0000FF",
-			"dark_vs": "constant.language: #569CD6",
-			"light_vs": "constant.language: #0000FF",
-			"hc_black": "constant.language: #569CD6",
-			"dark_modern": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0F4A85",
-			"light_modern": "constant.language: #0000FF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85",
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -813,7 +813,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -953,7 +953,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -981,7 +981,7 @@
 	},
 	{
 		"c": "<-",
-		"t": "source.fsharp keyword.symbol.fsharp",
+		"t": "source.fsharp keyword.symbol.arrow.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1079,16 +1079,16 @@
 	},
 	{
 		"c": "()",
-		"t": "source.fsharp binding.fsharp constant.language.unit.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
-			"dark_plus": "constant.language: #569CD6",
-			"light_plus": "constant.language: #0000FF",
-			"dark_vs": "constant.language: #569CD6",
-			"light_vs": "constant.language: #0000FF",
-			"hc_black": "constant.language: #569CD6",
-			"dark_modern": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0F4A85",
-			"light_modern": "constant.language: #0000FF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85",
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1107,7 +1107,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1135,7 +1135,7 @@
 	},
 	{
 		"c": "<-",
-		"t": "source.fsharp keyword.symbol.fsharp",
+		"t": "source.fsharp keyword.symbol.arrow.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1275,7 +1275,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1401,16 +1401,16 @@
 	},
 	{
 		"c": "()",
-		"t": "source.fsharp binding.fsharp constant.language.unit.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
-			"dark_plus": "constant.language: #569CD6",
-			"light_plus": "constant.language: #0000FF",
-			"dark_vs": "constant.language: #569CD6",
-			"light_vs": "constant.language: #0000FF",
-			"hc_black": "constant.language: #569CD6",
-			"dark_modern": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0F4A85",
-			"light_modern": "constant.language: #0000FF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"dark_modern": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85",
+			"light_modern": "keyword: #0000FF"
 		}
 	},
 	{
@@ -1429,7 +1429,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -64,7 +64,15 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 		if (workspaces.length === 1) {
 			const workspaceFile = workspaces[0];
 
-			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
+			this.notificationService.prompt(Severity.Info, localize(
+				{
+					key: 'foundWorkspace',
+					comment: ['{Locked="]({1})"}']
+				},
+				"This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.",
+				workspaceFile,
+				'https://go.microsoft.com/fwlink/?linkid=2025315'
+			), [{
 				label: localize('openWorkspace', "Open Workspace"),
 				run: () => this.hostService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
 			}], {
@@ -75,7 +83,10 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 
 		// Prompt to select a workspace from many
 		else if (workspaces.length > 1) {
-			this.notificationService.prompt(Severity.Info, localize('workspacesFound', "This folder contains multiple workspace files. Do you want to open one? [Learn more]({0}) about workspace files.", 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
+			this.notificationService.prompt(Severity.Info, localize({
+				key: 'foundWorkspaces',
+				comment: ['{Locked="]({0})"}']
+			}, "This folder contains multiple workspace files. Do you want to open one? [Learn more]({0}) about workspace files.", 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('selectWorkspace', "Select Workspace"),
 				run: () => {
 					this.quickInputService.pick(
@@ -102,7 +113,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWorkspaceFromEditor',
-			title: { original: 'Open Workspace', value: localize('openWorkspace', "Open Workspace") },
+			title: localize2('openWorkspace', "Open Workspace"),
 			f1: false,
 			menu: {
 				id: MenuId.EditorContent,

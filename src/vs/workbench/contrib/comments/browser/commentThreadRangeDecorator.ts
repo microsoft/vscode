@@ -44,7 +44,8 @@ export class CommentThreadRangeDecorator extends Disposable {
 			description: CommentThreadRangeDecorator.description,
 			isWholeLine: false,
 			zIndex: 20,
-			className: 'comment-thread-range'
+			className: 'comment-thread-range',
+			shouldFillLineOnLineBreak: true
 		};
 
 		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
@@ -53,7 +54,8 @@ export class CommentThreadRangeDecorator extends Disposable {
 			description: CommentThreadRangeDecorator.description,
 			isWholeLine: false,
 			zIndex: 20,
-			className: 'comment-thread-range-current'
+			className: 'comment-thread-range-current',
+			shouldFillLineOnLineBreak: true
 		};
 
 		this.activeDecorationOptions = ModelDecorationOptions.createDynamic(activeDecorationOptions);

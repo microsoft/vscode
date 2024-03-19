@@ -10,7 +10,7 @@ jobs:
     if: contains(github.event.issue.labels.*.name, '*english-please')
     steps:
       - name: Checkout Actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
           ref: stable

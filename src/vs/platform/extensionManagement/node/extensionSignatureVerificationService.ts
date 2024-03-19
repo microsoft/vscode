@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getErrorMessage } from 'vs/base/common/errors';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const IExtensionSignatureVerificationService = createDecorator<IExtensionSignatureVerificationService>('IExtensionSignatureVerificationService');
 
@@ -44,11 +47,16 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 	private moduleLoadingPromise: Promise<typeof vsceSign> | undefined;
 
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) { }
+
 	private vsceSign(): Promise<typeof vsceSign> {
 		if (!this.moduleLoadingPromise) {
 			this.moduleLoadingPromise = new Promise(
 				(resolve, reject) => require(
-					['node-vsce-sign'],
+					['@vscode/vsce-sign'],
 					async (obj) => {
 						const instance = <typeof vsceSign>obj;
 
@@ -65,9 +73,39 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		try {
 			module = await this.vsceSign();
 		} catch (error) {
+			this.logService.error('Could not load vsce-sign module', getErrorMessage(error));
 			return false;
 		}
 
-		return module.verify(vsixFilePath, signatureArchiveFilePath, verbose);
+		const startTime = new Date().getTime();
+		let verified: boolean | undefined;
+		let error: ExtensionSignatureVerificationError | undefined;
+
+		try {
+			verified = await module.verify(vsixFilePath, signatureArchiveFilePath, verbose);
+			return verified;
+		} catch (e) {
+			error = e;
+			throw e;
+		} finally {
+			const duration = new Date().getTime() - startTime;
+			type ExtensionSignatureVerificationClassification = {
+				owner: 'sandy081';
+				comment: 'Extension signature verification event';
+				duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true; comment: 'amount of time taken to verify the signature' };
+				verified?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'verified status when succeeded' };
+				error?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code when failed' };
+			};
+			type ExtensionSignatureVerificationEvent = {
+				duration: number;
+				verified?: boolean;
+				error?: string;
+			};
+			this.telemetryService.publicLog2<ExtensionSignatureVerificationEvent, ExtensionSignatureVerificationClassification>('extensionsignature:verification', {
+				duration,
+				verified,
+				error: error ? (error.code ?? 'unknown') : undefined,
+			});
+		}
 	}
 }

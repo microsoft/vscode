@@ -21,7 +21,7 @@
 	},
 	"$a <=> $b": {
 		"prefix": "spaceship",
-		"body": "(${1:$$a} <=> ${2:$$b} === ${3|0,1,-1|})",
+		"body": "(${1:\\$a} <=> ${2:\\$b} === ${3|0,1,-1|})",
 		"description": "Spaceship equality check"
 	},
 	"attribute": {

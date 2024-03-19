@@ -38,6 +38,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	readonly mainPid: number;
 	readonly os: IOSConfiguration;
 	readonly machineId: string;
+	readonly sqmId: string;
 
 	// --- Paths
 	readonly execPath: string;
@@ -58,6 +59,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get machineId() { return this.configuration.machineId; }
+
+	@memoize
+	get sqmId() { return this.configuration.sqmId; }
 
 	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
@@ -83,9 +87,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 			isCodeCaching: typeof this.configuration.codeCachePath === 'string'
 		};
 	}
-
-	@memoize
-	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
 	get windowLogsPath(): URI { return joinPath(this.logsHome, `window${this.configuration.windowId}`); }

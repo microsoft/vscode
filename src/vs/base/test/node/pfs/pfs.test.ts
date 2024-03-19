@@ -10,9 +10,10 @@ import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { randomPath } from 'vs/base/common/extpath';
 import { FileAccess } from 'vs/base/common/network';
-import { join, sep } from 'vs/base/common/path';
+import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
@@ -91,6 +92,14 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(testDir));
 	});
 
+	test('rimraf - simple - move (with moveToPath)', async () => {
+		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+
+		await Promises.rm(testDir, RimRafMode.MOVE, join(dirname(testDir), `${basename(testDir)}.vsctmp`));
+		assert.ok(!fs.existsSync(testDir));
+	});
+
 	test('rimraf - path does not exist - move', async () => {
 		const nonExistingDir = join(testDir, 'unknown-move');
 		await Promises.rm(nonExistingDir, RimRafMode.MOVE);
@@ -165,7 +174,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(testDir));
 	});
 
-	test('copy, move and delete', async () => {
+	test('copy, rename and delete', async () => {
 		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
 		const targetDir = randomPath(parentDir);
@@ -180,7 +189,7 @@ flakySuite('PFS', function () {
 		assert.ok(fs.statSync(join(targetDir, 'examples')).isDirectory());
 		assert.ok(fs.existsSync(join(targetDir, 'examples', 'small.jxs')));
 
-		await Promises.move(targetDir, targetDir2);
+		await Promises.rename(targetDir, targetDir2);
 
 		assert.ok(!fs.existsSync(targetDir));
 		assert.ok(fs.existsSync(targetDir2));
@@ -190,7 +199,34 @@ flakySuite('PFS', function () {
 		assert.ok(fs.statSync(join(targetDir2, 'examples')).isDirectory());
 		assert.ok(fs.existsSync(join(targetDir2, 'examples', 'small.jxs')));
 
-		await Promises.move(join(targetDir2, 'index.html'), join(targetDir2, 'index_moved.html'));
+		await Promises.rename(join(targetDir2, 'index.html'), join(targetDir2, 'index_moved.html'));
+
+		assert.ok(!fs.existsSync(join(targetDir2, 'index.html')));
+		assert.ok(fs.existsSync(join(targetDir2, 'index_moved.html')));
+
+		await Promises.rm(parentDir);
+
+		assert.ok(!fs.existsSync(parentDir));
+	});
+
+	test('rename without retry', async () => {
+		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
+		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
+		const targetDir = randomPath(parentDir);
+		const targetDir2 = randomPath(parentDir);
+
+		await Promises.copy(sourceDir, targetDir, { preserveSymlinks: true });
+		await Promises.rename(targetDir, targetDir2, false);
+
+		assert.ok(!fs.existsSync(targetDir));
+		assert.ok(fs.existsSync(targetDir2));
+		assert.ok(fs.existsSync(join(targetDir2, 'index.html')));
+		assert.ok(fs.existsSync(join(targetDir2, 'site.css')));
+		assert.ok(fs.existsSync(join(targetDir2, 'examples')));
+		assert.ok(fs.statSync(join(targetDir2, 'examples')).isDirectory());
+		assert.ok(fs.existsSync(join(targetDir2, 'examples', 'small.jxs')));
+
+		await Promises.rename(join(targetDir2, 'index.html'), join(targetDir2, 'index_moved.html'), false);
 
 		assert.ok(!fs.existsSync(join(targetDir2, 'index.html')));
 		assert.ok(fs.existsSync(join(targetDir2, 'index_moved.html')));
@@ -453,4 +489,6 @@ flakySuite('PFS', function () {
 		writeFileSync(testFile, largeString);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), largeString);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

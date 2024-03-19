@@ -142,6 +142,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.grammarTokens.forceTokenization(lineNumber);
 	}
 
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		this.validateLineNumber(lineNumber);
+		return this.grammarTokens.hasAccurateTokensForLine(lineNumber);
+	}
+
 	public isCheapToTokenize(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
 		return this.grammarTokens.isCheapToTokenize(lineNumber);
@@ -449,12 +454,10 @@ class GrammarTokens extends Disposable {
 					this._onDidChangeBackgroundTokenizationState.fire();
 				},
 				setEndState: (lineNumber, state) => {
-					if (!state) {
-						throw new BugIndicatingError();
-					}
-					const firstInvalidEndStateLineNumber = this._tokenizer?.store.getFirstInvalidEndStateLineNumber() ?? undefined;
-					if (firstInvalidEndStateLineNumber !== undefined && lineNumber >= firstInvalidEndStateLineNumber) {
-						// Don't accept states for definitely valid states
+					if (!this._tokenizer) { return; }
+					const firstInvalidEndStateLineNumber = this._tokenizer.store.getFirstInvalidEndStateLineNumber();
+					// Don't accept states for definitely valid states, the renderer is ahead of the worker!
+					if (firstInvalidEndStateLineNumber !== null && lineNumber >= firstInvalidEndStateLineNumber) {
 						this._tokenizer?.store.setEndState(lineNumber, state);
 					}
 				},
@@ -463,7 +466,7 @@ class GrammarTokens extends Disposable {
 			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer && !tokenizationSupport.backgroundTokenizerShouldOnlyVerifyTokens) {
 				this._backgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, b);
 			}
-			if (!this._backgroundTokenizer.value) {
+			if (!this._backgroundTokenizer.value && !this._textModel.isTooLargeForTokenization()) {
 				this._backgroundTokenizer.value = this._defaultBackgroundTokenizer =
 					new DefaultBackgroundTokenizer(this._tokenizer, b);
 				this._defaultBackgroundTokenizer.handleChanges();
@@ -544,7 +547,7 @@ class GrammarTokens extends Disposable {
 			return;
 		}
 
-		startLineNumber = Math.max(1, startLineNumber);
+		startLineNumber = Math.max(1, Math.min(this._textModel.getLineCount(), startLineNumber));
 		endLineNumber = Math.min(this._textModel.getLineCount(), endLineNumber);
 
 		const builder = new ContiguousMultilineTokensBuilder();
@@ -568,6 +571,13 @@ class GrammarTokens extends Disposable {
 		this._tokenizer?.updateTokensUntilLine(builder, lineNumber);
 		this.setTokens(builder.finalize());
 		this._defaultBackgroundTokenizer?.checkFinished();
+	}
+
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		if (!this._tokenizer) {
+			return true;
+		}
+		return this._tokenizer.hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
@@ -642,7 +652,7 @@ class AttachedViewHandler extends Disposable {
 	}
 
 	private update(): void {
-		if (equals(this._computedLineRanges, this._lineRanges)) {
+		if (equals(this._computedLineRanges, this._lineRanges, (a, b) => a.equals(b))) {
 			return;
 		}
 		this._computedLineRanges = this._lineRanges;

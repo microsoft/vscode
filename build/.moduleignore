@@ -37,6 +37,8 @@ fsevents/test/**
 @vscode/windows-process-tree/binding.gyp
 @vscode/windows-process-tree/build/**
 @vscode/windows-process-tree/src/**
+@vscode/windows-process-tree/tsconfig.json
+@vscode/windows-process-tree/tslint.json
 !@vscode/windows-process-tree/**/*.node
 
 @vscode/windows-registry/binding.gyp
@@ -61,22 +63,22 @@ native-watchdog/build/**
 native-watchdog/src/**
 !native-watchdog/build/Release/*.node
 
-node-vsce-sign/**
-!node-vsce-sign/src/main.js
-!node-vsce-sign/package.json
-!node-vsce-sign/bin/**
+@vscode/vsce-sign/**
+!@vscode/vsce-sign/src/main.d.ts
+!@vscode/vsce-sign/src/main.js
+!@vscode/vsce-sign/package.json
+!@vscode/vsce-sign/bin/**
 
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
 windows-foreground-love/src/**
 !windows-foreground-love/**/*.node
 
-keytar/binding.gyp
-keytar/build/**
-keytar/src/**
-keytar/script/**
-keytar/node_modules/**
-!keytar/**/*.node
+kerberos/binding.gyp
+kerberos/build/**
+kerberos/src/**
+kerberos/node_modules/**
+!kerberos/**/*.node
 
 node-pty/binding.gyp
 node-pty/build/**
@@ -105,14 +107,6 @@ vsda/README.md
 vsda/SECURITY.md
 vsda/targets
 !vsda/build/Release/vsda.node
-
-vscode-encrypt/build/**
-vscode-encrypt/src/**
-vscode-encrypt/vendor/**
-vscode-encrypt/.gitignore
-vscode-encrypt/binding.gyp
-vscode-encrypt/README.md
-!vscode-encrypt/build/Release/vscode-encrypt-native.node
 
 @vscode/policy-watcher/build/**
 @vscode/policy-watcher/.husky/**
@@ -167,11 +161,11 @@ zone.js/dist/**
 !zone.js/dist/zone-node.js
 
 # https://github.com/xtermjs/xterm.js/issues/3137
-xterm/src/**
-xterm/tsconfig.all.json
+@xterm/xterm/src/**
+@xterm/xterm/tsconfig.all.json
 
 # https://github.com/xtermjs/xterm.js/issues/3138
-xterm-addon-*/src/**
-xterm-addon-*/fixtures/**
-xterm-addon-*/out/**
-xterm-addon-*/out-test/**
+@xterm/xterm-addon-*/src/**
+@xterm/xterm-addon-*/fixtures/**
+@xterm/xterm-addon-*/out/**
+@xterm/xterm-addon-*/out-test/**

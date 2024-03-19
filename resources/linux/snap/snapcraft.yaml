@@ -1,5 +1,5 @@
 name: @@NAME@@
-version: @@VERSION@@
+version: '@@VERSION@@'
 summary: Code editing. Redefined.
 description: |
   Visual Studio Code is a new choice of tool that combines the

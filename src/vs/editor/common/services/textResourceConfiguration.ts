@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ITextResourceConfigurationService = createDecorator<ITextResourceConfigurationService>('textResourceConfigurationService');
@@ -44,11 +44,21 @@ export interface ITextResourceConfigurationService {
 	 *
 	 * @param resource - Resource for which the configuration has to be fetched.
 	 * @param position - Position in the resource for which configuration has to be fetched.
-	 * @param section - Section of the configuraion.
+	 * @param section - Section of the configuration.
 	 *
 	 */
 	getValue<T>(resource: URI | undefined, section?: string): T;
 	getValue<T>(resource: URI | undefined, position?: IPosition, section?: string): T;
+
+	/**
+	 * Inspects the values of the section for the given resource by applying language overrides.
+	 *
+	 * @param resource - Resource for which the configuration has to be fetched.
+	 * @param position - Position in the resource for which configuration has to be fetched.
+	 * @param section - Section of the configuration.
+	 *
+	 */
+	inspect<T>(resource: URI | undefined, position: IPosition | null, section: string): IConfigurationValue<Readonly<T>>;
 
 	/**
 	 * Update the configuration value for the given resource at the effective location.

@@ -74,6 +74,7 @@ export class ErrorHandler {
 
 export const errorHandler = new ErrorHandler();
 
+/** @skipMangle */
 export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
@@ -200,16 +201,10 @@ export function illegalState(name?: string): Error {
 	}
 }
 
-export function readonly(name?: string): Error {
-	return name
-		? new Error(`readonly property '${name} cannot be changed'`)
-		: new Error('readonly property cannot be changed');
-}
-
-export function disposed(what: string): Error {
-	const result = new Error(`${what} has been disposed`);
-	result.name = 'DISPOSED';
-	return result;
+export class ReadonlyError extends TypeError {
+	constructor(name?: string) {
+		super(name ? `${name} is read-only and cannot be changed` : 'Cannot change read-only property');
+	}
 }
 
 export function getErrorMessage(err: any): string {

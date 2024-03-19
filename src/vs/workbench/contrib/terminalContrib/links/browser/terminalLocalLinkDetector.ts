@@ -10,10 +10,10 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IBufferLine, IBufferRange, Terminal } from 'xterm';
-import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { detectLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ITerminalBackend, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 const enum Constants {
 	/**
@@ -37,6 +37,8 @@ const enum Constants {
 const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
 	/^ *File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
+	// Unknown tool #200166: FILE  <path>:<line>:<col>
+	/^ +FILE +(?<link>(?<path>.+)(?::(?<line>\d+)(?::(?<col>\d+))?)?)/,
 	// Some C++ compile error formats:
 	// C:\foo\bar baz(339) : error ...
 	// C:\foo\bar baz(339,12) : error ...
@@ -70,7 +72,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> },
 		private readonly _linkResolver: ITerminalLinkResolver,
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
@@ -90,8 +92,8 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 		const os = this._processManager.os || OS;
 		const parsedLinks = detectLinks(text, os);
-		this._logService.trace('terminalLocaLinkDetector#detect text', text);
-		this._logService.trace('terminalLocaLinkDetector#detect parsedLinks', parsedLinks);
+		this._logService.trace('terminalLocalLinkDetector#detect text', text);
+		this._logService.trace('terminalLocalLinkDetector#detect parsedLinks', parsedLinks);
 		for (const parsedLink of parsedLinks) {
 
 			// Don't try resolve any links of excessive length
@@ -110,7 +112,8 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
 			const osPath = osPathModule(os);
-			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~')) {
+			const isUri = parsedLink.path.text.startsWith('file://');
+			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~') || isUri) {
 				linkCandidates.push(parsedLink.path.text);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
@@ -134,7 +137,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// If any candidates end with special characters that are likely to not be part of the
 			// link, add a candidate excluding them.
-			const specialEndCharRegex = /[\[\]"']$/;
+			const specialEndCharRegex = /[\[\]"'\.]$/;
 			const trimRangeMap: Map<string, number> = new Map();
 			const specialEndLinkCandidates: string[] = [];
 			for (const candidate of linkCandidates) {
@@ -153,7 +156,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				}
 			}
 			linkCandidates.push(...specialEndLinkCandidates);
-			this._logService.trace('terminalLocaLinkDetector#detect linkCandidates', linkCandidates);
+			this._logService.trace('terminalLocalLinkDetector#detect linkCandidates', linkCandidates);
 
 			// Validate the path and convert to the outgoing type
 			const simpleLink = await this._validateAndGetLink(undefined, bufferRange, linkCandidates, trimRangeMap);
@@ -163,7 +166,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					parsedLink.prefix?.index ?? parsedLink.path.index,
 					parsedLink.suffix ? parsedLink.suffix.suffix.index + parsedLink.suffix.suffix.text.length : parsedLink.path.index + parsedLink.path.text.length
 				);
-				this._logService.trace('terminalLocaLinkDetector#detect verified link', simpleLink);
+				this._logService.trace('terminalLocalLinkDetector#detect verified link', simpleLink);
 				links.push(simpleLink);
 			}
 
@@ -265,7 +268,11 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
 		for (const link of linkCandidates) {
-			const result = await this._linkResolver.resolveLink(this._processManager, link);
+			let uri: URI | undefined;
+			if (link.startsWith('file://')) {
+				uri = URI.parse(link);
+			}
+			const result = await this._linkResolver.resolveLink(this._processManager, link, uri);
 			if (result) {
 				return result;
 			}

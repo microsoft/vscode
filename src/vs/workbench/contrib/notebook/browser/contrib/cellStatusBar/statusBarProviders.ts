@@ -38,19 +38,36 @@ class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemP
 			return;
 		}
 
-		const languageId = cell.cellKind === CellKind.Markup ?
-			'markdown' :
-			(this._languageService.getLanguageIdByLanguageName(cell.language) || cell.language);
-		const text = this._languageService.getLanguageName(languageId) || languageId;
-		const item = <INotebookCellStatusBarItem>{
-			text,
+		const statusBarItems: INotebookCellStatusBarItem[] = [];
+		let displayLanguage = cell.language;
+		if (cell.cellKind === CellKind.Markup) {
+			displayLanguage = 'markdown';
+		} else {
+			const registeredId = this._languageService.getLanguageIdByLanguageName(cell.language);
+			if (registeredId) {
+				displayLanguage = this._languageService.getLanguageName(displayLanguage) ?? displayLanguage;
+			} else {
+				// add unregistered lanugage warning item
+				const searchTooltip = localize('notebook.cell.status.searchLanguageExtensions', "Unknown cell language. Click to search for '{0}' extensions", cell.language);
+				statusBarItems.push({
+					text: `$(dialog-warning)`,
+					command: { id: 'workbench.extensions.search', arguments: [`@tag:${cell.language}`], title: 'Search Extensions' },
+					tooltip: searchTooltip,
+					alignment: CellStatusbarAlignment.Right,
+					priority: -Number.MAX_SAFE_INTEGER + 1
+				});
+			}
+		}
+
+		statusBarItems.push({
+			text: displayLanguage,
 			command: CHANGE_CELL_LANGUAGE,
 			tooltip: localize('notebook.cell.status.language', "Select Cell Language Mode"),
 			alignment: CellStatusbarAlignment.Right,
 			priority: -Number.MAX_SAFE_INTEGER
-		};
+		});
 		return {
-			items: [item]
+			items: statusBarItems
 		};
 	}
 }

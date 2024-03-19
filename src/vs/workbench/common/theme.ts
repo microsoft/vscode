@@ -182,6 +182,17 @@ export const TAB_UNFOCUSED_HOVER_BORDER = registerColor('tab.unfocusedHoverBorde
 
 //#endregion
 
+//#region Tab Drag and Drop Border
+
+export const TAB_DRAG_AND_DROP_BORDER = registerColor('tab.dragAndDropBorder', {
+	dark: TAB_ACTIVE_FOREGROUND,
+	light: TAB_ACTIVE_FOREGROUND,
+	hcDark: activeContrastBorder,
+	hcLight: activeContrastBorder
+}, localize('tabDragAndDropBorder', "Border between tabs to indicate that a tab can be inserted between two tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+//#endregion
+
 //#region Tab Modified Border
 
 export const TAB_ACTIVE_MODIFIED_BORDER = registerColor('tab.activeModifiedBorder', {
@@ -256,7 +267,7 @@ export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroup
 	light: editorBackground,
 	hcDark: editorBackground,
 	hcLight: editorBackground
-}, localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled (`\"workbench.editor.showTabs\": false`). Editor groups are the containers of editors."));
+}, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {
 	dark: null,
@@ -365,7 +376,6 @@ export const PANEL_DRAG_AND_DROP_BORDER = registerColor('panel.dropBorder', {
 	hcLight: PANEL_ACTIVE_TITLE_FOREGROUND
 }, localize('panelDragAndDropBorder', "Drag and drop feedback color for the panel titles. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-
 export const PANEL_SECTION_DRAG_AND_DROP_BACKGROUND = registerColor('panelSection.dropBackground', {
 	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
@@ -400,6 +410,24 @@ export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 	hcDark: PANEL_BORDER,
 	hcLight: PANEL_BORDER
 }, localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+
+// < --- Output Editor -->
+
+const OUTPUT_VIEW_BACKGROUND = registerColor('outputView.background', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('outputViewBackground', "Output view background color."));
+
+
+registerColor('outputViewStickyScroll.background', {
+	dark: OUTPUT_VIEW_BACKGROUND,
+	light: OUTPUT_VIEW_BACKGROUND,
+	hcDark: OUTPUT_VIEW_BACKGROUND,
+	hcLight: OUTPUT_VIEW_BACKGROUND
+}, localize('outputViewStickyScrollBackground', "Output view sticky scroll background color."));
+
 
 // < --- Banner --- >
 
@@ -496,6 +524,13 @@ export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hov
 	hcLight: Color.black.transparent(0.12)
 }, localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.hoverForeground', {
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hcDark: STATUS_BAR_FOREGROUND,
+	hcLight: STATUS_BAR_FOREGROUND
+}, localize('statusBarItemHoverForeground', "Status bar item foreground color when hovering. The status bar is shown in the bottom of the window."));
+
 export const STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND = registerColor('statusBarItem.compactHoverBackground', {
 	dark: Color.white.transparent(0.20),
 	light: Color.white.transparent(0.20),
@@ -508,21 +543,28 @@ export const STATUS_BAR_PROMINENT_ITEM_FOREGROUND = registerColor('statusBarItem
 	light: STATUS_BAR_FOREGROUND,
 	hcDark: STATUS_BAR_FOREGROUND,
 	hcLight: STATUS_BAR_FOREGROUND
-}, localize('statusBarProminentItemForeground', "Status bar prominent items foreground color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
+}, localize('statusBarProminentItemForeground', "Status bar prominent items foreground color. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarItem.prominentBackground', {
 	dark: Color.black.transparent(0.5),
 	light: Color.black.transparent(0.5),
 	hcDark: Color.black.transparent(0.5),
 	hcLight: Color.black.transparent(0.5),
-}, localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
+}, localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_PROMINENT_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.prominentHoverForeground', {
+	dark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	light: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcDark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcLight: STATUS_BAR_ITEM_HOVER_FOREGROUND
+}, localize('statusBarProminentItemHoverForeground', "Status bar prominent items foreground color when hovering. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.prominentHoverBackground', {
 	dark: Color.black.transparent(0.3),
 	light: Color.black.transparent(0.3),
 	hcDark: Color.black.transparent(0.3),
 	hcLight: null
-}, localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
+}, localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ERROR_ITEM_BACKGROUND = registerColor('statusBarItem.errorBackground', {
 	dark: darken(errorForeground, .4),
@@ -538,6 +580,20 @@ export const STATUS_BAR_ERROR_ITEM_FOREGROUND = registerColor('statusBarItem.err
 	hcLight: Color.white
 }, localize('statusBarErrorItemForeground', "Status bar error items foreground color. Error items stand out from other status bar entries to indicate error conditions. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.errorHoverForeground', {
+	dark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	light: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcDark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcLight: STATUS_BAR_ITEM_HOVER_FOREGROUND
+}, localize('statusBarErrorItemHoverForeground', "Status bar error items foreground color when hovering. Error items stand out from other status bar entries to indicate error conditions. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.errorHoverBackground', {
+	dark: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	light: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	hcDark: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	hcLight: STATUS_BAR_ITEM_HOVER_BACKGROUND
+}, localize('statusBarErrorItemHoverBackground', "Status bar error items background color when hovering. Error items stand out from other status bar entries to indicate error conditions. The status bar is shown in the bottom of the window."));
+
 export const STATUS_BAR_WARNING_ITEM_BACKGROUND = registerColor('statusBarItem.warningBackground', {
 	dark: darken(editorWarningForeground, .4),
 	light: darken(editorWarningForeground, .4),
@@ -551,6 +607,20 @@ export const STATUS_BAR_WARNING_ITEM_FOREGROUND = registerColor('statusBarItem.w
 	hcDark: Color.white,
 	hcLight: Color.white
 }, localize('statusBarWarningItemForeground', "Status bar warning items foreground color. Warning items stand out from other status bar entries to indicate warning conditions. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_WARNING_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.warningHoverForeground', {
+	dark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	light: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcDark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcLight: STATUS_BAR_ITEM_HOVER_FOREGROUND
+}, localize('statusBarWarningItemHoverForeground', "Status bar warning items foreground color when hovering. Warning items stand out from other status bar entries to indicate warning conditions. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_WARNING_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.warningHoverBackground', {
+	dark: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	light: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	hcDark: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	hcLight: STATUS_BAR_ITEM_HOVER_BACKGROUND
+}, localize('statusBarWarningItemHoverBackground', "Status bar warning items background color when hovering. Warning items stand out from other status bar entries to indicate warning conditions. The status bar is shown in the bottom of the window."));
 
 
 // < --- Activity Bar --- >
@@ -625,6 +695,49 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hcLight: Color.white
 }, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_TOP_FOREGROUND = registerColor('activityBarTop.foreground', {
+	dark: '#E7E7E7',
+	light: '#424242',
+	hcDark: Color.white,
+	hcLight: editorForeground
+}, localize('activityBarTop', "Active foreground color of the item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_ACTIVE_BORDER = registerColor('activityBarTop.activeBorder', {
+	dark: ACTIVITY_BAR_TOP_FOREGROUND,
+	light: ACTIVITY_BAR_TOP_FOREGROUND,
+	hcDark: contrastBorder,
+	hcLight: '#B5200D'
+}, localize('activityBarTopActiveFocusBorder', "Focus border color for the active item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_ACTIVE_BACKGROUND = registerColor('activityBarTop.activeBackground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('activityBarTopActiveBackground', "Background color for the active item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND = registerColor('activityBarTop.inactiveForeground', {
+	dark: transparent(ACTIVITY_BAR_TOP_FOREGROUND, 0.6),
+	light: transparent(ACTIVITY_BAR_TOP_FOREGROUND, 0.75),
+	hcDark: Color.white,
+	hcLight: editorForeground
+}, localize('activityBarTopInActiveForeground', "Inactive foreground color of the item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER = registerColor('activityBarTop.dropBorder', {
+	dark: ACTIVITY_BAR_TOP_FOREGROUND,
+	light: ACTIVITY_BAR_TOP_FOREGROUND,
+	hcDark: ACTIVITY_BAR_TOP_FOREGROUND,
+	hcLight: ACTIVITY_BAR_TOP_FOREGROUND
+}, localize('activityBarTopDragAndDropBorder', "Drag and drop feedback color for the items in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_BACKGROUND = registerColor('activityBarTop.background', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null,
+}, localize('activityBarTopBackground', "Background color of the activity bar when set to top / bottom."));
+
+
 // < --- Profiles --- >
 
 export const PROFILE_BADGE_BACKGROUND = registerColor('profileBadge.background', {
@@ -643,19 +756,61 @@ export const PROFILE_BADGE_FOREGROUND = registerColor('profileBadge.foreground',
 
 // < --- Remote --- >
 
-export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {
+export const STATUS_BAR_REMOTE_ITEM_BACKGROUND = registerColor('statusBarItem.remoteBackground', {
 	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
 	light: ACTIVITY_BAR_BADGE_BACKGROUND,
 	hcDark: ACTIVITY_BAR_BADGE_BACKGROUND,
 	hcLight: ACTIVITY_BAR_BADGE_BACKGROUND
 }, localize('statusBarItemHostBackground', "Background color for the remote indicator on the status bar."));
 
-export const STATUS_BAR_HOST_NAME_FOREGROUND = registerColor('statusBarItem.remoteForeground', {
+export const STATUS_BAR_REMOTE_ITEM_FOREGROUND = registerColor('statusBarItem.remoteForeground', {
 	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
 	light: ACTIVITY_BAR_BADGE_FOREGROUND,
 	hcDark: ACTIVITY_BAR_BADGE_FOREGROUND,
 	hcLight: ACTIVITY_BAR_BADGE_FOREGROUND
 }, localize('statusBarItemHostForeground', "Foreground color for the remote indicator on the status bar."));
+
+export const STATUS_BAR_REMOTE_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.remoteHoverForeground', {
+	dark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	light: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcDark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcLight: STATUS_BAR_ITEM_HOVER_FOREGROUND
+}, localize('statusBarRemoteItemHoverForeground', "Foreground color for the remote indicator on the status bar when hovering."));
+
+export const STATUS_BAR_REMOTE_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.remoteHoverBackground', {
+	dark: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	light: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	hcDark: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	hcLight: null
+}, localize('statusBarRemoteItemHoverBackground', "Background color for the remote indicator on the status bar when hovering."));
+
+export const STATUS_BAR_OFFLINE_ITEM_BACKGROUND = registerColor('statusBarItem.offlineBackground', {
+	dark: '#6c1717',
+	light: '#6c1717',
+	hcDark: '#6c1717',
+	hcLight: '#6c1717'
+}, localize('statusBarItemOfflineBackground', "Status bar item background color when the workbench is offline."));
+
+export const STATUS_BAR_OFFLINE_ITEM_FOREGROUND = registerColor('statusBarItem.offlineForeground', {
+	dark: STATUS_BAR_REMOTE_ITEM_FOREGROUND,
+	light: STATUS_BAR_REMOTE_ITEM_FOREGROUND,
+	hcDark: STATUS_BAR_REMOTE_ITEM_FOREGROUND,
+	hcLight: STATUS_BAR_REMOTE_ITEM_FOREGROUND
+}, localize('statusBarItemOfflineForeground', "Status bar item foreground color when the workbench is offline."));
+
+export const STATUS_BAR_OFFLINE_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.offlineHoverForeground', {
+	dark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	light: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcDark: STATUS_BAR_ITEM_HOVER_FOREGROUND,
+	hcLight: STATUS_BAR_ITEM_HOVER_FOREGROUND
+}, localize('statusBarOfflineItemHoverForeground', "Status bar item foreground hover color when the workbench is offline."));
+
+export const STATUS_BAR_OFFLINE_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.offlineHoverBackground', {
+	dark: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	light: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	hcDark: STATUS_BAR_ITEM_HOVER_BACKGROUND,
+	hcLight: null
+}, localize('statusBarOfflineItemHoverBackground', "Status bar item background hover color when the workbench is offline."));
 
 export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.remoteBackground', {
 	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
@@ -730,6 +885,12 @@ export const SIDE_BAR_SECTION_HEADER_BORDER = registerColor('sideBarSectionHeade
 	hcLight: contrastBorder
 }, localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
 
+export const ACTIVITY_BAR_TOP_BORDER = registerColor('sideBarActivityBarTop.border', {
+	dark: SIDE_BAR_SECTION_HEADER_BORDER,
+	light: SIDE_BAR_SECTION_HEADER_BORDER,
+	hcDark: SIDE_BAR_SECTION_HEADER_BORDER,
+	hcLight: SIDE_BAR_SECTION_HEADER_BORDER
+}, localize('sideBarActivityBarTopBorder', "Border color between the activity bar at the top/bottom and the views."));
 
 // < --- Title Bar --- >
 
@@ -790,6 +951,59 @@ export const MENUBAR_SELECTION_BORDER = registerColor('menubar.selectionBorder',
 	hcDark: activeContrastBorder,
 	hcLight: activeContrastBorder,
 }, localize('menubarSelectionBorder', "Border color of the selected menu item in the menubar."));
+
+// < --- Command Center --- >
+
+// foreground (inactive and active)
+export const COMMAND_CENTER_FOREGROUND = registerColor(
+	'commandCenter.foreground',
+	{ dark: TITLE_BAR_ACTIVE_FOREGROUND, hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: TITLE_BAR_ACTIVE_FOREGROUND, hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
+	localize('commandCenter-foreground', "Foreground color of the command center"),
+	false
+);
+export const COMMAND_CENTER_ACTIVEFOREGROUND = registerColor(
+	'commandCenter.activeForeground',
+	{ dark: MENUBAR_SELECTION_FOREGROUND, hcDark: MENUBAR_SELECTION_FOREGROUND, light: MENUBAR_SELECTION_FOREGROUND, hcLight: MENUBAR_SELECTION_FOREGROUND },
+	localize('commandCenter-activeForeground', "Active foreground color of the command center"),
+	false
+);
+export const COMMAND_CENTER_INACTIVEFOREGROUND = registerColor(
+	'commandCenter.inactiveForeground',
+	{ dark: TITLE_BAR_INACTIVE_FOREGROUND, hcDark: TITLE_BAR_INACTIVE_FOREGROUND, light: TITLE_BAR_INACTIVE_FOREGROUND, hcLight: TITLE_BAR_INACTIVE_FOREGROUND },
+	localize('commandCenter-inactiveForeground', "Foreground color of the command center when the window is inactive"),
+	false
+);
+// background (inactive and active)
+export const COMMAND_CENTER_BACKGROUND = registerColor(
+	'commandCenter.background',
+	{ dark: Color.white.transparent(0.05), hcDark: null, light: Color.black.transparent(0.05), hcLight: null },
+	localize('commandCenter-background', "Background color of the command center"),
+	false
+);
+export const COMMAND_CENTER_ACTIVEBACKGROUND = registerColor(
+	'commandCenter.activeBackground',
+	{ dark: Color.white.transparent(0.08), hcDark: MENUBAR_SELECTION_BACKGROUND, light: Color.black.transparent(0.08), hcLight: MENUBAR_SELECTION_BACKGROUND },
+	localize('commandCenter-activeBackground', "Active background color of the command center"),
+	false
+);
+// border: active and inactive. defaults to active background
+export const COMMAND_CENTER_BORDER = registerColor(
+	'commandCenter.border', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: contrastBorder, light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: contrastBorder },
+	localize('commandCenter-border', "Border color of the command center"),
+	false
+);
+export const COMMAND_CENTER_ACTIVEBORDER = registerColor(
+	'commandCenter.activeBorder', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
+	localize('commandCenter-activeBorder', "Active border color of the command center"),
+	false
+);
+// border: defaults to active background
+export const COMMAND_CENTER_INACTIVEBORDER = registerColor(
+	'commandCenter.inactiveBorder', { dark: transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), hcDark: transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), light: transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), hcLight: transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25) },
+	localize('commandCenter-inactiveBorder', "Border color of the command center when the window is inactive"),
+	false
+);
+
 
 // < --- Notifications --- >
 

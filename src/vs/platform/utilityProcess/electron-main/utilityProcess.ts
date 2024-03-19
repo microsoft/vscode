@@ -17,7 +17,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { deepClone } from 'vs/base/common/objects';
 import { isWindows } from 'vs/base/common/platform';
-import { getUNCHostAllowlist } from 'vs/base/node/unc';
+import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from 'vs/base/node/unc';
 
 export interface IUtilityProcessConfiguration {
 
@@ -156,6 +156,9 @@ export class UtilityProcess extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<unknown>());
 	readonly onMessage = this._onMessage.event;
 
+	private readonly _onSpawn = this._register(new Emitter<number | undefined>());
+	readonly onSpawn = this._onSpawn.event;
+
 	private readonly _onExit = this._register(new Emitter<IUtilityProcessExitEvent>());
 	readonly onExit = this._onExit.event;
 
@@ -209,7 +212,10 @@ export class UtilityProcess extends Disposable {
 		const started = this.doStart(configuration);
 
 		if (started && configuration.payload) {
-			this.postMessage(configuration.payload);
+			const posted = this.postMessage(configuration.payload);
+			if (posted) {
+				this.log('payload sent via postMessage()', Severity.Info);
+			}
 		}
 
 		return started;
@@ -259,7 +265,11 @@ export class UtilityProcess extends Disposable {
 		}
 		env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] = configuration.type;
 		if (isWindows) {
-			env['NODE_UNC_HOST_ALLOWLIST'] = getUNCHostAllowlist().join('\\');
+			if (isUNCAccessRestrictionsDisabled()) {
+				env['NODE_DISABLE_UNC_ACCESS_CHECKS'] = '1';
+			} else {
+				env['NODE_UNC_HOST_ALLOWLIST'] = getUNCHostAllowlist().join('\\');
+			}
 		}
 
 		// Remove any environment variables that are not allowed
@@ -299,6 +309,7 @@ export class UtilityProcess extends Disposable {
 			}
 
 			this.log('successfully created', Severity.Info);
+			this._onSpawn.fire(process.pid);
 		}));
 
 		// Exit
@@ -355,12 +366,14 @@ export class UtilityProcess extends Disposable {
 		}));
 	}
 
-	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): void {
+	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): boolean {
 		if (!this.process) {
-			return; // already killed, crashed or never started
+			return false; // already killed, crashed or never started
 		}
 
 		this.process.postMessage(message, transfer);
+
+		return true;
 	}
 
 	connect(payload?: unknown): Electron.MessagePortMain {

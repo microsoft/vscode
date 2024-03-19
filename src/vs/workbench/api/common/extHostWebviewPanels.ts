@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -167,7 +169,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 	}
 }
 
-export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanelsShape {
+export class ExtHostWebviewPanels extends Disposable implements extHostProtocol.ExtHostWebviewPanelsShape {
 
 	private static newHandle(): extHostProtocol.WebviewHandle {
 		return generateUuid();
@@ -187,7 +189,15 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		private readonly webviews: ExtHostWebviews,
 		private readonly workspace: IExtHostWorkspace | undefined,
 	) {
+		super();
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviewPanels);
+	}
+
+	public override dispose(): void {
+		super.dispose();
+
+		this._webviewPanels.forEach(value => value.dispose());
+		this._webviewPanels.clear();
 	}
 
 	public createWebviewPanel(

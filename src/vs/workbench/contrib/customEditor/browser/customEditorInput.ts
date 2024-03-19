@@ -3,25 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from 'vs/base/browser/dom';
+import { CodeWindow } from 'vs/base/browser/window';
+import { toAction } from 'vs/base/common/actions';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { dirname, isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity, createEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 interface CustomEditorInputInitInfo {
@@ -82,7 +90,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IFileService private readonly fileService: IFileService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super({ providedId: init.viewType, viewType: init.viewType, name: '' }, webview, webviewWorkbenchService);
 		this._editorResource = init.resource;
@@ -251,6 +261,13 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
 	}
 
+	public override isReadonly(): boolean | IMarkdownString {
+		if (!this._modelRef) {
+			return this.filesConfigurationService.isReadonly(this.resource);
+		}
+		return this._modelRef.object.isReadonly();
+	}
+
 	public override isDirty(): boolean {
 		if (!this._modelRef) {
 			return !!this._defaultDirtyState;
@@ -379,5 +396,52 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				override: this.viewType
 			}
 		};
+	}
+
+	public override claim(claimant: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void {
+		if (this.doCanMove(targetWindow.vscodeWindowId) !== true) {
+			throw createEditorOpenError(localize('editorUnsupportedInWindow', "Unable to open the editor in this window, it contains modifications that can only be saved in the original window."), [
+				toAction({
+					id: 'openInOriginalWindow',
+					label: localize('reopenInOriginalWindow', "Open in Original Window"),
+					run: async () => {
+						const originalPart = this.editorGroupsService.getPart(this.layoutService.getContainer(getWindow(this.webview.container).window));
+						const currentPart = this.editorGroupsService.getPart(this.layoutService.getContainer(targetWindow.window));
+						currentPart.activeGroup.moveEditor(this, originalPart.activeGroup);
+					}
+				})
+			], { forceMessage: true });
+		}
+		return super.claim(claimant, targetWindow, scopedContextKeyService);
+	}
+
+	public override canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		const resolvedTargetGroup = this.editorGroupsService.getGroup(targetGroup);
+		if (resolvedTargetGroup) {
+			const canMove = this.doCanMove(resolvedTargetGroup.windowId);
+			if (typeof canMove === 'string') {
+				return canMove;
+			}
+		}
+
+		return super.canMove(sourceGroup, targetGroup);
+	}
+
+	private doCanMove(targetWindowId: number): true | string {
+		if (this.isModified() && this._modelRef?.object.canHotExit === false) {
+			const sourceWindowId = getWindow(this.webview.container).vscodeWindowId;
+			if (sourceWindowId !== targetWindowId) {
+
+				// The custom editor is modified, not backed by a file and without a backup.
+				// We have to assume that the modified state is enclosed into the webview
+				// managed by an extension. As such, we cannot just move the webview
+				// into another window because that means, we potentally loose the modified
+				// state and thus trigger data loss.
+
+				return localize('editorCannotMove', "Unable to move the editor out of the window, it contains modifications that can only be saved in the this window.");
+			}
+		}
+
+		return true;
 	}
 }

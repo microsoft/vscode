@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor, isResourceMultiDiffEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
@@ -83,13 +83,17 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
+	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> | [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
 		const untypedEditor = editor;
 
 		// Use the untyped editor to find a group
-		const [group, activation] = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
-
-		return [untypedEditor, group, activation];
+		const findGroupResult = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
+		if (findGroupResult instanceof Promise) {
+			return findGroupResult.then(([group, activation]) => [untypedEditor, group, activation]);
+		} else {
+			const [group, activation] = findGroupResult;
+			return [untypedEditor, group, activation];
+		}
 	}
 
 	async resolveEditor(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
@@ -103,7 +107,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return this.doResolveSideBySideEditor(editor, preferredGroup);
 		}
 
-		const resolvedUntypedAndGroup = this.resolveUntypedInputAndGroup(editor, preferredGroup);
+		let resolvedUntypedAndGroup: [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined;
+		const resolvedUntypedAndGroupResult = this.resolveUntypedInputAndGroup(editor, preferredGroup);
+		if (resolvedUntypedAndGroupResult instanceof Promise) {
+			resolvedUntypedAndGroup = await resolvedUntypedAndGroupResult;
+		} else {
+			resolvedUntypedAndGroup = resolvedUntypedAndGroupResult;
+		}
+
 		if (!resolvedUntypedAndGroup) {
 			return ResolvedStatus.NONE;
 		}
@@ -255,19 +266,22 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	getAssociationsForResource(resource: URI): EditorAssociations {
 		const associations = this.getAllUserAssociations();
-		const matchingAssociations = associations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
+		let matchingAssociations = associations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
+		// Sort matching associations based on glob length as a longer glob will be more specific
+		matchingAssociations = matchingAssociations.sort((a, b) => (b.filenamePattern?.length ?? 0) - (a.filenamePattern?.length ?? 0));
 		const allEditors: RegisteredEditors = this._registeredEditors;
 		// Ensure that the settings are valid editors
 		return matchingAssociations.filter(association => allEditors.find(c => c.editorInfo.id === association.viewType));
 	}
 
-	private getAllUserAssociations(): EditorAssociations {
+	getAllUserAssociations(): EditorAssociations {
 		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+		const defaultAssociations = inspectedEditorAssociations.defaultValue ?? {};
 		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
 		const userAssociations = inspectedEditorAssociations.userValue ?? {};
 		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations };
-		// We want to apply the user associations on top of the workspace associations but ignore duplicate keys.
-		for (const [key, value] of Object.entries(userAssociations)) {
+		// We want to apply the default associations and user associations on top of the workspace associations but ignore duplicate keys.
+		for (const [key, value] of Object.entries({ ...defaultAssociations, ...userAssociations })) {
 			if (rawAssociations[key] === undefined) {
 				rawAssociations[key] = value;
 			}
@@ -461,6 +475,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
+		// If it's a diff list editor we trigger the create diff list editor input
+		if (isResourceMultiDiffEditorInput(editor)) {
+			if (!selectedEditor.editorFactoryObject.createMultiDiffEditorInput) {
+				return;
+			}
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createMultiDiffEditorInput(editor, group);
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
+		}
+
 		if (isResourceSideBySideEditorInput(editor)) {
 			throw new Error(`Untyped side by side editor input not supported here.`);
 		}
@@ -532,7 +555,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Move the editor already opened to the target group
 		if (targetGroup.id !== editorToUse.group.id) {
-			editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
+			const moved = editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
+			if (!moved) {
+				return;
+			}
 			return editorToUse.editor;
 		}
 		return;

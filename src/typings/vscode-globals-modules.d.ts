@@ -18,6 +18,8 @@ declare global {
 		net: typeof import('net');
 		os: typeof import('os');
 		module: typeof import('module');
+		fs: typeof import('fs'),
+		vm: typeof import('vm'),
 		['native-watchdog']: typeof import('native-watchdog')
 		perf_hooks: typeof import('perf_hooks');
 
