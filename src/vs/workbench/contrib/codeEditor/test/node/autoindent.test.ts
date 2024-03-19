@@ -274,6 +274,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	test('Issue #116843', () => {
 
 		// issue: https://github.com/microsoft/vscode/issues/116843
+		// related: https://github.com/microsoft/vscode/issues/43244
 		// explanation: When you have an arrow function, you don't have { or }, but you would expect indentation to still be done in that way
 
 		const fileContents = [

@@ -484,37 +484,71 @@ suite('Full Auto Indent On Paste - TypeScript/JavaScript', () => {
 			].join('\n'));
 		});
 	});
+
+	test('issue #29589: incorrect preservation of indentation', () => {
+
+		// https://github.com/microsoft/vscode/issues/29589
+
+		const model = createTextModel('', languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			const text = [
+				'function makeSub(a,b) {',
+				'subsent = sent.substring(a,b);',
+				'return subsent;',
+				'}',
+			].join('\n');
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			viewModel.paste(text, true, undefined, 'keyboard');
+			// todo@aiday-mar, make sure range is correct, and make test work as in real life
+			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 2));
+			assert.strictEqual(model.getValue(), [
+				'function makeSub(a,b) {',
+				'    subsent = sent.substring(a,b);',
+				'    return subsent;',
+				'}',
+			].join('\n'));
+		});
+	});
+
+	test('issue #65614: incorrect indentation on paste', () => {
+
+		// https://github.com/microsoft/vscode/issues/65614
+
+		const model = createTextModel([
+			'if(true) {',
+			'',
+			'}'
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+			editor.setSelection(new Selection(2, 1, 2, 1));
+			const text = [
+				'if(false) {',
+				'',
+				'}'
+			].join('\n');
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			viewModel.paste(text, true, undefined, 'keyboard');
+			// todo@aiday-mar, make sure range is correct, and make test work as in real life
+			autoIndentOnPasteController.trigger(new Range(1, 1, 5, 2));
+			assert.strictEqual(model.getValue(), [
+				'if(true) {',
+				'    if(false) {',
+				'    ',
+				'    }',
+				'}'
+			].join('\n'));
+		});
+	});
 });
 
 suite('Auto Indent On Type - TypeScript/JavaScript', () => {
-
-	// test('issue #193875: incorrect indentation', () => {
-	// 	const model = createTextModel([
-	// 		'{',
-	// 		'	for(;;)',
-	// 		'	for(;;) {}',
-	// 		'}'
-	// 	].join('\n'), languageId, {});
-	// 	disposables.add(model);
-	// 	withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
-	// 		instantiateContext(instantiationService);
-	// 		// viewModel.type([
-	// 		// 	'{',
-	// 		// 	'	for(;;)',
-	// 		// 	'	for(;;) {}',
-	// 		// 	'}'
-	// 		// ].join('\n'));
-	// 		viewModel.setSelections('test', [new Selection(3, 11, 3, 11)]);
-	// 		viewModel.type("\n", 'keyboard');
-	// 		assert.strictEqual(model.getValue(), [
-	// 			'{',
-	// 			'	for(;;)',
-	// 			'	for(;;) {',
-	// 			'}',
-	// 			'}'
-	// 		].join('\n'));
-	// 	});
-	// });
 
 	const languageId = "ts-test";
 	let disposables: DisposableStore;
@@ -580,11 +614,73 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test('issue #193875: incorrect indentation on enter', () => {
+
+		// https://github.com/microsoft/vscode/issues/193875
+
+		const model = createTextModel([
+			'{',
+			'    for(;;)',
+			'    for(;;) {}',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(3, 14, 3, 14));
+			viewModel.type("\n", 'keyboard');
+			// is the indentation actually done here?
+			assert.strictEqual(model.getValue(), [
+				'{',
+				'    for(;;)',
+				'    for(;;) {',
+				'',
+				'    }',
+				'}',
+			].join('\n'));
+		});
+	});
+
+	test('issue #43244: incorrect indentation', () => {
+
+		// https://github.com/microsoft/vscode/issues/193875
+		// https://github.com/microsoft/vscode/issues/43244
+
+		const model = createTextModel([
+			'if (condition)',
+			'    return;'
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 12, 2, 12));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if (condition)',
+				'    return;',
+				'',
+			].join('\n'));
+
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if (condition)',
+				'    return;',
+				'',
+				''
+			].join('\n'));
+		});
+	});
+
 	test('issue #40115: keep indentation where created', () => {
 		// Add tests for:
 		// https://github.com/microsoft/vscode/issues/88638
 		// https://github.com/microsoft/vscode/issues/63388
 		// https://github.com/microsoft/vscode/issues/46401
+		// https://github.com/microsoft/vscode/issues/174044
 	});
 });
 
