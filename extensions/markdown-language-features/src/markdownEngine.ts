@@ -128,7 +128,7 @@ export class MarkdownItEngine implements IMdParser {
 	private async _getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this._md) {
 			this._md = (async () => {
-				const markdownIt = await import('markdown-it');
+				const { default: markdownIt } = await import('markdown-it');
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
 				md.linkify.set({ fuzzyLink: false });
 
