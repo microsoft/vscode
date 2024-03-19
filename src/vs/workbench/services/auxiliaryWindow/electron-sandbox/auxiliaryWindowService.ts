@@ -30,7 +30,6 @@ type NativeCodeWindow = CodeWindow & {
 
 export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 
-	private skipUnloadVeto = false;
 	private skipUnloadConfirmation = false;
 
 	constructor(
@@ -48,13 +47,9 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 	}
 
 	protected override async handleVetoBeforeClose(e: BeforeUnloadEvent, veto: string): Promise<void> {
-		if (this.skipUnloadVeto) {
-			return;
-		}
-
 		this.preventUnload(e);
 
-		const { result } = await this.dialogService.prompt({
+		await this.dialogService.prompt({
 			type: 'error',
 			message: veto,
 			detail: localize('backupErrorDetails', "Try saving or reverting the editors with unsaved changes first and then try again."),
@@ -62,18 +57,9 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 				{
 					label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
 					run: () => false // veto
-				},
-				{
-					label: localize('shutdownForceClose', "Close Anyway"),
-					run: () => true // no veto
 				}
-			],
+			]
 		});
-
-		if (result) {
-			this.skipUnloadVeto = true;
-			this.nativeHostService.closeWindow({ targetWindowId: this.window.vscodeWindowId });
-		}
 	}
 
 	protected override async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {

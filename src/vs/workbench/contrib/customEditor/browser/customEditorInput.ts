@@ -399,7 +399,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public override claim(claimant: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void {
-		if (typeof this.canMove(targetWindow.vscodeWindowId) === 'string') {
+		if (typeof this.doCanMove(targetWindow.vscodeWindowId) === 'string') {
 			throw createEditorOpenError(localize('editorUnsupportedInWindow', "Unable to open the editor in this window, it contains modifications that can only be saved in the original window."), [
 				toAction({
 					id: 'openInOriginalWindow',
@@ -415,7 +415,19 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return super.claim(claimant, targetWindow, scopedContextKeyService);
 	}
 
-	public override canMove(targetWindowId: number): true | string {
+	public override canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		const resolvedTargetGroup = this.editorGroupsService.getGroup(targetGroup);
+		if (resolvedTargetGroup) {
+			const canMove = this.doCanMove(resolvedTargetGroup.windowId);
+			if (typeof canMove === 'string') {
+				return canMove;
+			}
+		}
+
+		return super.canMove(sourceGroup, targetGroup);
+	}
+
+	private doCanMove(targetWindowId: number): true | string {
 		if (this.isModified() && this._modelRef?.object.canHotExit === false) {
 			const sourceWindowId = getWindow(this.webview.container).vscodeWindowId;
 			if (sourceWindowId !== targetWindowId) {
