@@ -171,6 +171,8 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
 import { EditorPaneService } from 'vs/workbench/services/editor/browser/editorPaneService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -332,6 +334,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IPaneCompositePartService, disposables.add(new TestPaneCompositeService()));
 	instantiationService.stub(IListService, new TestListService());
+	instantiationService.stub(IContextViewService, disposables.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
@@ -581,7 +584,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainerDimension: IDimension = { width: 800, height: 600 };
 	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
-	whenActiveContainerStylesLoaded = Promise.resolve();
 
 	mainContainer: HTMLElement = mainWindow.document.body;
 	containers = [mainWindow.document.body];
@@ -610,6 +612,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
 	getContainer(): HTMLElement { return null!; }
+	whenContainerStylesLoaded() { return undefined; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }
@@ -849,7 +852,6 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 
-	readonly activePart = this;
 	readonly mainPart = this;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
@@ -907,8 +909,8 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
-	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
-	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
+	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): boolean { return true; }
+	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): boolean { return true; }
 	copyEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }
@@ -1760,6 +1762,18 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	}
 	movedEditor: IMoveResult | undefined = undefined;
 	override async rename(): Promise<IMoveResult | undefined> { return this.movedEditor; }
+
+	private moveDisabledReason: string | undefined = undefined;
+	setMoveDisabled(reason: string): void {
+		this.moveDisabledReason = reason;
+	}
+
+	override canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): string | true {
+		if (typeof this.moveDisabledReason === 'string') {
+			return this.moveDisabledReason;
+		}
+		return super.canMove(sourceGroup, targetGroup);
+	}
 }
 
 export class TestSingletonFileEditorInput extends TestFileEditorInput {
@@ -1771,7 +1785,6 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly activePart = this;
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
 
@@ -2101,6 +2114,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
 	onDidChangeProfile = Event.None;
+	onDidEnableExtensions = Event.None;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
@@ -2150,8 +2164,8 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
 	getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]> { throw new Error('Method not implemented.'); }
 	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
-	getAllExtensions(location: URI): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
-	getExtension(location: URI): Promise<IResourceExtension | null> { throw new Error('Method not implemented.'); }
+	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
+	isWorkspaceExtensionsSupported(): boolean { throw new Error('Method not implemented.'); }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {

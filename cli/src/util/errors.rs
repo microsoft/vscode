@@ -513,7 +513,9 @@ pub enum CodeError {
 	#[error("Could not check for update: {0}")]
 	UpdateCheckFailed(String),
 	#[error("Could not write connection token file: {0}")]
-	CouldNotCreateConnectionTokenFile(std::io::Error)
+	CouldNotCreateConnectionTokenFile(std::io::Error),
+	#[error("A tunnel with the name {0} exists and is in-use. Please pick a different name or stop the existing tunnel.")]
+	TunnelActiveAndInUse(String),
 }
 
 makeAnyError!(

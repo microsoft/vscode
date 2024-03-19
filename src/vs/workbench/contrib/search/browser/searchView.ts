@@ -125,6 +125,7 @@ export class SearchView extends ViewPane {
 	private hasReplacePatternKey: IContextKey<boolean>;
 	private hasFilePatternKey: IContextKey<boolean>;
 	private hasSomeCollapsibleResultKey: IContextKey<boolean>;
+	private hasAIResultProvider: IContextKey<boolean>;
 
 	private tree!: WorkbenchCompressibleObjectTree<RenderableMatch>;
 	private treeLabels!: ResourceLabels;
@@ -159,7 +160,6 @@ export class SearchView extends ViewPane {
 
 	private treeViewKey: IContextKey<boolean>;
 	private aiResultsVisibleKey: IContextKey<boolean>;
-	private hasAISettingEnabledKey: IContextKey<boolean>;
 
 	private _visibleMatches: number = 0;
 
@@ -221,8 +221,13 @@ export class SearchView extends ViewPane {
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
 		this.aiResultsVisibleKey = Constants.SearchContext.AIResultsVisibleKey.bindTo(this.contextKeyService);
-		this.hasAISettingEnabledKey = Constants.SearchContext.hasAISettingEnabled.bindTo(this.contextKeyService);
-		this.refreshHasAISetting();
+		this.hasAIResultProvider = Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService);
+
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(Constants.SearchContext.hasAIResultProvider.keys()))) {
+				this.refreshHasAISetting();
+			}
+		}));
 
 		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
@@ -357,9 +362,9 @@ export class SearchView extends ViewPane {
 	}
 
 	private refreshHasAISetting() {
-		const val = this.configurationService.getValue<boolean>('search.aiResults');
-		if (val) {
-			this.hasAISettingEnabledKey.set(!!val);
+		const val = this.shouldShowAIButton();
+		if (val && this.searchWidget.searchInput) {
+			this.searchWidget.searchInput.shouldShowAIButton = val;
 		}
 	}
 	private onDidChangeWorkbenchState(): void {
@@ -611,7 +616,8 @@ export class SearchView extends ViewPane {
 				isInNotebookMarkdownPreview,
 				isInNotebookCellInput,
 				isInNotebookCellOutput,
-			}
+			},
+			initialAIButtonVisibility: this.shouldShowAIButton()
 		}));
 
 		if (!this.searchWidget.searchInput || !this.searchWidget.replaceInput) {
@@ -625,7 +631,14 @@ export class SearchView extends ViewPane {
 
 		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
-		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.triggerQueryChange()));
+		this._register(this.searchWidget.searchInput.onDidOptionChange(() => {
+			if (this.searchWidget.searchInput && this.searchWidget.searchInput.isAIEnabled !== this.aiResultsVisible) {
+				this.setAIResultsVisible(this.searchWidget.searchInput.isAIEnabled);
+			} else {
+				this.triggerQueryChange();
+			}
+		}));
+
 		this._register(this.searchWidget.getNotebookFilters().onDidChange(() => this.triggerQueryChange()));
 
 		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput ? (this.searchWidget.searchInput.getValue().length > 0) : false);
@@ -664,7 +677,9 @@ export class SearchView extends ViewPane {
 		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
 	}
 
-
+	private shouldShowAIButton(): boolean {
+		return !!(this.configurationService.getValue<boolean>('search.aiResults') && this.hasAIResultProvider.get());
+	}
 	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
 		if (event && (event.affectsConfiguration('search.decorations.colors') || event.affectsConfiguration('search.decorations.badges'))) {
 			this.refreshTree();

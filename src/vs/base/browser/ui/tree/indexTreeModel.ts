@@ -42,6 +42,7 @@ export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisib
 
 export interface IIndexTreeModelOptions<T, TFilterData> {
 	readonly collapseByDefault?: boolean; // defaults to false
+	readonly allowNonCollapsibleParents?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly autoExpandSingleChildren?: boolean;
 }
@@ -107,6 +108,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeRenderNodeCount.event);
 
 	private collapseByDefault: boolean;
+	private allowNonCollapsibleParents: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
 	private autoExpandSingleChildren: boolean;
 
@@ -122,6 +124,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		options: IIndexTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
+		this.allowNonCollapsibleParents = options.allowNonCollapsibleParents ?? false;
 		this.filter = options.filter;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
 
@@ -535,7 +538,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			}
 		}
 
-		node.collapsible = node.collapsible || node.children.length > 0;
+		if (!this.allowNonCollapsibleParents) {
+			node.collapsible = node.collapsible || node.children.length > 0;
+		}
+
 		node.visibleChildrenCount = visibleChildrenCount;
 		node.visible = visibility === TreeVisibility.Recurse ? visibleChildrenCount > 0 : (visibility === TreeVisibility.Visible);
 

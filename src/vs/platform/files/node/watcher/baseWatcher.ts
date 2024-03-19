@@ -118,9 +118,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			pathNotFound = currentPathNotFound;
 
 			// Watch path created: resume watching request
-			if ((previousPathNotFound && !currentPathNotFound) || 					// file was created
-				(oldPathNotFound && !currentPathNotFound && !previousPathNotFound) 	// file was created from a rename
-			) {
+			if (!currentPathNotFound && (previousPathNotFound || oldPathNotFound)) {
 				this.trace(`fs.watchFile() detected ${request.path} exists again, resuming watcher (correlationId: ${request.correlationId})`);
 
 				// Emit as event
@@ -162,6 +160,10 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	protected traceEvent(event: IFileChange, request: IUniversalWatchRequest): void {
 		const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
 		this.trace(typeof request.correlationId === 'number' ? `${traceMsg} (correlationId: ${request.correlationId})` : traceMsg);
+	}
+
+	protected requestToString(request: IUniversalWatchRequest): string {
+		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
 	}
 
 	protected abstract doWatch(requests: IUniversalWatchRequest[]): Promise<void>;

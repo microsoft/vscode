@@ -250,7 +250,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 			return { ...cur, affectedKeys: newAffectedKeys };
 		}, 1000, true);
 
-		debouncedConfigService(event => {
+		this._register(debouncedConfigService(event => {
 			if (event.source !== ConfigurationTarget.DEFAULT) {
 				type UpdateConfigurationClassification = {
 					owner: 'sandy081';
@@ -267,7 +267,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					configurationKeys: Array.from(event.affectedKeys)
 				});
 			}
-		});
+		}));
 
 		const { user, workspace } = configurationService.keys();
 		for (const setting of user) {
@@ -282,12 +282,13 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
 	 */
 	private getValueToReport(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): string | undefined {
-		const schema = this.configurationRegistry.getConfigurationProperties()[key];
 		const inpsectData = this.configurationService.inspect(key);
 		const value = target === ConfigurationTarget.USER_LOCAL ? inpsectData.user?.value : inpsectData.workspace?.value;
 		if (isNumber(value) || isBoolean(value)) {
 			return value.toString();
 		}
+
+		const schema = this.configurationRegistry.getConfigurationProperties()[key];
 		if (isString(value)) {
 			if (schema?.enum?.includes(value)) {
 				return value;
@@ -399,6 +400,15 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('window.nativeTabs', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'extensions.verifySignature':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'sandy081';
+					comment: 'This is used to know if extensions signature verification is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('extensions.verifySignature', { settingValue: this.getValueToReport(key, target), source });
 				return;
 		}
 	}

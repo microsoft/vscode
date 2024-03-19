@@ -45,6 +45,7 @@ import { DiffEditorEditors } from './components/diffEditorEditors';
 import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
+import { DiffEditorGutter } from 'vs/editor/browser/widget/diffEditor/features/gutterFeature';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -56,8 +57,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
 		h('div.noModificationsOverlay@overlay', { style: { position: 'absolute', height: '100%', visibility: 'hidden', } }, [$('span', {}, 'No Changes')]),
-		h('div.editor.original@original', { style: { position: 'absolute', height: '100%' } }),
-		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%' } }),
+		h('div.editor.original@original', { style: { position: 'absolute', height: '100%', zIndex: '1', } }),
+		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', zIndex: '1', } }),
 		h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
 	]);
 	private readonly _diffModel = observableValue<DiffEditorViewModel | undefined>(this, undefined);
@@ -72,6 +73,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	);
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 
+	/**
+	 * Is undefined if and only if side-by-side
+	 */
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
 	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>(this, undefined);
 
@@ -87,6 +91,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	private readonly _overviewRulerPart: IObservable<OverviewRulerFeature | undefined>;
 	private readonly _movedBlocksLinesPart = observableValue<MovedBlocksLinesFeature | undefined>(this, undefined);
+
+	private readonly _gutter: IObservable<DiffEditorGutter | undefined>;
 
 	public get collapseUnchangedRegions() { return this._options.hideUnchangedRegions.get(); }
 
@@ -126,6 +132,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._register(bindContextKey(EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached, this._contextKeyService,
 			reader => this._options.couldShowInlineViewBecauseOfSize.read(reader)
 		));
+		this._register(bindContextKey(EditorContextKeys.diffEditorInlineMode, this._contextKeyService,
+			reader => !this._options.renderSideBySide.read(reader)
+		));
 
 		this._register(bindContextKey(EditorContextKeys.hasChanges, this._contextKeyService,
 			reader => (this._diffModel.read(reader)?.diff.read(reader)?.mappings.length ?? 0) > 0
@@ -138,6 +147,19 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			this._options,
 			codeEditorWidgetOptions,
 			(i, c, o, o2) => this._createInnerEditor(i, c, o, o2),
+		));
+
+		this._register(bindContextKey(EditorContextKeys.diffEditorOriginalWritable, this._contextKeyService,
+			reader => this._options.originalEditable.read(reader)
+		));
+		this._register(bindContextKey(EditorContextKeys.diffEditorModifiedWritable, this._contextKeyService,
+			reader => !this._options.readOnly.read(reader)
+		));
+		this._register(bindContextKey(EditorContextKeys.diffEditorOriginalUri, this._contextKeyService,
+			reader => this._diffModel.read(reader)?.model.original.uri.toString() ?? ''
+		));
+		this._register(bindContextKey(EditorContextKeys.diffEditorModifiedUri, this._contextKeyService,
+			reader => this._diffModel.read(reader)?.model.modified.uri.toString() ?? ''
 		));
 
 		this._overviewRulerPart = derivedDisposable(this, reader =>
@@ -245,6 +267,17 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 		codeEditorService.addDiffEditor(this);
 
+		this._gutter = derivedDisposable(this, reader => {
+			return this._options.shouldRenderGutterMenu.read(reader)
+				? this._instantiationService.createInstance(
+					readHotReloadableExport(DiffEditorGutter, reader),
+					this.elements.root,
+					this._diffModel,
+					this._editors
+				)
+				: undefined;
+		});
+
 		this._register(recomputeInitiallyAndOnChange(this._layoutInfo));
 
 		derivedDisposable(this, reader => /** @description MovedBlocksLinesPart */
@@ -290,7 +323,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			}
 		}));
 
-		this._register(new RevertButtonsFeature(this._editors, this._diffModel, this._options, this));
+		this._register(autorunWithStore((reader, store) => {
+			store.add(new (readHotReloadableExport(RevertButtonsFeature, reader))(this._editors, this._diffModel, this._options, this));
+		}));
 	}
 
 	public getViewWidth(): number {
@@ -307,23 +342,49 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	private readonly _layoutInfo = derived(this, reader => {
-		const width = this._rootSizeObserver.width.read(reader);
-		const height = this._rootSizeObserver.height.read(reader);
-		const sashLeft = this._sash.read(reader)?.sashLeft.read(reader);
+		const fullWidth = this._rootSizeObserver.width.read(reader);
+		const fullHeight = this._rootSizeObserver.height.read(reader);
 
-		const originalWidth = sashLeft ?? Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
-		const modifiedWidth = width - originalWidth - (this._overviewRulerPart.read(reader)?.width ?? 0);
+		const sash = this._sash.read(reader);
 
-		const movedBlocksLinesWidth = this._movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
-		const originalWidthWithoutMovedBlockLines = originalWidth - movedBlocksLinesWidth;
-		this.elements.original.style.width = originalWidthWithoutMovedBlockLines + 'px';
-		this.elements.original.style.left = '0px';
+		const gutter = this._gutter.read(reader);
+		const gutterWidth = gutter?.width.read(reader) ?? 0;
 
+		const overviewRulerPartWidth = this._overviewRulerPart.read(reader)?.width ?? 0;
+
+		let originalLeft: number, originalWidth: number, modifiedLeft: number, modifiedWidth: number, gutterLeft: number;
+
+		const sideBySide = !!sash;
+		if (sideBySide) {
+			const sashLeft = sash.sashLeft.read(reader);
+			const movedBlocksLinesWidth = this._movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
+
+			originalLeft = 0;
+			originalWidth = sashLeft - gutterWidth - movedBlocksLinesWidth;
+
+			gutterLeft = sashLeft - gutterWidth;
+
+			modifiedLeft = sashLeft;
+			modifiedWidth = fullWidth - modifiedLeft - overviewRulerPartWidth;
+		} else {
+			gutterLeft = 0;
+
+			originalLeft = gutterWidth;
+			originalWidth = Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
+
+			modifiedLeft = gutterWidth + originalWidth;
+			modifiedWidth = fullWidth - modifiedLeft - overviewRulerPartWidth;
+		}
+
+		this.elements.original.style.left = originalLeft + 'px';
+		this.elements.original.style.width = originalWidth + 'px';
+		this._editors.original.layout({ width: originalWidth, height: fullHeight }, true);
+
+		gutter?.layout(gutterLeft);
+
+		this.elements.modified.style.left = modifiedLeft + 'px';
 		this.elements.modified.style.width = modifiedWidth + 'px';
-		this.elements.modified.style.left = originalWidth + 'px';
-
-		this._editors.original.layout({ width: originalWidthWithoutMovedBlockLines, height }, true);
-		this._editors.modified.layout({ width: modifiedWidth, height }, true);
+		this._editors.modified.layout({ width: modifiedWidth, height: fullHeight }, true);
 
 		return {
 			modifiedEditor: this._editors.modified.getLayoutInfo(),

@@ -42,7 +42,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -462,10 +461,12 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 
 	const holdMode = keybindingService.enableKeybindingHoldMode(id);
 
+	let session: IVoiceChatSession | undefined = undefined;
+
 	let acceptVoice = false;
 	const handle = disposableTimeout(() => {
 		acceptVoice = true;
-		session.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for VOICE_KEY_HOLD_THRESHOLD
+		session?.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for VOICE_KEY_HOLD_THRESHOLD
 	}, VOICE_KEY_HOLD_THRESHOLD);
 
 	const controller = await VoiceChatSessionControllerFactory.create(accessor, target);
@@ -474,7 +475,7 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 		return;
 	}
 
-	const session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
+	session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 
 	await holdMode;
 	handle.dispose();
@@ -907,7 +908,6 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		@ISpeechService private readonly speechService: ISpeechService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IHostService private readonly hostService: IHostService,
@@ -935,10 +935,6 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 			if (e.affectsConfiguration(KEYWORD_ACTIVIATION_SETTING_ID)) {
 				this.handleKeywordActivation();
 			}
-		}));
-
-		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables }) => {
-			disposables.add(instantiationService.createInstance(KeywordActivationStatusEntry));
 		}));
 	}
 
@@ -1106,7 +1102,8 @@ class KeywordActivationStatusEntry extends Disposable {
 			tooltip: this.speechService.hasActiveKeywordRecognition ? KeywordActivationStatusEntry.STATUS_ACTIVE : KeywordActivationStatusEntry.STATUS_INACTIVE,
 			ariaLabel: this.speechService.hasActiveKeywordRecognition ? KeywordActivationStatusEntry.STATUS_ACTIVE : KeywordActivationStatusEntry.STATUS_INACTIVE,
 			command: KeywordActivationStatusEntry.STATUS_COMMAND,
-			kind: 'prominent'
+			kind: 'prominent',
+			showInAllWindows: true
 		};
 	}
 

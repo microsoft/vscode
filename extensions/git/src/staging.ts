@@ -142,3 +142,11 @@ export function invertLineChange(diff: LineChange): LineChange {
 		originalEndLineNumber: diff.modifiedEndLineNumber
 	};
 }
+
+export interface DiffEditorSelectionHunkToolbarContext {
+	mapping: unknown;
+	/**
+	 * The original text with the selected modified changes applied.
+	*/
+	originalWithModifiedChanges: string;
+}
