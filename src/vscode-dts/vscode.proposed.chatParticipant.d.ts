@@ -21,9 +21,9 @@ declare module 'vscode' {
 		readonly prompt: string;
 
 		/**
-		 * The name of the chat participant and contributing extension to which this request was directed.
+		 * The id of the chat participant and contributing extension to which this request was directed.
 		 */
-		readonly participant: { readonly extensionId: string; readonly name: string };
+		readonly participant: string;
 
 		/**
 		 * The name of the {@link ChatCommand command} that was selected for this request.
@@ -54,9 +54,9 @@ declare module 'vscode' {
 		readonly result: ChatResult;
 
 		/**
-		 * The name of the chat participant and contributing extension that this response came from.
+		 * The id of the chat participant and contributing extension that this response came from.
 		 */
-		readonly participant: { readonly extensionId: string; readonly name: string };
+		readonly participant: string;
 
 		/**
 		 * The name of the command that this response came from.
@@ -158,7 +158,7 @@ declare module 'vscode' {
 		label?: string;
 
 		/**
-		 * By default, the followup goes to the same participant/command. But this property can be set to invoke a different participant.
+		 * By default, the followup goes to the same participant/command. But this property can be set to invoke a different participant by ID.
 		 * Followups can only invoke a participant that was contributed by the same extension.
 		 */
 		participant?: string;
