@@ -166,7 +166,9 @@ export interface OnEnterRule {
 	 */
 	afterText?: RegExp;
 	/**
-	 * This rule will only execute if the text above the this line matches this regular expression.
+	 * This rule will only execute if the text above the line matches this regular expression.
+	 *
+	 * So there is a difference between the beforeText (because this presumably refers to the text on the same line) and the text on the previous line (not same line)
 	 */
 	previousLineText?: RegExp;
 	/**
@@ -238,7 +240,7 @@ export enum IndentAction {
  */
 export interface EnterAction {
 	/**
-	 * Describe what to do with the indentation.
+	 * Describe what to do with the indentation on enter.
 	 */
 	indentAction: IndentAction;
 	/**

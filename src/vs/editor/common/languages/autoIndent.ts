@@ -260,6 +260,7 @@ export function getInheritIndentForLine(
 	}
 }
 
+// TODO: do a search for EditorAutoIndentStrategy in order to find the usages and understand better its impact
 export function getGoodIndentForLine(
 	autoIndent: EditorAutoIndentStrategy,
 	virtualModel: IVirtualModel,
@@ -273,6 +274,8 @@ export function getGoodIndentForLine(
 	}
 
 	const richEditSupport = languageConfigurationService.getLanguageConfiguration(languageId);
+	// When this language does not have a set of methods that we will use later in this method, we return null.
+	// The particular language needs to support rich edits
 	if (!richEditSupport) {
 		return null;
 	}
@@ -283,19 +286,31 @@ export function getGoodIndentForLine(
 	}
 
 	const indent = getInheritIndentForLine(autoIndent, virtualModel, lineNumber, undefined, languageConfigurationService);
+	// This is information relative to the indent we inherited from the lines above
+	// Even if the lines above mention we have to decrease the indent, the value will not be null necessarily, however the action will be null
+
 	const lineContent = virtualModel.getLineContent(lineNumber);
 
+	// Suppose the indent object is not null
 	if (indent) {
+		// Find the line from which we apply the indent action. This is sort of the base line from which we continue the indentation.
+		// This line can be undefined, for example when the current line number is 1 and it has no preceding lines, then the base line is undefined
 		const inheritLine = indent.line;
 		if (inheritLine !== undefined) {
 			// Apply enter action as long as there are only whitespace lines between inherited line and this line.
 			let shouldApplyEnterRules = true;
+
+			// Go from the inherited line all the way to the lineNumber - 1
+			// For each such intermediary line, we test if there are only whitespace characters. If this is the case, then we want to apply the enter rules
+			// Otherwise if there is at least one line where there characters other than whitespace in between then we do not want to apply the enter rules
 			for (let inBetweenLine = inheritLine; inBetweenLine < lineNumber - 1; inBetweenLine++) {
 				if (!/^\s*$/.test(virtualModel.getLineContent(inBetweenLine))) {
 					shouldApplyEnterRules = false;
 					break;
 				}
 			}
+			// Suppose we want to apply the enter rules
+			// CONTINUE FROM HERE
 			if (shouldApplyEnterRules) {
 				const enterResult = richEditSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
 
