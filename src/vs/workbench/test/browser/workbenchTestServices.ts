@@ -1762,6 +1762,18 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	}
 	movedEditor: IMoveResult | undefined = undefined;
 	override async rename(): Promise<IMoveResult | undefined> { return this.movedEditor; }
+
+	private moveDisabledReason: string | undefined = undefined;
+	setMoveDisabled(reason: string): void {
+		this.moveDisabledReason = reason;
+	}
+
+	override canMove(targetWindowId: number): string | true {
+		if (typeof this.moveDisabledReason === 'string') {
+			return this.moveDisabledReason;
+		}
+		return super.canMove(targetWindowId);
+	}
 }
 
 export class TestSingletonFileEditorInput extends TestFileEditorInput {
