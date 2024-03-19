@@ -251,7 +251,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			executeImmediately: true
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent();
-			const agents = chatAgentService.getRegisteredAgents();
+			const agents = chatAgentService.getAgents();
 
 			// Report prefix
 			if (defaultAgent?.metadata.helpTextPrefix) {

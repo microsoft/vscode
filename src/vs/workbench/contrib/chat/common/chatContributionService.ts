@@ -19,10 +19,6 @@ export interface IChatContributionService {
 	registerChatProvider(provider: IChatProviderContribution): void;
 	deregisterChatProvider(providerId: string): void;
 	getViewIdForProvider(providerId: string): string;
-
-	readonly registeredParticipants: IChatParticipantContribution[];
-	registerChatParticipant(participant: IChatParticipantContribution): void;
-	deregisterChatParticipant(participant: IChatParticipantContribution): void;
 }
 
 export interface IRawChatProviderContribution {

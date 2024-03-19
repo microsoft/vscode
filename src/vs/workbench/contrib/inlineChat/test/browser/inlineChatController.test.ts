@@ -159,7 +159,7 @@ suite('InteractiveChatController', function () {
 				return {};
 			},
 		} satisfies IChatAgentImplementation;
-		store.add(chatAgentService.registerAgent('testAgent', agent));
+		store.add(chatAgentService.registerAgentImplementation({ id: 'testAgent', extensionId: nullExtensionDescription.identifier }, agent));
 
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 

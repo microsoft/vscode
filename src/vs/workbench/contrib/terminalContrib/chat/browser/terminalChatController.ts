@@ -12,8 +12,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentRequest, IChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { GeneratingPhrase, IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentLocation, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatUserAction, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -22,6 +22,7 @@ import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/te
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { InlineChatHistory } from 'vs/workbench/contrib/inlineChat/browser/inlineChatHistory';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
@@ -82,6 +83,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
 
 	private _terminalAgentId = 'terminal';
+	private _terminalAgentExtensionId: ExtensionIdentifier | undefined;
 
 	private _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
 
@@ -97,7 +99,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService
+		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
 	) {
 		super();
 
@@ -113,9 +115,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 
-		if (!this._chatAgentService.getAgent(this._terminalAgentId)) {
+		if (!this._chatAgentService.getAgentsByName(this._terminalAgentId)) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
-				if (this._chatAgentService.getAgent(this._terminalAgentId)) {
+				const terminalAgent = this._chatAgentService.getAgentsByName(this._terminalAgentId)[0];
+				if (terminalAgent) {
+					this._terminalAgentExtensionId = terminalAgent.extensionId;
 					this._terminalAgentRegisteredContextKey.set(true);
 				}
 			}));
@@ -291,7 +295,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			location: ChatAgentLocation.Terminal
 		};
 		try {
-			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
+			const task = this._chatAgentService.invokeAgent({ extensionId: this._terminalAgentExtensionId!, id: this._terminalAgentId }, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
 			this._chatWidget?.value.inlineChatWidget.updateChatMessage(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateProgress(true);

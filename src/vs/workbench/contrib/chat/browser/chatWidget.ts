@@ -145,7 +145,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private parsedChatRequest: IParsedChatRequest | undefined;
 	get parsedInput() {
 		if (this.parsedChatRequest === undefined) {
-			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput());
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), { selectedAgent: this._agentInInput });
 		}
 
 		return this.parsedChatRequest;
@@ -210,6 +210,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			return null;
 		}));
+	}
+
+	private _agentInInput: IChatAgentData | undefined;
+	setAgentInInput(agent: IChatAgentData | undefined): void {
+		this._agentInInput = agent;
 	}
 
 	get supportsFileReferences(): boolean {
@@ -655,7 +660,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, this.inputPart.implicitContextEnabled);
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, this.inputPart.implicitContextEnabled, { selectedAgent: this._agentInInput });
 
 			if (result) {
 				const inputState = this.collectInputState();

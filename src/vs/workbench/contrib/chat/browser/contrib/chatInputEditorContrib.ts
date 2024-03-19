@@ -14,7 +14,8 @@ import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList }
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -347,13 +348,19 @@ class AgentCompletions extends Disposable {
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => !a.isDefault);
 				return <CompletionList>{
-					suggestions: agents.map((c, i) => {
-						const withAt = `@${c.id}`;
+					suggestions: agents.map((a, i) => {
+						// The trailing space is important- this will display inline in the suggest widget with newlines removed,
+						// or in the suggest detail flyout with newlines preserved.
+						let detail = a.metadata.description ? `${a.metadata.description} \n\n` : '';
+						detail += `(${a.extensionId.value})`;
+
+						const withAt = `@${a.id}`;
 						return <CompletionItem>{
 							label: withAt,
 							insertText: `${withAt} `,
-							detail: c.metadata.description,
+							detail,
 							range: new Range(1, 1, 1, 1),
+							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent: a, widget } satisfies AssignSelectedAgentActionArgs] },
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
 					})
@@ -431,9 +438,12 @@ class AgentCompletions extends Disposable {
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
+						let detail = agent.metadata.description ? `${agent.metadata.description} \n\n` : '';
+						detail += `(${agent.extensionId.value})`;
 						const agentLabel = `${chatAgentLeader}${agent.id}`;
 						return {
-							label: { label: agentLabel, description: agent.metadata.description },
+							label: agentLabel,
+							detail,
 							filterText: `${chatSubcommandLeader}${agent.id}`,
 							insertText: `${agentLabel} `,
 							range: new Range(1, 1, 1, 1),
@@ -452,7 +462,7 @@ class AgentCompletions extends Disposable {
 								filterText: `${chatSubcommandLeader}${agent.id}${c.name}`,
 								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
-								detail: `(${agentLabel}) ${c.description ?? ''}`,
+								detail: `(${agentLabel}, ${agent.extensionId.value}) ${c.description ?? ''}`,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
 								sortText: `${chatSubcommandLeader}${agent.id}${c.name}`,
@@ -464,6 +474,32 @@ class AgentCompletions extends Disposable {
 	}
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AgentCompletions, LifecyclePhase.Eventually);
+
+interface AssignSelectedAgentActionArgs {
+	agent: IChatAgentData;
+	widget: IChatWidget;
+}
+
+class AssignSelectedAgentAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.assignSelectedAgent';
+
+	constructor() {
+		super({
+			id: AssignSelectedAgentAction.ID,
+			title: '' // not displayed
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const arg: AssignSelectedAgentActionArgs = args[0];
+		if (!arg || !arg.widget || !arg.agent) {
+			return;
+		}
+
+		arg.widget.setAgentInInput(arg.agent);
+	}
+}
+registerAction2(AssignSelectedAgentAction);
 
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
