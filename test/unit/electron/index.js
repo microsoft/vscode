@@ -10,21 +10,23 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter } = require('electron');
-const product = require('../../../product.json');
-const { tmpdir } = require('os');
-const { existsSync, mkdirSync } = require('fs');
-const path = require('path');
-const mocha = require('mocha');
-const events = require('events');
-const MochaJUnitReporter = require('mocha-junit-reporter');
-const url = require('url');
-const net = require('net');
-const createStatsCollector = require('mocha/lib/stats-collector');
-const { applyReporter, importMochaReporter } = require('../reporter');
+import { app, BrowserWindow, ipcMain, crashReporter } from 'electron';
+import product from '../../../product.json' assert {type: 'json'};
+import { tmpdir } from 'os';
+import { existsSync, mkdirSync } from 'fs';
+import path from 'path';
+import mocha from 'mocha';
+import events from 'events';
+import MochaJUnitReporter from 'mocha-junit-reporter';
+import url from 'url';
+import net from 'net';
+import createStatsCollector from 'mocha/lib/stats-collector.js';
+import { applyReporter, importMochaReporter } from '../reporter.js';
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import minimist from 'minimist';
 
-const minimist = require('minimist');
-
+const __dirname = dirname(fileURLToPath(import.meta.url))
 /**
  * @type {{
  * grep: string;
