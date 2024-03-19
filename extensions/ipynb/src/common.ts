@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as nbformat from '@jupyterlab/nbformat';
+import { workspace } from 'vscode';
 
 /**
  * Metadata we store in VS Code cell output items.
@@ -59,4 +60,8 @@ export interface CellMetadata {
 	 * Stores cell metadata.
 	 */
 	metadata?: Partial<nbformat.ICellMetadata> & { vscode?: { languageId?: string } };
+}
+
+export function useCustomPropertyInMetadata() {
+	return !workspace.getConfiguration('jupyter', undefined).get<boolean>('drop.custom.property', false);
 }

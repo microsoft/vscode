@@ -5,7 +5,7 @@
 
 import { ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
 import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId } from './serializers';
-import { CellMetadata } from './common';
+import { CellMetadata, useCustomPropertyInMetadata } from './common';
 import { getNotebookMetadata } from './notebookSerializer';
 import type * as nbformat from '@jupyterlab/nbformat';
 
@@ -57,7 +57,11 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, cell: NotebookCe
 	const pendingUpdates = pendingNotebookCellModelUpdates.get(notebook) ?? new Set<Thenable<void>>();
 	pendingNotebookCellModelUpdates.set(notebook, pendingUpdates);
 	const edit = new WorkspaceEdit();
-	edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, { ...(cell.metadata), custom: metadata })]);
+	if (useCustomPropertyInMetadata()) {
+		edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, { ...(cell.metadata), custom: metadata })]);
+	} else {
+		edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, { ...cell.metadata, ...metadata })]);
+	}
 	const promise = workspace.applyEdit(edit).then(noop, noop);
 	pendingUpdates.add(promise);
 	const clean = () => cleanup(notebook, promise);
