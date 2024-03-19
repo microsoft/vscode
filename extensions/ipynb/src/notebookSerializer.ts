@@ -100,10 +100,11 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 }
 
 export function getNotebookMetadata(document: vscode.NotebookDocument | vscode.NotebookData) {
-	const notebookContent: Partial<nbformat.INotebookContent> = (useCustomPropertyInMetadata() ? document.metadata?.custom : document.metadata) || {};
-	notebookContent.cells = notebookContent.cells || [];
-	notebookContent.nbformat = notebookContent.nbformat || defaultNotebookFormat.major;
-	notebookContent.nbformat_minor = notebookContent.nbformat_minor ?? defaultNotebookFormat.minor;
-	notebookContent.metadata = notebookContent.metadata || {};
+	const existingContent: Partial<nbformat.INotebookContent> = (useCustomPropertyInMetadata() ? document.metadata?.custom : document.metadata) || {};
+	const notebookContent: Partial<nbformat.INotebookContent> = {};
+	notebookContent.cells = existingContent.cells || [];
+	notebookContent.nbformat = existingContent.nbformat || defaultNotebookFormat.major;
+	notebookContent.nbformat_minor = existingContent.nbformat_minor ?? defaultNotebookFormat.minor;
+	notebookContent.metadata = existingContent.metadata || {};
 	return notebookContent;
 }
