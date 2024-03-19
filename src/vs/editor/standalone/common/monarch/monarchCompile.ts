@@ -122,8 +122,16 @@ function compileRegExp(lexer: monarchCommon.ILexerMin, str: string, handleSn: tr
 	if (handleSn) {
 		const match = str.match(/\$[sS](\d\d?)/g);
 		if (match) {
-			return (state: string) =>
-				new RegExp(monarchCommon.substituteMatchesRe(lexer, str, state), flags);
+			let lastState: string | null = null;
+			let lastRegEx: RegExp | null = null;
+			return (state: string) => {
+				if (lastRegEx && lastState === state) {
+					return lastRegEx;
+				}
+				lastState = state;
+				lastRegEx = new RegExp(monarchCommon.substituteMatchesRe(lexer, str, state), flags);
+				return lastRegEx;
+			};
 		}
 	}
 
