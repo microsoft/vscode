@@ -8,8 +8,8 @@ import 'vs/css!./codeBlockPart';
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -38,12 +38,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
-import { IMarkdownVulnerability } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IMarkdownVulnerability } from '../common/annotations';
 
 const $ = dom.$;
 
@@ -51,7 +51,7 @@ export interface ICodeBlockData {
 	readonly codeBlockIndex: number;
 	readonly element: unknown;
 
-	readonly textModel: Promise<IReference<IResolvedTextEditorModel>>;
+	readonly textModel: Promise<IResolvedTextEditorModel>;
 	readonly languageId: string;
 
 	readonly vulns?: readonly IMarkdownVulnerability[];
@@ -106,21 +106,8 @@ export interface ICodeBlockActionContext {
 	element: unknown;
 }
 
-
-export interface ICodeBlockPart {
-	readonly editor: CodeEditorWidget;
-	readonly onDidChangeContentHeight: Event<void>;
-	readonly element: HTMLElement;
-	readonly uri: URI | undefined;
-	layout(width: number): void;
-	render(data: ICodeBlockData, width: number, editable?: boolean): Promise<void>;
-	focus(): void;
-	reset(): unknown;
-	dispose(): void;
-}
-
 const defaultCodeblockPadding = 10;
-export class CodeBlockPart extends Disposable implements ICodeBlockPart {
+export class CodeBlockPart extends Disposable {
 	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
@@ -164,6 +151,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 			padding: { top: defaultCodeblockPadding, bottom: defaultCodeblockPadding },
 			mouseWheelZoom: false,
 			scrollbar: {
+				vertical: 'hidden',
 				alwaysConsumeMouseWheel: false
 			},
 			definitionLinkOpensInPeek: false,
@@ -331,7 +319,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 		return this.editor.getContentHeight();
 	}
 
-	async render(data: ICodeBlockData, width: number, editable: boolean) {
+	async render(data: ICodeBlockData, width: number, editable: boolean | undefined) {
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
@@ -373,7 +361,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
-		const textModel = (await data.textModel).object.textEditorModel;
+		const textModel = (await data.textModel).textEditorModel;
 		this.editor.setModel(textModel);
 		if (data.range) {
 			this.editor.setSelection(data.range);
