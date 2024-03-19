@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as terminalEncoding from 'vs/base/node/terminalEncoding';
 import * as encoding from 'vs/workbench/services/textfile/common/encoding';
 
