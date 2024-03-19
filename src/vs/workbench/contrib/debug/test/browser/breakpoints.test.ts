@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';

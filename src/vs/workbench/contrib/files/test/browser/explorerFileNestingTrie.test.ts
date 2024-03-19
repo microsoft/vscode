@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { PreTrie, ExplorerFileNestingTrie, SufTrie } from 'vs/workbench/contrib/files/common/explorerFileNestingTrie';
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const fakeFilenameAttributes = { dirname: 'mydir', basename: '', extname: '' };

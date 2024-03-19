@@ -7,7 +7,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IntervalTimer } from 'vs/base/common/async';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { asProgressiveEdit } from '../../browser/utils';
-import * as assert from 'assert';
+import assert from 'assert';
 
 
 suite('AsyncEdit', () => {
