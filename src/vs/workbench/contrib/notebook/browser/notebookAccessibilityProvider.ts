@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IUpdateableAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
@@ -15,7 +15,7 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { CellKind, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
-export class NotebookAccessibilityProvider implements IListAccessibilityProvider<CellViewModel>, IDisposable {
+export class NotebookAccessibilityProvider implements IUpdateableAccessibilityProvider<CellViewModel>, IDisposable {
 	private readonly _onDidAriaLabelChange = new Emitter<CellViewModel>();
 	readonly onDidAriaLabelChange = this._onDidAriaLabelChange.event;
 

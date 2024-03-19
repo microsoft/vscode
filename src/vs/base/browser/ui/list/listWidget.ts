@@ -854,12 +854,15 @@ export interface IStyleController {
 
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
 	getAriaLabel(element: T): string | null;
-	onDidAriaLabelChange?: Event<T>;
 	getWidgetAriaLabel(): string;
 	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
 	onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
+}
+
+export interface IUpdateableAccessibilityProvider<T> extends IListAccessibilityProvider<T> {
+	onDidAriaLabelChange?: Event<T>;
 }
 
 export class DefaultStyleController implements IStyleController {
@@ -1275,8 +1278,9 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, IAccessibilityTemplate
 
 		this.setAriaLabel(ariaLabel, data.container);
 
-		if (this.accessibilityProvider.onDidAriaLabelChange) {
-			data.disposables?.add(this.accessibilityProvider.onDidAriaLabelChange((e) => {
+		const accessibilityProvider = this.accessibilityProvider as IUpdateableAccessibilityProvider<T>;
+		if (accessibilityProvider.onDidAriaLabelChange) {
+			data.disposables?.add(accessibilityProvider.onDidAriaLabelChange((e) => {
 				if (e === element) {
 					const ariaLabel = this.accessibilityProvider.getAriaLabel(element);
 					this.setAriaLabel(ariaLabel, data.container);
