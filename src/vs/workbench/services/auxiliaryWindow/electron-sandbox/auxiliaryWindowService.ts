@@ -49,17 +49,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 	protected override async handleVetoBeforeClose(e: BeforeUnloadEvent, veto: string): Promise<void> {
 		this.preventUnload(e);
 
-		await this.dialogService.prompt({
-			type: 'error',
-			message: veto,
-			detail: localize('backupErrorDetails', "Try saving or reverting the editors with unsaved changes first and then try again."),
-			buttons: [
-				{
-					label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-					run: () => false // veto
-				}
-			]
-		});
+		await this.dialogService.error(veto, localize('backupErrorDetails', "Try saving or reverting the editors with unsaved changes first and then try again."));
 	}
 
 	protected override async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {
