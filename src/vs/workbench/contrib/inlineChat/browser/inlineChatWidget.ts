@@ -42,7 +42,7 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -198,25 +198,25 @@ export class InlineChatWidget {
 				renderInputOnTop: false,
 				supportsFileReferences: true,
 				menus: {
-					// executeToolbar: MENU_INLINE_CHAT_INPUT,
-					inputSideToolbar: undefined,
 					telemetrySource: options.telemetrySource
 				},
 				filter: item => {
-					if (isWelcomeVM(item)) {
-						return false;
-					}
-					if (isRequestVM(item)) {
-						let requestCount = 0;
-						for (const item of this._chatWidget.viewModel!.getItems()) {
-							if (isRequestVM(item)) {
-								if (++requestCount >= 2) {
-									return true;
-								}
-							}
-						}
-						return false;
-					}
+					// TODO@jrieken what the heck is this?
+					// when filtering one element all seems to be filtered...
+					// if (isWelcomeVM(item)) {
+					// 	return false;
+					// }
+					// if (isRequestVM(item)) {
+					// 	let requestCount = 0;
+					// 	for (const item of this._chatWidget.viewModel!.getItems()) {
+					// 		if (isRequestVM(item)) {
+					// 			if (++requestCount >= 2) {
+					// 				return true;
+					// 			}
+					// 		}
+					// 	}
+					// 	return false;
+					// }
 					return true;
 				},
 			},
@@ -343,7 +343,7 @@ export class InlineChatWidget {
 
 		const detectedIntentHeight = getTotalHeight(this._elements.detectedIntent);
 		const followUpsHeight = getTotalHeight(this._elements.followUps);
-		const chatWidgetHeight = this._chatWidget.contentHeight;
+		const chatWidgetHeight = 200;  //this._chatWidget.contentHeight;
 		const progressHeight = getTotalHeight(this._elements.progress);
 		const statusHeight = getTotalHeight(this._elements.status);
 		const extraHeight = this._getExtraHeight();

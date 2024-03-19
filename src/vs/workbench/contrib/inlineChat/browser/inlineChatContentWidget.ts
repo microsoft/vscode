@@ -18,7 +18,6 @@ import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessi
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
-import { isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -53,11 +52,9 @@ export class InlineChatContentWidget implements IContentWidget {
 				renderInputOnTop: true,
 				supportsFileReferences: false,
 				menus: {
-					// executeToolbar: MENU_INLINE_CHAT_INPUT,
-					// inputSideToolbar: undefined,
 					telemetrySource: 'inlineChat-content'
 				},
-				filter: item => !isWelcomeVM(item)
+				filter: _item => false
 			},
 			{
 				listForeground: editorForeground,
@@ -127,7 +124,6 @@ export class InlineChatContentWidget implements IContentWidget {
 	}
 
 	afterRender(): void {
-		this._widget.setVisible(true);
 		if (this._focusNext) {
 			this._focusNext = false;
 			this._widget.focusInput();
@@ -159,6 +155,7 @@ export class InlineChatContentWidget implements IContentWidget {
 
 			this._position = wordInfo ? new Position(position.lineNumber, wordInfo.startColumn) : position;
 			this._editor.addContentWidget(this);
+			this._widget.setVisible(true);
 		}
 	}
 
@@ -166,12 +163,13 @@ export class InlineChatContentWidget implements IContentWidget {
 		if (this._visible) {
 			this._visible = false;
 			this._editor.removeContentWidget(this);
+			this._widget.setVisible(false);
 		}
 	}
 
-	setSession(model: Session): void {
-		this._widget.setModel(model.chatModel, {});
-		this._updateMessage(model.session.message ?? '');
+	setSession(session: Session): void {
+		this._widget.setModel(session.chatModel, {});
+		this._updateMessage(session.session.message ?? '');
 	}
 
 	private _updateMessage(message: string) {

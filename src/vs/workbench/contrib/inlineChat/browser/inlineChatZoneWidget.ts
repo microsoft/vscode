@@ -60,7 +60,10 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			}
 		});
 		this._disposables.add(this.widget.onDidChangeHeight(() => {
-			this._relayout(this._computeHeightInLines());
+			if (this.position) {
+				// only relayout when visible
+				this._relayout(this._computeHeightInLines());
+			}
 		}));
 		this._disposables.add(this.widget);
 		this.create();

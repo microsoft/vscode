@@ -368,12 +368,12 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.add(this._input.value.onDidBlur(() => this.cancelSession()));
 
+		this._input.value.setSession(this._session);
 		this._zone.value.widget.setChatModel(this._session.chatModel);
 		// this._zone.value.widget.updateSlashCommands(this._session.session.slashCommands ?? []);
 		this._updatePlaceholder();
 		const message = this._session.session.message ?? localize('welcome.1', "AI-generated code may be incorrect");
 
-		this._input.value.setSession(this._session);
 
 		this._zone.value.widget.updateInfo(message);
 		this._zone.value.widget.value = this._session.session.input ?? this._session.lastInput?.value ?? this._zone.value.widget.value;
@@ -464,6 +464,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 
 		let message = Message.NONE;
+		let request: IChatRequestModel | undefined;
 		if (options.autoSend) {
 			message = Message.ACCEPT_INPUT;
 			delete options.autoSend;
@@ -471,6 +472,12 @@ export class InlineChatController implements IEditorContribution {
 		} else {
 			const barrier = new Barrier();
 			const store = new DisposableStore();
+			store.add(this._session.chatModel.onDidChange(e => {
+				if (e.kind === 'addRequest') {
+					request = e.request;
+					this.acceptInput();
+				}
+			}));
 			store.add(this._strategy.onDidAccept(() => this.acceptSession()));
 			store.add(this._strategy.onDidDiscard(() => this.cancelSession()));
 			store.add(Event.once(this._messages.event)(m => {
@@ -479,10 +486,6 @@ export class InlineChatController implements IEditorContribution {
 				barrier.open();
 			}));
 
-			if (this._input.value.isVisible) {
-				// TODO@jrieken make this better...
-				store.add(this._input.value.chatWidget.onDidAcceptInput(this.acceptInput, this));
-			}
 
 			await barrier.wait();
 			store.dispose();
@@ -518,11 +521,14 @@ export class InlineChatController implements IEditorContribution {
 			return State.MAKE_REQUEST;
 		}
 
-		if (!this.getInput()) {
+		// if (!this.getInput()) {
+		// 	return State.WAIT_FOR_INPUT;
+		// }
+		if (!request?.message.text) {
 			return State.WAIT_FOR_INPUT;
 		}
 
-		const input = this.getInput();
+		const input = request.message.text;
 		this._zone.value.widget.value = input;
 
 		const refer = this._session.session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
@@ -564,27 +570,17 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._session);
 		assertType(this._session.lastInput);
 
+		const request: IChatRequestModel | undefined = tail(this._session.chatModel.getRequests());
+
+		assertType(request);
+		assertType(request.response);
+
 		this._showWidget(false);
+		this._zone.value.widget.value = request.message.text;
+		this._zone.value.widget.selectAll(false);
 		this._zone.value.widget.updateInfo('');
 
-		let request: IChatRequestModel | undefined = tail(this._session.chatModel.getRequests());
-		if (!request) {
-			await new Promise(resolve => {
-				this._session!.chatModel.onDidChange(e => {
-					if (e.kind === 'addRequest') {
-						request = e.request;
-						resolve(undefined);
-					}
-				});
-			});
-		}
-
-		if (!request || !request.response) {
-			return State.CANCEL;
-		}
-
 		const { response } = request;
-
 		const responsePromise = new DeferredPromise<void>();
 
 		const progressiveEditsAvgDuration = new MovingAverage();
@@ -1027,12 +1023,12 @@ export class InlineChatController implements IEditorContribution {
 		if (position) {
 			// explicit position wins
 			widgetPosition = position;
-		} else if (this._zone.value.position) {
+		} else if (this._zone.rawValue?.position) {
 			// already showing - special case of line 1
-			if (this._zone.value.position.lineNumber === 1) {
-				widgetPosition = this._zone.value.position.delta(-1);
+			if (this._zone.rawValue.position.lineNumber === 1) {
+				widgetPosition = this._zone.rawValue.position.delta(-1);
 			} else {
-				widgetPosition = this._zone.value.position;
+				widgetPosition = this._zone.rawValue.position;
 			}
 		} else {
 			// default to ABOVE the selection
@@ -1042,22 +1038,23 @@ export class InlineChatController implements IEditorContribution {
 		if (this._session && !position && (this._session.hasChangedText || this._session.lastExchange)) {
 			widgetPosition = this._session.wholeRange.value.getStartPosition().delta(-1);
 		}
-		if (this._session) {
-			this._zone.value.updateBackgroundColor(widgetPosition, this._session.wholeRange.value);
+
+		if (this._zone.rawValue?.position) {
+			this._zone.value.updatePositionAndHeight(widgetPosition);
+
+		} else if (initialRender) {
+			widgetPosition = this._editor.getSelection().getStartPosition();
+			this._input.value.show(widgetPosition);
+
+		} else {
+			this._input.value.hide();
+			this._zone.value.show(widgetPosition);
 		}
 
-		if (!this._zone.value.position) {
-			if (initialRender) {
-				widgetPosition = this._editor.getSelection().getStartPosition();
-				// this._zone.value.hide();
-				this._input.value.show(widgetPosition);
-			} else {
-				this._input.value.hide();
-				this._zone.value.show(widgetPosition);
-			}
-		} else {
-			this._zone.value.updatePositionAndHeight(widgetPosition);
+		if (this._session && this._zone.rawValue) {
+			this._zone.rawValue.updateBackgroundColor(widgetPosition, this._session.wholeRange.value);
 		}
+
 		this._ctxVisible.set(true);
 		return widgetPosition;
 	}

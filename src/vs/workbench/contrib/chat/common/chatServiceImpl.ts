@@ -435,7 +435,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(data.providerId, data, CancellationToken.None);
 	}
 
-	async sendRequest(sessionId: string, request: string, implicitVariablesEnabled?: boolean, location?: ChatAgentLocation): Promise<IChatSendRequestData | undefined> {
+	async sendRequest(sessionId: string, request: string, implicitVariablesEnabled?: boolean, location: ChatAgentLocation = ChatAgentLocation.Panel): Promise<IChatSendRequestData | undefined> {
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 		if (!request.trim()) {
 			this.trace('sendRequest', 'Rejected empty message');
@@ -463,13 +463,13 @@ export class ChatService extends Disposable implements IChatService {
 			defaultAgent = this.chatAgentService.getActivatedAgents().find(a => a.locations.includes(location)) ?? defaultAgent;
 		}
 
-		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request);
+		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, location);
 		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
-			responseCompletePromise: this._sendRequestAsync(model, sessionId, provider, parsedRequest, implicitVariablesEnabled ?? false, defaultAgent),
+			responseCompletePromise: this._sendRequestAsync(model, sessionId, provider, parsedRequest, implicitVariablesEnabled ?? false, defaultAgent, location),
 			agent,
 			slashCommand: agentSlashCommandPart?.command,
 		};
@@ -483,7 +483,7 @@ export class ChatService extends Disposable implements IChatService {
 		return newTokenSource.token;
 	}
 
-	private async _sendRequestAsync(model: ChatModel, sessionId: string, provider: IChatProvider, parsedRequest: IParsedChatRequest, implicitVariablesEnabled: boolean, defaultAgent: IChatAgent): Promise<void> {
+	private async _sendRequestAsync(model: ChatModel, sessionId: string, provider: IChatProvider, parsedRequest: IParsedChatRequest, implicitVariablesEnabled: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation): Promise<void> {
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -562,7 +562,7 @@ export class ChatService extends Disposable implements IChatService {
 						message: promptTextResult.message,
 						command: agentSlashCommandPart?.command.name,
 						variables: updatedVariableData,
-						location: ChatAgentLocation.Terminal
+						location
 					};
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);

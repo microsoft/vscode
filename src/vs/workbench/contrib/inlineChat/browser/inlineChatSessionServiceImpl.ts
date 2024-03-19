@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { EditMode, IInlineChatSession, IInlineChatService, IInlineChatSessionProvider, InlineChatResponseFeedbackKind, IInlineChatProgressItem } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSession, IInlineChatService, IInlineChatSessionProvider, InlineChatResponseFeedbackKind, IInlineChatProgressItem, IInlineChatResponse } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,13 +26,14 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { coalesceInPlace, isNonEmptyArray } from 'vs/base/common/arrays';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TextEdit } from 'vs/editor/common/languages';
+import { localize } from 'vs/nls';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -159,10 +160,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 
 		store.add(this._chatService.onDidPerformUserAction(e => {
-			if (e.sessionId !== chatModel.sessionId) {
-				return;
-			}
-			if (e.action.kind !== 'vote') {
+			if (e.sessionId !== chatModel.sessionId || e.action.kind !== 'vote') {
 				return;
 			}
 
@@ -179,7 +177,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}));
 
 		store.add(this._chatAgentService.registerDynamicAgent({
-			id: `${ExtensionIdentifier.toKey(provider.extensionId)}/${rawSession.id}`,
+			id: `${ExtensionIdentifier.toKey(provider.extensionId).replaceAll('.', '-')}-${rawSession.id}`,
 			extensionId: provider.extensionId,
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
@@ -187,7 +185,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			defaultImplicitVariables: [],
 			metadata: { isSticky: false },
 		}, {
-			invoke: async (request, progress, history, token) => {
+			invoke: async (request, progress, _history, token) => {
 
 				const modelAltVersionIdNow = session.textModelN.getAlternativeVersionId();
 				const progressEdits: TextEdit[][] = [];
@@ -204,12 +202,17 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				};
 
 				const inlineProgress = new Progress<IInlineChatProgressItem>(data => {
+					// if (data.message) {
+					// 	progress({ kind: 'progressMessage', content: new MarkdownString(data.message) });
+					// }
 					if (data.slashCommand) {
-						progress({ kind: 'usedSlashCommand', slashCommand: data.slashCommand });
-						// progress({ kind: 'markdownContent', content: new MarkdownString(data.slashCommand) });
+						// progress({ kind: 'usedSlashCommand', slashCommand: data.slashCommand });
+						// const label = localize('slashCommandUsed', "Using {0} to generate response ([[re-run without]])", `\`\`/${details.command}\`\``);
+						// TODO@jrieken implement rerun
+						progress({ kind: 'markdownContent', content: new MarkdownString(localize('slashCmd', "Using `/{0}` to generate response ([re-run without](command:rerun))\n\n", data.slashCommand), true) });
 					}
 					if (data.markdownFragment) {
-						progress({ kind: 'content', content: data.markdownFragment });
+						progress({ kind: 'markdownContent', content: new MarkdownString(data.markdownFragment) });
 					}
 					if (isNonEmptyArray(data.edits)) {
 						progressEdits.push(data.edits);
@@ -217,10 +220,11 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					}
 				});
 
+				let result: IInlineChatResponse | undefined | null;
 				let response: ReplyResponse | ErrorResponse | EmptyResponse;
 
 				try {
-					const result = await provider.provideResponse(rawSession, inlineRequest, inlineProgress, token);
+					result = await provider.provideResponse(rawSession, inlineRequest, inlineProgress, token);
 
 					if (result) {
 						if (result.message) {
@@ -248,8 +252,40 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				// result?.placeholder
 				// result?.wholeRange
 
-				return {};
+				return { metadata: { inlineChatResponse: result } };
 			},
+
+			provideFollowups: provider.provideFollowups ? async (request, result, history, token) => {
+				if (!result.metadata?.inlineChatResponse) {
+					return [];
+				}
+
+				const f = await provider.provideFollowups?.(rawSession, result.metadata?.inlineChatResponse, token);
+
+				if (!f) {
+					return [];
+				}
+
+				const result2 = f.map(f => {
+					if (f.kind === 'reply') {
+						return {
+							kind: 'reply',
+							message: f.message,
+							agentId: request.agentId,
+							title: f.title,
+							tooltip: f.tooltip,
+						} satisfies IChatFollowup;
+					} else {
+						// TODO@jrieken update API
+						return undefined;
+					}
+				});
+
+				coalesceInPlace(result2);
+				return result2;
+
+			} : undefined,
+
 		}));
 
 		store.add(this._inlineChatService.onDidChangeProviders(e => {
