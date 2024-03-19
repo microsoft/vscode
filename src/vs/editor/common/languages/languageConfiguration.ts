@@ -220,6 +220,11 @@ export enum IndentAction {
 	 * Insert two new lines:
 	 *  - the first one indented which will hold the cursor
 	 *  - the second one at the same indentation level
+	 *
+	 * Meaning, we will have:
+	 * - Enter
+	 * -- Cursor
+	 * - New extra line
 	 */
 	IndentOutdent = 2,
 	/**
@@ -242,6 +247,8 @@ export interface EnterAction {
 	appendText?: string;
 	/**
 	 * Describes the number of characters to remove from the new line's indentation.
+	 *
+	 * Number of characters to remove from the indentation that is added or the text that was already there?
 	 */
 	removeText?: number;
 }
