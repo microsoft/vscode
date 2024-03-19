@@ -19,7 +19,7 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('native-is-elevated', async () => {
-		const isElevated = await import('native-is-elevated');
+		const { default: isElevated } = await import('native-is-elevated');
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
 
 		const result = isElevated();
