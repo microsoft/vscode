@@ -562,6 +562,10 @@ impl DevTunnels {
 
 		let tunnel = match self.get_existing_tunnel_with_name(name).await? {
 			Some(e) => {
+				if tunnel_has_host_connection(&e) {
+					return Err(CodeError::TunnelActiveAndInUse(name.to_string()).into());
+				}
+
 				let loc = TunnelLocator::try_from(&e).unwrap();
 				info!(self.log, "Adopting existing tunnel (ID={:?})", loc);
 				spanf!(
@@ -687,13 +691,7 @@ impl DevTunnels {
 
 		let recyclable = existing_tunnels
 			.iter()
-			.filter(|t| {
-				t.status
-					.as_ref()
-					.and_then(|s| s.host_connection_count.as_ref())
-					.map(|c| c.get_count())
-					.unwrap_or(0) == 0
-			})
+			.filter(|t| !tunnel_has_host_connection(t))
 			.choose(&mut rand::thread_rng());
 
 		match recyclable {
@@ -764,12 +762,9 @@ impl DevTunnels {
 	) -> Result<String, AnyError> {
 		let existing_tunnels = self.list_tunnels_with_tag(&[self.tag]).await?;
 		let is_name_free = |n: &str| {
-			!existing_tunnels.iter().any(|v| {
-				v.status
-					.as_ref()
-					.and_then(|s| s.host_connection_count.as_ref().map(|c| c.get_count()))
-					.unwrap_or(0) > 0 && v.labels.iter().any(|t| t == n)
-			})
+			!existing_tunnels
+				.iter()
+				.any(|v| tunnel_has_host_connection(v) && v.labels.iter().any(|t| t == n))
 		};
 
 		if let Some(machine_name) = preferred_name {
@@ -1233,6 +1228,14 @@ fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
 			},
 		}],
 	}
+}
+
+fn tunnel_has_host_connection(tunnel: &Tunnel) -> bool {
+	tunnel
+		.status
+		.as_ref()
+		.and_then(|s| s.host_connection_count.as_ref().map(|c| c.get_count() > 0))
+		.unwrap_or_default()
 }
 
 #[cfg(test)]

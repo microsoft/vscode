@@ -85,7 +85,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					type: 'boolean',
 				},
 				defaultImplicitVariables: {
-					markdownDescription: 'The names of the variables that are invoked by default',
+					markdownDescription: '**Only** allowed for extensions that have the `chatParticipantAdditions` proposal. The names of the variables that are invoked by default',
 					type: 'array',
 					items: {
 						type: 'string'
@@ -121,7 +121,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 								type: 'boolean'
 							},
 							defaultImplicitVariables: {
-								markdownDescription: localize('defaultImplicitVariables', "The names of the variables that are invoked by default"),
+								markdownDescription: localize('defaultImplicitVariables', "**Only** allowed for extensions that have the `chatParticipantAdditions` proposal. The names of the variables that are invoked by default"),
 								type: 'array',
 								items: {
 									type: 'string'
@@ -280,6 +280,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			id: viewId,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
+			singleViewPaneContainerTitle: this._viewContainer.title.value,
 			name: { value: providerDescriptor.label, original: providerDescriptor.label },
 			canToggleVisibility: false,
 			canMoveView: true,

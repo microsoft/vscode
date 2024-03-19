@@ -25,6 +25,7 @@ import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // copy lines
 
@@ -243,7 +244,16 @@ export abstract class AbstractSortLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const selections = editor.getSelections() || [];
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const model = editor.getModel();
+		let selections = editor.getSelections();
+		if (selections.length === 1 && selections[0].isEmpty()) {
+			// Apply to whole document.
+			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
+		}
 
 		for (const selection of selections) {
 			if (!SortLinesCommand.canRun(editor.getModel(), selection, this.descending)) {
@@ -308,8 +318,16 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 		const endCursorState: Selection[] = [];
 
 		let linesDeleted = 0;
+		let updateSelection = true;
 
-		for (const selection of editor.getSelections()) {
+		let selections = editor.getSelections();
+		if (selections.length === 1 && selections[0].isEmpty()) {
+			// Apply to whole document.
+			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
+			updateSelection = false;
+		}
+
+		for (const selection of selections) {
 			const uniqueLines = new Set();
 			const lines = [];
 
@@ -347,7 +365,7 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 		}
 
 		editor.pushUndoStop();
-		editor.executeEdits(this.id, edits, endCursorState);
+		editor.executeEdits(this.id, edits, updateSelection ? endCursorState : undefined);
 		editor.pushUndoStop();
 	}
 }
@@ -385,7 +403,11 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			return;
 		}
 
-		const command = new TrimTrailingWhitespaceCommand(selection, cursors);
+		const config = _accessor.get(IConfigurationService);
+		const model = editor.getModel();
+		const trimInRegexAndStrings = config.getValue<boolean>('files.trimTrailingWhitespaceInRegexAndStrings', { overrideIdentifier: model?.getLanguageId(), resource: model?.uri });
+
+		const command = new TrimTrailingWhitespaceCommand(selection, cursors, trimInRegexAndStrings);
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);

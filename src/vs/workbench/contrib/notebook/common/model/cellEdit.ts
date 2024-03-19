@@ -101,7 +101,7 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 export class CellMetadataEdit implements IResourceUndoRedoElement {
 	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
 	label: string = 'Update Cell Metadata';
-	code: string = 'undoredo.notebooks.updateCellMetadata';
+	code: string = 'undoredo.textBufferEdit';
 	constructor(
 		public resource: URI,
 		readonly index: number,

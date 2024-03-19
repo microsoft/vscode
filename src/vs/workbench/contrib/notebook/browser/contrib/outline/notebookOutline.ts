@@ -19,7 +19,7 @@ import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconCl
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -40,13 +40,16 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { mainWindow } from 'vs/base/browser/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Action2, IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
 import { NotebookSectionArgs } from 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { disposableTimeout } from 'vs/base/common/async';
+import { IOutlinePane } from 'vs/workbench/contrib/outline/browser/outline';
+import { Codicon } from 'vs/base/common/codicons';
+import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 class NotebookOutlineTemplate {
 
@@ -549,6 +552,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			markdownDescription: localize('outline.showCodeCells', "When enabled notebook outline shows code cells.")
 		},
+		'notebook.outline.showNonHeaderMarkdownCells': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize('outline.showNonHeaderMarkdownCells', "When enabled, notebook outline will show non-header markdown cell entries. When disabled, only markdown cells containing a header are shown.")
+		},
 		'notebook.breadcrumbs.showCodeCells': {
 			type: 'boolean',
 			default: true,
@@ -559,5 +567,60 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			markdownDescription: localize('notebook.gotoSymbols.showAllSymbols', "When enabled the Go to Symbol Quick Pick will display full code symbols from the notebook, as well as Markdown headers.")
 		},
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	submenu: MenuId.NotebookOutlineFilter,
+	title: localize('filter', "Filter Entries"),
+	icon: Codicon.filter,
+	group: 'navigation',
+	order: -1,
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', IOutlinePane.Id), NOTEBOOK_IS_ACTIVE_EDITOR),
+});
+
+registerAction2(class ToggleCodeCellEntries extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.outline.toggleCodeCells',
+			title: localize('toggleCodeCells', "Toggle Code Cells"),
+			f1: false,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.notebook.outline.showCodeCells', true)
+			},
+			menu: {
+				id: MenuId.NotebookOutlineFilter,
+				group: 'filter',
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const configurationService = accessor.get(IConfigurationService);
+		const showCodeCells = configurationService.getValue<boolean>('notebook.outline.showCodeCells');
+		configurationService.updateValue('notebook.outline.showCodeCells', !showCodeCells);
+	}
+});
+
+registerAction2(class ToggleNonHeaderMarkdownCells extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.outline.toggleNonHeaderMarkdownCells',
+			title: localize('toggleNonHeaderMarkdownCells', "Toggle Non-Header Markdown Cells"),
+			f1: false,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.notebook.outline.showNonHeaderMarkdownCells', true)
+			},
+			menu: {
+				id: MenuId.NotebookOutlineFilter,
+				group: 'filter',
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const configurationService = accessor.get(IConfigurationService);
+		const showNonHeaderMarkdownCells = configurationService.getValue<boolean>('notebook.outline.showNonHeaderMarkdownCells');
+		configurationService.updateValue('notebook.outline.showNonHeaderMarkdownCells', !showNonHeaderMarkdownCells);
 	}
 });

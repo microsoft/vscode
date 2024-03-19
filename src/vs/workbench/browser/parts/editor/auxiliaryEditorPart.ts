@@ -171,6 +171,22 @@ export class AuxiliaryEditorPart {
 			disposables.dispose();
 		}));
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
+		disposables.add(auxiliaryWindow.onBeforeUnload(event => {
+			for (const group of editorPart.groups) {
+				for (const editor of group.editors) {
+					// Closing an auxiliary window with opened editors
+					// will move the editors to the main window. As such,
+					// we need to validate that we can move and otherwise
+					// prevent the window from closing.
+					const canMove = editor.canMove(group.id, this.editorPartsView.mainPart.activeGroup.id);
+					if (typeof canMove === 'string') {
+						group.openEditor(editor);
+						event.veto(canMove);
+						break;
+					}
+				}
+			}
+		}));
 
 		// Layout: specifically `onWillLayout` to have a chance
 		// to build the aux editor part before other components

@@ -28,9 +28,6 @@ import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
-import { AppResourcePath, FileAccess } from 'vs/base/common/network';
-
-const isEsm = true
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -402,6 +399,14 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 };
 		}
 		return UnicodeTextModelHighlighter.computeUnicodeHighlights(model, options, range);
+	}
+
+	public async findSectionHeaders(url: string, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
+		const model = this._getModel(url);
+		if (!model) {
+			return [];
+		}
+		return findSectionHeaders(model, options);
 	}
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
