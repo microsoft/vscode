@@ -15,7 +15,7 @@ import MochaJUnitReporter from 'mocha-junit-reporter';
 import url from 'url';
 import minimatch from 'minimatch';
 import fs from 'fs';
-import playwright from '@playwright/test';
+import playwright from 'playwright-core';
 import { applyReporter } from '../reporter.js';
 import * as yaserver from 'yaserver';
 import http from 'http';
@@ -232,7 +232,6 @@ async function createServer() {
 
 async function runTestsInBrowser(testModules, browserType) {
 	const server = await createServer();
-	console.log({ browserType, playwright })
 	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
