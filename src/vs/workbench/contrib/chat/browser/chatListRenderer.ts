@@ -20,7 +20,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
@@ -48,11 +48,11 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { ChatMarkdownDecorationsRenderer, IMarkdownVulnerability, annotateSpecialMarkdownContent, extractVulnerabilitiesFromText } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
+import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { ChatCodeBlockContentProvider, CodeBlockPart, ICodeBlockData, ICodeBlockPart, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { ChatCodeBlockContentProvider, CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -62,6 +62,7 @@ import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownR
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 
 const $ = dom.$;
@@ -858,14 +859,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
 				const index = codeBlockIndex++;
-				let textModel: Promise<IReference<IResolvedTextEditorModel>>;
+				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
 				let vulns: readonly IMarkdownVulnerability[] | undefined;
 				if (equalsIgnoreCase(languageId, localFileLanguageId)) {
 					try {
 						const parsedBody = parseLocalFileData(text);
 						range = parsedBody.range && Range.lift(parsedBody.range);
-						textModel = this.textModelService.createModelReference(parsedBody.uri);
+						textModel = this.textModelService.createModelReference(parsedBody.uri).then(ref => ref.object);
 					} catch (e) {
 						return $('div');
 					}
@@ -876,16 +877,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
-					const blockModel = this.codeBlockModelCollection.get(sessionId, element, index);
-					if (!blockModel) {
+					const modelEntry = this.codeBlockModelCollection.get(sessionId, element, index);
+					if (!modelEntry) {
 						console.error('Trying to render code block without model', element.id, index);
 						return $('div');
 					}
-
-					textModel = blockModel;
-					const extractedVulns = extractVulnerabilitiesFromText(text);
-					vulns = extractedVulns.vulnerabilities;
-					textModel.then(ref => ref.object.textEditorModel.setValue(extractedVulns.newText));
+					vulns = modelEntry.vulns;
+					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
@@ -936,7 +934,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderCodeBlock(data: ICodeBlockData): IDisposableReference<ICodeBlockPart> {
+	private renderCodeBlock(data: ICodeBlockData): IDisposableReference<CodeBlockPart> {
 		const ref = this._editorPool.get();
 		const editorInfo = ref.object;
 		editorInfo.render(data, this._currentLayoutWidth, this.rendererOptions.editableCodeBlock);
@@ -1006,11 +1004,11 @@ interface IDisposableReference<T> extends IDisposable {
 	isStale: () => boolean;
 }
 
-export class EditorPool extends Disposable {
+class EditorPool extends Disposable {
 
 	private readonly _pool: ResourcePool<CodeBlockPart>;
 
-	public inUse(): Iterable<ICodeBlockPart> {
+	public inUse(): Iterable<CodeBlockPart> {
 		return this._pool.inUse;
 	}
 
@@ -1026,7 +1024,7 @@ export class EditorPool extends Disposable {
 		}));
 	}
 
-	get(): IDisposableReference<ICodeBlockPart> {
+	get(): IDisposableReference<CodeBlockPart> {
 		const codeBlock = this._pool.get();
 		let stale = false;
 		return {
