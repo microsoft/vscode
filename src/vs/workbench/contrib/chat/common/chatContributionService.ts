@@ -40,6 +40,7 @@ export interface IRawChatCommandContribution {
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook';
 
 export interface IRawChatParticipantContribution {
+	id: string;
 	name: string;
 	description?: string;
 	isDefault?: boolean;

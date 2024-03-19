@@ -67,20 +67,24 @@ const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensi
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.chatParticipant', 'Contributes a Chat Participant'),
+		description: localize('vscode.extension.contributes.chatParticipant', 'Contributes a chat participant'),
 		type: 'array',
 		items: {
 			additionalProperties: false,
 			type: 'object',
 			defaultSnippets: [{ body: { name: '', description: '' } }],
-			required: ['name'],
+			required: ['name', 'id'],
 			properties: {
+				id: {
+					description: localize('chatParticipantId', "A unique id for this chat participant."),
+					type: 'string'
+				},
 				name: {
-					description: localize('chatParticipantName', "Unique name for this Chat Participant."),
+					description: localize('chatParticipantName', "User-facing display name for this chat participant. The user will use '@' with this name to invoke the participant."),
 					type: 'string'
 				},
 				description: {
-					description: localize('chatParticipantDescription', "A description of this Chat Participant, shown in the UI."),
+					description: localize('chatParticipantDescription', "A description of this chat participant, shown in the UI."),
 					type: 'string'
 				},
 				isDefault: {
@@ -95,7 +99,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					}
 				},
 				commands: {
-					markdownDescription: localize('chatCommandsDescription', "Commands available for this Chat Participant, which the user can invoke with a `/`."),
+					markdownDescription: localize('chatCommandsDescription', "Commands available for this chat participant, which the user can invoke with a `/`."),
 					type: 'array',
 					items: {
 						additionalProperties: false,
@@ -134,7 +138,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					}
 				},
 				locations: {
-					markdownDescription: localize('chatLocationsDescription', "Locations in which this Chat Participant is available."),
+					markdownDescription: localize('chatLocationsDescription', "Locations in which this chat participant is available."),
 					type: 'array',
 					default: ['panel'],
 					items: {
@@ -248,14 +252,21 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
+					if (!providerDescriptor.id || !providerDescriptor.name) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant without both id and name.`);
+						continue;
+					}
+
 					this._participantRegistrationDisposables.set(
 						getParticipantKey(extension.description.identifier, providerDescriptor.name),
 						this._chatAgentService.registerAgent(
-							{ extensionId: extension.description.identifier, id: providerDescriptor.name },
+							providerDescriptor.id,
 							{
 								extensionId: extension.description.identifier,
-								id: providerDescriptor.name,
-								metadata: { description: providerDescriptor.description },
+								id: providerDescriptor.id,
+								description: providerDescriptor.description,
+								metadata: {},
+								name: providerDescriptor.name,
 								isDefault: providerDescriptor.isDefault,
 								defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
 								locations: isNonEmptyArray(providerDescriptor.locations) ?

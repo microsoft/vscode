@@ -590,6 +590,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					{ variables: [] };
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
+					// TODO old entries may not have name/description
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						revive<ISerializableChatAgentData>(raw.agent) : undefined;
 
@@ -802,7 +803,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					vote: r.response?.vote,
 					agent: r.response?.agent ?
 						// May actually be the full IChatAgent instance, just take the data props. slashCommands don't matter here.
-						{ id: r.response.agent.id, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
+						{ id: r.response.agent.id, name: r.response.agent.name, description: r.response.agent.description, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
 						: undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,

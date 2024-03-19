@@ -44,14 +44,10 @@ export namespace ChatAgentLocation {
 	}
 }
 
-// TODO reference this in IChatAgentData
-export interface IChatAgentIdentifier {
-	id: string;
-	extensionId: ExtensionIdentifier;
-}
-
 export interface IChatAgentData {
 	id: string;
+	name: string;
+	description?: string;
 	extensionId: ExtensionIdentifier;
 	/** The agent invoked when no agent is specified */
 	isDefault?: boolean;
@@ -84,7 +80,6 @@ export interface IChatRequesterInformation {
 }
 
 export interface IChatAgentMetadata {
-	description?: string;
 	helpTextPrefix?: string | IMarkdownString;
 	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
@@ -134,18 +129,18 @@ export interface IChatAgentService {
 	 * undefined when an agent was removed IChatAgent
 	 */
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
-	registerAgent(id: IChatAgentIdentifier, data: IChatAgentData): IDisposable;
-	registerAgentImplementation(id: IChatAgentIdentifier, agent: IChatAgentImplementation): IDisposable;
+	registerAgent(id: string, data: IChatAgentData): IDisposable;
+	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
-	invokeAgent(agent: IChatAgentIdentifier, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
-	getFollowups(id: IChatAgentIdentifier, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
-	getAgent(id: IChatAgentIdentifier): IChatAgentData | undefined;
+	invokeAgent(agent: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
+	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
+	getAgent(id: string): IChatAgentData | undefined;
 	getAgents(): IChatAgentData[];
 	getActivatedAgents(): Array<IChatAgent>;
 	getAgentsByName(name: string): IChatAgentData[];
 	getDefaultAgent(): IChatAgent | undefined;
 	getSecondaryAgent(): IChatAgentData | undefined;
-	updateAgent(id: IChatAgentIdentifier, updateMetadata: IChatAgentMetadata): void;
+	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
 
 export class ChatAgentService extends Disposable implements IChatAgentService {
@@ -165,7 +160,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		super();
 	}
 
-	registerAgent(id: IChatAgentIdentifier, data: IChatAgentData): IDisposable {
+	registerAgent(id: string, data: IChatAgentData): IDisposable {
 		const existingAgent = this.getAgent(id);
 		if (existingAgent) {
 			throw new Error(`Agent already registered: ${JSON.stringify(id)}`);
@@ -187,7 +182,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		});
 	}
 
-	registerAgentImplementation(id: IChatAgentIdentifier, agentImpl: IChatAgentImplementation): IDisposable {
+	registerAgentImplementation(id: string, agentImpl: IChatAgentImplementation): IDisposable {
 		const entry = this._getAgentEntry(id);
 		if (!entry) {
 			throw new Error(`Unknown agent: ${JSON.stringify(id)}`);
@@ -217,7 +212,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		});
 	}
 
-	updateAgent(id: IChatAgentIdentifier, updateMetadata: IChatAgentMetadata): void {
+	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void {
 		const agent = this._getAgentEntry(id);
 		if (!agent?.impl) {
 			throw new Error(`No activated agent with id ${JSON.stringify(id)} registered`);
@@ -235,11 +230,11 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return Iterable.find(this._agents.values(), a => !!a.data.metadata.isSecondary)?.data;
 	}
 
-	private _getAgentEntry(id: IChatAgentIdentifier): IChatAgentEntry | undefined {
-		return this._agents.find(a => a.data.id === id.id && ExtensionIdentifier.equals(a.data.extensionId, id.extensionId));
+	private _getAgentEntry(id: string): IChatAgentEntry | undefined {
+		return this._agents.find(a => a.data.id === id);
 	}
 
-	getAgent(id: IChatAgentIdentifier): IChatAgentData | undefined {
+	getAgent(id: string): IChatAgentData | undefined {
 		return this._getAgentEntry(id)?.data;
 	}
 
@@ -257,10 +252,10 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	getAgentsByName(name: string): IChatAgentData[] {
-		return this.getAgents().filter(a => a.id === name);
+		return this.getAgents().filter(a => a.name === name);
 	}
 
-	async invokeAgent(id: IChatAgentIdentifier, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
+	async invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 		const data = this._getAgentEntry(id);
 		if (!data?.impl) {
 			throw new Error(`No activated agent with id ${id}`);
@@ -269,7 +264,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return await data.impl.invoke(request, progress, history, token);
 	}
 
-	async getFollowups(id: IChatAgentIdentifier, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
+	async getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
 		const data = this._getAgentEntry(id);
 		if (!data?.impl) {
 			throw new Error(`No activated agent with id ${id}`);
@@ -290,6 +285,8 @@ export class MergedChatAgent implements IChatAgent {
 	) { }
 
 	get id(): string { return this.data.id; }
+	get name(): string { return this.data.name ?? ''; }
+	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }

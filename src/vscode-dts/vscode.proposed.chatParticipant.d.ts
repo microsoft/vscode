@@ -192,9 +192,9 @@ declare module 'vscode' {
 	 */
 	export interface ChatParticipant {
 		/**
-		 * The short name by which this participant is referred to in the UI, e.g `workspace`.
+		 * A unique ID for this participant.
 		 */
-		readonly name: string;
+		readonly id: string;
 
 		/**
 		 * Icon for the participant shown in UI.
@@ -446,12 +446,11 @@ declare module 'vscode' {
 		/**
 		 * Create a new {@link ChatParticipant chat participant} instance.
 		 *
-		 * @param name Short name by which the participant is referred to in the UI. The name must be unique for the extension
-		 * contributing the participant but can collide with names from other extensions.
+		 * @param id A unique identifier for the participant.
 		 * @param handler A request handler for the participant.
 		 * @returns A new chat participant
 		 */
-		export function createChatParticipant(name: string, handler: ChatRequestHandler): ChatParticipant;
+		export function createChatParticipant(id: string, handler: ChatRequestHandler): ChatParticipant;
 	}
 
 	/**

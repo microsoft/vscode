@@ -75,7 +75,7 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
 
 	get text(): string {
-		return `${chatAgentLeader}${this.agent.id}`;
+		return `${chatAgentLeader}${this.agent.name}`;
 	}
 
 	get promptText(): string {
@@ -91,7 +91,7 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 			range: this.range,
 			editorRange: this.editorRange,
 			agent: {
-				id: this.agent.id,
+				id: this.agent.id, // TODO
 				metadata: this.agent.metadata
 			}
 		};

@@ -38,8 +38,8 @@ const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
 const variableTextDecorationType = 'chat-variable-text';
 
-function agentAndCommandToKey(agent: string, subcommand: string | undefined): string {
-	return subcommand ? `${agent}__${subcommand}` : agent;
+function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefined): string {
+	return subcommand ? `${agent.id}__${subcommand}` : agent.id;
 }
 
 class InputEditorDecorations extends Disposable {
@@ -71,7 +71,7 @@ class InputEditorDecorations extends Disposable {
 			this.updateInputEditorDecorations();
 		}));
 		this._register(this.widget.onDidSubmitAgent((e) => {
-			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent.id, e.slashCommand?.name));
+			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
 
@@ -136,7 +136,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder ?? defaultAgent?.metadata.description ?? '',
+							contentText: viewModel.inputPlaceholder ?? defaultAgent?.description ?? '',
 							color: this.getPlaceholderColor()
 						}
 					}
@@ -173,14 +173,14 @@ class InputEditorDecorations extends Disposable {
 		const onlyAgentAndWhitespace = agentPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart);
 		if (onlyAgentAndWhitespace) {
 			// Agent reference with no other text - show the placeholder
-			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent.id, undefined));
+			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, undefined));
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentPart.agent.metadata.followupPlaceholder;
-			if (agentPart.agent.metadata.description && exactlyOneSpaceAfterPart(agentPart)) {
+			if (agentPart.agent.description && exactlyOneSpaceAfterPart(agentPart)) {
 				placeholderDecoration = [{
 					range: getRangeForPlaceholder(agentPart),
 					renderOptions: {
 						after: {
-							contentText: shouldRenderFollowupPlaceholder ? agentPart.agent.metadata.followupPlaceholder : agentPart.agent.metadata.description,
+							contentText: shouldRenderFollowupPlaceholder ? agentPart.agent.metadata.followupPlaceholder : agentPart.agent.description,
 							color: this.getPlaceholderColor(),
 						}
 					}
@@ -191,7 +191,7 @@ class InputEditorDecorations extends Disposable {
 		const onlyAgentCommandAndWhitespace = agentPart && agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart);
 		if (onlyAgentCommandAndWhitespace) {
 			// Agent reference and subcommand with no other text - show the placeholder
-			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent.id, agentSubcommandPart.command.name));
+			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, agentSubcommandPart.command.name));
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
 			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
 				placeholderDecoration = [{
@@ -247,9 +247,9 @@ class InputEditorSlashCommandMode extends Disposable {
 	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand | undefined) {
 		let value: string | undefined;
 		if (slashCommand && slashCommand.isSticky) {
-			value = `${chatAgentLeader}${agent.id} ${chatSubcommandLeader}${slashCommand.name} `;
+			value = `${chatAgentLeader}${agent.name} ${chatSubcommandLeader}${slashCommand.name} `;
 		} else if (agent.metadata.isSticky) {
-			value = `${chatAgentLeader}${agent.id} `;
+			value = `${chatAgentLeader}${agent.name} `;
 		}
 
 		if (value) {
@@ -351,10 +351,10 @@ class AgentCompletions extends Disposable {
 					suggestions: agents.map((a, i) => {
 						// The trailing space is important- this will display inline in the suggest widget with newlines removed,
 						// or in the suggest detail flyout with newlines preserved.
-						let detail = a.metadata.description ? `${a.metadata.description} \n\n` : '';
+						let detail = a.description ? `${a.description} \n\n` : '';
 						detail += `(${a.extensionId.value})`;
 
-						const withAt = `@${a.id}`;
+						const withAt = `@${a.name}`;
 						return <CompletionItem>{
 							label: withAt,
 							insertText: `${withAt} `,
@@ -438,34 +438,34 @@ class AgentCompletions extends Disposable {
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
-						let detail = agent.metadata.description ? `${agent.metadata.description} \n\n` : '';
+						let detail = agent.description ? `${agent.description} \n\n` : '';
 						detail += `(${agent.extensionId.value})`;
-						const agentLabel = `${chatAgentLeader}${agent.id}`;
+						const agentLabel = `${chatAgentLeader}${agent.name}`;
 						return {
 							label: agentLabel,
 							detail,
-							filterText: `${chatSubcommandLeader}${agent.id}`,
+							filterText: `${chatSubcommandLeader}${agent.name}`,
 							insertText: `${agentLabel} `,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text,
-							sortText: `${chatSubcommandLeader}${agent.id}`,
+							sortText: `${chatSubcommandLeader}${agent.name}`,
 						};
 					});
 
 				return {
 					suggestions: justAgents.concat(
 						agents.flatMap(agent => agent.slashCommands.map((c, i) => {
-							const agentLabel = `${chatAgentLeader}${agent.id}`;
+							const agentLabel = `${chatAgentLeader}${agent.name}`;
 							const withSlash = `${chatSubcommandLeader}${c.name}`;
 							return {
 								label: { label: withSlash, description: agentLabel },
-								filterText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+								filterText: `${chatSubcommandLeader}${agent.name}${c.name}`,
 								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
 								detail: `(${agentLabel}, ${agent.extensionId.value}) ${c.description ?? ''}`,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
-								sortText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+								sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
 							} satisfies CompletionItem;
 						})))
 				};
@@ -496,7 +496,7 @@ class AssignSelectedAgentAction extends Action2 {
 			return;
 		}
 
-		arg.widget.setAgentInInput(arg.agent);
+		arg.widget.setLastSelectedAgent(arg.agent);
 	}
 }
 registerAction2(AssignSelectedAgentAction);
