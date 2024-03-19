@@ -46,6 +46,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	private _outputCollection: number[] = [];
 
+	private readonly _cellDiagnostics: CellDiagnostics;
+
 	private _outputsTop: PrefixSumComputer | null = null;
 
 	protected _pauseableEmitter = this._register(new PauseableEmitter<CodeCellLayoutChangeEvent>());
@@ -169,12 +171,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			if (outputLayoutChange) {
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 			}
+			if (this._outputCollection.length === 0 && this._cellDiagnostics.ErrorDetails) {
+				this._cellDiagnostics.clear();
+			}
 			dispose(removedOutputs);
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
 
-		this._register(instantiationService.createInstance(CellDiagnostics, this));
+		this._cellDiagnostics = instantiationService.createInstance(CellDiagnostics, this);
+		this._register(this._cellDiagnostics);
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,

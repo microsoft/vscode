@@ -6,11 +6,13 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IRange } from 'vs/editor/common/core/range';
 import { ICellExecutionError, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Iterable } from 'vs/base/common/iterator';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 
 
 export class CellDiagnostics extends Disposable implements IWorkbenchContribution {
@@ -25,32 +27,34 @@ export class CellDiagnostics extends Disposable implements IWorkbenchContributio
 	}
 
 	constructor(
-		private readonly cell: ICellViewModel,
+		private readonly cell: CodeCellViewModel,
 		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IInlineChatService private readonly inlineChatService: IInlineChatService
+		@IInlineChatService private readonly inlineChatService: IInlineChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
-		if (!Iterable.isEmpty(inlineChatService.getAllProvider())) {
-			this.enabled = this.listening = true;
-			this._register(notebookExecutionStateService.onDidChangeExecution((e) => this.handleChangeExecutionState(e)));
-			this._register(cell.model.onDidChangeOutputs(() => this.handleOutputsChange));
-		}
+		this.updateEnabled();
 
-		this._register(inlineChatService.onDidChangeProviders(() => this.handleChangedChatProviders()));
+		this._register(inlineChatService.onDidChangeProviders(() => this.updateEnabled()));
+		this._register(configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration(NotebookSetting.cellFailureDiagnostics)) {
+				this.updateEnabled();
+			}
+		}));
 	}
 
-	private handleChangedChatProviders() {
-		if (this.enabled && Iterable.isEmpty(this.inlineChatService.getAllProvider())) {
+	private updateEnabled() {
+		const settingEnabled = this.configurationService.getValue(NotebookSetting.cellFailureDiagnostics);
+		if (this.enabled && (!settingEnabled || Iterable.isEmpty(this.inlineChatService.getAllProvider()))) {
 			this.enabled = false;
 			this.clearDiagnostics();
-		} else if (!this.enabled && !Iterable.isEmpty(this.inlineChatService.getAllProvider())) {
+		} else if (!this.enabled && settingEnabled && !Iterable.isEmpty(this.inlineChatService.getAllProvider())) {
 			this.enabled = true;
 			if (!this.listening) {
 				this.listening = true;
 				this._register(this.notebookExecutionStateService.onDidChangeExecution((e) => this.handleChangeExecutionState(e)));
-				this._register(this.cell.model.onDidChangeOutputs(() => this.handleOutputsChange));
 			}
 		}
 	}
@@ -66,10 +70,8 @@ export class CellDiagnostics extends Disposable implements IWorkbenchContributio
 		}
 	}
 
-	private handleOutputsChange() {
-		if (this.enabled && this.cell.outputsViewModels.length === 0) {
-			this.clearDiagnostics();
-		}
+	public clear() {
+		this.clearDiagnostics();
 	}
 
 	private clearDiagnostics() {
