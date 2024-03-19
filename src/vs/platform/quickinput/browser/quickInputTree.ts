@@ -424,6 +424,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
+		// Icon
 		if (mainItem.iconPath) {
 			const icon = isDark(this.themeService.getColorTheme().type) ? mainItem.iconPath.dark : (mainItem.iconPath.light ?? mainItem.iconPath.dark);
 			const iconUrl = URI.revive(icon);
@@ -561,6 +562,10 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		const mainItem: IQuickPickSeparator = element.separator;
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
+
+		// Icon
+		data.icon.style.backgroundImage = '';
+		data.icon.className = '';
 
 		// Label
 		let descriptionTitle: ITooltipMarkdownString | undefined;
