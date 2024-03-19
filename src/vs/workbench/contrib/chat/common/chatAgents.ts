@@ -204,7 +204,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	getDefaultAgent(): IChatAgent | undefined {
-		return this.getActivatedAgents().find(a => !!a.isDefault);
+		// TODO@jrieken pass location!
+		return this.getActivatedAgents().find(a => !!a.isDefault && a.locations.includes(ChatAgentLocation.Panel));
 	}
 
 	getSecondaryAgent(): IChatAgentData | undefined {

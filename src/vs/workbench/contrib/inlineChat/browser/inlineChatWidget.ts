@@ -42,7 +42,7 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -206,17 +206,17 @@ export class InlineChatWidget {
 					// if (isWelcomeVM(item)) {
 					// 	return false;
 					// }
-					// if (isRequestVM(item)) {
-					// 	let requestCount = 0;
-					// 	for (const item of this._chatWidget.viewModel!.getItems()) {
-					// 		if (isRequestVM(item)) {
-					// 			if (++requestCount >= 2) {
-					// 				return true;
-					// 			}
-					// 		}
-					// 	}
-					// 	return false;
-					// }
+					if (isRequestVM(item)) {
+						let requestCount = 0;
+						for (const item of this._chatWidget.viewModel!.getItems()) {
+							if (isRequestVM(item)) {
+								if (++requestCount >= 2) {
+									return true;
+								}
+							}
+						}
+						return false;
+					}
 					return true;
 				},
 			},

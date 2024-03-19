@@ -35,6 +35,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TextEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { Codicon } from 'vs/base/common/codicons';
 
 class BridgeAgent implements IChatAgentImplementation {
 
@@ -246,7 +247,10 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				});
 			},
 			defaultImplicitVariables: [],
-			metadata: { isSticky: false },
+			metadata: {
+				isSticky: false,
+				themeIcon: Codicon.copilot,
+			},
 		}, this._instaService.createInstance(BridgeAgent, this._sessions)));
 
 		// MARK: register fake chat provider
@@ -354,6 +358,10 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				this._logService.trace(`[IE] provider GONE for ${editor.getId()}, ${provider.extensionId}`);
 				this._releaseSession(session, true);
 			}
+		}));
+
+		store.add(chatModel.onDidChange(e => {
+			console.log('chatModel.onDidChange', e);
 		}));
 
 		const id = generateUuid();
