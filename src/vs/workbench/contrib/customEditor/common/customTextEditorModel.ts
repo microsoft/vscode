@@ -28,8 +28,6 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		});
 	}
 
-	readonly isTextBased = true;
-
 	private readonly _textFileModel: ITextFileEditorModel | undefined;
 
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
@@ -72,6 +70,10 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 
 	public get backupId() {
 		return undefined;
+	}
+
+	public get canHotExit() {
+		return true; // ensured via backups from text file models
 	}
 
 	public isDirty(): boolean {
