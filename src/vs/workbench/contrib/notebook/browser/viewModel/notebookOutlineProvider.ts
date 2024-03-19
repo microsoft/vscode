@@ -70,7 +70,10 @@ export class NotebookCellOutlineProvider {
 		);
 
 		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.outline.showCodeCells') || e.affectsConfiguration('notebook.outline.showNonHeaderMarkdownCells')) {
+			if (e.affectsConfiguration('notebook.outline.showCodeCells') ||
+				e.affectsConfiguration('notebook.outline.showNonHeaderMarkdownCells') ||
+				e.affectsConfiguration('notebook.outline.showCodeCellSymbols')
+			) {
 				this._recomputeState();
 			}
 		}));
@@ -268,8 +271,6 @@ export class NotebookCellOutlineProvider {
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}
 	}
-
-
 
 	get isEmpty(): boolean {
 		return this._entries.length === 0;

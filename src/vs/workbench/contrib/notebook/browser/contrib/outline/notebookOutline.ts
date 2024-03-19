@@ -106,14 +106,16 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		};
 
 		const isCodeCell = node.element.cell.cellKind === CellKind.Code;
-		if (isCodeCell && this._themeService.getFileIconTheme().hasFileIcons && !node.element.isExecuting) {
+		if (node.element.level >= 8) { // symbol
+			template.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(node.element.icon).join(' ');
+		} else if (isCodeCell && this._themeService.getFileIconTheme().hasFileIcons && !node.element.isExecuting) {
 			template.iconClass.className = '';
 			extraClasses.push(...getIconClassesForLanguageId(node.element.cell.language ?? ''));
 		} else {
 			template.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(node.element.icon).join(' ');
 		}
 
-		template.iconLabel.setLabel(node.element.label, undefined, options);
+		template.iconLabel.setLabel(' ' + node.element.label, undefined, options);
 
 		const { markerInfo } = node.element;
 
@@ -524,10 +526,14 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 	async createOutline(editor: NotebookEditor, target: OutlineTarget, cancelToken: CancellationToken): Promise<IOutline<OutlineEntry> | undefined> {
 		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
 
-		const showAllSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
-		if (target === OutlineTarget.QuickPick && showAllSymbols) {
+		const showAllGotoSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
+		const showAllOutlineSymbols = this._configurationService.getValue<boolean>('notebook.outline.showCodeCellSymbols');
+		if (target === OutlineTarget.QuickPick && showAllGotoSymbols) {
+			await outline.setFullSymbols(cancelToken);
+		} else if (target === OutlineTarget.OutlinePane && showAllOutlineSymbols) {
 			await outline.setFullSymbols(cancelToken);
 		}
+
 		return outline;
 	}
 }
@@ -550,7 +556,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'notebook.outline.showCodeCells': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('outline.showCodeCells', "When enabled notebook outline shows code cells.")
+			markdownDescription: localize('outline.showCodeCells', "When enabled, notebook outline shows code cells.")
 		},
 		'notebook.outline.showNonHeaderMarkdownCells': {
 			type: 'boolean',
@@ -560,12 +566,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'notebook.breadcrumbs.showCodeCells': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('breadcrumbs.showCodeCells', "When enabled notebook breadcrumbs contain code cells.")
+			markdownDescription: localize('breadcrumbs.showCodeCells', "When enabled, notebook breadcrumbs contain code cells.")
+		},
+		'notebook.outline.showCodeCellSymbols': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('outline.showCodeCellSymbols', "When enabled, notebook outline shows code cell symbols. Relies on `notebook.outline.showCodeCells` being enabled.")
 		},
 		[NotebookSetting.gotoSymbolsAllSymbols]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('notebook.gotoSymbols.showAllSymbols', "When enabled the Go to Symbol Quick Pick will display full code symbols from the notebook, as well as Markdown headers.")
+			markdownDescription: localize('notebook.gotoSymbols.showAllSymbols', "When enabled, the Go to Symbol Quick Pick will display full code symbols from the notebook, as well as Markdown headers.")
 		},
 	}
 });
@@ -622,5 +633,28 @@ registerAction2(class ToggleNonHeaderMarkdownCells extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const showNonHeaderMarkdownCells = configurationService.getValue<boolean>('notebook.outline.showNonHeaderMarkdownCells');
 		configurationService.updateValue('notebook.outline.showNonHeaderMarkdownCells', !showNonHeaderMarkdownCells);
+	}
+});
+
+registerAction2(class ToggleCodeCellSymbolEntries extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.outline.toggleCodeCellSymbolEntries',
+			title: localize('toggleCodeCellSymbolEntries', "Toggle Code Cell Symbol Entries"),
+			f1: false,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.notebook.outline.showCodeCellSymbols', true)
+			},
+			menu: {
+				id: MenuId.NotebookOutlineFilter,
+				group: 'filter',
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const configurationService = accessor.get(IConfigurationService);
+		const showCodeCellSymbols = configurationService.getValue<boolean>('notebook.outline.showCodeCellSymbols');
+		configurationService.updateValue('notebook.outline.showCodeCellSymbols', !showCodeCellSymbols);
 	}
 });

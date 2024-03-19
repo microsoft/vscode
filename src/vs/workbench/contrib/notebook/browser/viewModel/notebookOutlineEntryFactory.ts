@@ -65,6 +65,14 @@ export class NotebookOutlineEntryFactory {
 		}
 
 		if (!hasHeader) {
+			const exeState = !isMarkdown && this.executionStateService.getCellExecution(cell.uri);
+			let preview = content.trim();
+			if (preview.length === 0) {
+				// empty or just whitespace
+				preview = localize('empty', "empty cell");
+			}
+			entries.push(new OutlineEntry(index++, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
+
 			if (!isMarkdown && cell.model.textModel) {
 				const cachedEntries = this.cellOutlineEntryCache[cell.model.textModel.id];
 
@@ -76,17 +84,6 @@ export class NotebookOutlineEntryFactory {
 					});
 				}
 			}
-
-			const exeState = !isMarkdown && this.executionStateService.getCellExecution(cell.uri);
-			if (entries.length === 0) {
-				let preview = content.trim();
-				if (preview.length === 0) {
-					// empty or just whitespace
-					preview = localize('empty', "empty cell");
-				}
-
-				entries.push(new OutlineEntry(index++, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
-			}
 		}
 
 		return entries;
@@ -95,7 +92,7 @@ export class NotebookOutlineEntryFactory {
 	public async cacheSymbols(cell: ICellViewModel, outlineModelService: IOutlineModelService, cancelToken: CancellationToken) {
 		const textModel = await cell.resolveTextModel();
 		const outlineModel = await outlineModelService.getOrCreate(textModel, cancelToken);
-		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 7);
+		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 8);
 		this.cellOutlineEntryCache[textModel.id] = entries;
 	}
 }
