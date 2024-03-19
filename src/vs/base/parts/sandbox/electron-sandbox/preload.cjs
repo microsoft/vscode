@@ -333,3 +333,23 @@
 		window.vscode = globals;
 	}
 }());
+
+
+const isTest = true
+
+if (isTest) {
+	const { ipcRenderer, contextBridge } = require('electron');
+	const assert = require('assert')
+	const path = require('path')
+	const glob = require('glob')
+	const util = require('util')
+	const fs = require('fs')
+
+	const testGlobals = {
+		ipcRenderer,
+		assert,
+		path, glob, util, fs
+	}
+	console.log('expose test globals')
+	window.testGlobals = testGlobals
+}

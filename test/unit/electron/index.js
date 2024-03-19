@@ -219,7 +219,7 @@ app.on('ready', () => {
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
-		show: false,
+		show: true,
 		webPreferences: {
 			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-sandbox', 'preload.cjs'), // ensure similar environment as VSCode as tests may depend on this
 			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],

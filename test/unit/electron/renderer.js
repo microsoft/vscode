@@ -5,7 +5,7 @@
 
 /*eslint-env mocha*/
 
-import fs from 'node:fs';
+const { fs, ipcRenderer, util, glob, path, assert } = globalThis.testGlobals;
 
 (function () {
 	const originals = {};
@@ -60,14 +60,10 @@ import fs from 'node:fs';
 	});
 })();
 
-import { ipcRenderer } from 'electron';
-import assert from 'assert';
-import path from 'path';
-import glob from 'glob';
-import util from 'util';
-import bootstrap from '../../../src/bootstrap-esm.js';
-import coverage from '../coverage';
-import { takeSnapshotAndCountClasses } from '../analyzeSnapshot';
+// TODO
+const coverage = {}
+// TODO
+const takeSnapshotAndCountClasses = {}
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -101,24 +97,24 @@ function initLoader(opts) {
 	_out = path.join(__dirname, `../../../${outdir}`);
 
 	// setup loader
-	loader = require(`${_out}/vs/loader`);
-	const loaderConfig = {
-		nodeRequire: require,
-		catchError: true,
-		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
-		paths: {
-			'vs': `../${outdir}/vs`,
-			'lib': `../${outdir}/lib`,
-			'bootstrap-fork': `../${outdir}/bootstrap-fork`
-		}
-	};
+	// loader = require(`${_out}/vs/loader`);
+	// const loaderConfig = {
+	// 	nodeRequire: require,
+	// 	catchError: true,
+	// 	baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
+	// 	paths: {
+	// 		'vs': `../${outdir}/vs`,
+	// 		'lib': `../${outdir}/lib`,
+	// 		'bootstrap-fork': `../${outdir}/bootstrap-fork`
+	// 	}
+	// };
 
-	if (opts.coverage) {
-		// initialize coverage if requested
-		coverage.initialize(loaderConfig);
-	}
+	// if (opts.coverage) {
+	// 	// initialize coverage if requested
+	// 	coverage.initialize(loaderConfig);
+	// }
 
-	loader.require.config(loaderConfig);
+	// loader.require.config(loaderConfig);
 }
 
 function createCoverageReport(opts) {
@@ -225,44 +221,44 @@ function loadTests(opts) {
 		'Search Model: Search reports timed telemetry on search when error is called'
 	]);
 
-	loader.require.config({
-		onError(err) {
-			_loaderErrors.push(err);
-			console.error(err);
+	// loader.require.config({
+	// 	onError(err) {
+	// 		_loaderErrors.push(err);
+	// 		console.error(err);
+	// 	}
+	// });
+
+	// loader.require(['vs/base/common/errors'], function (errors) {
+
+	const onUnexpectedError = function (err) {
+		if (err.name === 'Canceled') {
+			return; // ignore canceled errors that are common
+		}
+
+		let stack = (err ? err.stack : null);
+		if (!stack) {
+			stack = new Error().stack;
+		}
+
+		_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
+	};
+
+	process.on('uncaughtException', error => onUnexpectedError(error));
+	process.on('unhandledRejection', (reason, promise) => {
+		onUnexpectedError(reason);
+		promise.catch(() => { });
+	});
+	window.addEventListener('unhandledrejection', event => {
+		event.preventDefault(); // Do not log to test output, we show an error later when test ends
+		event.stopPropagation();
+
+		if (!_allowedTestsWithUnhandledRejections.has(currentTestTitle)) {
+			onUnexpectedError(event.reason);
 		}
 	});
 
-	loader.require(['vs/base/common/errors'], function (errors) {
-
-		const onUnexpectedError = function (err) {
-			if (err.name === 'Canceled') {
-				return; // ignore canceled errors that are common
-			}
-
-			let stack = (err ? err.stack : null);
-			if (!stack) {
-				stack = new Error().stack;
-			}
-
-			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
-		};
-
-		process.on('uncaughtException', error => onUnexpectedError(error));
-		process.on('unhandledRejection', (reason, promise) => {
-			onUnexpectedError(reason);
-			promise.catch(() => { });
-		});
-		window.addEventListener('unhandledrejection', event => {
-			event.preventDefault(); // Do not log to test output, we show an error later when test ends
-			event.stopPropagation();
-
-			if (!_allowedTestsWithUnhandledRejections.has(currentTestTitle)) {
-				onUnexpectedError(event.reason);
-			}
-		});
-
-		errors.setUnexpectedErrorHandler(err => unexpectedErrorHandler(err));
-	});
+	// 	errors.setUnexpectedErrorHandler(err => unexpectedErrorHandler(err));
+	// });
 
 	//#endregion
 
