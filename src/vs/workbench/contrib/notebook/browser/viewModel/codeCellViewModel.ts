@@ -22,6 +22,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { CellDiagnostics } from 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnostics';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export const outputDisplayLimit = 500;
 
@@ -143,7 +145,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
@@ -170,6 +173,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
+
+		this._register(instantiationService.createInstance(CellDiagnostics, this));
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
