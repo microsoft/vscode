@@ -504,11 +504,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If the editor states it can only be opened once per resource we must close all existing ones except one and move the new one into the group
 		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource;
 		if (singleEditorPerResource) {
-			const moveResult = await this.moveExistingEditorForResource(resource, selectedEditor.editorInfo.id, group);
-			if (moveResult) {
-				return { editor: moveResult, options };
-			} else if (moveResult === false) {
-				return; // unsupported
+			const existingEditors = this.findExistingEditorsForResource(resource, selectedEditor.editorInfo.id);
+			if (existingEditors.length) {
+				const editor = await this.moveExistingEditorForResource(existingEditors, group);
+				if (editor) {
+					return { editor, options };
+				} else {
+					return; // failed to move
+				}
 			}
 		}
 
@@ -526,27 +529,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
-	 * Moves an editor with the resource and viewtype to target group if one exists
+	 * Moves the first existing editor for a resource to the target group unless already opened there.
 	 * Additionally will close any other editors that are open for that resource and viewtype besides the first one found
 	 * @param resource The resource of the editor
 	 * @param viewType the viewtype of the editor
 	 * @param targetGroup The group to move it to
-	 * @returns An editor input if one exists, else undefined
+	 * @returns The moved editor input or `undefined` if the editor could not be moved
 	 */
 	private async moveExistingEditorForResource(
-		resource: URI,
-		viewType: string,
+		existingEditorsForResource: Array<{ editor: EditorInput; group: IEditorGroup }>,
 		targetGroup: IEditorGroup,
-	): Promise<EditorInput | undefined /* not existing yet */ | false /* unsupported */> {
-		const editorInfoForResource = this.findExistingEditorsForResource(resource, viewType);
-		if (!editorInfoForResource.length) {
-			return;
-		}
-
-		const editorToUse = editorInfoForResource[0];
+	): Promise<EditorInput | undefined> {
+		const editorToUse = existingEditorsForResource[0];
 
 		// We should only have one editor but if there are multiple we close the others
-		for (const { editor, group } of editorInfoForResource) {
+		for (const { editor, group } of existingEditorsForResource) {
 			if (editor !== editorToUse.editor) {
 				const closed = await group.closeEditor(editor);
 				if (!closed) {
@@ -559,11 +556,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (targetGroup.id !== editorToUse.group.id) {
 			const moved = editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
 			if (!moved) {
-				return false;
+				return;
 			}
-			return editorToUse.editor;
 		}
-		return;
+
+		return editorToUse.editor;
 	}
 
 	/**
