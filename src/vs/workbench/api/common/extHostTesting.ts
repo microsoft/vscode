@@ -28,7 +28,6 @@ import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -155,7 +154,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 				return new TestItemImpl(controllerId, id, label, uri);
 			},
 			createTestRun: (request, name, persist = true) => {
-				return this.runTracker.createTestRun(extension, controllerId, collection, request, name, persist);
+				return this.runTracker.createTestRun(controllerId, collection, request, name, persist);
 			},
 			invalidateTestResults: items => {
 				if (items === undefined) {
@@ -354,7 +353,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			return {};
 		}
 
-		const { collection, profiles, extension } = lookup;
+		const { collection, profiles } = lookup;
 		const profile = profiles.get(req.profileId);
 		if (!profile) {
 			return {};
@@ -385,7 +384,6 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		const tracker = isStartControllerTests(req) && this.runTracker.prepareForMainThreadTestRun(
 			publicReq,
 			TestRunDto.fromInternal(req, lookup.collection),
-			extension,
 			profile,
 			token,
 		);
@@ -463,7 +461,6 @@ class TestRunTracker extends Disposable {
 	constructor(
 		private readonly dto: TestRunDto,
 		private readonly proxy: MainThreadTestingShape,
-		private readonly extension: IRelaxedExtensionDescription,
 		private readonly logService: ILogService,
 		private readonly profile: vscode.TestRunProfile | undefined,
 		parentToken?: CancellationToken,
@@ -517,7 +514,6 @@ class TestRunTracker extends Disposable {
 		const runId = this.dto.id;
 		const ctrlId = this.dto.controllerId;
 		const taskId = generateUuid();
-		const extension = this.extension;
 
 		const guardTestMutation = <Args extends unknown[]>(fn: (test: vscode.TestItem, ...args: Args) => void) =>
 			(test: vscode.TestItem, ...args: Args) => {
@@ -574,7 +570,6 @@ class TestRunTracker extends Disposable {
 			},
 			// todo@connor4312: back compat
 			set coverageProvider(provider: ICoverageProvider | undefined) {
-				checkProposedApiEnabled(extension, 'testCoverage');
 				coverageProvider = provider;
 				if (provider) {
 					Promise.resolve(provider.provideFileCoverage(CancellationToken.None)).then(coverage => {
@@ -585,10 +580,7 @@ class TestRunTracker extends Disposable {
 					});
 				}
 			},
-			addCoverage: coverage => {
-				checkProposedApiEnabled(extension, 'testCoverage');
-				addCoverage(coverage);
-			},
+			addCoverage,
 			//#region state mutation
 			enqueued: guardTestMutation(test => {
 				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Queued);
@@ -745,8 +737,8 @@ export class TestRunCoordinator {
 	 * `$startedExtensionTestRun` is not invoked. The run must eventually
 	 * be cancelled manually.
 	 */
-	public prepareForMainThreadTestRun(req: vscode.TestRunRequest, dto: TestRunDto, extension: Readonly<IRelaxedExtensionDescription>, profile: vscode.TestRunProfile, token: CancellationToken) {
-		return this.getTracker(req, dto, extension, profile, token);
+	public prepareForMainThreadTestRun(req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile, token: CancellationToken) {
+		return this.getTracker(req, dto, profile, token);
 	}
 
 	/**
@@ -768,7 +760,7 @@ export class TestRunCoordinator {
 	/**
 	 * Implements the public `createTestRun` API.
 	 */
-	public createTestRun(extension: IRelaxedExtensionDescription, controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
+	public createTestRun(controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
 		const existing = this.tracked.get(request);
 		if (existing) {
 			return existing.createRun(name);
@@ -788,7 +780,7 @@ export class TestRunCoordinator {
 			persist
 		});
 
-		const tracker = this.getTracker(request, dto, extension, request.profile);
+		const tracker = this.getTracker(request, dto, request.profile);
 		Event.once(tracker.onEnd)(() => {
 			this.proxy.$finishedExtensionTestRun(dto.id);
 		});
@@ -796,8 +788,8 @@ export class TestRunCoordinator {
 		return tracker.createRun(name);
 	}
 
-	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, extension: IRelaxedExtensionDescription, profile: vscode.TestRunProfile | undefined, token?: CancellationToken) {
-		const tracker = new TestRunTracker(dto, this.proxy, extension, this.logService, profile, token);
+	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile | undefined, token?: CancellationToken) {
+		const tracker = new TestRunTracker(dto, this.proxy, this.logService, profile, token);
 		this.tracked.set(req, tracker);
 		this.trackedById.set(tracker.id, tracker);
 		return tracker;
