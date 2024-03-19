@@ -5,7 +5,7 @@
 
 /*eslint-env mocha*/
 
-const { fs, ipcRenderer, util, glob, path, assert } = globalThis.testGlobals;
+const { fs, ipcRenderer, util, glob, path, assert, setRun } = globalThis.testGlobals;
 
 (function () {
 	const originals = {};
@@ -124,10 +124,10 @@ function createCoverageReport(opts) {
 	return Promise.resolve(undefined);
 }
 
-function loadWorkbenchTestingUtilsModule() {
-	return new Promise((resolve, reject) => {
-		loader.require(['vs/workbench/test/common/utils'], resolve, reject);
-	});
+async function loadWorkbenchTestingUtilsModule() {
+	const utilsPath = new URL('../../../out/vs/workbench/test/common/utils.js', import.meta.url).toString()
+	const module = await import(utilsPath)
+	return module
 }
 
 async function loadModules(modules) {
@@ -263,6 +263,7 @@ function loadTests(opts) {
 	//#endregion
 
 	return loadWorkbenchTestingUtilsModule().then((workbenchTestingModule) => {
+		console.log({ workbenchTestingModule })
 		const assertCleanState = workbenchTestingModule.assertCleanState;
 
 		suite('Tests are using suiteSetup and setup correctly', () => {
@@ -417,8 +418,9 @@ function runTests(opts) {
 	});
 }
 
-ipcRenderer.on('run', (e, opts) => {
+const main = (e, opts) => {
 	initLoader(opts);
+	console.log('run tests')
 	runTests(opts).catch(err => {
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
@@ -427,4 +429,6 @@ ipcRenderer.on('run', (e, opts) => {
 		console.error(err);
 		ipcRenderer.send('error', err);
 	});
-});
+}
+
+setRun(main)

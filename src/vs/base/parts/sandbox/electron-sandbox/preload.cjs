@@ -345,11 +345,35 @@ if (isTest) {
 	const util = require('util')
 	const fs = require('fs')
 
+	let runCallback
+	let args
+
+	const maybeRun = () => {
+		if (!runCallback || !args) {
+			return
+		}
+		runCallback(...args)
+	}
+
+	const setRun = (callback) => {
+		runCallback = callback
+		maybeRun()
+	}
+
+	ipcRenderer.on('run', (e, opts) => {
+		args = [e, opts]
+		maybeRun()
+	})
+
 	const testGlobals = {
 		ipcRenderer,
 		assert,
-		path, glob, util, fs
+		path,
+		glob,
+		util,
+		fs,
+		setRun
 	}
-	console.log('expose test globals')
+	// @ts-ignore
 	window.testGlobals = testGlobals
 }
