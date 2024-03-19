@@ -308,7 +308,7 @@ export class InlineChatInputWidget {
 
 			const newDecorations: IModelDeltaDecoration[] = [];
 			for (const command of commands) {
-				const withSlash = `/${command.command}`;
+				const withSlash = `/${command.command} `;
 				const firstLine = this._inputModel.getLineContent(1);
 				if (firstLine.startsWith(withSlash)) {
 					newDecorations.push({

@@ -346,4 +346,53 @@ suite('Monarch', () => {
 		disposables.dispose();
 	});
 
+	test('microsoft/monaco-editor#3128: allow state access within rules', () => {
+		const disposables = new DisposableStore();
+		const configurationService = new StandaloneConfigurationService();
+		const languageService = disposables.add(new LanguageService());
+
+		const tokenizer = disposables.add(createMonarchTokenizer(languageService, 'test', {
+			ignoreCase: false,
+			encoding: /u|u8|U|L/,
+			tokenizer: {
+				root: [
+					// C++ 11 Raw String
+					[/@encoding?R\"(?:([^ ()\\\t]*))\(/, { token: 'string.raw.begin', next: '@raw.$1' }],
+				],
+
+				raw: [
+					[/.*\)$S2\"/, 'string.raw', '@pop'],
+					[/.*/, 'string.raw']
+				],
+			},
+		}, configurationService));
+
+		const lines = [
+			`int main(){`,
+			``,
+			`	auto s = R""""(`,
+			`	Hello World`,
+			`	)"""";`,
+			``,
+			`	std::cout << "hello";`,
+			``,
+			`}`,
+		];
+
+		const actualTokens = getTokens(tokenizer, lines);
+		assert.deepStrictEqual(actualTokens, [
+			[new Token(0, 'source.test', 'test')],
+			[],
+			[new Token(0, 'source.test', 'test'), new Token(10, 'string.raw.begin.test', 'test')],
+			[new Token(0, 'string.raw.test', 'test')],
+			[new Token(0, 'string.raw.test', 'test'), new Token(6, 'source.test', 'test')],
+			[],
+			[new Token(0, 'source.test', 'test')],
+			[],
+			[new Token(0, 'source.test', 'test')],
+		]);
+
+		disposables.dispose();
+	});
+
 });
