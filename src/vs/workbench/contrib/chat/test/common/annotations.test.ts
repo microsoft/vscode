@@ -6,14 +6,14 @@
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { annotateSpecialMarkdownContent, extractVulnerabilitiesFromText } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { IChatMarkdownContent } from 'vs/workbench/contrib/chat/common/chatService';
+import { annotateSpecialMarkdownContent, extractVulnerabilitiesFromText } from '../../common/annotations';
 
 function content(str: string): IChatMarkdownContent {
 	return { kind: 'markdownContent', content: new MarkdownString(str) };
 }
 
-suite('ChatMarkdownDecorationsRenderer', function () {
+suite('Annotations', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('extractVulnerabilitiesFromText', () => {
