@@ -22,7 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
  */
-const args = minimist(process.args.slice(2), {
+const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help'],
 	string: ['run', 'coveragePath', 'coverageFormats'],
 	alias: {
