@@ -5,7 +5,7 @@
 
 /*eslint-env mocha*/
 
-const { fs, ipcRenderer, util, glob, path, assert, setRun } = globalThis.testGlobals;
+const { fs, ipcRenderer, util, glob, path, assert, setRun, url } = globalThis.testGlobals;
 
 (function () {
 	const originals = {};
@@ -131,9 +131,12 @@ async function loadWorkbenchTestingUtilsModule() {
 }
 
 async function loadModules(modules) {
+	console.log({ modules })
 	for (const file of modules) {
+		const importUrl = url.pathToFileURL(path.join(_out, file)).toString()
+		console.log({ importUrl })
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-		const m = await new Promise((resolve, reject) => loader.require([file], resolve, reject));
+		const m = await import(importUrl)
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
 	}
@@ -146,7 +149,7 @@ function loadTestModules(opts) {
 		const modules = files.map(file => {
 			file = file.replace(/^src/, 'out');
 			file = file.replace(/\.ts$/, '.js');
-			return path.relative(_out, file).replace(/\.js$/, '');
+			return path.relative(_out, file);
 		});
 		return loadModules(modules);
 	}
@@ -159,7 +162,7 @@ function loadTestModules(opts) {
 				reject(err);
 				return;
 			}
-			const modules = files.map(file => file.replace(/\.js$/, ''));
+			const modules = files;
 			resolve(modules);
 		});
 	}).then(loadModules);
@@ -263,12 +266,11 @@ function loadTests(opts) {
 	//#endregion
 
 	return loadWorkbenchTestingUtilsModule().then((workbenchTestingModule) => {
-		console.log({ workbenchTestingModule })
 		const assertCleanState = workbenchTestingModule.assertCleanState;
 
 		suite('Tests are using suiteSetup and setup correctly', () => {
 			test('assertCleanState - check that registries are clean at the start of test running', () => {
-				assertCleanState();
+				assertCleanState(assert);
 			});
 		});
 
@@ -385,43 +387,49 @@ class IPCReporter {
 	}
 }
 
-function runTests(opts) {
+async function runTests(opts) {
+	console.log('run tests now')
 	// this *must* come before loadTests, or it doesn't work.
 	if (opts.timeout !== undefined) {
 		mocha.timeout(opts.timeout);
 	}
 
-	return loadTests(opts).then(() => {
+	await loadTests(opts)
 
-		if (opts.grep) {
-			mocha.grep(opts.grep);
-		}
+	if (opts.grep) {
+		mocha.grep(opts.grep);
+	}
 
-		if (!opts.dev) {
-			mocha.reporter(IPCReporter);
-		}
+	if (!opts.dev) {
+		mocha.reporter(IPCReporter);
+	}
 
-		const runner = mocha.run(() => {
-			createCoverageReport(opts).then(() => {
-				ipcRenderer.send('all done');
-			});
+	const runner = mocha.run(() => {
+		createCoverageReport(opts).then(() => {
+			ipcRenderer.send('all done');
 		});
-
-		runner.on('test', test => currentTestTitle = test.title);
-
-		if (opts.dev) {
-			runner.on('fail', (test, err) => {
-				console.error(test.fullTitle());
-				console.error(err.stack);
-			});
-		}
 	});
+
+	runner.on('test', test => currentTestTitle = test.title);
+
+	if (opts.dev) {
+		runner.on('fail', (test, err) => {
+			console.error(test.fullTitle());
+			console.error(err.stack);
+		});
+	}
+	await new Promise(r => {
+		setTimeout(r, 10000)
+	})
 }
 
 const main = (e, opts) => {
 	initLoader(opts);
 	console.log('run tests')
-	runTests(opts).catch(err => {
+	runTests(opts).catch(async err => {
+
+		console.log(err)
+		await new Promise(r => { })
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}

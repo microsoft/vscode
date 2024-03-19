@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 
 /**
@@ -14,7 +13,7 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
  *
  * @skipMangle
  */
-export function assertCleanState(): void {
+export function assertCleanState(assert: any): void {
 	// If this test fails, it is a clear indication that
 	// your test or suite is leaking services (e.g. via leaking text models)
 	// assert.strictEqual(LanguageService.instanceCount, 0, 'No leaking ILanguageService');

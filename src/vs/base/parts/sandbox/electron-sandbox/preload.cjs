@@ -343,6 +343,7 @@ if (isTest) {
 	const path = require('path')
 	const glob = require('glob')
 	const util = require('util')
+	const url = require('url')
 	const fs = require('fs')
 
 	let runCallback
@@ -372,7 +373,8 @@ if (isTest) {
 		glob,
 		util,
 		fs,
-		setRun
+		setRun,
+		url
 	}
 	// @ts-ignore
 	window.testGlobals = testGlobals
