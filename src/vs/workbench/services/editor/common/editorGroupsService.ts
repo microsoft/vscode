@@ -742,13 +742,17 @@ export interface IEditorGroup {
 
 	/**
 	 * Move an editor from this group either within this group or to another group.
+	 *
+	 * @returns whether the editor was moved or not.
 	 */
-	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
+	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): boolean;
 
 	/**
 	 * Move editors from this group either within this group or to another group.
+	 *
+	 * @returns whether all editors were moved or not.
 	 */
-	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): void;
+	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): boolean;
 
 	/**
 	 * Copy an editor from this group to another group.

@@ -555,7 +555,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Move the editor already opened to the target group
 		if (targetGroup.id !== editorToUse.group.id) {
-			editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
+			const moved = editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
+			if (!moved) {
+				return;
+			}
 			return editorToUse.editor;
 		}
 		return;

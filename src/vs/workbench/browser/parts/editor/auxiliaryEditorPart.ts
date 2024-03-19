@@ -5,7 +5,6 @@
 
 import { onDidChangeFullscreen } from 'vs/base/browser/browser';
 import { hide, show } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
@@ -175,12 +174,12 @@ export class AuxiliaryEditorPart {
 		disposables.add(auxiliaryWindow.onBeforeUnload(event => {
 			for (const group of editorPart.groups) {
 				for (const editor of group.editors) {
-					const canMove = editor.canMove(mainWindow.vscodeWindowId);
+					// Closing an auxiliary window with opened editors
+					// will move the editors to the main window. As such,
+					// we need to validate that we can move and otherwise
+					// prevent the window from closing.
+					const canMove = editor.canMove(group.id, this.editorPartsView.mainPart.activeGroup.id);
 					if (typeof canMove === 'string') {
-						// Closing an auxiliary window with opened editors
-						// will move the editors to the main window. As such,
-						// we need to validate that we can move and otherwise
-						// prevent the window from closing.
 						group.openEditor(editor);
 						event.veto(canMove);
 						break;
