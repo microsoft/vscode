@@ -140,16 +140,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 	private readonly speechToTextInProgress = SpeechToTextInProgress.bindTo(this.contextKeyService);
 
 	async createSpeechToTextSession(token: CancellationToken, context: string = 'speech'): Promise<ISpeechToTextSession> {
-
-		// Send out extension activation to ensure providers can register
-		await this.extensionService.activateByEvent('onSpeech');
-
-		const provider = firstOrDefault(Array.from(this.providers.values()));
-		if (!provider) {
-			throw new Error(`No Speech provider is registered.`);
-		} else if (this.providers.size > 1) {
-			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
-		}
+		const provider = await this.getProvider();
 
 		const language = speechLanguageConfigToLanguage(this.configurationService.getValue<unknown>(SPEECH_LANGUAGE_CONFIG));
 		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token, typeof language === 'string' ? { language } : undefined);
@@ -215,6 +206,21 @@ export class SpeechService extends Disposable implements ISpeechService {
 		return session;
 	}
 
+	private async getProvider(): Promise<ISpeechProvider> {
+
+		// Send out extension activation to ensure providers can register
+		await this.extensionService.activateByEvent('onSpeech');
+
+		const provider = firstOrDefault(Array.from(this.providers.values()));
+		if (!provider) {
+			throw new Error(`No Speech provider is registered.`);
+		} else if (this.providers.size > 1) {
+			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
+		}
+
+		return provider;
+	}
+
 	private readonly _onDidStartKeywordRecognition = this._register(new Emitter<void>());
 	readonly onDidStartKeywordRecognition = this._onDidStartKeywordRecognition.event;
 
@@ -226,6 +232,9 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	async recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
 		const result = new DeferredPromise<KeywordRecognitionStatus>();
+
+		// Send out extension activation to ensure providers can register
+		await this.extensionService.activateByEvent('onSpeech');
 
 		const disposables = new DisposableStore();
 		disposables.add(token.onCancellationRequested(() => {
@@ -287,12 +296,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 	}
 
 	private async doRecognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
-		const provider = firstOrDefault(Array.from(this.providers.values()));
-		if (!provider) {
-			throw new Error(`No Speech provider is registered.`);
-		} else if (this.providers.size > 1) {
-			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
-		}
+		const provider = await this.getProvider();
 
 		const session = this._activeKeywordRecognitionSession = provider.createKeywordRecognitionSession(token);
 		this._onDidStartKeywordRecognition.fire();
