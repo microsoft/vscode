@@ -36,6 +36,8 @@ export interface IIndentConverter {
  * else: nearest preceding line of the same language
  */
 function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
+	// We take the language id at the column 0 only
+	// TODO, what if at column 0 we have HTML and at column 1 we have JavaScript, then we would incorrectly use the indentation from HTML?
 	const languageId = model.tokenization.getLanguageIdAtPosition(lineNumber, 0);
 	if (lineNumber > 1) {
 		let lastLineNumber: number;

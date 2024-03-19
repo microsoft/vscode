@@ -113,10 +113,12 @@ export interface IndentationRule {
 	increaseIndentPattern: RegExp;
 	/**
 	 * If a line matches this pattern, then **only the next line** after it should be indented once.
+	 * Only applies to the next line after the current line has been tested for validity
 	 */
 	indentNextLinePattern?: RegExp | null;
 	/**
 	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
+	 * Even if the increase should have been applied, this regex is nevertheless not applied
 	 */
 	unIndentedLinePattern?: RegExp | null;
 

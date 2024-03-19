@@ -11,7 +11,9 @@ export const enum IndentConsts {
 	INDENT_NEXTLINE_MASK = 0b00000100,
 	UNINDENT_MASK = 0b00001000,
 }
-
+/**
+ * Only applies when the regex pattern is a global pattern, applies everywhere in the text
+ */
 function resetGlobalRegex(reg: RegExp) {
 	if (reg.global) {
 		reg.lastIndex = 0;
@@ -30,6 +32,7 @@ export class IndentRulesSupport {
 
 	public shouldIncrease(text: string): boolean {
 		if (this._indentationRules) {
+			// Take the increase indent pattern and tests it against the passed in text
 			if (this._indentationRules.increaseIndentPattern && resetGlobalRegex(this._indentationRules.increaseIndentPattern) && this._indentationRules.increaseIndentPattern.test(text)) {
 				return true;
 			}
@@ -65,7 +68,9 @@ export class IndentRulesSupport {
 	}
 
 	public getIndentMetadata(text: string): number {
+		// input is a number which starts at 0
 		let ret = 0;
+		// We add a mask when the passed in text matches the given rule
 		if (this.shouldIncrease(text)) {
 			ret += IndentConsts.INCREASE_MASK;
 		}
