@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';

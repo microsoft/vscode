@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import * as assert from 'assert';
+import assert from 'assert';
 import { getFoldingRanges } from '../modes/htmlFolding';
 import { TextDocument, getLanguageModes } from '../modes/languageModes';
 import { ClientCapabilities } from 'vscode-css-languageservice';

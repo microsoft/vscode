@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ListProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/listProjection';
@@ -92,4 +92,3 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		]);
 	});
 });
-

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import * as assert from 'assert';
+import assert from 'assert';
 import { closeAllEditors, withRandomFileEditor } from './testUtils';
 import * as vscode from 'vscode';
 import { parsePartialStylesheet, getFlatNode } from '../util';

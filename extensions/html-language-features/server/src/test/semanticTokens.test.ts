@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import * as assert from 'assert';
+import assert from 'assert';
 import { TextDocument, getLanguageModes, ClientCapabilities, Range, Position } from '../modes/languageModes';
 import { newSemanticTokenProvider } from '../modes/semanticTokens';
 import { getNodeFileFS } from '../node/nodeFs';
@@ -225,4 +225,3 @@ suite('HTML Semantic Tokens', () => {
 
 
 });
-

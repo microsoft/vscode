@@ -5,7 +5,7 @@
 
 
 import { Writable } from 'stream';
-import * as assert from 'assert';
+import assert from 'assert';
 import { StreamSplitter } from 'vs/base/node/nodeStreams';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 

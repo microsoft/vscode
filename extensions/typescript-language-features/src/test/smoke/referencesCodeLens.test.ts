@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { createTestEditor, wait } from '../../test/testUtils';
@@ -111,4 +111,3 @@ suite('TypeScript References', () => {
 function getCodeLenses(document: vscode.Uri): Thenable<readonly vscode.CodeLens[] | undefined> {
 	return vscode.commands.executeCommand<readonly vscode.CodeLens[]>('vscode.executeCodeLensProvider', document, 100);
 }
-

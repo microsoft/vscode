@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { Mimes } from 'vs/base/common/mime';

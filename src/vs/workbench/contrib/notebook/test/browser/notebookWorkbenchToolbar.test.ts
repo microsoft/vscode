@@ -5,7 +5,7 @@
 
 import { workbenchCalculateActions, workbenchDynamicCalculateActions } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorToolbar';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface IActionModel {

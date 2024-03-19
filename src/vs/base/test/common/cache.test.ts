@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { Cache } from 'vs/base/common/cache';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
