@@ -134,7 +134,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		return pattern.parsedPattern(relevantPath);
 	}
 
-	private _parsedTemplateExpression = /\$\{(dirname|filename|extname|dirname\((\d+)\))\}/g;
+	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|dirname\((\d+)\))\}/g;
 	private applyTempate(template: string, resource: URI): string {
 		let parsedPath: undefined | ParsedPath;
 		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, arg: string) => {
