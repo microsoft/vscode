@@ -263,11 +263,16 @@
 	overflow: hidden;
 }
 
-.quick-input-list .monaco-highlighted-label .highlight {
+/* preserve list-like styling instead of tree-like styling */
+.quick-input-list .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
 	font-weight: bold;
-	/* preserve list-like styling instead of tree-like styling */
+	background-color: unset;
+	color: var(--vscode-list-highlightForeground) !important;
+}
+
+/* preserve list-like styling instead of tree-like styling */
+.quick-input-list .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
 	color: var(--vscode-list-focusHighlightForeground) !important;
-	background-color: transparent;
 }
 
 .quick-input-list .quick-input-list-entry .quick-input-list-separator {
