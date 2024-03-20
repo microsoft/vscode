@@ -41,6 +41,7 @@ export const javascriptOnEnterRules = [
 		action: { indentAction: IndentAction.Outdent }
 	},
 	{
+		// TODO: Do not leave this here - place instead in the indent regex pattern if we use this method
 		beforeText: /^\s*(var|const|let)\s+\w+\s*=\s*\(.*\)\s*=>\s*$/,
 		action: { indentAction: IndentAction.Indent }
 	},
