@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.fixEsmFile = void 0;
+exports.fixEsmFile = fixEsmFile;
 const updateCssImports_js_1 = require("./updateCssImports.js");
 const RE_IMPORT = /^import(.*)('|")(.*)('|")/;
 const RE_EXPORT = /^export(.*)from ('|")(.*)('|")/;
@@ -21,7 +21,8 @@ const fixEsmImportLine = (relative, line) => {
     const quote2 = importMatch[4];
     const isVs = path.startsWith('vs/');
     const isRelative = path.startsWith('.');
-    if (!isVs && (!isRelative || path.endsWith('.js'))) {
+    const isJs = path.endsWith('.js');
+    if (!isVs && (!isRelative || isJs)) {
         return line;
     }
     const extension = commonJs.includes(path) ? '.cjs' : '.js';
@@ -32,7 +33,6 @@ const fixEsmImportLine = (relative, line) => {
     const prefix = '../'.repeat(slashCount - 1);
     return `import${imports}${quote1}${prefix}${path}${extension}${quote2}`;
 };
-
 const fixEsmExportLine = (relative, line) => {
     const exportMatch = line.match(RE_EXPORT);
     if (!exportMatch) {
@@ -103,5 +103,4 @@ function fixEsmImports(relative, content) {
 function fixEsmFile(relative, content) {
     return fixEsmImports(relative, (0, updateCssImports_js_1.updateCssImports)(content));
 }
-exports.fixEsmFile = fixEsmFile;
 //# sourceMappingURL=fixEsmFile.js.map
