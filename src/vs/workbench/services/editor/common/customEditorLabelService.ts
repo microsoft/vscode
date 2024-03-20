@@ -144,7 +144,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 					return parsedPath.name;
 				case 'extname':
 					return parsedPath.ext.slice(1);
-				default: { // dirname(arg)
+				default: { // dirname and dirname(arg)
 					const n = variable === 'dirname' ? 0 : parseInt(arg);
 					const nthDir = this.getNthDirname(parsedPath, n);
 					if (nthDir) {
