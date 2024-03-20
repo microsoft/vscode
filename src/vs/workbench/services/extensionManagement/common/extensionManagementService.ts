@@ -24,7 +24,7 @@ import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialog
 import Severity from 'vs/base/common/severity';
 import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustRequestService, WorkspaceTrustRequestButton } from 'vs/platform/workspace/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -231,7 +231,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
-			await this.checkForWorkspaceTrust(extension.manifest);
+			await this.checkForWorkspaceTrust(extension.manifest, false);
 			return server.extensionManagementService.reinstallFromGallery(extension);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
@@ -275,7 +275,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	async installVSIX(vsix: URI, manifest: IExtensionManifest, options?: InstallOptions): Promise<ILocalExtension> {
 		const serversToInstall = this.getServersToInstall(manifest);
 		if (serversToInstall?.length) {
-			await this.checkForWorkspaceTrust(manifest);
+			await this.checkForWorkspaceTrust(manifest, false);
 			const [local] = await Promises.settled(serversToInstall.map(server => this.installVSIXInServer(vsix, server, options)));
 			return local;
 		}
@@ -475,7 +475,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		});
 
 		try {
-			await this.checkForWorkspaceTrust(extension.manifest);
+			await this.checkForWorkspaceTrust(extension.manifest, true);
 
 			const workspaceExtension = await this.workspaceExtensionManagementService.install(extension);
 
@@ -575,7 +575,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		if (!installOptions?.context?.[EXTENSION_INSTALL_SYNC_CONTEXT]) {
-			await this.checkForWorkspaceTrust(manifest);
+			await this.checkForWorkspaceTrust(manifest, false);
 		}
 
 		if (!installOptions?.donotIncludePackAndDependencies) {
@@ -675,15 +675,17 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		throw new Error('No extension server found');
 	}
 
-	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
-		if (this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(manifest) === false) {
+	protected async checkForWorkspaceTrust(manifest: IExtensionManifest, requireTrust: boolean): Promise<void> {
+		if (requireTrust || this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(manifest) === false) {
+			const buttons: WorkspaceTrustRequestButton[] = [];
+			buttons.push({ label: localize('extensionInstallWorkspaceTrustButton', "Trust Workspace & Install"), type: 'ContinueWithTrust' });
+			if (!requireTrust) {
+				buttons.push({ label: localize('extensionInstallWorkspaceTrustContinueButton', "Install"), type: 'ContinueWithoutTrust' });
+			}
+			buttons.push({ label: localize('extensionInstallWorkspaceTrustManageButton', "Learn More"), type: 'Manage' });
 			const trustState = await this.workspaceTrustRequestService.requestWorkspaceTrust({
 				message: localize('extensionInstallWorkspaceTrustMessage', "Enabling this extension requires a trusted workspace."),
-				buttons: [
-					{ label: localize('extensionInstallWorkspaceTrustButton', "Trust Workspace & Install"), type: 'ContinueWithTrust' },
-					{ label: localize('extensionInstallWorkspaceTrustContinueButton', "Install"), type: 'ContinueWithoutTrust' },
-					{ label: localize('extensionInstallWorkspaceTrustManageButton', "Learn More"), type: 'Manage' }
-				]
+				buttons
 			});
 
 			if (trustState === undefined) {
