@@ -63,8 +63,8 @@ registerThemingParticipant((theme, collector) => {
 			continue;
 		}
 		collector.addRule(`
-			.test-explorer .computed-state.retired ${ThemeIcon.asCSSSelector(icon)},
-			.testing-run-glyph.retired ${ThemeIcon.asCSSSelector(icon)}{
+			.test-explorer .computed-state.retired${ThemeIcon.asCSSSelector(icon)},
+			.testing-run-glyph.retired${ThemeIcon.asCSSSelector(icon)}{
 				color: ${theme.getColor(retiredColor)} !important;
 			}
 		`);
