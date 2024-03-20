@@ -46,6 +46,10 @@ export interface IQuickPickItem {
 	highlights?: IQuickPickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
 	picked?: boolean;
+	/**
+	 * Used when we're in multi-select mode. Renders a disabled checkbox.
+	 */
+	disabled?: boolean;
 	alwaysShow?: boolean;
 }
 
