@@ -269,7 +269,7 @@ class HoverAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		let value: vscode.Hover | null | undefined;
-		if (context) {
+		if (context && context.hover && context.action) {
 			const previousHover = this._hoverMap.get(context.hover.id);
 			if (!previousHover) {
 				throw new Error(`Hover with id ${context.hover.id} not found`);

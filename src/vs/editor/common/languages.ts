@@ -203,11 +203,11 @@ export interface HoverContext {
 	/**
 	 * Whether to increase or decrease the hover's verbosity
 	 */
-	action: HoverVerbosityAction;
+	action?: HoverVerbosityAction;
 	/**
 	 * The previous hover for the same position
 	 */
-	hover: Hover;
+	hover?: Hover;
 }
 
 export enum HoverVerbosityAction {
