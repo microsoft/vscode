@@ -239,7 +239,6 @@ app.on('ready', () => {
 		if (args.waitServer) {
 			waitForServer(Number(args.waitServer)).then(sendRun);
 		} else {
-			console.log('send run')
 			sendRun();
 		}
 	});
