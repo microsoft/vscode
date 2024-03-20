@@ -1,4 +1,5 @@
-const { assert,
+const {
+	assert,
 	path,
 	glob,
 	util,
@@ -6,8 +7,12 @@ const { assert,
 	setRun,
 	url,
 	net,
+	stream,
+	events,
 	crypto,
-	zlib
+	zlib,
+	sinon,
+	os,
 } = globalThis.testGlobals
 
 
@@ -19,7 +24,11 @@ export {
 	fs,
 	setRun,
 	url,
+	events,
+	stream,
 	net,
 	crypto,
-	zlib
+	zlib,
+	os,
+	sinon,
 }

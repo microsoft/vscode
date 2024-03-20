@@ -343,9 +343,13 @@ if (isTest) {
 	const path = require('path')
 	const glob = require('glob')
 	const util = require('util')
+	const events = require('events')
+	const os = require('os')
 	const url = require('url')
+	const sinon = require('sinon')
 	const fs = require('fs')
 	const net = require('net')
+	const stream = require('stream')
 	const crypto = require('crypto')
 	const zlib = require('zlib')
 
@@ -374,12 +378,16 @@ if (isTest) {
 		assert,
 		path,
 		glob,
+		sinon,
 		util,
+		events,
 		fs,
+		os,
 		setRun,
 		url,
 		net,
 		crypto,
+		stream,
 		zlib
 	}
 	// @ts-ignore

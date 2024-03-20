@@ -1,3 +1,5 @@
 import { net } from './testGlobals.js'
 
-export const createConnection = net.createConnection
+const { createServer, createConnection, connect } = net
+
+export { createServer, createConnection, connect }
