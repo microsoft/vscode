@@ -7,6 +7,7 @@ import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-not
 import { createOutputContent, appendOutput, scrollableClass } from './textHelper';
 import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, OutputWithAppend, RenderOptions } from './rendererTypes';
 import { ttPolicy } from './htmlHelper';
+import { formatStackTrace } from './stackTraceHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
@@ -37,6 +38,11 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 	if (alt) {
 		image.alt = alt;
 	}
+	image.setAttribute('data-vscode-context', JSON.stringify({
+		webviewSection: 'image',
+		outputId: outputInfo.id,
+		'preventDefaultContextMenuItems': true
+	}));
 	const display = document.createElement('div');
 	display.classList.add('display');
 	display.appendChild(image);
@@ -76,7 +82,7 @@ function getAltText(outputInfo: OutputItem) {
 	return undefined;
 }
 
-function injectTitleForSvg(outputInfo: OutputItem, element: HTMLElement) {
+function fixUpSvgElement(outputInfo: OutputItem, element: HTMLElement) {
 	if (outputInfo.mime.indexOf('svg') > -1) {
 		const svgElement = element.querySelector('svg');
 		const altText = getAltText(outputInfo);
@@ -84,6 +90,16 @@ function injectTitleForSvg(outputInfo: OutputItem, element: HTMLElement) {
 			const title = document.createElement('title');
 			title.innerText = altText;
 			svgElement.prepend(title);
+		}
+
+		if (svgElement) {
+			svgElement.classList.add('output-image');
+
+			svgElement.setAttribute('data-vscode-context', JSON.stringify({
+				webviewSection: 'image',
+				outputId: outputInfo.id,
+				'preventDefaultContextMenuItems': true
+			}));
 		}
 	}
 }
@@ -94,7 +110,7 @@ async function renderHTML(outputInfo: OutputItem, container: HTMLElement, signal
 	const htmlContent = outputInfo.text();
 	const trustedHtml = ttPolicy?.createHTML(htmlContent) ?? htmlContent;
 	element.innerHTML = trustedHtml as string;
-	injectTitleForSvg(outputInfo, element);
+	fixUpSvgElement(outputInfo, element);
 
 	for (const hook of hooks) {
 		element = (await hook.postRender(outputInfo, element, signal)) ?? element;
@@ -171,8 +187,12 @@ function renderError(
 	if (err.stack) {
 		outputElement.classList.add('traceback');
 
+		const stackTrace = formatStackTrace(err.stack);
+
 		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-		const content = createOutputContent(outputInfo.id, err.stack ?? '', { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml });
+		const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml, linkifyFilePaths: ctx.settings.linkifyFilePaths };
+
+		const content = createOutputContent(outputInfo.id, stackTrace ?? '', outputOptions);
 		const contentParent = document.createElement('div');
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
@@ -227,7 +247,9 @@ function onKeypressHandler(e: KeyboardEvent) {
 	if (e.ctrlKey || e.shiftKey) {
 		return;
 	}
-	if (e.code === 'ArrowDown' || e.code === 'End' || e.code === 'ArrowUp' || e.code === 'Home') {
+	if (e.code === 'ArrowDown' || e.code === 'ArrowUp' ||
+		e.code === 'End' || e.code === 'Home' ||
+		e.code === 'PageUp' || e.code === 'PageDown') {
 		// These should change the scroll position, not adjust the selected cell in the notebook
 		e.stopPropagation();
 	}
@@ -273,7 +295,7 @@ function scrollingEnabled(output: OutputItem, options: RenderOptions) {
 function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, error };
+	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, error, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 
 	outputElement.classList.add('output-stream');
 
@@ -324,7 +346,8 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 
 	const text = outputInfo.text();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-	const content = createOutputContent(outputInfo.id, text, { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false });
+	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, linkifyFilePaths: ctx.settings.linkifyFilePaths };
+	const content = createOutputContent(outputInfo.id, text, outputOptions);
 	content.classList.add('output-plaintext');
 	if (ctx.settings.outputWordWrap) {
 		content.classList.add('word-wrap');
@@ -492,6 +515,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					}
 					break;
 				default:
+					if (outputInfo.mime.indexOf('text/') > -1) {
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderText(outputInfo, element, latestContext);
+						disposables.set(outputInfo.id, disposable);
+					}
 					break;
 			}
 			if (element.querySelector('div')) {

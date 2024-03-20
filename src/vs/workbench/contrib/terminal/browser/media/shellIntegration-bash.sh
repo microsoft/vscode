@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent the script recursing when setting up
-if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
+if [[ -n "${VSCODE_SHELL_INTEGRATION:-}" ]]; then
 	builtin return
 fi
 
@@ -22,7 +22,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		if [ -r /etc/profile ]; then
 			. /etc/profile
 		fi
-		# exceute the first that exists
+		# execute the first that exists
 		if [ -r ~/.bash_profile ]; then
 			. ~/.bash_profile
 		elif [ -r ~/.bash_login ]; then
@@ -33,7 +33,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		builtin unset VSCODE_SHELL_LOGIN
 
 		# Apply any explicit path prefix (see #99878)
-		if [ -n "$VSCODE_PATH_PREFIX" ]; then
+		if [ -n "${VSCODE_PATH_PREFIX:-}" ]; then
 			export PATH=$VSCODE_PATH_PREFIX$PATH
 			builtin unset VSCODE_PATH_PREFIX
 		fi
@@ -46,29 +46,29 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 fi
 
 # Apply EnvironmentVariableCollections if needed
-if [ -n "$VSCODE_ENV_REPLACE" ]; then
+if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="$VALUE"
 	done
 	builtin unset VSCODE_ENV_REPLACE
 fi
-if [ -n "$VSCODE_ENV_PREPEND" ]; then
+if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="$VALUE${!VARNAME}"
 	done
 	builtin unset VSCODE_ENV_PREPEND
 fi
-if [ -n "$VSCODE_ENV_APPEND" ]; then
+if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="${!VARNAME}$VALUE"
 	done
 	builtin unset VSCODE_ENV_APPEND
@@ -95,9 +95,22 @@ __vsc_get_trap() {
 	builtin printf '%s' "${terms[2]:-}"
 }
 
+__vsc_escape_value_fast() {
+	builtin local LC_ALL=C out
+	out=${1//\\/\\\\}
+	out=${out//;/\\x3b}
+	builtin printf '%s\n' "${out}"
+}
+
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
+	# If the input being too large, switch to the faster function
+	if [ "${#1}" -ge 2000 ]; then
+		__vsc_escape_value_fast "$1"
+		builtin return
+	fi
+
 	# Process text byte by byte, not by codepoint.
 	builtin local LC_ALL=C str="${1}" i byte token out=''
 
@@ -204,7 +217,7 @@ __vsc_precmd() {
 
 __vsc_preexec() {
 	__vsc_initialized=1
-	if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
+	if [[ ! $BASH_COMMAND == __vsc_prompt* ]]; then
 		# Use history if it's available to verify the command as BASH_COMMAND comes in with aliases
 		# resolved
 		if [ "$__vsc_history_verify" = "1" ]; then
@@ -243,8 +256,8 @@ else
 		__vsc_preexec_all() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
 				__vsc_in_command_execution="1"
-				builtin eval "${__vsc_dbg_trap}"
 				__vsc_preexec
+				builtin eval "${__vsc_dbg_trap}"
 			fi
 		}
 		trap '__vsc_preexec_all "$_"' DEBUG
@@ -275,10 +288,10 @@ __vsc_prompt_cmd() {
 
 # PROMPT_COMMAND arrays and strings seem to be handled the same (handling only the first entry of
 # the array?)
-__vsc_original_prompt_command=$PROMPT_COMMAND
+__vsc_original_prompt_command=${PROMPT_COMMAND:-}
 
 if [[ -z "${bash_preexec_imported:-}" ]]; then
-	if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
+	if [[ -n "${__vsc_original_prompt_command:-}" && "${__vsc_original_prompt_command:-}" != "__vsc_prompt_cmd" ]]; then
 		PROMPT_COMMAND=__vsc_prompt_cmd_original
 	else
 		PROMPT_COMMAND=__vsc_prompt_cmd

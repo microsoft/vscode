@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as spdlog from '@vscode/spdlog';
+import type * as spdlog from '@vscode/spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
 
@@ -123,6 +123,7 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 		} else {
 			this._loggerCreationPromise.then(() => this.disposeLogger());
 		}
+		super.dispose();
 	}
 
 	private disposeLogger(): void {

@@ -231,7 +231,7 @@ export class ExtensionsActivator implements IDisposable {
 	public activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		const desc = this._registry.getExtensionDescription(extensionId);
 		if (!desc) {
-			throw new Error(`Extension '${extensionId}' is not known`);
+			throw new Error(`Extension '${extensionId.value}' is not known`);
 		}
 		return this._activateExtensions([{ id: desc.identifier, reason }]);
 	}

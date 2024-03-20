@@ -100,6 +100,11 @@ html {
 	height: 100%;
 }
 
+.extension-caption .codicon-modifier-spin {
+	padding-bottom: 3px;
+	margin-left: 2px;
+}
+
 /* Font Families (with CJK support) */
 
 .mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }

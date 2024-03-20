@@ -4,34 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { IInlineChatService, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { mock } from 'vs/base/test/common/mock';
-import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mock } from 'vs/base/test/common/mock';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestDiffProviderFactoryService } from 'vs/editor/test/browser/diff/testDiffProviderFactoryService';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
+import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { IInlineChatSavingService } from '../../browser/inlineChatSavingService';
+import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
+import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
+import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatEditResponse, IInlineChatRequest, IInlineChatService, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { TestWorkerService } from './testWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { Schemas } from 'vs/base/common/network';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { MockChatContributionService } from 'vs/workbench/contrib/chat/test/common/mockChatContributionService';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ChatAgentService, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 suite('InteractiveChatController', function () {
-
 	class TestController extends InlineChatController {
 
 		static INIT_SEQUENCE: readonly State[] = [State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT];
@@ -56,7 +74,7 @@ suite('InteractiveChatController', function () {
 
 				setTimeout(() => {
 					d.dispose();
-					reject(`timeout, \nWANTED ${states.join('>')}, \nGOT ${actual.join('>')}`);
+					reject(new Error(`timeout, \nEXPECTED: ${states.join('>')}, \nACTUAL  : ${actual.join('>')}`));
 				}, 1000);
 			});
 		}
@@ -77,23 +95,39 @@ suite('InteractiveChatController', function () {
 	}
 
 	const store = new DisposableStore();
-	let editor: ICodeEditor;
+	let configurationService: TestConfigurationService;
+	let editor: IActiveCodeEditor;
 	let model: ITextModel;
 	let ctrl: TestController;
-	// let contextKeys: MockContextKeyService;
+	let contextKeyService: MockContextKeyService;
 	let inlineChatService: InlineChatServiceImpl;
 	let inlineChatSessionService: IInlineChatSessionService;
 	let instaService: TestInstantiationService;
 
 	setup(function () {
 
-		const contextKeyService = new MockContextKeyService();
+		contextKeyService = new MockContextKeyService();
 		inlineChatService = new InlineChatServiceImpl(contextKeyService);
 
+		configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat', { editor: { fontSize: 14, fontFamily: 'default' } });
+		configurationService.setUserConfiguration('inlineChat', { mode: 'livePreview' });
+		configurationService.setUserConfiguration('editor', {});
+
 		const serviceCollection = new ServiceCollection(
+			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IContextKeyService, contextKeyService],
+			[IChatContributionService, new MockChatContributionService(
+				[{ extensionId: nullExtensionDescription.identifier, name: 'testAgent', isDefault: true }])],
+			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IInlineChatService, inlineChatService],
-			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionService)],
+			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
+			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
+			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
+				override markChanged(session: Session): void {
+					// noop
+				}
+			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
 					return {
@@ -104,24 +138,37 @@ suite('InteractiveChatController', function () {
 				}
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
-				override acceptResponse(response?: IChatResponseViewModel): void { }
-				override acceptRequest(): void { }
+				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
+				override acceptRequest(): number { return -1; }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
 					return null;
 				}
+			}],
+			[IConfigurationService, configurationService],
+			[IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
+				override onDidChangeLocation = Event.None;
 			}]
 		);
 
-		instaService = workbenchInstantiationService(undefined, store).createChild(serviceCollection);
-		inlineChatSessionService = instaService.get(IInlineChatSessionService);
+		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
+		const chatAgentService = instaService.get(IChatAgentService);
+		const agent = {
+			async invoke(request, progress, history, token) {
+				return {};
+			},
+		} satisfies IChatAgentImplementation;
+		store.add(chatAgentService.registerAgent('testAgent', agent));
 
-		model = instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null);
-		editor = instantiateTestCodeEditor(instaService, model);
+		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
+
+		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
+		editor = store.add(instantiateTestCodeEditor(instaService, model));
 
 		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()
@@ -141,11 +188,11 @@ suite('InteractiveChatController', function () {
 	});
 
 	teardown(function () {
-		editor.dispose();
-		model.dispose();
 		store.clear();
 		ctrl?.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('creation, not showing anything', function () {
 		ctrl = instaService.createInstance(TestController, editor);
@@ -159,20 +206,21 @@ suite('InteractiveChatController', function () {
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
 		await p;
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 
 		await run;
 
 		assert.ok(ctrl.getWidgetPosition() === undefined);
 	});
 
-	test('wholeRange expands to whole lines, editor selection default', async function () {
+	test('wholeRange does not expand to whole lines, editor selection default', async function () {
 
 		editor.setSelection(new Range(1, 1, 1, 3));
 		ctrl = instaService.createInstance(TestController, editor);
 
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()
@@ -188,9 +236,9 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 3));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		d.dispose();
 	});
 
@@ -201,6 +249,7 @@ suite('InteractiveChatController', function () {
 
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -217,27 +266,31 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 3));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		d.dispose();
 	});
 
 	test('typing outside of wholeRange finishes session', async function () {
+
+		configurationService.setUserConfiguration(InlineChatConfigKeys.FinishOnType, true);
+
 		ctrl = instaService.createInstance(TestController, editor);
 		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
-		ctrl.run({ message: 'Hello', autoSend: true });
+		const r = ctrl.run({ message: 'Hello', autoSend: true });
 
 		await p;
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 11));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 10 /* line length */));
 
 		editor.setSelection(new Range(2, 1, 2, 1));
 		editor.trigger('test', 'type', { text: 'a' });
 
 		await ctrl.waitFor([State.ACCEPT]);
+		await r;
 	});
 
 	test('\'whole range\' isn\'t updated for edits outside whole range #4346', async function () {
@@ -246,6 +299,7 @@ suite('InteractiveChatController', function () {
 
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -266,43 +320,36 @@ suite('InteractiveChatController', function () {
 		store.add(d);
 		ctrl = instaService.createInstance(TestController, editor);
 		const p = ctrl.waitFor(TestController.INIT_SEQUENCE);
-		ctrl.run({ message: 'Hello', autoSend: false });
+		const r = ctrl.run({ message: 'GENGEN', autoSend: false });
 
 		await p;
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 12));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 3)); // initial
 
 		ctrl.acceptInput();
 
 		await ctrl.waitFor([State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 12));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 3));
+
+		await ctrl.cancelSession();
+		await r;
 	});
 
 	test('Stuck inline chat widget #211', async function () {
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
 					wholeRange: new Range(3, 1, 3, 3)
 				};
 			},
-			async provideResponse(session, request) {
-
-				// SLOW response
-				await timeout(50000);
-
-				return {
-					type: InlineChatResponseType.EditorEdit,
-					id: Math.random(),
-					edits: [{
-						range: new Range(1, 1, 1, 1), // EDIT happens outside of whole range
-						text: `${request.prompt}\n${request.prompt}`
-					}]
-				};
+			provideResponse(session, request) {
+				return new Promise<never>(() => { });
 			}
 		});
 		store.add(d);
@@ -315,5 +362,230 @@ suite('InteractiveChatController', function () {
 
 		await r;
 		assert.strictEqual(ctrl.getWidgetPosition(), undefined);
+	});
+
+	test('[Bug] Inline Chat\'s streaming pushed broken iterations to the undo stack #2403', async function () {
+
+		const d = inlineChatService.addProvider({
+			debugName: 'Unit Test',
+			label: 'Unit Test',
+			prepareInlineChatSession() {
+				return {
+					id: Math.random(),
+					wholeRange: new Range(3, 1, 3, 3)
+				};
+			},
+			async provideResponse(session, request, progress) {
+
+				progress.report({ edits: [{ range: new Range(1, 1, 1, 1), text: 'hEllo1\n' }] });
+				progress.report({ edits: [{ range: new Range(2, 1, 2, 1), text: 'hEllo2\n' }] });
+
+				return {
+					id: Math.random(),
+					type: InlineChatResponseType.EditorEdit,
+					edits: [{ range: new Range(1, 1, 1000, 1), text: 'Hello1\nHello2\n' }]
+				};
+			}
+		});
+
+		const valueThen = editor.getModel().getValue();
+
+		store.add(d);
+		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const r = ctrl.run({ message: 'Hello', autoSend: true });
+		await p;
+		ctrl.acceptSession();
+		await r;
+
+		assert.strictEqual(editor.getModel().getValue(), 'Hello1\nHello2\n');
+
+		editor.getModel().undo();
+		assert.strictEqual(editor.getModel().getValue(), valueThen);
+	});
+
+
+
+	test('UI is streaming edits minutes after the response is finished #3345', async function () {
+
+		configurationService.setUserConfiguration(InlineChatConfigKeys.Mode, EditMode.Live);
+
+		return runWithFakedTimers({ maxTaskCount: Number.MAX_SAFE_INTEGER }, async () => {
+
+			const d = inlineChatService.addProvider({
+				debugName: 'Unit Test',
+				label: 'Unit Test',
+				prepareInlineChatSession() {
+					return {
+						id: Math.random(),
+					};
+				},
+				async provideResponse(session, request, progress) {
+
+					const text = '${CSI}#a\n${CSI}#b\n${CSI}#c\n';
+
+					await timeout(10);
+					progress.report({ edits: [{ range: new Range(1, 1, 1, 1), text: text }] });
+
+					await timeout(10);
+					progress.report({ edits: [{ range: new Range(1, 1, 1, 1), text: text.repeat(1000) + 'DONE' }] });
+
+					throw new Error('Too long');
+				}
+			});
+
+
+			// let modelChangeCounter = 0;
+			// store.add(editor.getModel().onDidChangeContent(() => { modelChangeCounter++; }));
+
+			store.add(d);
+			ctrl = instaService.createInstance(TestController, editor);
+			const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+			const r = ctrl.run({ message: 'Hello', autoSend: true });
+			await p;
+
+			// assert.ok(modelChangeCounter > 0, modelChangeCounter.toString()); // some changes have been made
+			// const modelChangeCounterNow = modelChangeCounter;
+
+			assert.ok(!editor.getModel().getValue().includes('DONE'));
+			await timeout(10);
+
+			// assert.strictEqual(modelChangeCounterNow, modelChangeCounter);
+			assert.ok(!editor.getModel().getValue().includes('DONE'));
+
+			await ctrl.cancelSession();
+			await r;
+		});
+	});
+
+	test('escape doesn\'t remove code added from inline editor chat #3523 1/2', async function () {
+
+
+		// NO manual edits -> cancel
+		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const r = ctrl.run({ message: 'GENERATED', autoSend: true });
+		await p;
+
+		assert.ok(model.getValue().includes('GENERATED'));
+		assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), undefined);
+		ctrl.cancelSession();
+		await r;
+		assert.ok(!model.getValue().includes('GENERATED'));
+
+	});
+
+	test('escape doesn\'t remove code added from inline editor chat #3523, 2/2', async function () {
+
+		// manual edits -> finish
+		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const r = ctrl.run({ message: 'GENERATED', autoSend: true });
+		await p;
+
+		assert.ok(model.getValue().includes('GENERATED'));
+
+		editor.executeEdits('test', [EditOperation.insert(model.getFullModelRange().getEndPosition(), 'MANUAL')]);
+		assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), true);
+
+		ctrl.finishExistingSession();
+		await r;
+		assert.ok(model.getValue().includes('GENERATED'));
+		assert.ok(model.getValue().includes('MANUAL'));
+
+	});
+
+	test('context has correct preview document', async function () {
+
+		const requests: IInlineChatRequest[] = [];
+
+		store.add(inlineChatService.addProvider({
+			debugName: 'Unit Test',
+			label: 'Unit Test',
+			prepareInlineChatSession() {
+				return {
+					id: Math.random()
+				};
+			},
+			provideResponse(_session, request) {
+				requests.push(request);
+				return undefined;
+			}
+		}));
+
+		async function makeRequest() {
+			const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+			const r = ctrl.run({ message: 'Hello', autoSend: true });
+			await p;
+			await ctrl.cancelSession();
+			await r;
+		}
+
+		// manual edits -> finish
+		ctrl = instaService.createInstance(TestController, editor);
+
+		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
+		await makeRequest();
+
+
+		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Preview });
+		await makeRequest();
+
+		assert.strictEqual(requests.length, 2);
+
+		assert.strictEqual(requests[0].previewDocument.toString(), model.uri.toString()); // live
+		assert.strictEqual(requests[1].previewDocument.scheme, Schemas.vscode); // preview
+		assert.strictEqual(requests[1].previewDocument.authority, 'inline-chat');
+	});
+
+	test('start with existing exchange', async function () {
+
+		// don't call this provider
+		let providerCalled = 0;
+		store.add(inlineChatService.addProvider({
+			debugName: 'Unit Test',
+			label: 'Unit Test',
+			prepareInlineChatSession() {
+				return {
+					id: Math.random()
+				};
+			},
+			provideResponse(_session, request) {
+				providerCalled++;
+				return undefined;
+			}
+		}));
+
+		// use precooked response
+		const response = {
+			id: 1,
+			type: InlineChatResponseType.EditorEdit,
+			message: new MarkdownString('MD-message'),
+			edits: [{
+				text: 'Precooked Response\n',
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+			}]
+
+		} satisfies IInlineChatEditResponse;
+
+		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
+
+		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		ctrl.run({ existingExchange: { prompt: 'Hello', response } });
+
+		await p;
+
+		assert.strictEqual(providerCalled, 0);
+		assert.ok(ctrl.getWidgetPosition() !== undefined);
+
+		assert.ok(ctrl.getMessage() === 'MD-message');
+		assert.equal(model.getLineContent(1), 'Precooked Response');
+
+		await ctrl.cancelSession();
+		await ctrl.joinCurrentRun();
+
+		assert.ok(ctrl.getWidgetPosition() === undefined);
+
 	});
 });

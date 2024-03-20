@@ -11,7 +11,7 @@ import { IDialogArgs, IDialogResult } from 'vs/platform/dialogs/common/dialogs';
 export interface IDialogViewItem {
 	readonly args: IDialogArgs;
 
-	close(result?: IDialogResult): void;
+	close(result?: IDialogResult | Error): void;
 }
 
 export interface IDialogHandle {
@@ -46,7 +46,11 @@ export class DialogsModel extends Disposable implements IDialogsModel {
 			args: dialog,
 			close: result => {
 				this.dialogs.splice(0, 1);
-				promise.complete(result);
+				if (result instanceof Error) {
+					promise.error(result);
+				} else {
+					promise.complete(result);
+				}
 				this._onDidShowDialog.fire();
 			}
 		};

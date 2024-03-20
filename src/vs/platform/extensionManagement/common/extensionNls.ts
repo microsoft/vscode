@@ -7,16 +7,17 @@ import { isObject, isString } from 'vs/base/common/types';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
+import { ILogger } from 'vs/platform/log/common/log';
 
 export interface ITranslations {
 	[key: string]: string | { message: string; comment: string[] } | undefined;
 }
 
-export function localizeManifest(extensionManifest: IExtensionManifest, translations: ITranslations, fallbackTranslations?: ITranslations): IExtensionManifest {
+export function localizeManifest(logger: ILogger, extensionManifest: IExtensionManifest, translations: ITranslations, fallbackTranslations?: ITranslations): IExtensionManifest {
 	try {
-		replaceNLStrings(extensionManifest, translations, fallbackTranslations);
+		replaceNLStrings(logger, extensionManifest, translations, fallbackTranslations);
 	} catch (error) {
-		console.error(error?.message ?? error);
+		logger.error(error?.message ?? error);
 		/*Ignore Error*/
 	}
 	return extensionManifest;
@@ -26,7 +27,7 @@ export function localizeManifest(extensionManifest: IExtensionManifest, translat
  * This routine makes the following assumptions:
  * The root element is an object literal
  */
-function replaceNLStrings(extensionManifest: IExtensionManifest, messages: ITranslations, originalMessages?: ITranslations): void {
+function replaceNLStrings(logger: ILogger, extensionManifest: IExtensionManifest, messages: ITranslations, originalMessages?: ITranslations): void {
 	const processEntry = (obj: any, key: string | number, command?: boolean) => {
 		const value = obj[key];
 		if (isString(value)) {
@@ -48,7 +49,7 @@ function replaceNLStrings(extensionManifest: IExtensionManifest, messages: ITran
 
 				if (!message) {
 					if (!originalMessage) {
-						console.warn(`[${extensionManifest.name}]: ${localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey)}`);
+						logger.warn(`[${extensionManifest.name}]: ${localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey)}`);
 					}
 					return;
 				}

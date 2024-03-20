@@ -152,7 +152,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _onDidChangeSelection = this._register(new Emitter<string>());
 	get onDidChangeSelection(): Event<string> { return this._onDidChangeSelection.event; }
 
-	private _selectionCollection = new NotebookCellSelectionCollection();
+	private _selectionCollection = this._register(new NotebookCellSelectionCollection());
 
 	private get selectionHandles() {
 		const handlesSet = new Set<number>();
@@ -177,6 +177,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _instanceId: string;
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
+	private _onDidFoldingStateChanged = new Emitter<void>();
+	onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
 	private _hiddenRanges: ICellRange[] = [];
 	private _focused: boolean = true;
 
@@ -361,9 +363,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._focused = focused;
 	}
 
-	/**
-	 * Empty selection will be turned to `null`
-	 */
 	validateRange(cellRange: ICellRange | null | undefined): ICellRange | null {
 		if (!cellRange) {
 			return null;
@@ -372,11 +371,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const start = clamp(cellRange.start, 0, this.length);
 		const end = clamp(cellRange.end, 0, this.length);
 
-		if (start === end) {
-			return null;
-		}
-
-		if (start < end) {
+		if (start <= end) {
 			return { start, end };
 		} else {
 			return { start: end, end: start };
@@ -477,6 +472,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		if (updateHiddenAreas || k < this._hiddenRanges.length) {
 			this._hiddenRanges = newHiddenAreas;
+			this._onDidFoldingStateChanged.fire();
 		}
 
 		this._viewCells.forEach(cell => {
@@ -716,6 +712,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			if (handle !== undefined) {
 				const cell = this.getCellByHandle(handle);
 				cell?.deltaCellDecorations([id], []);
+				this._decorationIdToCellMap.delete(id);
 			}
 		});
 
@@ -1045,7 +1042,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 }
 
-export type CellViewModel = CodeCellViewModel | MarkupCellViewModel;
+export type CellViewModel = (CodeCellViewModel | MarkupCellViewModel) & ICellViewModel;
 
 export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: NotebookCellTextModel, viewContext: ViewContext) {
 	if (cell.cellKind === CellKind.Code) {

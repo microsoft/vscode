@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as arrays from 'vs/base/common/arrays';
 import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
 import { EditorTheme } from 'vs/editor/common/editorTheme';
-import { VerticalRevealType } from 'vs/editor/common/viewEvents';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/modelLineProjectionData';
+import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -27,6 +28,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	readonly viewLayout: IViewLayout;
 
 	readonly cursorConfig: CursorConfiguration;
+
+	readonly glyphLanes: IGlyphMarginLanesModel;
 
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;
@@ -84,6 +87,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
 	getPrevEditOperationType(): EditOperationType;
 	setPrevEditOperationType(type: EditOperationType): void;
+	revealAllCursors(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealTopMostCursor(source: string | null | undefined): void;
 	revealBottomMostCursor(source: string | null | undefined): void;
@@ -114,6 +118,7 @@ export interface IViewLayout {
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
 
 	setMaxLineWidth(maxLineWidth: number): void;
+	setOverlayWidgetsMinWidth(overlayWidgetsMinWidth: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
@@ -177,6 +182,11 @@ export interface IPartialViewLinesViewportData {
 	 * The last completely visible line number.
 	 */
 	readonly completelyVisibleEndLineNumber: number;
+
+	/**
+	 * The height of a line.
+	 */
+	readonly lineHeight: number;
 }
 
 export interface IViewWhitespaceViewportData {
@@ -432,7 +442,7 @@ export class OverviewRulerDecorationsGroup {
 		public readonly data: number[]
 	) { }
 
-	public static cmp(a: OverviewRulerDecorationsGroup, b: OverviewRulerDecorationsGroup): number {
+	public static compareByRenderingProps(a: OverviewRulerDecorationsGroup, b: OverviewRulerDecorationsGroup): number {
 		if (a.zIndex === b.zIndex) {
 			if (a.color < b.color) {
 				return -1;
@@ -443,5 +453,17 @@ export class OverviewRulerDecorationsGroup {
 			return 0;
 		}
 		return a.zIndex - b.zIndex;
+	}
+
+	public static equals(a: OverviewRulerDecorationsGroup, b: OverviewRulerDecorationsGroup): boolean {
+		return (
+			a.color === b.color
+			&& a.zIndex === b.zIndex
+			&& arrays.equals(a.data, b.data)
+		);
+	}
+
+	public static equalsArr(a: OverviewRulerDecorationsGroup[], b: OverviewRulerDecorationsGroup[]): boolean {
+		return arrays.equals(a, b, OverviewRulerDecorationsGroup.equals);
 	}
 }

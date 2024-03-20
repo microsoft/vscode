@@ -7,19 +7,27 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
-import { mockObject, MockObject } from 'vs/base/test/common/mock';
+import { mock, mockObject, MockObject } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import * as editorRange from 'vs/editor/common/core/range';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostTesting, TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
 import { ExtHostTestItemCollection, TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Location, Position, Range, TestMessage, TestResultState, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from 'vs/workbench/api/common/extHostTypes';
+import { AnyCallRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
-import type { TestItem, TestRunRequest } from 'vscode';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import type { TestController, TestItem, TestRunProfile, TestRunRequest } from 'vscode';
 
 const simplify = (item: TestItem) => ({
 	id: item.id,
@@ -70,11 +78,17 @@ suite('ExtHost Testing', () => {
 		}
 	}
 
+	teardown(() => {
+		sinon.restore();
+	});
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let single: TestExtHostTestItemCollection;
 	setup(() => {
-		single = new TestExtHostTestItemCollection('ctrlId', 'root', {
+		single = ds.add(new TestExtHostTestItemCollection('ctrlId', 'root', {
 			getDocument: () => undefined,
-		} as Partial<ExtHostDocumentsAndEditors> as ExtHostDocumentsAndEditors);
+		} as Partial<ExtHostDocumentsAndEditors> as ExtHostDocumentsAndEditors));
 		single.resolveHandler = item => {
 			if (item === undefined) {
 				const a = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
@@ -88,12 +102,7 @@ suite('ExtHost Testing', () => {
 			}
 		};
 
-		single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */));
-	});
-
-	teardown(() => {
-		single.dispose();
-		sinon.restore();
+		ds.add(single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */)));
 	});
 
 	suite('OwnedTestCollection', () => {
@@ -595,12 +604,18 @@ suite('ExtHost Testing', () => {
 
 		let dto: TestRunDto;
 
+		teardown(() => {
+			for (const { id } of c.trackers) {
+				c.disposeTestRun(id);
+			}
+		});
+
 		setup(async () => {
 			proxy = mockObject<MainThreadTestingShape>()();
 			cts = new CancellationTokenSource();
-			c = new TestRunCoordinator(proxy);
+			c = new TestRunCoordinator(proxy, new NullLogService());
 
-			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
+			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
 			await single.expand(single.root.id, Infinity);
 			single.collectDiff();
@@ -621,7 +636,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('tracks a run started from a main thread request', () => {
-			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, configuration, cts.token));
 			assert.strictEqual(tracker.hasRunningTasks, false);
 
 			const task1 = c.createTestRun('ctrl', single, req, 'run1', true);
@@ -646,10 +661,10 @@ suite('ExtHost Testing', () => {
 		test('run cancel force ends after a timeout', () => {
 			const clock = sinon.useFakeTimers();
 			try {
-				const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+				const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, configuration, cts.token));
 				const task = c.createTestRun('ctrl', single, req, 'run1', true);
 				const onEnded = sinon.stub();
-				tracker.onEnd(onEnded);
+				ds.add(tracker.onEnd(onEnded));
 
 				assert.strictEqual(task.token.isCancellationRequested, false);
 				assert.strictEqual(tracker.hasRunningTasks, true);
@@ -671,10 +686,10 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('run cancel force ends on second cancellation request', () => {
-			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, configuration, cts.token));
 			const task = c.createTestRun('ctrl', single, req, 'run1', true);
 			const onEnded = sinon.stub();
-			tracker.onEnd(onEnded);
+			ds.add(tracker.onEnd(onEnded));
 
 			assert.strictEqual(task.token.isCancellationRequested, false);
 			assert.strictEqual(tracker.hasRunningTasks, true);
@@ -751,6 +766,8 @@ suite('ExtHost Testing', () => {
 
 			task1.passed(single.root.children.get('id-a')!.children.get('id-ab')!);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+			task1.end();
 		});
 
 		test('adds test messages to run', () => {
@@ -773,6 +790,7 @@ suite('ExtHost Testing', () => {
 					message: 'some message',
 					type: TestMessageType.Error,
 					expected: undefined,
+					contextValue: undefined,
 					actual: undefined,
 					location: convert.location.from(message1.location)
 				}]
@@ -787,11 +805,14 @@ suite('ExtHost Testing', () => {
 				[{
 					message: 'some message',
 					type: TestMessageType.Error,
+					contextValue: undefined,
 					expected: undefined,
 					actual: undefined,
-					location: convert.location.from({ uri: test2.uri!, range: test2.range! }),
+					location: convert.location.from({ uri: test2.uri!, range: test2.range }),
 				}]
 			]);
+
+			task.end();
 		});
 
 		test('guards calls after runs are ended', () => {
@@ -825,6 +846,7 @@ suite('ExtHost Testing', () => {
 				TestResultState.Passed,
 				undefined,
 			]]);
+			task.end();
 		});
 
 		test('sets state of test with identical local IDs (#131827)', () => {
@@ -852,6 +874,87 @@ suite('ExtHost Testing', () => {
 					[single.root, testB, childB].map(t => convert.TestItem.from(t as TestItemImpl)),
 				],
 			]);
+
+			task1.end();
+		});
+	});
+
+	suite('service', () => {
+		let ctrl: TestExtHostTesting;
+
+		class TestExtHostTesting extends ExtHostTesting {
+			public getProfileInternalId(ctrl: TestController, profile: TestRunProfile) {
+				for (const [id, p] of this.controllers.get(ctrl.id)!.profiles) {
+					if (profile === p) {
+						return id;
+					}
+				}
+
+				throw new Error('profile not found');
+			}
+		}
+
+		setup(() => {
+			const rpcProtocol = AnyCallRPCProtocol();
+			ctrl = ds.add(new TestExtHostTesting(
+				rpcProtocol,
+				new NullLogService(),
+				new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
+					override onExtensionError(): boolean {
+						return true;
+					}
+				}),
+				new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService()),
+			));
+		});
+
+		test('exposes active profiles correctly', async () => {
+			const extA = { ...nullExtensionDescription, identifier: new ExtensionIdentifier('ext.a'), enabledApiProposals: ['testingActiveProfile'] };
+			const extB = { ...nullExtensionDescription, identifier: new ExtensionIdentifier('ext.b'), enabledApiProposals: ['testingActiveProfile'] };
+
+			const ctrlA = ds.add(ctrl.createTestController(extA, 'a', 'ctrla'));
+			const profAA = ds.add(ctrlA.createRunProfile('aa', TestRunProfileKind.Run, () => { }));
+			const profAB = ds.add(ctrlA.createRunProfile('ab', TestRunProfileKind.Run, () => { }));
+
+			const ctrlB = ds.add(ctrl.createTestController(extB, 'b', 'ctrlb'));
+			const profBA = ds.add(ctrlB.createRunProfile('ba', TestRunProfileKind.Run, () => { }));
+			const profBB = ds.add(ctrlB.createRunProfile('bb', TestRunProfileKind.Run, () => { }));
+			const neverCalled = sinon.stub();
+
+			// empty default state:
+			assert.deepStrictEqual(profAA.isDefault, false);
+			assert.deepStrictEqual(profBA.isDefault, false);
+			assert.deepStrictEqual(profBB.isDefault, false);
+
+			// fires a change event:
+			const changeA = Event.toPromise(profAA.onDidChangeDefault as Event<boolean>);
+			const changeBA = Event.toPromise(profBA.onDidChangeDefault as Event<boolean>);
+			const changeBB = Event.toPromise(profBB.onDidChangeDefault as Event<boolean>);
+
+			ds.add(profAB.onDidChangeDefault(neverCalled));
+			assert.strictEqual(neverCalled.called, false);
+
+			ctrl.$setDefaultRunProfiles({
+				a: [ctrl.getProfileInternalId(ctrlA, profAA)],
+				b: [ctrl.getProfileInternalId(ctrlB, profBA), ctrl.getProfileInternalId(ctrlB, profBB)]
+			});
+
+			assert.deepStrictEqual(await changeA, true);
+			assert.deepStrictEqual(await changeBA, true);
+			assert.deepStrictEqual(await changeBB, true);
+
+			// updates internal state:
+			assert.deepStrictEqual(profAA.isDefault, true);
+			assert.deepStrictEqual(profBA.isDefault, true);
+			assert.deepStrictEqual(profBB.isDefault, true);
+			assert.deepStrictEqual(profAB.isDefault, false);
+
+			// no-ops if equal
+			ds.add(profAA.onDidChangeDefault(neverCalled));
+			ctrl.$setDefaultRunProfiles({
+				a: [ctrl.getProfileInternalId(ctrlA, profAA)],
+			});
+			assert.strictEqual(neverCalled.called, false);
 		});
 	});
 });

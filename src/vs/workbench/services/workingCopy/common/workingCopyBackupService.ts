@@ -116,7 +116,7 @@ export class WorkingCopyBackupsModel {
 	}
 }
 
-export abstract class WorkingCopyBackupService implements IWorkingCopyBackupService {
+export abstract class WorkingCopyBackupService extends Disposable implements IWorkingCopyBackupService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -127,7 +127,9 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		@IFileService protected fileService: IFileService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.impl = this.initialize(backupWorkspaceHome);
+		super();
+
+		this.impl = this._register(this.initialize(backupWorkspaceHome));
 	}
 
 	private initialize(backupWorkspaceHome: URI | undefined): WorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService {
@@ -256,7 +258,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 			return;
 		}
 
-		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		return this.ioOperationQueues.queueFor(backupResource, async () => {
 			if (token?.isCancellationRequested) {
 				return;
 			}
@@ -342,7 +344,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 			return;
 		}
 
-		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		return this.ioOperationQueues.queueFor(backupResource, async () => {
 			if (token?.isCancellationRequested) {
 				return;
 			}
@@ -384,7 +386,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 	private async resolveIdentifier(backupResource: URI, model: WorkingCopyBackupsModel): Promise<IWorkingCopyIdentifier | undefined> {
 		let res: IWorkingCopyIdentifier | undefined = undefined;
 
-		await this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		await this.ioOperationQueues.queueFor(backupResource, async () => {
 			if (!model.has(backupResource)) {
 				return; // require backup to be present
 			}
@@ -448,7 +450,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 
 		let res: IResolvedWorkingCopyBackup<T> | undefined = undefined;
 
-		await this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		await this.ioOperationQueues.queueFor(backupResource, async () => {
 			if (!model.has(backupResource)) {
 				return; // require backup to be present
 			}
@@ -533,13 +535,15 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 	}
 }
 
-export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupService {
+export class InMemoryWorkingCopyBackupService extends Disposable implements IWorkingCopyBackupService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private backups = new ResourceMap<{ typeId: string; content: VSBuffer; meta?: IWorkingCopyBackupMeta }>();
 
-	constructor() { }
+	constructor() {
+		super();
+	}
 
 	async hasBackups(): Promise<boolean> {
 		return this.backups.size > 0;

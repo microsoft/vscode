@@ -5,22 +5,24 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/services/output/common/output';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from 'vs/workbench/services/output/common/output';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/browser/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService, LogLevelToString } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IOutputChannelModel } from 'vs/workbench/contrib/output/common/outputChannelModel';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModelService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
+import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -73,16 +75,21 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
 	private readonly activeOutputChannelContext: IContextKey<string>;
-	private readonly activeLogOutputChannelContext: IContextKey<boolean>;
+	private readonly activeFileOutputChannelContext: IContextKey<boolean>;
+	private readonly activeOutputChannelLevelSettableContext: IContextKey<boolean>;
+	private readonly activeOutputChannelLevelContext: IContextKey<string>;
+	private readonly activeOutputChannelLevelIsDefaultContext: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerService private readonly loggerService: ILoggerService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDefaultLogLevelsService private readonly defaultLogLevelsService: IDefaultLogLevelsService
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, '');
@@ -90,7 +97,10 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.activeOutputChannelContext.set(this.activeChannelIdInStorage);
 		this._register(this.onActiveOutputChannel(channel => this.activeOutputChannelContext.set(channel)));
 
-		this.activeLogOutputChannelContext = CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(contextKeyService);
+		this.activeFileOutputChannelContext = CONTEXT_ACTIVE_FILE_OUTPUT.bindTo(contextKeyService);
+		this.activeOutputChannelLevelSettableContext = CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE.bindTo(contextKeyService);
+		this.activeOutputChannelLevelContext = CONTEXT_ACTIVE_OUTPUT_LEVEL.bindTo(contextKeyService);
+		this.activeOutputChannelLevelIsDefaultContext = CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT.bindTo(contextKeyService);
 
 		// Register as text model content provider for output
 		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this);
@@ -113,6 +123,14 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			if (this.activeChannel) {
 				this.viewsService.getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID)?.showChannel(this.activeChannel, true);
 			}
+		}));
+
+		this._register(this.loggerService.onDidChangeLogLevel(_level => {
+			this.setLevelContext();
+			this.setLevelIsDefaultContext();
+		}));
+		this._register(this.defaultLogLevelsService.onDidChangeDefaultLogLevels(() => {
+			this.setLevelIsDefaultContext();
 		}));
 
 		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
@@ -166,9 +184,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	private createChannel(id: string): OutputChannel {
-		const channelDisposables: IDisposable[] = [];
 		const channel = this.instantiateChannel(id);
-		channel.model.onDispose(() => {
+		this._register(Event.once(channel.model.onDispose)(() => {
 			if (this.activeChannel === channel) {
 				const channels = this.getChannelDescriptors();
 				const channel = channels.length ? this.getChannel(channels[0].id) : undefined;
@@ -179,8 +196,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				}
 			}
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
-			dispose(channelDisposables);
-		}, channelDisposables);
+		}));
 
 		return channel;
 	}
@@ -194,51 +210,35 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return this.instantiationService.createInstance(OutputChannel, channelData);
 	}
 
+	private setLevelContext(): void {
+		const descriptor = this.activeChannel?.outputChannelDescriptor;
+		const channelLogLevel = descriptor?.log ? this.loggerService.getLogLevel(descriptor.file) : undefined;
+		this.activeOutputChannelLevelContext.set(channelLogLevel !== undefined ? LogLevelToString(channelLogLevel) : '');
+	}
+
+	private async setLevelIsDefaultContext(): Promise<void> {
+		const descriptor = this.activeChannel?.outputChannelDescriptor;
+		if (descriptor?.log) {
+			const channelLogLevel = this.loggerService.getLogLevel(descriptor.file);
+			const channelDefaultLogLevel = await this.defaultLogLevelsService.getDefaultLogLevel(descriptor.extensionId);
+			this.activeOutputChannelLevelIsDefaultContext.set(channelDefaultLogLevel === channelLogLevel);
+		} else {
+			this.activeOutputChannelLevelIsDefaultContext.set(false);
+		}
+	}
+
 	private setActiveChannel(channel: OutputChannel | undefined): void {
 		this.activeChannel = channel;
-		this.activeLogOutputChannelContext.set(!!channel?.outputChannelDescriptor?.file && channel?.outputChannelDescriptor?.log);
+		const descriptor = channel?.outputChannelDescriptor;
+		this.activeFileOutputChannelContext.set(!!descriptor?.file);
+		this.activeOutputChannelLevelSettableContext.set(descriptor !== undefined && SetLogLevelAction.isLevelSettable(descriptor));
+		this.setLevelIsDefaultContext();
+		this.setLevelContext();
 
 		if (this.activeChannel) {
 			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE);
 		}
-	}
-}
-
-export class LogContentProvider {
-
-	private channelModels: Map<string, IOutputChannelModel> = new Map<string, IOutputChannelModel>();
-
-	constructor(
-		@IOutputService private readonly outputService: IOutputService,
-		@IOutputChannelModelService private readonly outputChannelModelService: IOutputChannelModelService,
-		@ILanguageService private readonly languageService: ILanguageService
-	) {
-	}
-
-	provideTextContent(resource: URI): Promise<ITextModel> | null {
-		if (resource.scheme === LOG_SCHEME) {
-			const channelModel = this.getChannelModel(resource);
-			if (channelModel) {
-				return channelModel.loadModel();
-			}
-		}
-		return null;
-	}
-
-	private getChannelModel(resource: URI): IOutputChannelModel | undefined {
-		const channelId = resource.path;
-		let channelModel = this.channelModels.get(channelId);
-		if (!channelModel) {
-			const channelDisposables: IDisposable[] = [];
-			const outputChannelDescriptor = this.outputService.getChannelDescriptors().filter(({ id }) => id === channelId)[0];
-			if (outputChannelDescriptor && outputChannelDescriptor.file) {
-				channelModel = this.outputChannelModelService.createOutputChannelModel(channelId, resource, outputChannelDescriptor.languageId ? this.languageService.createById(outputChannelDescriptor.languageId) : this.languageService.createByMimeType(outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME), outputChannelDescriptor.file);
-				channelModel.onDispose(() => dispose(channelDisposables), channelDisposables);
-				this.channelModels.set(channelId, channelModel);
-			}
-		}
-		return channelModel;
 	}
 }

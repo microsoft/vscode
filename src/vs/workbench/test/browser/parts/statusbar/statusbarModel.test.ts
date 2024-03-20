@@ -7,12 +7,20 @@ import * as assert from 'assert';
 import { StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Workbench status bar model', () => {
 
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
 	test('basics', () => {
 		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
 		assert.strictEqual(model.entries.length, 0);
 
@@ -44,9 +52,9 @@ suite('Workbench status bar model', () => {
 		assert.ok(model.findEntry(container));
 
 		let didChangeEntryVisibility: { id: string; visible: boolean } = { id: '', visible: false };
-		model.onDidChangeEntryVisibility(e => {
+		disposables.add(model.onDidChangeEntryVisibility(e => {
 			didChangeEntryVisibility = e;
-		});
+		}));
 
 		assert.strictEqual(model.isHidden('1'), false);
 		model.hide('1');
@@ -72,7 +80,7 @@ suite('Workbench status bar model', () => {
 
 	test('secondary priority used when primary is same', () => {
 		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
 		assert.strictEqual(model.entries.length, 0);
 
@@ -88,7 +96,7 @@ suite('Workbench status bar model', () => {
 
 	test('insertion order preserved when priorites are the same', () => {
 		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
 		assert.strictEqual(model.entries.length, 0);
 
@@ -104,7 +112,7 @@ suite('Workbench status bar model', () => {
 
 	test('entry with reference to other entry (existing)', () => {
 		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
 		// Existing reference, Alignment: left
 		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
@@ -134,7 +142,7 @@ suite('Workbench status bar model', () => {
 
 	test('entry with reference to other entry (nonexistent)', () => {
 		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
 		// Nonexistent reference, Alignment: left
 		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
@@ -164,7 +172,7 @@ suite('Workbench status bar model', () => {
 
 	test('entry with reference to other entry resorts based on other entry being there or not', () => {
 		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
 		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
@@ -197,7 +205,7 @@ suite('Workbench status bar model', () => {
 
 	test('entry with reference to other entry but different alignment does not explode', () => {
 		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
 		model.add({ id: '1-left', alignment: StatusbarAlignment.LEFT, name: '1-left', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 		model.add({ id: '2-left', alignment: StatusbarAlignment.LEFT, name: '2-left', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
@@ -223,4 +231,6 @@ suite('Workbench status bar model', () => {
 		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 2);
 		assert.strictEqual(model.getEntries(StatusbarAlignment.RIGHT).length, 3);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

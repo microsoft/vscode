@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -21,8 +21,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class SearchService extends Disposable implements ISearchService {
 
@@ -30,9 +30,11 @@ export class SearchService extends Disposable implements ISearchService {
 
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
+	private readonly aiTextSearchProviders = new Map<string, ISearchResultProvider>();
 
 	private deferredFileSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 	private deferredTextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
+	private deferredAITextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 
 	private loggedSchemesMissingProviders = new Set<string>();
 
@@ -57,6 +59,9 @@ export class SearchService extends Disposable implements ISearchService {
 		} else if (type === SearchProviderType.text) {
 			list = this.textSearchProviders;
 			deferredMap = this.deferredTextSearchesByScheme;
+		} else if (type === SearchProviderType.aiText) {
+			list = this.aiTextSearchProviders;
+			deferredMap = this.deferredAITextSearchesByScheme;
 		} else {
 			throw new Error('Unknown SearchProviderType');
 		}
@@ -73,37 +78,81 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<ISearchComplete> {
-		// Get local results from dirty/untitled
-		const localResults = this.getLocalResults(query);
+	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		const results = this.textSearchSplitSyncAsync(query, token, onProgress);
+		const openEditorResults = results.syncResults;
+		const otherResults = await results.asyncResults;
+		return {
+			limitHit: otherResults.limitHit || openEditorResults.limitHit,
+			results: [...otherResults.results, ...openEditorResults.results],
+			messages: [...otherResults.messages, ...openEditorResults.messages]
+		};
+	}
 
-		if (onProgress) {
-			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
-		}
-
+	async aiTextSearch(query: IAITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		const onProviderProgress = (progress: ISearchProgressItem) => {
-			if (isFileMatch(progress)) {
-				// Match
-				if (!localResults.results.has(progress.resource) && !(notebookURIs && notebookURIs.has(progress.resource)) && onProgress) { // don't override local results
+			// Match
+			if (onProgress) { // don't override open editor results
+				if (isFileMatch(progress)) {
 					onProgress(progress);
+				} else {
+					onProgress(<IProgressMessage>progress);
 				}
-			} else if (onProgress) {
-				// Progress
-				onProgress(<IProgressMessage>progress);
 			}
 
 			if (isProgressMessage(progress)) {
 				this.logService.debug('SearchService#search', progress.message);
 			}
 		};
+		return this.doSearch(query, token, onProviderProgress);
+	}
 
-		const otherResults = await this.doSearch(query, token, onProviderProgress);
+	textSearchSplitSyncAsync(
+		query: ITextQuery,
+		token?: CancellationToken | undefined,
+		onProgress?: ((result: ISearchProgressItem) => void) | undefined,
+		notebookFilesToIgnore?: ResourceSet,
+		asyncNotebookFilesToIgnore?: Promise<ResourceSet>
+	): {
+		syncResults: ISearchComplete;
+		asyncResults: Promise<ISearchComplete>;
+	} {
+		// Get open editor results from dirty/untitled
+		const openEditorResults = this.getOpenEditorResults(query);
+
+		if (onProgress) {
+			arrays.coalesce([...openEditorResults.results.values()]).filter(e => !(notebookFilesToIgnore && notebookFilesToIgnore.has(e.resource))).forEach(onProgress);
+		}
+
+		const syncResults: ISearchComplete = {
+			results: arrays.coalesce([...openEditorResults.results.values()]),
+			limitHit: openEditorResults.limitHit ?? false,
+			messages: []
+		};
+
+		const getAsyncResults = async () => {
+			const resolvedAsyncNotebookFilesToIgnore = await asyncNotebookFilesToIgnore ?? new ResourceSet();
+			const onProviderProgress = (progress: ISearchProgressItem) => {
+				if (isFileMatch(progress)) {
+					// Match
+					if (!openEditorResults.results.has(progress.resource) && !resolvedAsyncNotebookFilesToIgnore.has(progress.resource) && onProgress) { // don't override open editor results
+						onProgress(progress);
+					}
+				} else if (onProgress) {
+					// Progress
+					onProgress(<IProgressMessage>progress);
+				}
+
+				if (isProgressMessage(progress)) {
+					this.logService.debug('SearchService#search', progress.message);
+				}
+			};
+			return await this.doSearch(query, token, onProviderProgress);
+		};
+
 		return {
-			...otherResults,
-			...{
-				limitHit: otherResults.limitHit || localResults.limitHit
-			},
-			results: [...otherResults.results, ...arrays.coalesce([...localResults.results.values()])]
+			syncResults,
+			asyncResults: getAsyncResults()
 		};
 	}
 
@@ -158,15 +207,7 @@ export class SearchService extends Disposable implements ISearchService {
 			};
 		})();
 
-		return new Promise((resolve, reject) => {
-			if (token) {
-				token.onCancellationRequested(() => {
-					reject(new CancellationError());
-				});
-			}
-
-			providerPromise.then(resolve, reject);
-		});
+		return token ? raceCancellationError<ISearchComplete>(providerPromise, token) : providerPromise;
 	}
 
 	private getSchemesInQuery(query: ISearchQuery): Set<string> {
@@ -179,9 +220,7 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private async waitForProvider(queryType: QueryType, scheme: string): Promise<ISearchResultProvider> {
-		const deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = queryType === QueryType.File ?
-			this.deferredFileSearchesByScheme :
-			this.deferredTextSearchesByScheme;
+		const deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = this.getDeferredTextSearchesByScheme(queryType);
 
 		if (deferredMap.has(scheme)) {
 			return deferredMap.get(scheme)!.p;
@@ -192,6 +231,32 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
+	private getSearchProvider(type: QueryType): Map<string, ISearchResultProvider> {
+		switch (type) {
+			case QueryType.File:
+				return this.fileSearchProviders;
+			case QueryType.Text:
+				return this.textSearchProviders;
+			case QueryType.aiText:
+				return this.aiTextSearchProviders;
+			default:
+				throw new Error(`Unknown query type: ${type}`);
+		}
+	}
+
+	private getDeferredTextSearchesByScheme(type: QueryType): Map<string, DeferredPromise<ISearchResultProvider>> {
+		switch (type) {
+			case QueryType.File:
+				return this.deferredFileSearchesByScheme;
+			case QueryType.Text:
+				return this.deferredTextSearchesByScheme;
+			case QueryType.aiText:
+				return this.deferredAITextSearchesByScheme;
+			default:
+				throw new Error(`Unknown query type: ${type}`);
+		}
+	}
+
 	private async searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void, token?: CancellationToken) {
 		const e2eSW = StopWatch.create(false);
 
@@ -199,16 +264,15 @@ export class SearchService extends Disposable implements ISearchService {
 
 		const fqs = this.groupFolderQueriesByScheme(query);
 		const someSchemeHasProvider = [...fqs.keys()].some(scheme => {
-			return query.type === QueryType.File ?
-				this.fileSearchProviders.has(scheme) :
-				this.textSearchProviders.has(scheme);
+			return this.getSearchProvider(query.type).has(scheme);
 		});
 
+		if (query.type === QueryType.aiText && !someSchemeHasProvider) {
+			return [];
+		}
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			const schemeFQs = fqs.get(scheme)!;
-			let provider = query.type === QueryType.File ?
-				this.fileSearchProviders.get(scheme) :
-				this.textSearchProviders.get(scheme);
+			let provider = this.getSearchProvider(query.type).get(scheme);
 
 			if (!provider) {
 				if (someSchemeHasProvider) {
@@ -233,9 +297,18 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 			};
 
-			searchPs.push(query.type === QueryType.File ?
-				provider.fileSearch(<IFileQuery>oneSchemeQuery, token) :
-				provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token));
+			const doProviderSearch = () => {
+				switch (query.type) {
+					case QueryType.File:
+						return provider.fileSearch(<IFileQuery>oneSchemeQuery, token);
+					case QueryType.Text:
+						return provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token);
+					default:
+						return provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token);
+				}
+			};
+
+			searchPs.push(doProviderSearch());
 		}));
 
 		return Promise.all(searchPs).then(completes => {
@@ -404,8 +477,8 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	private getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
-		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	private getOpenEditorResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
+		const openEditorResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
 		if (query.type === QueryType.Text) {
@@ -436,7 +509,7 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Skip search results
-				if (model.getLanguageId() === 'search-result' && !(query.includePattern && query.includePattern['**/*.code-search'])) {
+				if (model.getLanguageId() === SEARCH_RESULT_LANGUAGE_ID && !(query.includePattern && query.includePattern['**/*.code-search'])) {
 					// TODO: untitled search editors will be excluded from search even when include *.code-search is specified
 					return;
 				}
@@ -465,18 +538,18 @@ export class SearchService extends Disposable implements ISearchService {
 					}
 
 					const fileMatch = new FileMatch(originalResource);
-					localResults.set(originalResource, fileMatch);
+					openEditorResults.set(originalResource, fileMatch);
 
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
-					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
+					fileMatch.results = getTextSearchMatchWithModelContext(textSearchResults, model, query);
 				} else {
-					localResults.set(originalResource, null);
+					openEditorResults.set(originalResource, null);
 				}
 			});
 		}
 
 		return {
-			results: localResults,
+			results: openEditorResults,
 			limitHit
 		};
 	}

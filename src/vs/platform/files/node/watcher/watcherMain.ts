@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server as ChildProcessServer } from 'vs/base/parts/ipc/node/ipc.cp';
 import { Server as UtilityProcessServer } from 'vs/base/parts/ipc/node/ipc.mp';
@@ -17,4 +18,4 @@ if (isUtilityProcess(process)) {
 }
 
 const service = new UniversalWatcher();
-server.registerChannel('watcher', ProxyChannel.fromService(service));
+server.registerChannel('watcher', ProxyChannel.fromService(service, new DisposableStore()));

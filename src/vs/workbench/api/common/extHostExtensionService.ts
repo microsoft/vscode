@@ -36,6 +36,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { IExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
@@ -44,7 +45,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { setTimeout0 } from 'vs/base/common/platform';
+import { isCI, setTimeout0 } from 'vs/base/common/platform';
 import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
@@ -116,6 +117,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<ExtensionPaths> | null;
+	private _realPathCache = new Map<string, Promise<string>>();
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver };
 
@@ -136,6 +138,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 		@IExtHostLocalizationService extHostLocalizationService: IExtHostLocalizationService,
 		@IExtHostManagedSockets private readonly _extHostManagedSockets: IExtHostManagedSockets,
+		@IExtHostLanguageModels private readonly _extHostLanguageModels: IExtHostLanguageModels,
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -157,13 +160,19 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._readyToStartExtensionHost = new Barrier();
 		this._readyToRunExtensions = new Barrier();
 		this._eagerExtensionsActivated = new Barrier();
-		this._activationEventsReader = new SyncedActivationEventsReader(this._initData.activationEvents);
-		this._globalRegistry = new ExtensionDescriptionRegistry(this._activationEventsReader, this._initData.allExtensions);
-		const myExtensionsSet = new ExtensionIdentifierSet(this._initData.myExtensions);
+		this._activationEventsReader = new SyncedActivationEventsReader(this._initData.extensions.activationEvents);
+		this._globalRegistry = new ExtensionDescriptionRegistry(this._activationEventsReader, this._initData.extensions.allExtensions);
+		const myExtensionsSet = new ExtensionIdentifierSet(this._initData.extensions.myExtensions);
 		this._myRegistry = new ExtensionDescriptionRegistry(
 			this._activationEventsReader,
 			filterExtensions(this._globalRegistry, myExtensionsSet)
 		);
+
+		if (isCI) {
+			this._logService.info(`Creating extension host with the following global extensions: ${printExtIds(this._globalRegistry)}`);
+			this._logService.info(`Creating extension host with the following local extensions: ${printExtIds(this._myRegistry)}`);
+		}
+
 		this._storage = new ExtHostStorage(this._extHostContext, this._logService);
 		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
@@ -324,11 +333,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	/**
-	 * Applies realpath to file-uris and returns all others uris unmodified
+	 * Applies realpath to file-uris and returns all others uris unmodified.
+	 * The real path is cached for the lifetime of the extension host.
 	 */
 	private async _realPathExtensionUri(uri: URI): Promise<URI> {
 		if (uri.scheme === Schemas.file && this._hostUtils.fsRealpath) {
-			const realpathValue = await this._hostUtils.fsRealpath(uri.fsPath);
+			const fsPath = uri.fsPath;
+			if (!this._realPathCache.has(fsPath)) {
+				this._realPathCache.set(fsPath, this._hostUtils.fsRealpath(fsPath));
+			}
+			const realpathValue = await this._realPathCache.get(fsPath)!;
 			return URI.file(realpathValue);
 		}
 		return uri;
@@ -483,6 +497,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
 
+		const lanuageModelAccessInformation = this._extHostLanguageModels.createLanguageModelAccessInformation(extensionDescription);
 		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
 		const secrets = new ExtensionSecrets(extensionDescription, this._secretState);
@@ -511,6 +526,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				workspaceState,
 				secrets,
 				subscriptions: [],
+				get languageModelAccessInformation() { return lanuageModelAccessInformation; },
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
@@ -734,8 +750,18 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return new Promise<number>((resolve, reject) => {
 			const oldTestRunnerCallback = (error: Error, failures: number | undefined) => {
 				if (error) {
+					if (isCI) {
+						this._logService.error(`Test runner called back with error`, error);
+					}
 					reject(error);
 				} else {
+					if (isCI) {
+						if (failures) {
+							this._logService.info(`Test runner called back with ${failures} failures.`);
+						} else {
+							this._logService.info(`Test runner called back with successful outcome.`);
+						}
+					}
 					resolve((typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
 				}
 			};
@@ -748,9 +774,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			if (runResult && runResult.then) {
 				runResult
 					.then(() => {
+						if (isCI) {
+							this._logService.info(`Test runner finished successfully.`);
+						}
 						resolve(0);
 					})
 					.catch((err: unknown) => {
+						if (isCI) {
+							this._logService.error(`Test runner finished with error`, err);
+						}
 						reject(err instanceof Error && err.stack ? err.stack : String(err));
 					});
 			}
@@ -861,9 +893,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
 					result = await resolver.resolve(remoteAuthority, { resolveAttempt, execServer });
 					performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
-					// todo@connor4312: we probably need to chain tunnels too, how does this work with 'public' tunnels?
 					logInfo(`setting tunnel factory...`);
-					this._register(await this._extHostTunnelService.setTunnelFactory(resolver));
+					this._register(await this._extHostTunnelService.setTunnelFactory(
+						resolver,
+						ExtHostManagedResolvedAuthority.isManagedResolvedAuthority(result) ? result : undefined
+					));
 				} else {
 					logInfo(`invoking resolveExecServer() for ${remoteAuthority}`);
 					performance.mark(`code/extHost/willResolveExecServer/${authorityPrefix}`);
@@ -885,7 +919,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		const tunnelInformation: TunnelInformation = {
 			environmentTunnels: result.environmentTunnels,
-			features: result.tunnelFeatures
+			features: result.tunnelFeatures ? {
+				elevation: result.tunnelFeatures.elevation,
+				privacyOptions: result.tunnelFeatures.privacyOptions,
+				protocol: result.tunnelFeatures.protocol === undefined ? true : result.tunnelFeatures.protocol,
+			} : undefined
 		};
 
 		// Split merged API result into separate authority/options
@@ -954,12 +992,20 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return result;
 	}
 
-	public $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
+		const newSearchTree = await this._createExtensionPathIndex(myExtensions);
+		const extensionsPaths = await this.getExtensionPathIndex();
+		extensionsPaths.setSearchTree(newSearchTree);
 		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
 		this._myRegistry.set(myExtensions);
+
+		if (isCI) {
+			this._logService.info(`$startExtensionHost: global extensions: ${printExtIds(this._globalRegistry)}`);
+			this._logService.info(`$startExtensionHost: local extensions: ${printExtIds(this._myRegistry)}`);
+		}
 
 		return this._startExtensionHost();
 	}
@@ -996,6 +1042,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		extensionsPaths.setSearchTree(newSearchTree);
 		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
 		this._myRegistry.set(myExtensions);
+
+		if (isCI) {
+			this._logService.info(`$deltaExtensions: global extensions: ${printExtIds(this._globalRegistry)}`);
+			this._logService.info(`$deltaExtensions: local extensions: ${printExtIds(this._myRegistry)}`);
+		}
 
 		return Promise.resolve(undefined);
 	}
@@ -1071,6 +1122,9 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 	return event;
 }
 
+function printExtIds(registry: ExtensionDescriptionRegistry) {
+	return registry.getAllExtensionDescriptions().map(ext => ext.identifier.value).join(',');
+}
 
 export const IExtHostExtensionService = createDecorator<IExtHostExtensionService>('IExtHostExtensionService');
 
@@ -1176,8 +1230,8 @@ class SyncedActivationEventsReader implements IActivationEventsReader {
 		this.addActivationEvents(activationEvents);
 	}
 
-	public readActivationEvents(extensionDescription: Readonly<IRelaxedExtensionDescription>): string[] | undefined {
-		return this._map.get(extensionDescription.identifier);
+	public readActivationEvents(extensionDescription: Readonly<IRelaxedExtensionDescription>): string[] {
+		return this._map.get(extensionDescription.identifier) ?? [];
 	}
 
 	public addActivationEvents(activationEvents: { [extensionId: string]: string[] }): void {

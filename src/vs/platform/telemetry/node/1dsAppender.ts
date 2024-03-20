@@ -8,7 +8,16 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IRequestService } from 'vs/platform/request/common/request';
+import * as https from 'https';
 import { AbstractOneDataSystemAppender, IAppInsightsCore } from 'vs/platform/telemetry/common/1dsAppender';
+
+type OnCompleteFunc = (status: number, headers: { [headerName: string]: string }, response?: string) => void;
+
+interface IResponseData {
+	headers: { [headerName: string]: string };
+	statusCode: number;
+	responseData: string;
+}
 
 /**
  * Completes a request to submit telemetry to the server utilizing the request service
@@ -16,7 +25,7 @@ import { AbstractOneDataSystemAppender, IAppInsightsCore } from 'vs/platform/tel
  * @param requestService The request service
  * @returns An object containing the headers, statusCode, and responseData
  */
-async function makeTelemetryRequest(options: IRequestOptions, requestService: IRequestService) {
+async function makeTelemetryRequest(options: IRequestOptions, requestService: IRequestService): Promise<IResponseData> {
 	const response = await requestService.request(options, CancellationToken.None);
 	const responseData = (await streamToBuffer(response.stream)).toString();
 	const statusCode = response.res.statusCode ?? 200;
@@ -31,30 +40,57 @@ async function makeTelemetryRequest(options: IRequestOptions, requestService: IR
 /**
  * Complete a request to submit telemetry to the server utilizing the https module. Only used when the request service is not available
  * @param options The options which will be used to make the request
- * @param httpsModule The https node module
  * @returns An object containing the headers, statusCode, and responseData
  */
-function makeLegacyTelemetryRequest(options: IRequestOptions, httpsModule: typeof import('https')) {
+async function makeLegacyTelemetryRequest(options: IRequestOptions): Promise<IResponseData> {
 	const httpsOptions = {
 		method: options.type,
 		headers: options.headers
 	};
-	const req = httpsModule.request(options.url ?? '', httpsOptions, res => {
-		res.on('data', function (responseData) {
-			return {
-				headers: res.headers as Record<string, any>,
-				statusCode: res.statusCode ?? 200,
-				responseData: responseData.toString()
-			};
+	const responsePromise = new Promise<IResponseData>((resolve, reject) => {
+		const req = https.request(options.url ?? '', httpsOptions, res => {
+			res.on('data', function (responseData) {
+				resolve({
+					headers: res.headers as Record<string, any>,
+					statusCode: res.statusCode ?? 200,
+					responseData: responseData.toString()
+				});
+			});
+			// On response with error send status of 0 and a blank response to oncomplete so we can retry events
+			res.on('error', function (err) {
+				reject(err);
+			});
 		});
-		// On response with error send status of 0 and a blank response to oncomplete so we can retry events
-		res.on('error', function (err) {
-			throw err;
+		req.write(options.data, (err) => {
+			if (err) {
+				reject(err);
+			}
 		});
+		req.end();
 	});
-	req.write(options.data);
-	req.end();
-	return;
+	return responsePromise;
+}
+
+async function sendPostAsync(requestService: IRequestService | undefined, payload: IPayloadData, oncomplete: OnCompleteFunc) {
+	const telemetryRequestData = typeof payload.data === 'string' ? payload.data : new TextDecoder().decode(payload.data);
+	const requestOptions: IRequestOptions = {
+		type: 'POST',
+		headers: {
+			...payload.headers,
+			'Content-Type': 'application/json',
+			'Content-Length': Buffer.byteLength(payload.data).toString()
+		},
+		url: payload.urlString,
+		data: telemetryRequestData
+	};
+
+	try {
+		const responseData = requestService ? await makeTelemetryRequest(requestOptions, requestService) : await makeLegacyTelemetryRequest(requestOptions);
+		oncomplete(responseData.statusCode, responseData.headers, responseData.responseData);
+	} catch {
+		// If it errors out, send status of 0 and a blank response to oncomplete so we can retry events
+		oncomplete(0, {});
+	}
 }
 
 
@@ -67,41 +103,11 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 		defaultData: { [key: string]: any } | null,
 		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
 	) {
-		let httpsModule: typeof import('https') | undefined;
-		if (!requestService) {
-			httpsModule = require('https');
-		}
 		// Override the way events get sent since node doesn't have XHTMLRequest
 		const customHttpXHROverride: IXHROverride = {
 			sendPOST: (payload: IPayloadData, oncomplete) => {
-
-				const telemetryRequestData = typeof payload.data === 'string' ? payload.data : new TextDecoder().decode(payload.data);
-				const requestOptions: IRequestOptions = {
-					type: 'POST',
-					headers: {
-						...payload.headers,
-						'Content-Type': 'application/json',
-						'Content-Length': Buffer.byteLength(payload.data).toString()
-					},
-					url: payload.urlString,
-					data: telemetryRequestData
-				};
-
-				try {
-					if (requestService) {
-						makeTelemetryRequest(requestOptions, requestService).then(({ statusCode, headers, responseData }) => {
-							oncomplete(statusCode, headers, responseData);
-						});
-					} else {
-						if (!httpsModule) {
-							throw new Error('https module is undefined');
-						}
-						makeLegacyTelemetryRequest(requestOptions, httpsModule);
-					}
-				} catch {
-					// If it errors out, send status of 0 and a blank response to oncomplete so we can retry events
-					oncomplete(0, {});
-				}
+				// Fire off the async request without awaiting it
+				sendPostAsync(requestService, payload, oncomplete);
 			}
 		};
 

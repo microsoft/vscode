@@ -22,6 +22,7 @@ export interface IRequestService {
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
 	resolveProxy(url: string): Promise<string | undefined>;
+	loadCertificates(): Promise<string[]>;
 }
 
 class LoggableHeaders {
@@ -79,13 +80,14 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	abstract request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 	abstract resolveProxy(url: string): Promise<string | undefined>;
+	abstract loadCertificates(): Promise<string[]>;
 }
 
 export function isSuccess(context: IRequestContext): boolean {
 	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
 }
 
-function hasNoContent(context: IRequestContext): boolean {
+export function hasNoContent(context: IRequestContext): boolean {
 	return context.res.statusCode === 204;
 }
 
@@ -176,6 +178,13 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				type: 'boolean',
 				default: true,
 				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS, a reload of the window is required after turning this off.)"),
+				restricted: true
+			},
+			'http.experimental.systemCertificatesV2': {
+				type: 'boolean',
+				tags: ['experimental'],
+				default: false,
+				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implemenation."),
 				restricted: true
 			}
 		}

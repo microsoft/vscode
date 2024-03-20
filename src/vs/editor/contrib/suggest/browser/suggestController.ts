@@ -5,10 +5,9 @@
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IdleValue } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeyCodeChord } from 'vs/base/common/keybindings';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -45,6 +44,8 @@ import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
+import { WindowIdleValue, getWindow } from 'vs/base/browser/dom';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -53,7 +54,12 @@ const _sticky = false
 
 class LineSuffix {
 
-	private readonly _marker: string[] | undefined;
+	private readonly _decorationOptions = ModelDecorationOptions.register({
+		description: 'suggest-line-suffix',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	});
+
+	private _marker: string | undefined;
 
 	constructor(private readonly _model: ITextModel, private readonly _position: IPosition) {
 		// spy on what's happening right of the cursor. two cases:
@@ -63,16 +69,21 @@ class LineSuffix {
 		if (maxColumn !== _position.column) {
 			const offset = _model.getOffsetAt(_position);
 			const end = _model.getPositionAt(offset + 1);
-			this._marker = _model.deltaDecorations([], [{
-				range: Range.fromPositions(_position, end),
-				options: { description: 'suggest-line-suffix', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
-			}]);
+			_model.changeDecorations(accessor => {
+				if (this._marker) {
+					accessor.removeDecoration(this._marker);
+				}
+				this._marker = accessor.addDecoration(Range.fromPositions(_position, end), this._decorationOptions);
+			});
 		}
 	}
 
 	dispose(): void {
 		if (this._marker && !this._model.isDisposed()) {
-			this._model.deltaDecorations(this._marker, []);
+			this._model.changeDecorations(accessor => {
+				accessor.removeDecoration(this._marker!);
+				this._marker = undefined;
+			});
 		}
 	}
 
@@ -84,7 +95,7 @@ class LineSuffix {
 		// read the marker (in case suggest was triggered at line end) or compare
 		// the cursor to the line end.
 		if (this._marker) {
-			const range = this._model.getDecorationRange(this._marker[0]);
+			const range = this._model.getDecorationRange(this._marker);
 			const end = this._model.getOffsetAt(range!.getStartPosition());
 			return end - this._model.getOffsetAt(position);
 		} else {
@@ -111,13 +122,16 @@ export class SuggestController implements IEditorContribution {
 
 	readonly editor: ICodeEditor;
 	readonly model: SuggestModel;
-	readonly widget: IdleValue<SuggestWidget>;
+	readonly widget: WindowIdleValue<SuggestWidget>;
 
-	private readonly _alternatives: IdleValue<SuggestAlternatives>;
+	private readonly _alternatives: WindowIdleValue<SuggestAlternatives>;
 	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
-	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
+	private readonly _overtypingCapturer: WindowIdleValue<OvertypingCapturer>;
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
+
+	private readonly _onWillInsertSuggestItem = new Emitter<{ item: CompletionItem }>();
+	readonly onWillInsertSuggestItem: Event<{ item: CompletionItem }> = this._onWillInsertSuggestItem.event;
 
 	constructor(
 		editor: ICodeEditor,
@@ -140,9 +154,9 @@ export class SuggestController implements IEditorContribution {
 		// context key: update insert/replace mode
 		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
 		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
-		this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode));
+		this._toDispose.add(this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode)));
 
-		this.widget = this._toDispose.add(new IdleValue(() => {
+		this.widget = this._toDispose.add(new WindowIdleValue(getWindow(editor.getDomNode()), () => {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
 
@@ -215,11 +229,11 @@ export class SuggestController implements IEditorContribution {
 		}));
 
 		// Wire up text overtyping capture
-		this._overtypingCapturer = this._toDispose.add(new IdleValue(() => {
+		this._overtypingCapturer = this._toDispose.add(new WindowIdleValue(getWindow(editor.getDomNode()), () => {
 			return this._toDispose.add(new OvertypingCapturer(this.editor, this.model));
 		}));
 
-		this._alternatives = this._toDispose.add(new IdleValue(() => {
+		this._alternatives = this._toDispose.add(new WindowIdleValue(getWindow(editor.getDomNode()), () => {
 			return this._toDispose.add(new SuggestAlternatives(this.editor, this._contextKeyService));
 		}));
 
@@ -243,7 +257,12 @@ export class SuggestController implements IEditorContribution {
 			if (index === -1) {
 				index = 0;
 			}
-
+			if (this.model.state === State.Idle) {
+				// selecting an item can "pump" out selection/cursor change events
+				// which can cancel suggest halfway through this function. therefore
+				// we need to check again and bail if the session has been canceled
+				return;
+			}
 			let noFocus = false;
 			if (e.triggerOptions.auto) {
 				// don't "focus" item when configured to do
@@ -292,6 +311,7 @@ export class SuggestController implements IEditorContribution {
 		this.widget.dispose();
 		this.model.dispose();
 		this._lineSuffix.dispose();
+		this._onWillInsertSuggestItem.dispose();
 	}
 
 	protected _insertSuggestion(
@@ -311,6 +331,8 @@ export class SuggestController implements IEditorContribution {
 		if (!snippetController) {
 			return;
 		}
+
+		this._onWillInsertSuggestItem.fire({ item: event.item });
 
 		const model = this.editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();
@@ -347,7 +369,17 @@ export class SuggestController implements IEditorContribution {
 			const scrollState = StableEditorScrollState.capture(this.editor);
 			this.editor.executeEdits(
 				'suggestController.additionalTextEdits.sync',
-				item.completion.additionalTextEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text))
+				item.completion.additionalTextEdits.map(edit => {
+					let range = Range.lift(edit.range);
+					if (range.startLineNumber === item.position.lineNumber && range.startColumn > item.position.column) {
+						// shift additional edit when it is "after" the completion insertion position
+						const columnDelta = this.editor.getPosition()!.column - item.position.column;
+						const startColumnDelta = columnDelta;
+						const endColumnDelta = Range.spansMultipleLines(range) ? 0 : columnDelta;
+						range = new Range(range.startLineNumber, range.startColumn + startColumnDelta, range.endLineNumber, range.endColumn + endColumnDelta);
+					}
+					return EditOperation.replaceMove(range, edit.text);
+				})
 			);
 			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 

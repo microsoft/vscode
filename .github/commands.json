@@ -35,7 +35,7 @@
 		"name": "*dev-question",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We have a great extension developer community over on [GitHub discussions](https://github.com/microsoft/vscode-discussions/discussions) and [Slack](https://aka.ms/vscode-dev-community) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
+		"comment": "We have a great extension developer community over on [GitHub discussions](https://github.com/microsoft/vscode-discussions/discussions) and [Slack](https://vscode-dev-community.slack.com/) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -57,6 +57,13 @@
 		"action": "close",
 		"reason": "not_planned",
 		"comment": "We closed this issue because we [don't plan to address it](https://aka.ms/vscode-out-of-scope) in the foreseeable future. If you disagree and feel that this issue is crucial: we are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nThanks for your understanding, and happy coding!"
+	},
+	{
+		"type": "label",
+		"name": "wont-fix",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "We closed this issue because we [don't plan to address it](https://github.com/microsoft/vscode/wiki/Issue-Grooming#wont-fix-bugs).\n\nThanks for your understanding, and happy coding!"
 	},
 	{
 		"type": "comment",
@@ -486,7 +493,7 @@
 		],
 		"action": "comment",
 		"addLabel": "info-needed",
-		"comment": "Please perform the following **three tasks** to diagnose the root cause of the issue:\n\n* [ ] **1.) Disable Extensions**\n  * Select `View` and pick `Command Palette...`\n  * Run `Developer: Reload With Extensions Disabled`\n  * 👉 See if the issue reproduces\n\n* [ ] **2.) Disable Configuration**\n  * Select `View` and pick `Command Palette...`\n  * Run `Profiles: Create a Temporary Profile`\n  * 👉 See if the issue reproduces\n\n* [ ] **3.) Try VS Code Insiders**\n  * Download [VS Code Insiders](https://code.visualstudio.com/insiders/)\n  * Install and Run it\n  * 👉 See if the issue reproduces\n \nThen pick one of the three resolutions depending on which step has helped:\n\n<details>\n  <summary>Disabling my Extensions helped</summary>\n\nPlease run the command `Start Extension Bisect` and follow the instructions to find the extension that is causing this issue.\n\n<img width='631' alt='image' src='https://user-images.githubusercontent.com/900690/228760008-d5790ad1-74da-46a2-917f-e1bd26281ca8.png'>\n\nPlease report the issue to the extension causing this.\n</details>\n\n<details>\n  <summary>Disabling my configuration helped</summary>\nPlease report back more details about your configuration, including settings.\n</details>\n\n<details>\n  <summary>Using VS Code Insiders has helped</summary>\n✅ This likely means that the issue has been addressed already and will be available in an upcoming release. You can safely use VS Code Insiders until the new stable version is available.\n</details>"
+		"comment": "Please diagnose the root cause of the issue by running the command `F1 > Help: Troubleshoot Issue` and following the instructions. Once you have done that, please update the issue with the results.\n\nHappy Coding!"
 	},
 	{
 		"__comment__": "Allows folks on the team to label issues by commenting: `\\label My-Label` ",

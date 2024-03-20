@@ -15,6 +15,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -104,7 +105,7 @@ export interface IDiffEditorModel {
 	modified: ITextModel;
 }
 
-export interface IDiffEditorViewModel {
+export interface IDiffEditorViewModel extends IDisposable {
 	readonly model: IDiffEditorModel;
 
 	waitForDiff(): Promise<void>;
@@ -155,6 +156,7 @@ export interface IEditorAction {
 	readonly id: string;
 	readonly label: string;
 	readonly alias: string;
+	readonly metadata: ICommandMetadata | undefined;
 	isSupported(): boolean;
 	run(args?: unknown): Promise<void>;
 }
@@ -255,8 +257,11 @@ export interface IEditor {
 	 * be called when the container of the editor gets resized.
 	 *
 	 * If a dimension is passed in, the passed in value will be used.
+	 *
+	 * By default, this will also render the editor immediately.
+	 * If you prefer to delay rendering to the next animation frame, use postponeRendering == true.
 	 */
-	layout(dimension?: IDimension): void;
+	layout(dimension?: IDimension, postponeRendering?: boolean): void;
 
 	/**
 	 * Brings browser focus to the editor text
@@ -554,6 +559,10 @@ export interface IEditorDecorationsCollection {
 	 */
 	set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 	/**
+	 * Append `newDecorations` to this collection.
+	 */
+	append(newDecorations: readonly IModelDeltaDecoration[]): string[];
+	/**
 	 * Remove all previous decorations.
 	 */
 	clear(): void;
@@ -762,12 +771,3 @@ export interface CompositionTypePayload {
 	positionDelta: number;
 }
 
-/**
- * @internal
- */
-export interface PastePayload {
-	text: string;
-	pasteOnNewLine: boolean;
-	multicursorText: string[] | null;
-	mode: string | null;
-}

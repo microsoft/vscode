@@ -9,7 +9,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -20,11 +20,12 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
@@ -33,7 +34,7 @@ const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>(
 export class WelcomeView extends ViewPane {
 
 	static readonly ID = 'workbench.debug.welcome';
-	static readonly LABEL = localize('run', "Run");
+	static readonly LABEL: ILocalizedString = localize2('run', "Run");
 
 	private debugStartLanguageContext: IContextKey<string | undefined>;
 	private debuggerInterestedContext: IContextKey<boolean>;
@@ -61,7 +62,11 @@ export class WelcomeView extends ViewPane {
 		this.debugStartLanguageContext.set(lastSetLanguage);
 
 		const setContextKey = () => {
-			const editorControl = this.editorService.activeTextEditorControl;
+			let editorControl = this.editorService.activeTextEditorControl;
+			if (isDiffEditor(editorControl)) {
+				editorControl = editorControl.getModifiedEditor();
+			}
+
 			if (isCodeEditor(editorControl)) {
 				const model = editorControl.getModel();
 				const language = model ? model.getLanguageId() : undefined;
@@ -81,7 +86,11 @@ export class WelcomeView extends ViewPane {
 		this._register(editorService.onDidActiveEditorChange(() => {
 			disposables.clear();
 
-			const editorControl = this.editorService.activeTextEditorControl;
+			let editorControl = this.editorService.activeTextEditorControl;
+			if (isDiffEditor(editorControl)) {
+				editorControl = editorControl.getModifiedEditor();
+			}
+
 			if (isCodeEditor(editorControl)) {
 				disposables.add(editorControl.onDidChangeModelLanguage(setContextKey));
 			}
@@ -156,8 +165,9 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 		{
 			key: 'customizeRunAndDebugOpenFolder',
 			comment: [
-				'Please do not translate the word "commmand", it is part of our internal syntax which must not change',
-				'{Locked="](command:{0})"}'
+				'Please do not translate the word "command", it is part of our internal syntax which must not change',
+				'Please do not translate "launch.json", it is the specific configuration file name',
+				'{Locked="](command:{0})"}',
 			]
 		},
 		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),

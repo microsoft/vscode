@@ -21,16 +21,18 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { TestWorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Workspace Trust', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let environmentService: IWorkbenchEnvironmentService;
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -38,49 +40,46 @@ suite('Workspace Trust', () => {
 		environmentService = {} as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
+		const fileService = store.add(new FileService(new NullLogService()));
+		const uriIdentityService = store.add(new UriIdentityService(fileService));
+
+		instantiationService.stub(IUriIdentityService, uriIdentityService);
 		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
 	});
 
-	teardown(() => {
-		instantiationService.dispose();
-	});
-
 	suite('Enablement', () => {
-		let testObject: WorkspaceTrustEnablementService;
-
-		teardown(() => testObject.dispose());
-
 		test('workspace trust enabled', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
-			testObject = instantiationService.createInstance(WorkspaceTrustEnablementService);
+			const testObject = store.add(instantiationService.createInstance(WorkspaceTrustEnablementService));
 
 			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), true);
 		});
 
 		test('workspace trust disabled (user setting)', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(false, true));
-			testObject = instantiationService.createInstance(WorkspaceTrustEnablementService);
+			const testObject = store.add(instantiationService.createInstance(WorkspaceTrustEnablementService));
 
 			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), false);
 		});
 
 		test('workspace trust disabled (--disable-workspace-trust)', () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService, disableWorkspaceTrust: true });
-			testObject = instantiationService.createInstance(WorkspaceTrustEnablementService);
+			const testObject = store.add(instantiationService.createInstance(WorkspaceTrustEnablementService));
 
 			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), false);
 		});
 	});
 
 	suite('Management', () => {
-		let testObject: WorkspaceTrustManagementService;
-
 		let storageService: TestStorageService;
 		let workspaceService: TestContextService;
 
+		teardown(() => {
+			Memento.clear(StorageScope.WORKSPACE);
+		});
+
 		setup(() => {
-			storageService = new TestStorageService();
+			storageService = store.add(new TestStorageService());
 			instantiationService.stub(IStorageService, storageService);
 
 			workspaceService = new TestContextService();
@@ -89,15 +88,10 @@ suite('Workspace Trust', () => {
 			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
 		});
 
-		teardown(() => {
-			testObject.dispose();
-			Memento.clear(StorageScope.WORKSPACE);
-		});
-
 		test('empty workspace - trusted', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
-			testObject = await initializeTestObject();
+			const testObject = await initializeTestObject();
 
 			assert.strictEqual(true, testObject.isWorkspaceTrusted());
 		});
@@ -105,7 +99,7 @@ suite('Workspace Trust', () => {
 		test('empty workspace - untrusted', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
-			testObject = await initializeTestObject();
+			const testObject = await initializeTestObject();
 
 			assert.strictEqual(false, testObject.isWorkspaceTrusted());
 		});
@@ -119,7 +113,7 @@ suite('Workspace Trust', () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
 
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
-			testObject = await initializeTestObject();
+			const testObject = await initializeTestObject();
 
 			assert.strictEqual(true, testObject.isWorkspaceTrusted());
 		});
@@ -131,13 +125,13 @@ suite('Workspace Trust', () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
 
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
-			testObject = await initializeTestObject();
+			const testObject = await initializeTestObject();
 
 			assert.strictEqual(false, testObject.isWorkspaceTrusted());
 		});
 
 		async function initializeTestObject(): Promise<WorkspaceTrustManagementService> {
-			const workspaceTrustManagementService = instantiationService.createInstance(WorkspaceTrustManagementService);
+			const workspaceTrustManagementService = store.add(instantiationService.createInstance(WorkspaceTrustManagementService));
 			await workspaceTrustManagementService.workspaceTrustInitialized;
 
 			return workspaceTrustManagementService;

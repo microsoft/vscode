@@ -84,7 +84,7 @@ export class RunToolbar extends CellContentPart {
 		const executionContextKeyService = this._register(getCodeCellExecutionContextKeyService(contextKeyService));
 		this.toolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			getKeyBinding: keybindingProvider,
-			actionViewItemProvider: _action => {
+			actionViewItemProvider: (_action, _options) => {
 				actionViewItemDisposables.clear();
 
 				const primary = this.getCellToolbarActions(this.primaryMenu).primary[0];
@@ -104,6 +104,7 @@ export class RunToolbar extends CellContentPart {
 					'notebook-cell-run-toolbar',
 					this.contextMenuService,
 					{
+						..._options,
 						getKeyBinding: keybindingProvider
 					});
 				actionViewItemDisposables.add(item.onDidChangeDropdownVisibility(visible => {

@@ -55,6 +55,7 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	resetRenderer() {
 		// reset the output renderer
 		this._pickedMimeType = undefined;
+		this.model.bumpVersion();
 		this._onDidResetRendererEmitter.fire();
 	}
 

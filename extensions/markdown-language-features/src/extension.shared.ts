@@ -7,14 +7,13 @@ import * as vscode from 'vscode';
 import { MdLanguageClient } from './client/client';
 import { CommandManager } from './commandManager';
 import { registerMarkdownCommands } from './commands/index';
-import { registerPasteSupport } from './languageFeatures/copyFiles/copyPaste';
-import { registerLinkPasteSupport } from './languageFeatures/copyFiles/copyPasteLinks';
+import { registerPasteUrlSupport } from './languageFeatures/copyFiles/pasteUrlProvider';
+import { registerResourceDropOrPasteSupport } from './languageFeatures/copyFiles/dropOrPasteResource';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
-import { registerDropIntoEditorSupport } from './languageFeatures/copyFiles/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
 import { registerUpdateLinksOnRename } from './languageFeatures/linkUpdater';
 import { ILogger } from './logging';
-import { MarkdownItEngine } from './markdownEngine';
+import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { MdDocumentRenderer } from './preview/documentRenderer';
 import { MarkdownPreviewManager } from './preview/previewManager';
@@ -41,7 +40,7 @@ export function activateShared(
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, opener);
 	context.subscriptions.push(previewManager);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager));
+	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager, engine));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
@@ -52,16 +51,15 @@ export function activateShared(
 function registerMarkdownLanguageFeatures(
 	client: MdLanguageClient,
 	commandManager: CommandManager,
+	parser: IMdParser,
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 	return vscode.Disposable.from(
 		// Language features
 		registerDiagnosticSupport(selector, commandManager),
-		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, client),
-		registerPasteSupport(selector),
-		registerLinkPasteSupport(selector),
+		registerResourceDropOrPasteSupport(selector, parser),
+		registerPasteUrlSupport(selector, parser),
 		registerUpdateLinksOnRename(client),
 	);
 }
-

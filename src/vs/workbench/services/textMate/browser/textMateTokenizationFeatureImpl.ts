@@ -40,7 +40,7 @@ import { ITextMateThemingRule, IWorkbenchColorTheme, IWorkbenchThemeService } fr
 import type { IGrammar, IOnigLib, IRawTheme } from 'vscode-textmate';
 
 export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationService {
-	private static reportTokenizationTimeCounter = 0;
+	private static reportTokenizationTimeCounter = { sync: 0, async: 0 };
 	public _serviceBrand: undefined;
 
 	private readonly _styleElement: HTMLStyleElement;
@@ -57,7 +57,8 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	private _currentTokenColorMap: string[] | null = null;
 	private readonly _threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
 		ThreadedBackgroundTokenizerFactory,
-		(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample)
+		(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample),
+		() => this.getAsyncTokenizationEnabled(),
 	);
 
 	constructor(
@@ -87,6 +88,14 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
 			this._createdModes.push(languageId);
 		});
+	}
+
+	private getAsyncTokenizationEnabled(): boolean {
+		return !!this._configurationService.getValue<boolean>('editor.experimental.asyncTokenization');
+	}
+
+	private getAsyncTokenizationVerification(): boolean {
+		return !!this._configurationService.getValue<boolean>('editor.experimental.asyncTokenizationVerification');
 	}
 
 	private _handleGrammarsExtPoint(extensions: readonly IExtensionPointUser<ITMSyntaxExtensionPoint[]>[]): void {
@@ -287,7 +296,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				r.initialState,
 				r.containsEmbeddedLanguages,
 				(textModel, tokenStore) => this._threadedBackgroundTokenizerFactory.createBackgroundTokenizer(textModel, tokenStore, maxTokenizationLineLength),
-				() => this._configurationService.getValue<boolean>('editor.experimental.asyncTokenizationVerification'),
+				() => this.getAsyncTokenizationVerification(),
 				(timeMs, lineLength, isRandomSample) => {
 					this._reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength, false, isRandomSample);
 				},
@@ -376,17 +385,19 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	}
 
 	private _reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, fromWorker: boolean, isRandomSample: boolean): void {
+		const key = fromWorker ? 'async' : 'sync';
+
 		// 50 events per hour (one event has a low probability)
-		if (TextMateTokenizationFeature.reportTokenizationTimeCounter > 50) {
+		if (TextMateTokenizationFeature.reportTokenizationTimeCounter[key] > 50) {
 			// Don't flood telemetry with too many events
 			return;
 		}
-		if (TextMateTokenizationFeature.reportTokenizationTimeCounter === 0) {
+		if (TextMateTokenizationFeature.reportTokenizationTimeCounter[key] === 0) {
 			setTimeout(() => {
-				TextMateTokenizationFeature.reportTokenizationTimeCounter = 0;
+				TextMateTokenizationFeature.reportTokenizationTimeCounter[key] = 0;
 			}, 1000 * 60 * 60);
 		}
-		TextMateTokenizationFeature.reportTokenizationTimeCounter++;
+		TextMateTokenizationFeature.reportTokenizationTimeCounter[key]++;
 
 		this._telemetryService.publicLog2<{
 			timeMs: number;
@@ -395,6 +406,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			fromWorker: boolean;
 			sourceExtensionId: string | undefined;
 			isRandomSample: boolean;
+			tokenizationSetting: number;
 		}, {
 			owner: 'hediet';
 
@@ -404,6 +416,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			fromWorker: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out if this line was tokenized sync or async' };
 			sourceExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out which extension contributed the grammar' };
 			isRandomSample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out if this is a random sample or measured because of some other condition.' };
+			tokenizationSetting: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand if the user has async tokenization enabled. 0=sync, 1=async, 2=verification' };
 
 			comment: 'This event gives insight about the performance certain grammars.';
 		}>('editor.tokenizedLine', {
@@ -413,6 +426,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			fromWorker,
 			sourceExtensionId,
 			isRandomSample,
+			tokenizationSetting: this.getAsyncTokenizationEnabled() ? (this.getAsyncTokenizationVerification() ? 2 : 1) : 0,
 		});
 	}
 }

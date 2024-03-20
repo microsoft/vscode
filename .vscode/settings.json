@@ -6,6 +6,7 @@
 		".build": true,
 		".profile-oss": true,
 		"**/.DS_Store": true,
+		".vscode-test": true,
 		"cli/target": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
@@ -34,7 +35,7 @@
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
 	},
 	"files.readonlyInclude": {
-		"**/node_modules/**": true,
+		"**/node_modules/**/*.*": true,
 		"**/yarn.lock": true,
 		"**/Cargo.lock": true,
 		"src/vs/workbench/workbench.web.main.css": true,
@@ -143,6 +144,11 @@
 			"${workspaceFolder}/build/**/*.js"
 		]
 	},
+	"extension-test-runner.debugOptions": {
+		"outFiles": [
+			"${workspaceFolder}/extensions/*/out/**/*.js",
+		]
+	},
 	"githubPullRequests.assignCreated": "${user}",
 	"githubPullRequests.defaultMergeMethod": "squash",
 	"githubPullRequests.ignoredPullRequestBranches": [
@@ -151,5 +157,18 @@
 	"application.experimental.rendererProfiling": true,
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
-	"diffEditor.experimental.useVersion2": true,
+	"typescript.preferences.autoImportFileExcludePatterns": [
+		"@xterm/xterm",
+		"@xterm/headless",
+		"node-pty",
+		"vscode-notebook-renderer",
+		"src/vs/workbench/workbench.web.main.ts",
+		"src/vs/workbench/api/common/extHostTypes.ts"
+	],
+	"[github-issues]": {
+		"editor.wordWrap": "on"
+	},
+	"css.format.spaceAroundSelectorSeparator": true,
+	"inlineChat.mode": "live",
+	"typescript.enablePromptUseWorkspaceTsdk": true,
 }

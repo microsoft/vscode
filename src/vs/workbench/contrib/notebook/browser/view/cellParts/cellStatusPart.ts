@@ -27,9 +27,9 @@ import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cell
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
@@ -77,7 +77,8 @@ export class CellEditorStatusBar extends CellContentPart {
 			private _lastHoverHideTime: number = 0;
 
 			readonly showHover = (options: IHoverDelegateOptions) => {
-				options.hoverPosition = HoverPosition.ABOVE;
+				options.position = options.position ?? {};
+				options.position.hoverPosition = HoverPosition.ABOVE;
 				return hoverService.showHover(options);
 			};
 
@@ -132,11 +133,13 @@ export class CellEditorStatusBar extends CellContentPart {
 		if (this._editor) {
 			// Focus Mode
 			const updateFocusModeForEditorEvent = () => {
-				if (this._editor && (this._editor.hasWidgetFocus() || (document.activeElement && this.statusBarContainer.contains(document.activeElement)))) {
+				if (this._editor && (this._editor.hasWidgetFocus() || (this.statusBarContainer.ownerDocument.activeElement && this.statusBarContainer.contains(this.statusBarContainer.ownerDocument.activeElement)))) {
 					element.focusMode = CellFocusMode.Editor;
 				} else {
 					const currentMode = element.focusMode;
-					if (currentMode === CellFocusMode.Output && this._notebookEditor.hasWebviewFocus()) {
+					if (currentMode === CellFocusMode.ChatInput) {
+						element.focusMode = CellFocusMode.ChatInput;
+					} else if (currentMode === CellFocusMode.Output && this._notebookEditor.hasWebviewFocus()) {
 						element.focusMode = CellFocusMode.Output;
 					} else {
 						element.focusMode = CellFocusMode.Container;
@@ -153,7 +156,7 @@ export class CellEditorStatusBar extends CellContentPart {
 				// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
 				if (
 					this._notebookEditor.hasEditorFocus() &&
-					!(document.activeElement && this.statusBarContainer.contains(document.activeElement))) {
+					!(this.statusBarContainer.ownerDocument.activeElement && this.statusBarContainer.contains(this.statusBarContainer.ownerDocument.activeElement))) {
 					updateFocusModeForEditorEvent();
 				}
 			}));
@@ -242,7 +245,7 @@ export class CellEditorStatusBar extends CellContentPart {
 				if (existingItem) {
 					existingItem.updateItem(newLeftItem, maxItemWidth);
 				} else {
-					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, this.hoverDelegate, newLeftItem, maxItemWidth);
+					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, this.hoverDelegate, this._editor, newLeftItem, maxItemWidth);
 					renderedItems.push(item);
 					container.appendChild(item.container);
 				}
@@ -274,6 +277,7 @@ class CellStatusBarItem extends Disposable {
 	constructor(
 		private readonly _context: INotebookCellActionContext,
 		private readonly _hoverDelegate: IHoverDelegate,
+		private readonly _editor: ICodeEditor | undefined,
 		itemModel: INotebookCellStatusBarItem,
 		maxWidth: number | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -290,7 +294,7 @@ class CellStatusBarItem extends Disposable {
 		this._itemDisposables.clear();
 
 		if (!this._currentItem || this._currentItem.text !== item.text) {
-			new SimpleIconLabel(this.container).text = item.text.replace(/\n/g, ' ');
+			this._itemDisposables.add(new SimpleIconLabel(this.container)).text = item.text.replace(/\n/g, ' ');
 		}
 
 		const resolveColor = (color: ThemeColor | string) => {
@@ -361,6 +365,7 @@ class CellStatusBarItem extends Disposable {
 
 		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
 		try {
+			this._editor?.focus();
 			await this._commandService.executeCommand(id, ...args);
 		} catch (error) {
 			this._notificationService.error(toErrorMessage(error));

@@ -5,69 +5,77 @@
 
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-export const FindInFilesActionId = 'workbench.action.findInFiles';
-export const FocusActiveEditorCommandId = 'search.action.focusActiveEditor';
+export const enum SearchCommandIds {
+	FindInFilesActionId = 'workbench.action.findInFiles',
+	FocusActiveEditorCommandId = 'search.action.focusActiveEditor',
+	FocusSearchFromResults = 'search.action.focusSearchFromResults',
+	OpenMatch = 'search.action.openResult',
+	OpenMatchToSide = 'search.action.openResultToSide',
+	RemoveActionId = 'search.action.remove',
+	CopyPathCommandId = 'search.action.copyPath',
+	CopyMatchCommandId = 'search.action.copyMatch',
+	CopyAllCommandId = 'search.action.copyAll',
+	OpenInEditorCommandId = 'search.action.openInEditor',
+	ClearSearchHistoryCommandId = 'search.action.clearHistory',
+	FocusSearchListCommandID = 'search.action.focusSearchList',
+	ReplaceActionId = 'search.action.replace',
+	ReplaceAllInFileActionId = 'search.action.replaceAllInFile',
+	ReplaceAllInFolderActionId = 'search.action.replaceAllInFolder',
+	CloseReplaceWidgetActionId = 'closeReplaceInFilesWidget',
+	ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive',
+	ToggleWholeWordCommandId = 'toggleSearchWholeWord',
+	ToggleRegexCommandId = 'toggleSearchRegex',
+	TogglePreserveCaseId = 'toggleSearchPreserveCase',
+	AddCursorsAtSearchResults = 'addCursorsAtSearchResults',
+	RevealInSideBarForSearchResults = 'search.action.revealInSideBar',
+	ReplaceInFilesActionId = 'workbench.action.replaceInFiles',
+	ShowAllSymbolsActionId = 'workbench.action.showAllSymbols',
+	QuickTextSearchActionId = 'workbench.action.experimental.quickTextSearch',
+	CancelSearchActionId = 'search.action.cancel',
+	RefreshSearchResultsActionId = 'search.action.refreshSearchResults',
+	FocusNextSearchResultActionId = 'search.action.focusNextSearchResult',
+	FocusPreviousSearchResultActionId = 'search.action.focusPreviousSearchResult',
+	ToggleSearchOnTypeActionId = 'workbench.action.toggleSearchOnType',
+	CollapseSearchResultsActionId = 'search.action.collapseSearchResults',
+	ExpandSearchResultsActionId = 'search.action.expandSearchResults',
+	ClearSearchResultsActionId = 'search.action.clearSearchResults',
+	ViewAsTreeActionId = 'search.action.viewAsTree',
+	ViewAsListActionId = 'search.action.viewAsList',
+	ShowAIResultsActionId = 'search.action.showAIResults',
+	HideAIResultsActionId = 'search.action.hideAIResults',
+	ToggleQueryDetailsActionId = 'workbench.action.search.toggleQueryDetails',
+	ExcludeFolderFromSearchId = 'search.action.excludeFromSearch',
+	FocusNextInputActionId = 'search.focus.nextInputBox',
+	FocusPreviousInputActionId = 'search.focus.previousInputBox',
+	RestrictSearchToFolderId = 'search.action.restrictSearchToFolder',
+	FindInFolderId = 'filesExplorer.findInFolder',
+	FindInWorkspaceId = 'filesExplorer.findInWorkspace',
+}
 
-export const FocusSearchFromResults = 'search.action.focusSearchFromResults';
-export const OpenMatch = 'search.action.openResult';
-export const OpenMatchToSide = 'search.action.openResultToSide';
-export const RemoveActionId = 'search.action.remove';
-export const CopyPathCommandId = 'search.action.copyPath';
-export const CopyMatchCommandId = 'search.action.copyMatch';
-export const CopyAllCommandId = 'search.action.copyAll';
-export const OpenInEditorCommandId = 'search.action.openInEditor';
-export const ClearSearchHistoryCommandId = 'search.action.clearHistory';
-export const FocusSearchListCommandID = 'search.action.focusSearchList';
-export const ReplaceActionId = 'search.action.replace';
-export const ReplaceAllInFileActionId = 'search.action.replaceAllInFile';
-export const ReplaceAllInFolderActionId = 'search.action.replaceAllInFolder';
-export const CloseReplaceWidgetActionId = 'closeReplaceInFilesWidget';
-export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
-export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
-export const ToggleRegexCommandId = 'toggleSearchRegex';
-export const TogglePreserveCaseId = 'toggleSearchPreserveCase';
-export const AddCursorsAtSearchResults = 'addCursorsAtSearchResults';
-export const RevealInSideBarForSearchResults = 'search.action.revealInSideBar';
-export const ReplaceInFilesActionId = 'workbench.action.replaceInFiles';
-export const ShowAllSymbolsActionId = 'workbench.action.showAllSymbols';
-export const CancelSearchActionId = 'search.action.cancel';
-export const RefreshSearchResultsActionId = 'search.action.refreshSearchResults';
-export const FocusNextSearchResultActionId = 'search.action.focusNextSearchResult';
-export const FocusPreviousSearchResultActionId = 'search.action.focusPreviousSearchResult';
-export const ToggleSearchOnTypeActionId = 'workbench.action.toggleSearchOnType';
-export const CollapseSearchResultsActionId = 'search.action.collapseSearchResults';
-export const ExpandSearchResultsActionId = 'search.action.expandSearchResults';
-export const ClearSearchResultsActionId = 'search.action.clearSearchResults';
-export const ViewAsTreeActionId = 'search.action.viewAsTree';
-export const ViewAsListActionId = 'search.action.viewAsList';
-export const ToggleQueryDetailsActionId = 'workbench.action.search.toggleQueryDetails';
-export const ExcludeFolderFromSearchId = 'search.action.excludeFromSearch';
-export const FocusNextInputActionId = 'search.focus.nextInputBox';
-export const FocusPreviousInputActionId = 'search.focus.previousInputBox';
-export const RestrictSearchToFolderId = 'search.action.restrictSearchToFolder';
-export const FindInFolderId = 'filesExplorer.findInFolder';
-export const FindInWorkspaceId = 'filesExplorer.findInWorkspace';
-
-export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
-export const SearchViewFocusedKey = new RawContextKey<boolean>('searchViewletFocus', false);
-export const InputBoxFocusedKey = new RawContextKey<boolean>('inputBoxFocus', false);
-export const SearchInputBoxFocusedKey = new RawContextKey<boolean>('searchInputBoxFocus', false);
-export const ReplaceInputBoxFocusedKey = new RawContextKey<boolean>('replaceInputBoxFocus', false);
-export const PatternIncludesFocusedKey = new RawContextKey<boolean>('patternIncludesInputBoxFocus', false);
-export const PatternExcludesFocusedKey = new RawContextKey<boolean>('patternExcludesInputBoxFocus', false);
-export const ReplaceActiveKey = new RawContextKey<boolean>('replaceActive', false);
-export const HasSearchResults = new RawContextKey<boolean>('hasSearchResult', false);
-export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);
-export const FileMatchOrMatchFocusKey = new RawContextKey<boolean>('fileMatchOrMatchFocus', false); // This is actually, Match or File or Folder
-export const FileMatchOrFolderMatchFocusKey = new RawContextKey<boolean>('fileMatchOrFolderMatchFocus', false);
-export const FileMatchOrFolderMatchWithResourceFocusKey = new RawContextKey<boolean>('fileMatchOrFolderMatchWithResourceFocus', false); // Excludes "Other files"
-export const FileFocusKey = new RawContextKey<boolean>('fileMatchFocus', false);
-export const FolderFocusKey = new RawContextKey<boolean>('folderMatchFocus', false);
-export const ResourceFolderFocusKey = new RawContextKey<boolean>('folderMatchWithResourceFocus', false);
-export const IsEditableItemKey = new RawContextKey<boolean>('isEditableItem', true);
-export const MatchFocusKey = new RawContextKey<boolean>('matchFocus', false);
-export const ViewHasSearchPatternKey = new RawContextKey<boolean>('viewHasSearchPattern', false);
-export const ViewHasReplacePatternKey = new RawContextKey<boolean>('viewHasReplacePattern', false);
-export const ViewHasFilePatternKey = new RawContextKey<boolean>('viewHasFilePattern', false);
-export const ViewHasSomeCollapsibleKey = new RawContextKey<boolean>('viewHasSomeCollapsibleResult', false);
-export const InTreeViewKey = new RawContextKey<boolean>('inTreeView', false);
+export const SearchContext = {
+	SearchViewVisibleKey: new RawContextKey<boolean>('searchViewletVisible', true),
+	SearchViewFocusedKey: new RawContextKey<boolean>('searchViewletFocus', false),
+	InputBoxFocusedKey: new RawContextKey<boolean>('inputBoxFocus', false),
+	SearchInputBoxFocusedKey: new RawContextKey<boolean>('searchInputBoxFocus', false),
+	ReplaceInputBoxFocusedKey: new RawContextKey<boolean>('replaceInputBoxFocus', false),
+	PatternIncludesFocusedKey: new RawContextKey<boolean>('patternIncludesInputBoxFocus', false),
+	PatternExcludesFocusedKey: new RawContextKey<boolean>('patternExcludesInputBoxFocus', false),
+	ReplaceActiveKey: new RawContextKey<boolean>('replaceActive', false),
+	HasSearchResults: new RawContextKey<boolean>('hasSearchResult', false),
+	FirstMatchFocusKey: new RawContextKey<boolean>('firstMatchFocus', false),
+	FileMatchOrMatchFocusKey: new RawContextKey<boolean>('fileMatchOrMatchFocus', false), // This is actually, Match or File or Folder
+	FileMatchOrFolderMatchFocusKey: new RawContextKey<boolean>('fileMatchOrFolderMatchFocus', false),
+	FileMatchOrFolderMatchWithResourceFocusKey: new RawContextKey<boolean>('fileMatchOrFolderMatchWithResourceFocus', false), // Excludes "Other files"
+	FileFocusKey: new RawContextKey<boolean>('fileMatchFocus', false),
+	FolderFocusKey: new RawContextKey<boolean>('folderMatchFocus', false),
+	ResourceFolderFocusKey: new RawContextKey<boolean>('folderMatchWithResourceFocus', false),
+	IsEditableItemKey: new RawContextKey<boolean>('isEditableItem', true),
+	MatchFocusKey: new RawContextKey<boolean>('matchFocus', false),
+	ViewHasSearchPatternKey: new RawContextKey<boolean>('viewHasSearchPattern', false),
+	ViewHasReplacePatternKey: new RawContextKey<boolean>('viewHasReplacePattern', false),
+	ViewHasFilePatternKey: new RawContextKey<boolean>('viewHasFilePattern', false),
+	ViewHasSomeCollapsibleKey: new RawContextKey<boolean>('viewHasSomeCollapsibleResult', false),
+	InTreeViewKey: new RawContextKey<boolean>('inTreeView', false),
+	AIResultsVisibleKey: new RawContextKey<boolean>('AIResultsVisibleKey', false),
+	hasAIResultProvider: new RawContextKey<boolean>('hasAIResultProviderKey', false),
+};

@@ -13,6 +13,11 @@ export interface IIssueUriRequestHandler {
 	provideIssueUrl(token: CancellationToken): Promise<URI>;
 }
 
+export interface IIssueDataProvider {
+	provideIssueExtensionData(token: CancellationToken): Promise<string>;
+	provideIssueExtensionTemplate(token: CancellationToken): Promise<string>;
+}
+
 export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');
 
 export interface IWorkbenchIssueService {
@@ -20,4 +25,5 @@ export interface IWorkbenchIssueService {
 	openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
 	openProcessExplorer(): Promise<void>;
 	registerIssueUriRequestHandler(extensionId: string, handler: IIssueUriRequestHandler): IDisposable;
+	registerIssueDataProvider(extensionId: string, handler: IIssueDataProvider): IDisposable;
 }

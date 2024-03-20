@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
@@ -29,6 +30,8 @@ suite('SuggestMemories', function () {
 	teardown(() => {
 		buffer.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('AbstractMemory, select', function () {
 

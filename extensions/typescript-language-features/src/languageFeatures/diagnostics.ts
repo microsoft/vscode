@@ -8,6 +8,9 @@ import { DiagnosticLanguage } from '../configuration/languageDescription';
 import * as arrays from '../utils/arrays';
 import { Disposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
+import { TelemetryReporter } from '../logging/telemetry';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { equals } from '../utils/objects';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
 	if (a === b) {
@@ -148,6 +151,82 @@ class DiagnosticSettings {
 	}
 }
 
+class DiagnosticsTelemetryManager extends Disposable {
+
+	private readonly _diagnosticCodesMap = new Map<number, number>();
+	private readonly _diagnosticSnapshotsMap = new ResourceMap<readonly vscode.Diagnostic[]>(uri => uri.toString(), { onCaseInsensitiveFileSystem: false });
+	private _timeout: NodeJS.Timeout | undefined;
+	private _telemetryEmitter: NodeJS.Timer | undefined;
+
+	constructor(
+		private readonly _telemetryReporter: TelemetryReporter,
+		private readonly _diagnosticsCollection: vscode.DiagnosticCollection,
+	) {
+		super();
+		this._register(vscode.workspace.onDidChangeTextDocument(e => {
+			if (e.document.languageId === 'typescript' || e.document.languageId === 'typescriptreact') {
+				this._updateAllDiagnosticCodesAfterTimeout();
+			}
+		}));
+		this._updateAllDiagnosticCodesAfterTimeout();
+		this._registerTelemetryEventEmitter();
+	}
+
+	private _updateAllDiagnosticCodesAfterTimeout() {
+		clearTimeout(this._timeout);
+		this._timeout = setTimeout(() => this._updateDiagnosticCodes(), 5000);
+	}
+
+	private _increaseDiagnosticCodeCount(code: string | number | undefined) {
+		if (code === undefined) {
+			return;
+		}
+		this._diagnosticCodesMap.set(Number(code), (this._diagnosticCodesMap.get(Number(code)) || 0) + 1);
+	}
+
+	private _updateDiagnosticCodes() {
+		this._diagnosticsCollection.forEach((uri, diagnostics) => {
+			const previousDiagnostics = this._diagnosticSnapshotsMap.get(uri);
+			this._diagnosticSnapshotsMap.set(uri, diagnostics);
+			const diagnosticsDiff = diagnostics.filter((diagnostic) => !previousDiagnostics?.some((previousDiagnostic) => equals(diagnostic, previousDiagnostic)));
+			diagnosticsDiff.forEach((diagnostic) => {
+				const code = diagnostic.code;
+				this._increaseDiagnosticCodeCount(typeof code === 'string' || typeof code === 'number' ? code : code?.value);
+			});
+		});
+	}
+
+	private _registerTelemetryEventEmitter() {
+		this._telemetryEmitter = setInterval(() => {
+			if (this._diagnosticCodesMap.size > 0) {
+				let diagnosticCodes = '';
+				this._diagnosticCodesMap.forEach((value, key) => {
+					diagnosticCodes += `${key}:${value},`;
+				});
+				this._diagnosticCodesMap.clear();
+				/* __GDPR__
+					"typescript.diagnostics" : {
+						"owner": "aiday-mar",
+						"diagnosticCodes" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"${include}": [
+							"${TypeScriptCommonProperties}"
+						]
+					}
+				*/
+				this._telemetryReporter.logTelemetry('typescript.diagnostics', {
+					diagnosticCodes: diagnosticCodes
+				});
+			}
+		}, 5 * 60 * 1000); // 5 minutes
+	}
+
+	override dispose() {
+		super.dispose();
+		clearTimeout(this._timeout);
+		clearInterval(this._telemetryEmitter);
+	}
+}
+
 export class DiagnosticsManager extends Disposable {
 	private readonly _diagnostics: ResourceMap<FileDiagnostics>;
 	private readonly _settings = new DiagnosticSettings();
@@ -158,6 +237,8 @@ export class DiagnosticsManager extends Disposable {
 
 	constructor(
 		owner: string,
+		configuration: TypeScriptServiceConfiguration,
+		telemetryReporter: TelemetryReporter,
 		onCaseInsensitiveFileSystem: boolean
 	) {
 		super();
@@ -165,6 +246,10 @@ export class DiagnosticsManager extends Disposable {
 		this._pendingUpdates = new ResourceMap<any>(undefined, { onCaseInsensitiveFileSystem });
 
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
+		// Here we are selecting only 1 user out of 1000 to send telemetry diagnostics
+		if (Math.random() * 1000 <= 1 || configuration.enableDiagnosticsTelemetry) {
+			this._register(new DiagnosticsTelemetryManager(telemetryReporter, this._currentDiagnostics));
+		}
 	}
 
 	public override dispose() {

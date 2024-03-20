@@ -38,7 +38,7 @@ export function getStdinFilePath(): string {
 	return randomPath(tmpdir(), 'code-stdin', 3);
 }
 
-export async function readFromStdin(targetPath: string, verbose: boolean): Promise<void> {
+export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?: Function): Promise<void> {
 
 	let [encoding, iconv] = await Promise.all([
 		resolveTerminalEncoding(verbose),	// respect terminal encoding when piping into file
@@ -68,8 +68,15 @@ export async function readFromStdin(targetPath: string, verbose: boolean): Promi
 
 	process.stdin.on('end', () => {
 		const end = decoder.end();
-		if (typeof end === 'string') {
-			appendFileQueue.queue(() => Promises.appendFile(targetPath, end));
-		}
+
+		appendFileQueue.queue(async () => {
+			try {
+				if (typeof end === 'string') {
+					await Promises.appendFile(targetPath, end);
+				}
+			} finally {
+				onEnd?.();
+			}
+		});
 	});
 }

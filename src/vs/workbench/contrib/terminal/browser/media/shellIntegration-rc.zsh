@@ -32,14 +32,8 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 	fi
 fi
 
-# Shell integration was disabled by the shell, exit without warning assuming either the shell has
-# explicitly disabled shell integration as it's incompatible or it implements the protocol.
-if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
-	builtin return
-fi
-
 # Apply EnvironmentVariableCollections if needed
-if [ -n "$VSCODE_ENV_REPLACE" ]; then
+if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo ${ITEM%%=*})"
@@ -47,21 +41,27 @@ if [ -n "$VSCODE_ENV_REPLACE" ]; then
 	done
 	unset VSCODE_ENV_REPLACE
 fi
-if [ -n "$VSCODE_ENV_PREPEND" ]; then
+if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo ${ITEM%%=*})"
-		export $VARNAME="$(echo -e {ITEM#*=})${(P)VARNAME}"
+		export $VARNAME="$(echo -e ${ITEM#*=})${(P)VARNAME}"
 	done
 	unset VSCODE_ENV_PREPEND
 fi
-if [ -n "$VSCODE_ENV_APPEND" ]; then
+if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo ${ITEM%%=*})"
-		export $VARNAME="${(P)VARNAME}$(echo -e {ITEM#*=})"
+		export $VARNAME="${(P)VARNAME}$(echo -e ${ITEM#*=})"
 	done
 	unset VSCODE_ENV_APPEND
+fi
+
+# Shell integration was disabled by the shell, exit without warning assuming either the shell has
+# explicitly disabled shell integration as it's incompatible or it implements the protocol.
+if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
+	builtin return
 fi
 
 # The property (P) and command (E) codes embed values which require escaping.

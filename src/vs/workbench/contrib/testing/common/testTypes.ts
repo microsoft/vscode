@@ -6,9 +6,10 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+
 
 export const enum TestResultState {
 	Unset = 0,
@@ -19,6 +20,16 @@ export const enum TestResultState {
 	Skipped = 5,
 	Errored = 6
 }
+
+export const testResultStateToContextValues: { [K in TestResultState]: string } = {
+	[TestResultState.Unset]: 'unset',
+	[TestResultState.Queued]: 'queued',
+	[TestResultState.Running]: 'running',
+	[TestResultState.Passed]: 'passed',
+	[TestResultState.Failed]: 'failed',
+	[TestResultState.Skipped]: 'skipped',
+	[TestResultState.Errored]: 'errored',
+};
 
 /** note: keep in sync with TestRunProfileKind in vscode.d.ts */
 export const enum ExtTestRunProfileKind {
@@ -129,20 +140,26 @@ export interface IRichLocation {
 	uri: URI;
 }
 
+/** Subset of the IUriIdentityService */
+export interface ITestUriCanonicalizer {
+	/** @link import('vs/platform/uriIdentity/common/uriIdentity').IUriIdentityService */
+	asCanonicalUri(uri: URI): URI;
+}
+
 export namespace IRichLocation {
 	export interface Serialize {
 		range: IRange;
 		uri: UriComponents;
 	}
 
-	export const serialize = (location: IRichLocation): Serialize => ({
+	export const serialize = (location: Readonly<IRichLocation>): Serialize => ({
 		range: location.range.toJSON(),
 		uri: location.uri.toJSON(),
 	});
 
-	export const deserialize = (location: Serialize): IRichLocation => ({
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, location: Serialize): IRichLocation => ({
 		range: Range.lift(location.range),
-		uri: URI.revive(location.uri),
+		uri: uriIdentity.asCanonicalUri(URI.revive(location.uri)),
 	});
 }
 
@@ -156,6 +173,7 @@ export interface ITestErrorMessage {
 	type: TestMessageType.Error;
 	expected: string | undefined;
 	actual: string | undefined;
+	contextValue: string | undefined;
 	location: IRichLocation | undefined;
 }
 
@@ -165,23 +183,26 @@ export namespace ITestErrorMessage {
 		type: TestMessageType.Error;
 		expected: string | undefined;
 		actual: string | undefined;
+		contextValue: string | undefined;
 		location: IRichLocation.Serialize | undefined;
 	}
 
-	export const serialize = (message: ITestErrorMessage): Serialized => ({
+	export const serialize = (message: Readonly<ITestErrorMessage>): Serialized => ({
 		message: message.message,
 		type: TestMessageType.Error,
 		expected: message.expected,
 		actual: message.actual,
+		contextValue: message.contextValue,
 		location: message.location && IRichLocation.serialize(message.location),
 	});
 
-	export const deserialize = (message: Serialized): ITestErrorMessage => ({
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, message: Serialized): ITestErrorMessage => ({
 		message: message.message,
 		type: TestMessageType.Error,
 		expected: message.expected,
 		actual: message.actual,
-		location: message.location && IRichLocation.deserialize(message.location),
+		contextValue: message.contextValue,
+		location: message.location && IRichLocation.deserialize(uriIdentity, message.location),
 	});
 }
 
@@ -209,7 +230,7 @@ export namespace ITestOutputMessage {
 		location: IRichLocation.Serialize | undefined;
 	}
 
-	export const serialize = (message: ITestOutputMessage): Serialized => ({
+	export const serialize = (message: Readonly<ITestOutputMessage>): Serialized => ({
 		message: message.message,
 		type: TestMessageType.Output,
 		offset: message.offset,
@@ -217,12 +238,12 @@ export namespace ITestOutputMessage {
 		location: message.location && IRichLocation.serialize(message.location),
 	});
 
-	export const deserialize = (message: Serialized): ITestOutputMessage => ({
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, message: Serialized): ITestOutputMessage => ({
 		message: message.message,
 		type: TestMessageType.Output,
 		offset: message.offset,
 		length: message.length,
-		location: message.location && IRichLocation.deserialize(message.location),
+		location: message.location && IRichLocation.deserialize(uriIdentity, message.location),
 	});
 }
 
@@ -231,11 +252,11 @@ export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
 export namespace ITestMessage {
 	export type Serialized = ITestErrorMessage.Serialized | ITestOutputMessage.Serialized;
 
-	export const serialize = (message: ITestMessage): Serialized =>
+	export const serialize = (message: Readonly<ITestMessage>): Serialized =>
 		message.type === TestMessageType.Error ? ITestErrorMessage.serialize(message) : ITestOutputMessage.serialize(message);
 
-	export const deserialize = (message: Serialized): ITestMessage =>
-		message.type === TestMessageType.Error ? ITestErrorMessage.deserialize(message) : ITestOutputMessage.deserialize(message);
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, message: Serialized): ITestMessage =>
+		message.type === TestMessageType.Error ? ITestErrorMessage.deserialize(uriIdentity, message) : ITestOutputMessage.deserialize(uriIdentity, message);
 }
 
 export interface ITestTaskState {
@@ -257,16 +278,16 @@ export namespace ITestTaskState {
 		messages: [],
 	});
 
-	export const serialize = (state: ITestTaskState): Serialized => ({
+	export const serialize = (state: Readonly<ITestTaskState>): Serialized => ({
 		state: state.state,
 		duration: state.duration,
 		messages: state.messages.map(ITestMessage.serialize),
 	});
 
-	export const deserialize = (state: Serialized): ITestTaskState => ({
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, state: Serialized): ITestTaskState => ({
 		state: state.state,
 		duration: state.duration,
-		messages: state.messages.map(ITestMessage.deserialize),
+		messages: state.messages.map(m => ITestMessage.deserialize(uriIdentity, m)),
 	});
 }
 
@@ -325,7 +346,7 @@ export namespace ITestItem {
 		sortText: string | null;
 	}
 
-	export const serialize = (item: ITestItem): Serialized => ({
+	export const serialize = (item: Readonly<ITestItem>): Serialized => ({
 		extId: item.extId,
 		label: item.label,
 		tags: item.tags,
@@ -338,13 +359,13 @@ export namespace ITestItem {
 		sortText: item.sortText
 	});
 
-	export const deserialize = (serialized: Serialized): ITestItem => ({
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): ITestItem => ({
 		extId: serialized.extId,
 		label: serialized.label,
 		tags: serialized.tags,
 		busy: serialized.busy,
 		children: undefined,
-		uri: serialized.uri ? URI.revive(serialized.uri) : undefined,
+		uri: serialized.uri ? uriIdentity.asCanonicalUri(URI.revive(serialized.uri)) : undefined,
 		range: serialized.range ? Range.lift(serialized.range) : null,
 		description: serialized.description,
 		error: serialized.error,
@@ -377,18 +398,18 @@ export namespace InternalTestItem {
 		item: ITestItem.Serialized;
 	}
 
-	export const serialize = (item: InternalTestItem): Serialized => ({
+	export const serialize = (item: Readonly<InternalTestItem>): Serialized => ({
 		expand: item.expand,
 		item: ITestItem.serialize(item.item)
 	});
 
-	export const deserialize = (serialized: Serialized): InternalTestItem => ({
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): InternalTestItem => ({
 		// the `controllerId` is derived from the test.item.extId. It's redundant
 		// in the non-serialized InternalTestItem too, but there just because it's
 		// checked against in many hot paths.
 		controllerId: TestId.root(serialized.item.extId),
 		expand: serialized.expand,
-		item: ITestItem.deserialize(serialized.item)
+		item: ITestItem.deserialize(uriIdentity, serialized.item)
 	});
 }
 
@@ -408,7 +429,7 @@ export namespace ITestItemUpdate {
 		item?: Partial<ITestItem.Serialized>;
 	}
 
-	export const serialize = (u: ITestItemUpdate): Serialized => {
+	export const serialize = (u: Readonly<ITestItemUpdate>): Serialized => {
 		let item: Partial<ITestItem.Serialized> | undefined;
 		if (u.item) {
 			item = {};
@@ -486,18 +507,18 @@ export namespace TestResultItem {
 		tasks: original.tasks.map(ITestTaskState.serializeWithoutMessages),
 	});
 
-	export const serialize = (original: TestResultItem): Serialized => ({
+	export const serialize = (original: Readonly<TestResultItem>): Serialized => ({
 		...InternalTestItem.serialize(original),
 		ownComputedState: original.ownComputedState,
 		computedState: original.computedState,
 		tasks: original.tasks.map(ITestTaskState.serialize),
 	});
 
-	export const deserialize = (serialized: Serialized): TestResultItem => ({
-		...InternalTestItem.deserialize(serialized),
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): TestResultItem => ({
+		...InternalTestItem.deserialize(uriIdentity, serialized),
 		ownComputedState: serialized.ownComputedState,
 		computedState: serialized.computedState,
-		tasks: serialized.tasks.map(ITestTaskState.deserialize),
+		tasks: serialized.tasks.map(m => ITestTaskState.deserialize(uriIdentity, m)),
 		retired: true,
 	});
 }
@@ -521,42 +542,146 @@ export interface ITestCoverage {
 	files: IFileCoverage[];
 }
 
-export interface ICoveredCount {
+export interface ICoverageCount {
 	covered: number;
 	total: number;
 }
 
-export interface IFileCoverage {
-	uri: URI;
-	statement: ICoveredCount;
-	branch?: ICoveredCount;
-	function?: ICoveredCount;
-	details?: CoverageDetails[];
+export namespace ICoverageCount {
+	export const empty = (): ICoverageCount => ({ covered: 0, total: 0 });
+	export const sum = (target: ICoverageCount, src: Readonly<ICoverageCount>) => {
+		target.covered += src.covered;
+		target.total += src.total;
+	};
 }
+
+export interface IFileCoverage {
+	id: string;
+	uri: URI;
+	statement: ICoverageCount;
+	branch?: ICoverageCount;
+	declaration?: ICoverageCount;
+}
+
+export namespace IFileCoverage {
+	export interface Serialized {
+		id: string;
+		uri: UriComponents;
+		statement: ICoverageCount;
+		branch?: ICoverageCount;
+		declaration?: ICoverageCount;
+	}
+
+	export const serialize = (original: Readonly<IFileCoverage>): Serialized => ({
+		id: original.id,
+		statement: original.statement,
+		branch: original.branch,
+		declaration: original.declaration,
+		uri: original.uri.toJSON(),
+	});
+
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): IFileCoverage => ({
+		id: serialized.id,
+		statement: serialized.statement,
+		branch: serialized.branch,
+		declaration: serialized.declaration,
+		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
+	});
+}
+
+function serializeThingWithLocation<T extends { location?: Range | Position }>(serialized: T): T & { location?: IRange | IPosition } {
+	return {
+		...serialized,
+		location: serialized.location?.toJSON(),
+	};
+}
+
+function deserializeThingWithLocation<T extends { location?: IRange | IPosition }>(serialized: T): T & { location?: Range | Position } {
+	serialized.location = serialized.location ? (Position.isIPosition(serialized.location) ? Position.lift(serialized.location) : Range.lift(serialized.location)) : undefined;
+	return serialized as T & { location?: Range | Position };
+}
+
+/** Number of recent runs in which coverage reports should be retained. */
+export const KEEP_N_LAST_COVERAGE_REPORTS = 3;
 
 export const enum DetailType {
-	Function,
+	Declaration,
 	Statement,
+	Branch,
 }
 
-export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
+export type CoverageDetails = IDeclarationCoverage | IStatementCoverage;
+
+export namespace CoverageDetails {
+	export type Serialized = IDeclarationCoverage.Serialized | IStatementCoverage.Serialized;
+
+	export const serialize = (original: Readonly<CoverageDetails>): Serialized =>
+		original.type === DetailType.Declaration ? IDeclarationCoverage.serialize(original) : IStatementCoverage.serialize(original);
+
+	export const deserialize = (serialized: Serialized): CoverageDetails =>
+		serialized.type === DetailType.Declaration ? IDeclarationCoverage.deserialize(serialized) : IStatementCoverage.deserialize(serialized);
+}
 
 export interface IBranchCoverage {
-	count: number;
-	location?: IRange | IPosition;
+	count: number | boolean;
+	label?: string;
+	location?: Range | Position;
 }
 
-export interface IFunctionCoverage {
-	type: DetailType.Function;
-	count: number;
-	location?: IRange | IPosition;
+export namespace IBranchCoverage {
+	export interface Serialized {
+		count: number | boolean;
+		label?: string;
+		location?: IRange | IPosition;
+	}
+
+	export const serialize: (original: IBranchCoverage) => Serialized = serializeThingWithLocation;
+	export const deserialize: (original: Serialized) => IBranchCoverage = deserializeThingWithLocation;
+}
+
+export interface IDeclarationCoverage {
+	type: DetailType.Declaration;
+	name: string;
+	count: number | boolean;
+	location: Range | Position;
+}
+
+export namespace IDeclarationCoverage {
+	export interface Serialized {
+		type: DetailType.Declaration;
+		name: string;
+		count: number | boolean;
+		location: IRange | IPosition;
+	}
+
+	export const serialize: (original: IDeclarationCoverage) => Serialized = serializeThingWithLocation;
+	export const deserialize: (original: Serialized) => IDeclarationCoverage = deserializeThingWithLocation;
 }
 
 export interface IStatementCoverage {
 	type: DetailType.Statement;
-	count: number;
-	location: IRange | IPosition;
+	count: number | boolean;
+	location: Range | Position;
 	branches?: IBranchCoverage[];
+}
+
+export namespace IStatementCoverage {
+	export interface Serialized {
+		type: DetailType.Statement;
+		count: number | boolean;
+		location: IRange | IPosition;
+		branches?: IBranchCoverage.Serialized[];
+	}
+
+	export const serialize = (original: Readonly<IStatementCoverage>): Serialized => ({
+		...serializeThingWithLocation(original),
+		branches: original.branches?.map(IBranchCoverage.serialize),
+	});
+
+	export const deserialize = (serialized: Serialized): IStatementCoverage => ({
+		...deserializeThingWithLocation(serialized),
+		branches: serialized.branches?.map(IBranchCoverage.deserialize),
+	});
 }
 
 export const enum TestDiffOpType {
@@ -599,19 +724,19 @@ export namespace TestsDiffOp {
 		| { op: TestDiffOpType.RemoveTag; id: string }
 		| { op: TestDiffOpType.DocumentSynced; uri: UriComponents; docv?: number };
 
-	export const deserialize = (u: Serialized): TestsDiffOp => {
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, u: Serialized): TestsDiffOp => {
 		if (u.op === TestDiffOpType.Add) {
-			return { op: u.op, item: InternalTestItem.deserialize(u.item) };
+			return { op: u.op, item: InternalTestItem.deserialize(uriIdentity, u.item) };
 		} else if (u.op === TestDiffOpType.Update) {
 			return { op: u.op, item: ITestItemUpdate.deserialize(u.item) };
 		} else if (u.op === TestDiffOpType.DocumentSynced) {
-			return { op: u.op, uri: URI.revive(u.uri), docv: u.docv };
+			return { op: u.op, uri: uriIdentity.asCanonicalUri(URI.revive(u.uri)), docv: u.docv };
 		} else {
 			return u;
 		}
 	};
 
-	export const serialize = (u: TestsDiffOp): Serialized => {
+	export const serialize = (u: Readonly<TestsDiffOp>): Serialized => {
 		if (u.op === TestDiffOpType.Add) {
 			return { op: u.op, item: InternalTestItem.serialize(u.item) };
 		} else if (u.op === TestDiffOpType.Update) {
@@ -630,6 +755,18 @@ export interface ITestItemContext {
 	$mid: MarshalledId.TestItemContext;
 	/** Tests and parents from the root to the current items */
 	tests: InternalTestItem.Serialized[];
+}
+
+/**
+ * Context for actions taken in the test explorer view.
+ */
+export interface ITestMessageMenuArgs {
+	/** Marshalling marker */
+	$mid: MarshalledId.TestMessageMenuArgs;
+	/** Tests ext ID */
+	test: InternalTestItem.Serialized;
+	/** Serialized test message */
+	message: ITestMessage.Serialized;
 }
 
 /**
@@ -677,7 +814,7 @@ export interface IncrementalChangeCollector<T> {
 /**
  * Maintains tests in this extension host sent from the main thread.
  */
-export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
+export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem> {
 	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
 
 	/**
@@ -705,6 +842,8 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 */
 	public readonly tags: ReadonlyMap<string, ITestTagDisplayInfo> = this._tags;
 
+	constructor(private readonly uriIdentity: ITestUriCanonicalizer) { }
+
 	/**
 	 * Applies the diff to the collection.
 	 */
@@ -714,7 +853,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 		for (const op of diff) {
 			switch (op.op) {
 				case TestDiffOpType.Add:
-					this.add(InternalTestItem.deserialize(op.item), changes);
+					this.add(InternalTestItem.deserialize(this.uriIdentity, op.item), changes);
 					break;
 
 				case TestDiffOpType.Update:

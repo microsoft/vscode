@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -332,10 +332,8 @@ class IssueTroubleshootUi extends Disposable {
 		if (troubleshootIssueService.isActive()) {
 			troubleshootIssueService.resume();
 		}
-		this._register(storageService.onDidChangeValue(e => {
-			if (e.key === TroubleshootIssueService.storageKey) {
-				this.updateContext();
-			}
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, TroubleshootIssueService.storageKey, this._register(new DisposableStore()))(() => {
+			this.updateContext();
 		}));
 	}
 
@@ -351,7 +349,7 @@ registerAction2(class TroubleshootIssueAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.troubleshootIssue.start',
-			title: { value: localize('troubleshootIssue', "Troubleshoot Issue..."), original: 'Troubleshoot Issue...' },
+			title: localize2('troubleshootIssue', 'Troubleshoot Issue...'),
 			category: Categories.Help,
 			f1: true,
 			precondition: ContextKeyExpr.and(IssueTroubleshootUi.ctxIsTroubleshootActive.negate(), RemoteNameContext.isEqualTo(''), IsWebContext.negate()),
@@ -366,7 +364,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.troubleshootIssue.stop',
-			title: { value: localize('title.stop', "Stop Troubleshoot Issue"), original: 'Stop Troubleshoot Issue' },
+			title: localize2('title.stop', 'Stop Troubleshoot Issue'),
 			category: Categories.Help,
 			f1: true,
 			precondition: IssueTroubleshootUi.ctxIsTroubleshootActive

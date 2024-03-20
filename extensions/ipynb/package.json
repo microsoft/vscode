@@ -1,124 +1,138 @@
 {
-	"name": "ipynb",
-	"displayName": "%displayName%",
-	"description": "%description%",
-	"publisher": "vscode",
-	"version": "1.0.0",
-	"license": "MIT",
-	"engines": {
-		"vscode": "^1.57.0"
-	},
-	"enabledApiProposals": [
-		"documentPaste",
-		"diffContentOptions",
-		"dropMetadata"
-	],
-	"activationEvents": [
-		"onNotebook:jupyter-notebook",
-		"onNotebookSerializer:interactive"
-	],
-	"extensionKind": [
-		"workspace",
-		"ui"
-	],
-	"main": "./out/ipynbMain.js",
-	"browser": "./dist/browser/ipynbMain.js",
-	"capabilities": {
-		"virtualWorkspaces": true,
-		"untrustedWorkspaces": {
-			"supported": true
-		}
-	},
-	"contributes": {
-		"configuration": [
-			{
-				"properties": {
-					"ipynb.pasteImagesAsAttachments.enabled": {
-						"type": "boolean",
-						"scope": "resource",
-						"markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
-						"default": true
-					}
-				}
-			}
-		],
-		"commands": [
-			{
-				"command": "ipynb.newUntitledIpynb",
-				"title": "%newUntitledIpynb.title%",
-				"shortTitle": "%newUntitledIpynb.shortTitle%",
-				"category": "Create"
-			},
-			{
-				"command": "ipynb.openIpynbInNotebookEditor",
-				"title": "%openIpynbInNotebookEditor.title%"
-			},
-			{
-				"command": "ipynb.cleanInvalidImageAttachment",
-				"title": "%cleanInvalidImageAttachment.title%"
-			}
-		],
-		"notebooks": [
-			{
-				"type": "jupyter-notebook",
-				"displayName": "Jupyter Notebook",
-				"selector": [
-					{
-						"filenamePattern": "*.ipynb"
-					}
-				],
-				"priority": "default"
-			}
-		],
-		"notebookRenderer": [
-			{
-				"id": "vscode.markdown-it-cell-attachment-renderer",
-				"displayName": "%markdownAttachmentRenderer.displayName%",
-				"entrypoint": {
-					"extends": "vscode.markdown-it-renderer",
-					"path": "./notebook-out/cellAttachmentRenderer.js"
-				}
-			}
-		],
-		"menus": {
-			"file/newFile": [
-				{
-					"command": "ipynb.newUntitledIpynb",
-					"group": "notebook"
-				}
-			],
-			"commandPalette": [
-				{
-					"command": "ipynb.newUntitledIpynb"
-				},
-				{
-					"command": "ipynb.openIpynbInNotebookEditor",
-					"when": "false"
-				},
-				{
-					"command": "ipynb.cleanInvalidImageAttachment",
-					"when": "false"
-				}
-			]
-		}
-	},
-	"scripts": {
-		"compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
-		"watch": "npx gulp watch-extension:ipynb",
-		"build-notebook": "node ./esbuild"
-	},
-	"dependencies": {
-		"@enonic/fnv-plus": "^1.3.0",
-		"detect-indent": "^6.0.0",
-		"uuid": "^8.3.2"
-	},
-	"devDependencies": {
-		"@jupyterlab/nbformat": "^3.2.9",
-		"@types/markdown-it": "12.2.3",
-		"@types/uuid": "^8.3.1"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/microsoft/vscode.git"
-	}
+  "name": "ipynb",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "publisher": "vscode",
+  "version": "1.0.0",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.57.0"
+  },
+  "enabledApiProposals": [
+    "documentPaste",
+    "diffContentOptions",
+    "dropMetadata"
+  ],
+  "activationEvents": [
+    "onNotebook:jupyter-notebook",
+    "onNotebookSerializer:interactive"
+  ],
+  "extensionKind": [
+    "workspace",
+    "ui"
+  ],
+  "main": "./out/ipynbMain.js",
+  "browser": "./dist/browser/ipynbMain.js",
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "configuration": [
+      {
+        "properties": {
+          "ipynb.pasteImagesAsAttachments.enabled": {
+            "type": "boolean",
+            "scope": "resource",
+            "markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
+            "default": true
+          }
+        }
+      }
+    ],
+    "commands": [
+      {
+        "command": "ipynb.newUntitledIpynb",
+        "title": "%newUntitledIpynb.title%",
+        "shortTitle": "%newUntitledIpynb.shortTitle%",
+        "category": "Create"
+      },
+      {
+        "command": "ipynb.openIpynbInNotebookEditor",
+        "title": "%openIpynbInNotebookEditor.title%"
+      },
+      {
+        "command": "ipynb.cleanInvalidImageAttachment",
+        "title": "%cleanInvalidImageAttachment.title%"
+      },
+      {
+        "command": "notebook.cellOutput.copy",
+        "title": "%copyCellOutput.title%",
+        "category": "Notebook"
+      }
+    ],
+    "notebooks": [
+      {
+        "type": "jupyter-notebook",
+        "displayName": "Jupyter Notebook",
+        "selector": [
+          {
+            "filenamePattern": "*.ipynb"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "notebookRenderer": [
+      {
+        "id": "vscode.markdown-it-cell-attachment-renderer",
+        "displayName": "%markdownAttachmentRenderer.displayName%",
+        "entrypoint": {
+          "extends": "vscode.markdown-it-renderer",
+          "path": "./notebook-out/cellAttachmentRenderer.js"
+        }
+      }
+    ],
+    "menus": {
+      "file/newFile": [
+        {
+          "command": "ipynb.newUntitledIpynb",
+          "group": "notebook"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "ipynb.newUntitledIpynb"
+        },
+        {
+          "command": "ipynb.openIpynbInNotebookEditor",
+          "when": "false"
+        },
+        {
+          "command": "ipynb.cleanInvalidImageAttachment",
+          "when": "false"
+        },
+        {
+          "command": "notebook.cellOutput.copy",
+          "when": "notebookCellHasOutputs"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "notebook.cellOutput.copy",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
+    "watch": "npx gulp watch-extension:ipynb",
+    "build-notebook": "node ./esbuild"
+  },
+  "dependencies": {
+    "@enonic/fnv-plus": "^1.3.0",
+    "detect-indent": "^6.0.0"
+  },
+  "devDependencies": {
+    "@jupyterlab/nbformat": "^3.2.9",
+    "@types/markdown-it": "12.2.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
 }

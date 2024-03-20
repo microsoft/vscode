@@ -18,6 +18,7 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { Emitter } from 'vs/base/common/event';
 import { deepClone } from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Schemas } from 'vs/base/common/network';
 
 export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarter {
 
@@ -58,7 +59,7 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 			type: 'ptyHost',
 			entryPoint: 'vs/platform/terminal/node/ptyHostMain',
 			execArgv,
-			args: ['--logsPath', this._environmentMainService.logsHome.fsPath],
+			args: ['--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath],
 			env: this._createPtyHostConfiguration()
 		});
 

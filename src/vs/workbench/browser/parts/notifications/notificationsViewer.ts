@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ButtonBar, IButtonOptions } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
+import { ActionRunner, IAction, IActionRunner, Separator, toAction } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { dispose, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -18,7 +18,7 @@ import { INotificationViewItem, NotificationViewItem, NotificationViewItemConten
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationsFilter, Severity, isNotificationSource } from 'vs/platform/notification/common/notification';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -29,6 +29,8 @@ import { Event } from 'vs/base/common/event';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -93,7 +95,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
 			actions++; // secondary actions
 		}
-		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 26 /* severity icon */ + (actions * (24 + 8)) /* 24px (+8px padding) per action */ - 4 /* 4px less padding for last action */)}px`;
+		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 30 /* severity icon */ + (actions * 30) /* actions */ - (Math.max(actions - 1, 0) * 4) /* less padding for actions > 1 */)}px`;
 
 		// Render message into offset helper
 		const renderedMessage = NotificationMessageRenderer.render(notification.message);
@@ -171,11 +173,11 @@ class NotificationMessageRenderer {
 					const onClick = actionHandler.toDispose.add(new DomEmitter(anchor, EventType.CLICK)).event;
 
 					const onKeydown = actionHandler.toDispose.add(new DomEmitter(anchor, EventType.KEY_DOWN)).event;
-					const onSpaceOrEnter = actionHandler.toDispose.add(Event.chain(onKeydown)).filter(e => {
+					const onSpaceOrEnter = Event.chain(onKeydown, $ => $.filter(e => {
 						const event = new StandardKeyboardEvent(e);
 
 						return event.equals(KeyCode.Space) || event.equals(KeyCode.Enter);
-					}).event;
+					}));
 
 					actionHandler.toDispose.add(Gesture.addTarget(anchor));
 					const onTap = actionHandler.toDispose.add(new DomEmitter(anchor, GestureEventType.Tap)).event;
@@ -198,7 +200,8 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 	constructor(
 		private actionRunner: IActionRunner,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 	}
 
@@ -227,18 +230,44 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.message.classList.add('notification-list-item-message');
 
 		// Toolbar
+		const that = this;
 		const toolbarContainer = document.createElement('div');
 		toolbarContainer.classList.add('notification-list-item-toolbar-container');
 		data.toolbar = new ActionBar(
 			toolbarContainer,
 			{
 				ariaLabel: localize('notificationActions', "Notification Actions"),
-				actionViewItemProvider: action => {
-					if (action && action instanceof ConfigureNotificationAction) {
-						const item = new DropdownMenuActionViewItem(action, action.configurationActions, this.contextMenuService, { actionRunner: this.actionRunner, classNames: action.class });
-						data.toDispose.add(item);
+				actionViewItemProvider: (action, options) => {
+					if (action instanceof ConfigureNotificationAction) {
+						return data.toDispose.add(new DropdownMenuActionViewItem(action, {
+							getActions() {
+								const actions: IAction[] = [];
 
-						return item;
+								const source = { id: action.notification.sourceId, label: action.notification.source };
+								if (isNotificationSource(source)) {
+									const isSourceFiltered = that.notificationService.getFilter(source) === NotificationsFilter.ERROR;
+									actions.push(toAction({
+										id: source.id,
+										label: isSourceFiltered ? localize('turnOnNotifications', "Turn On Notifications from '{0}'", source.label) : localize('turnOffNotifications', "Turn Off Notifications from '{0}'", source.label),
+										run: () => that.notificationService.setFilter({ ...source, filter: isSourceFiltered ? NotificationsFilter.OFF : NotificationsFilter.ERROR })
+									}));
+
+									if (action.notification.actions?.secondary?.length) {
+										actions.push(new Separator());
+									}
+								}
+
+								if (Array.isArray(action.notification.actions?.secondary)) {
+									actions.push(...action.notification.actions.secondary);
+								}
+
+								return actions;
+							},
+						}, this.contextMenuService, {
+							...options,
+							actionRunner: this.actionRunner,
+							classNames: action.class
+						}));
 					}
 
 					return undefined;
@@ -348,13 +377,15 @@ export class NotificationTemplateRenderer extends Disposable {
 		this.renderSeverity(notification);
 
 		// Message
-		const messageOverflows = this.renderMessage(notification);
+		const messageCustomHover = this.inputDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), this.template.message, ''));
+		const messageOverflows = this.renderMessage(notification, messageCustomHover);
 
 		// Secondary Actions
 		this.renderSecondaryActions(notification, messageOverflows);
 
 		// Source
-		this.renderSource(notification);
+		const sourceCustomHover = this.inputDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), this.template.source, ''));
+		this.renderSource(notification, sourceCustomHover);
 
 		// Buttons
 		this.renderButtons(notification);
@@ -375,7 +406,7 @@ export class NotificationTemplateRenderer extends Disposable {
 					this.renderProgress(notification);
 					break;
 				case NotificationViewItemContentChangeKind.MESSAGE:
-					this.renderMessage(notification);
+					this.renderMessage(notification, messageCustomHover);
 					break;
 			}
 		}));
@@ -391,7 +422,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		this.template.icon.classList.add(...ThemeIcon.asClassNameArray(this.toSeverityIcon(notification.severity)));
 	}
 
-	private renderMessage(notification: INotificationViewItem): boolean {
+	private renderMessage(notification: INotificationViewItem, customHover: ICustomHover): boolean {
 		clearNode(this.template.message);
 		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
 			callback: link => this.openerService.open(URI.parse(link), { allowCommands: true }),
@@ -399,11 +430,8 @@ export class NotificationTemplateRenderer extends Disposable {
 		}));
 
 		const messageOverflows = notification.canCollapse && !notification.expanded && this.template.message.scrollWidth > this.template.message.clientWidth;
-		if (messageOverflows) {
-			this.template.message.title = this.template.message.textContent + '';
-		} else {
-			this.template.message.removeAttribute('title');
-		}
+
+		customHover.update(messageOverflows ? this.template.message.textContent + '' : '');
 
 		return messageOverflows;
 	}
@@ -412,9 +440,8 @@ export class NotificationTemplateRenderer extends Disposable {
 		const actions: IAction[] = [];
 
 		// Secondary Actions
-		const secondaryActions = notification.actions ? notification.actions.secondary : undefined;
-		if (isNonEmptyArray(secondaryActions)) {
-			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, secondaryActions);
+		if (isNonEmptyArray(notification.actions?.secondary)) {
+			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification);
 			actions.push(configureNotificationAction);
 			this.inputDisposables.add(configureNotificationAction);
 		}
@@ -445,13 +472,13 @@ export class NotificationTemplateRenderer extends Disposable {
 		actions.forEach(action => this.template.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
 	}
 
-	private renderSource(notification: INotificationViewItem): void {
+	private renderSource(notification: INotificationViewItem, sourceCustomHover: ICustomHover): void {
 		if (notification.expanded && notification.source) {
 			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
-			this.template.source.title = notification.source;
+			sourceCustomHover.update(notification.source);
 		} else {
 			this.template.source.textContent = '';
-			this.template.source.removeAttribute('title');
+			sourceCustomHover.update('');
 		}
 	}
 

@@ -46,6 +46,10 @@ export interface IQuickPickItem {
 	highlights?: IQuickPickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
 	picked?: boolean;
+	/**
+	 * Used when we're in multi-select mode. Renders a disabled checkbox.
+	 */
+	disabled?: boolean;
 	alwaysShow?: boolean;
 }
 
@@ -53,6 +57,7 @@ export interface IQuickPickSeparator {
 	type: 'separator';
 	id?: string;
 	label?: string;
+	description?: string;
 	ariaLabel?: string;
 	buttons?: readonly IQuickInputButton[];
 	tooltip?: string | IMarkdownString;
@@ -95,11 +100,6 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional flag to filter the picks based on label. Defaults to true.
 	 */
 	matchOnLabel?: boolean;
-
-	/**
-	 * an option flag to control whether focus is always automatically brought to a list item. Defaults to true.
-	 */
-	autoFocusOnList?: boolean;
 
 	/**
 	 * an optional flag to not close the picker on focus lost
@@ -204,35 +204,111 @@ export interface IQuickInputHideEvent {
 	reason: QuickInputHideReason;
 }
 
+/**
+ * Represents a quick input control that allows users to make selections or provide input quickly.
+ */
 export interface IQuickInput extends IDisposable {
 
+	/**
+	 * An event that is fired when the quick input is hidden.
+	 */
 	readonly onDidHide: Event<IQuickInputHideEvent>;
+
+	/**
+	 * An event that is fired when the quick input will be hidden.
+	 */
+	readonly onWillHide: Event<IQuickInputHideEvent>;
+
+	/**
+	 * An event that is fired when the quick input is disposed.
+	 */
 	readonly onDispose: Event<void>;
 
+	/**
+	 * The title of the quick input.
+	 */
 	title: string | undefined;
 
+	/**
+	 * The description of the quick input. This is rendered right below the input box.
+	 */
 	description: string | undefined;
 
 	/**
-	 * Should be an HTMLElement (TODO: move this entire file into browser)
+	 * An HTML widget rendered below the input.
+	 * @deprecated Use an IQuickWidget instead.
 	 */
 	widget: any | undefined;
 
+	/**
+	 * The current step of the quick input rendered in the titlebar.
+	 */
 	step: number | undefined;
 
+	/**
+	 * The total number of steps in the quick input rendered in the titlebar.
+	 */
 	totalSteps: number | undefined;
 
+	/**
+	 * The buttons displayed in the quick input titlebar.
+	 */
+	buttons: ReadonlyArray<IQuickInputButton>;
+
+	/**
+	 * An event that is fired when a button in the quick input is triggered.
+	 */
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
+
+	/**
+	 * Indicates whether the input is enabled.
+	 */
 	enabled: boolean;
 
+	/**
+	 * The context key associated with the quick input.
+	 */
 	contextKey: string | undefined;
 
+	/**
+	 * Indicates whether the quick input is busy. Renders a progress bar if true.
+	 */
 	busy: boolean;
 
+	/**
+	 * Indicates whether the quick input should be hidden when it loses focus.
+	 */
 	ignoreFocusOut: boolean;
 
+	/**
+	 * Shows the quick input.
+	 */
 	show(): void;
 
+	/**
+	 * Hides the quick input.
+	 */
 	hide(): void;
+
+	/**
+	 * Notifies that the quick input has been hidden.
+	 * @param reason The reason why the quick input was hidden.
+	 */
+	didHide(reason?: QuickInputHideReason): void;
+
+	/**
+	 * Notifies that the quick input will be hidden.
+	 * @param reason The reason why the quick input will be hidden.
+	 */
+	willHide(reason?: QuickInputHideReason): void;
+}
+
+export interface IQuickWidget extends IQuickInput {
+	/**
+	 * Should be an HTMLElement (TODO: move this entire file into browser)
+	 * @override
+	 */
+	widget: any | undefined;
 }
 
 export interface IQuickPickWillAcceptEvent {
@@ -254,133 +330,248 @@ export interface IQuickPickDidAcceptEvent {
 	inBackground: boolean;
 }
 
+/**
+ * Represents the activation behavior for items in a quick input. This means which item will be
+ * "active" (aka focused).
+ */
 export enum ItemActivation {
+	/**
+	 * No item will be active.
+	 */
 	NONE,
+	/**
+	 * First item will be active.
+	 */
 	FIRST,
+	/**
+	 * Second item will be active.
+	 */
 	SECOND,
+	/**
+	 * Last item will be active.
+	 */
 	LAST
 }
 
+/**
+ * Represents a quick pick control that allows the user to select an item from a list of options.
+ */
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
+	/**
+	 * The current value of the quick pick input.
+	 */
 	value: string;
 
 	/**
-	 * A method that allows to massage the value used
-	 * for filtering, e.g, to remove certain parts.
+	 * A method that allows to massage the value used for filtering, e.g, to remove certain parts.
+	 * @param value The value to be filtered.
+	 * @returns The filtered value.
 	 */
 	filterValue: (value: string) => string;
 
+	/**
+	 * The ARIA label for the quick pick input.
+	 */
 	ariaLabel: string | undefined;
 
+	/**
+	 * The placeholder text for the quick pick input.
+	 */
 	placeholder: string | undefined;
 
+	/**
+	 * An event that is fired when the value of the quick pick input changes.
+	 */
 	readonly onDidChangeValue: Event<string>;
 
+	/**
+	 * An event that is fired when the quick pick is about to accept the selected item.
+	 */
 	readonly onWillAccept: Event<IQuickPickWillAcceptEvent>;
+
+	/**
+	 * An event that is fired when the quick pick has accepted the selected item.
+	 */
 	readonly onDidAccept: Event<IQuickPickDidAcceptEvent>;
 
 	/**
-	 * If enabled, will fire the `onDidAccept` event when
-	 * pressing the arrow-right key with the idea of accepting
-	 * the selected item without closing the picker.
+	 * If enabled, the `onDidAccept` event will be fired when pressing the arrow-right key to accept the selected item without closing the picker.
 	 */
 	canAcceptInBackground: boolean;
 
+	/**
+	 * The OK button state. It can be a boolean value or the string 'default'.
+	 */
 	ok: boolean | 'default';
 
+	/**
+	 * An event that is fired when the custom button is triggered. The custom button is a button with text rendered to the right of the input.
+	 */
 	readonly onDidCustom: Event<void>;
 
+	/**
+	 * Whether to show the custom button. The custom button is a button with text rendered to the right of the input.
+	 */
 	customButton: boolean;
 
+	/**
+	 * The label for the custom button. The custom button is a button with text rendered to the right of the input.
+	 */
 	customLabel: string | undefined;
 
+	/**
+	 * The hover text for the custom button. The custom button is a button with text rendered to the right of the input.
+	 */
 	customHover: string | undefined;
 
-	buttons: ReadonlyArray<IQuickInputButton>;
-
-	readonly onDidTriggerButton: Event<IQuickInputButton>;
-
+	/**
+	 * An event that is fired when an item button is triggered.
+	 */
 	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
 
+	/**
+	 * An event that is fired when a separator button is triggered.
+	 */
 	readonly onDidTriggerSeparatorButton: Event<IQuickPickSeparatorButtonEvent>;
 
+	/**
+	 * The items to be displayed in the quick pick.
+	 */
 	items: ReadonlyArray<T | IQuickPickSeparator>;
 
-	scrollTop: number; // used in tests
-
+	/**
+	 * Whether multiple items can be selected. If so, checkboxes will be rendered.
+	 */
 	canSelectMany: boolean;
 
+	/**
+	 * Whether to match on the description of the items.
+	 */
 	matchOnDescription: boolean;
 
+	/**
+	 * Whether to match on the detail of the items.
+	 */
 	matchOnDetail: boolean;
 
+	/**
+	 * Whether to match on the label of the items.
+	 */
 	matchOnLabel: boolean;
 
 	/**
-	 * The mode to filter label with. Fuzzy will use fuzzy searching and
-	 * contiguous will make filter entries that do not contain the exact string
-	 * (including whitespace). This defaults to `'fuzzy'`.
+	 * The mode to filter the label with. It can be 'fuzzy' or 'contiguous'. Defaults to 'fuzzy'.
 	 */
 	matchOnLabelMode: 'fuzzy' | 'contiguous';
 
+	/**
+	 * Whether to sort the items by label.
+	 */
 	sortByLabel: boolean;
 
-	autoFocusOnList: boolean;
-
+	/**
+	 * Whether to keep the scroll position when the quick pick input is updated.
+	 */
 	keepScrollPosition: boolean;
 
+	/**
+	 * The configuration for quick navigation.
+	 */
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 
+	/**
+	 * The currently active items.
+	 */
 	activeItems: ReadonlyArray<T>;
 
+	/**
+	 * An event that is fired when the active items change.
+	 */
 	readonly onDidChangeActive: Event<T[]>;
 
 	/**
-	 * Allows to control which entry should be activated by default.
+	 * The item activation behavior for the next time `items` is set. Item activation means which
+	 * item is "active" (aka focused) when the quick pick is opened or when `items` is set.
 	 */
 	itemActivation: ItemActivation;
 
+	/**
+	 * The currently selected items.
+	 */
 	selectedItems: ReadonlyArray<T>;
 
+	/**
+	 * An event that is fired when the selected items change.
+	 */
 	readonly onDidChangeSelection: Event<T[]>;
 
+	/**
+	 * The key modifiers.
+	 */
 	readonly keyMods: IKeyMods;
 
+	/**
+	 * The selection range for the value in the input.
+	 */
 	valueSelection: Readonly<[number, number]> | undefined;
 
+	/**
+	 * The validation message for the quick pick. This is rendered below the input.
+	 */
 	validationMessage: string | undefined;
 
+	/**
+	 * The severity of the validation message.
+	 */
 	severity: Severity;
 
+	/**
+	 * Checks if the quick pick input has focus.
+	 * @returns `true` if the quick pick input has focus, `false` otherwise.
+	 */
 	inputHasFocus(): boolean;
 
+	/**
+	 * Focuses on the quick pick input.
+	 */
 	focusOnInput(): void;
 
 	/**
-	 * Hides the input box from the picker UI. This is typically used
-	 * in combination with quick-navigation where no search UI should
-	 * be presented.
+	 * Hides the input box from the picker UI. This is typically used in combination with quick-navigation where no search UI should be presented.
 	 */
 	hideInput: boolean;
 
 	/**
-	 * Allows to control if the count for the items should be shown
+	 * Controls whether the count for the items should be shown.
 	 */
 	hideCountBadge: boolean;
 
+	/**
+	 * Whether to hide the "Check All" checkbox.
+	 */
 	hideCheckAll: boolean;
 
 	/**
-	 * A set of `Toggle` objects to add to the input box.
+	 * The toggle buttons to be added to the input box.
 	 */
 	toggles: IQuickInputToggle[] | undefined;
 }
 
+/**
+ * Represents a toggle for quick input.
+ */
 export interface IQuickInputToggle {
-	onChange: Event<boolean /* via keyboard */>;
+	/**
+	 * Event that is fired when the toggle value changes.
+	 * The boolean value indicates whether the change was triggered via keyboard.
+	 */
+	onChange: Event<boolean>;
 }
 
+/**
+ * Represents an input box in a quick input dialog.
+ */
 export interface IInputBox extends IQuickInput {
 
 	/**
@@ -414,16 +605,6 @@ export interface IInputBox extends IQuickInput {
 	readonly onDidAccept: Event<void>;
 
 	/**
-	 * Buttons to show in addition to user input submission.
-	 */
-	buttons: ReadonlyArray<IQuickInputButton>;
-
-	/**
-	 * Event called when a button is selected.
-	 */
-	readonly onDidTriggerButton: Event<IQuickInputButton>;
-
-	/**
 	 * Text show below the input box.
 	 */
 	prompt: string | undefined;
@@ -440,30 +621,68 @@ export interface IInputBox extends IQuickInput {
 	severity: Severity;
 }
 
+/**
+ * Represents a button in the quick input UI.
+ */
 export interface IQuickInputButton {
-	/** iconPath or iconClass required */
+	/**
+	 * The path to the icon for the button.
+	 * Either `iconPath` or `iconClass` is required.
+	 */
 	iconPath?: { dark: URI; light?: URI };
-	/** iconPath or iconClass required */
+	/**
+	 * The CSS class for the icon of the button.
+	 * Either `iconPath` or `iconClass` is required.
+	 */
 	iconClass?: string;
+	/**
+	 * The tooltip text for the button.
+	 */
 	tooltip?: string;
 	/**
-	 * Whether to always show the button. By default buttons
-	 * are only visible when hovering over them with the mouse
+	 * Whether to always show the button.
+	 * By default, buttons are only visible when hovering over them with the mouse.
 	 */
 	alwaysVisible?: boolean;
 }
 
+/**
+ * Represents an event that occurs when a button associated with a quick pick item is clicked.
+ * @template T - The type of the quick pick item.
+ */
 export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
+	/**
+	 * The button that was clicked.
+	 */
 	button: IQuickInputButton;
+	/**
+	 * The quick pick item associated with the button.
+	 */
 	item: T;
 }
 
+/**
+ * Represents an event that occurs when a separator button is clicked in a quick pick.
+ */
 export interface IQuickPickSeparatorButtonEvent {
+	/**
+	 * The button that was clicked.
+	 */
 	button: IQuickInputButton;
+	/**
+	 * The separator associated with the button.
+	 */
 	separator: IQuickPickSeparator;
 }
 
+/**
+ * Represents a context for a button associated with a quick pick item.
+ * @template T - The type of the quick pick item.
+ */
 export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {
+	/**
+	 * Removes the associated item from the quick pick.
+	 */
 	removeItem(): void;
 }
 
@@ -554,9 +773,14 @@ export interface IQuickInputService {
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T>;
 
 	/**
-	 * Provides raw access to the quick input controller.
+	 * Provides raw access to the input box controller.
 	 */
 	createInputBox(): IInputBox;
+
+	/**
+	 * Provides raw access to the quick widget controller.
+	 */
+	createQuickWidget(): IQuickWidget;
 
 	/**
 	 * Moves focus into quick input.

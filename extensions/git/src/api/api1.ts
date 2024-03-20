@@ -7,11 +7,12 @@ import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
 import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
-import { combinedDisposable, mapEvent } from '../util';
+import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
 import { PickRemoteSourceOptions } from './git-base';
+import { Operation, OperationResult } from '../operation';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -64,6 +65,8 @@ export class ApiRepository implements Repository {
 	readonly inputBox: InputBox = new ApiInputBox(this.repository.inputBox);
 	readonly state: RepositoryState = new ApiRepositoryState(this.repository);
 	readonly ui: RepositoryUIState = new ApiRepositoryUIState(this.repository.sourceControl);
+
+	readonly onDidCommit: Event<void> = mapEvent<OperationResult, void>(filterEvent(this.repository.onDidRunOperation, e => e.operation === Operation.Commit), () => null);
 
 	constructor(readonly repository: BaseRepository) { }
 
@@ -157,6 +160,10 @@ export class ApiRepository implements Repository {
 		return this.repository.diffBetween(ref1, ref2, path);
 	}
 
+	getDiff(): Promise<string[]> {
+		return this.repository.getDiff();
+	}
+
 	hashObject(data: string): Promise<string> {
 		return this.repository.hashObject(data);
 	}
@@ -177,6 +184,10 @@ export class ApiRepository implements Repository {
 		return this.repository.getBranches(query, cancellationToken);
 	}
 
+	getBranchBase(name: string): Promise<Branch | undefined> {
+		return this.repository.getBranchBase(name);
+	}
+
 	setBranchUpstream(name: string, upstream: string): Promise<void> {
 		return this.repository.setBranchUpstream(name, upstream);
 	}
@@ -185,7 +196,7 @@ export class ApiRepository implements Repository {
 		return this.repository.getRefs(query, cancellationToken);
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
 		return this.repository.getMergeBase(ref1, ref2);
 	}
 
@@ -246,7 +257,15 @@ export class ApiRepository implements Repository {
 	}
 
 	commit(message: string, opts?: CommitOptions): Promise<void> {
-		return this.repository.commit(message, opts);
+		return this.repository.commit(message, { ...opts, postCommitCommand: null });
+	}
+
+	merge(ref: string): Promise<void> {
+		return this.repository.merge(ref);
+	}
+
+	mergeAbort(): Promise<void> {
+		return this.repository.mergeAbort();
 	}
 }
 

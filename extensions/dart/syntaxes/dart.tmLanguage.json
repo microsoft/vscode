@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/4670ad8a1f742ccfb122c2b01e588af78f3fc120",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/272e2f89f85073c04b7e15b582257f76d2489970",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -90,15 +90,7 @@
 					"end": "```"
 				},
 				{
-					"match": "(`.*?`)",
-					"captures": {
-						"0": {
-							"name": "variable.other.source.dart"
-						}
-					}
-				},
-				{
-					"match": "(`.*?`)",
+					"match": "(`[^`]+?`)",
 					"captures": {
 						"0": {
 							"name": "variable.other.source.dart"
@@ -316,7 +308,7 @@
 				},
 				{
 					"name": "keyword.control.dart",
-					"match": "(?<!\\$)\\b(break|case|continue|default|do|else|for|if|in|return|switch|while|when)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(break|case|continue|default|do|else|for|if|in|switch|while|when)\\b(?!\\$)"
 				},
 				{
 					"name": "keyword.control.dart",
@@ -331,8 +323,12 @@
 					"match": "(?<!\\$)\\b(new)\\b(?!\\$)"
 				},
 				{
+					"name": "keyword.control.return.dart",
+					"match": "(?<!\\$)\\b(return)\\b(?!\\$)"
+				},
+				{
 					"name": "keyword.declaration.dart",
-					"match": "(?<!\\$)\\b(abstract|sealed|base|interface|inline class|class|enum|extends|extension|external|factory|implements|get(?!\\()|mixin|native|operator|set(?!\\()|typedef|with|covariant)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(abstract|sealed|base|interface|class|enum|extends|extension type|extension|external|factory|implements|get(?![(<])|mixin|native|operator|set(?![(<])|typedef|with|covariant)\\b(?!\\$)"
 				},
 				{
 					"name": "storage.modifier.dart",
@@ -395,6 +391,7 @@
 		"string-interp": {
 			"patterns": [
 				{
+					"name": "string.interpolated.expression.dart",
 					"match": "\\$([a-zA-Z0-9_]+)",
 					"captures": {
 						"1": {
@@ -408,8 +405,7 @@
 					"end": "\\}",
 					"patterns": [
 						{
-							"include": "#constants-and-special-vars",
-							"name": "variable.parameter.dart"
+							"include": "#constants-and-special-vars"
 						},
 						{
 							"include": "#strings"

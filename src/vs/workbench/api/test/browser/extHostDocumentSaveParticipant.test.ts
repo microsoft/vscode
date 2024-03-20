@@ -14,8 +14,12 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import type * as vscode from 'vscode';
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { timeout } from 'vs/base/common/async';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+
+function timeout(n: number) {
+	return new Promise(resolve => setTimeout(resolve, n));
+}
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -38,6 +42,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		});
 		documents = new ExtHostDocuments(SingleProxyRPCProtocol(null), documentsAndEditors);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('no listeners, no problem', () => {
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);

@@ -8,7 +8,7 @@ import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTok
 import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, keepAlive } from 'vs/base/common/observable';
+import { IObservable, keepObserved } from 'vs/base/common/observable';
 
 export class TokenizationSupportWithLineLimit extends Disposable implements ITokenizationSupport {
 	get backgroundTokenizerShouldOnlyVerifyTokens(): boolean | undefined {
@@ -22,7 +22,7 @@ export class TokenizationSupportWithLineLimit extends Disposable implements ITok
 	) {
 		super();
 
-		this._register(keepAlive(this._maxTokenizationLineLength));
+		this._register(keepObserved(this._maxTokenizationLineLength));
 	}
 
 	getInitialState(): IState {

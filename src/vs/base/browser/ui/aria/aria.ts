@@ -31,7 +31,6 @@ export function setARIAContainer(parent: HTMLElement) {
 	const createStatusContainer = () => {
 		const element = document.createElement('div');
 		element.className = 'monaco-status';
-		element.setAttribute('role', 'complementary');
 		element.setAttribute('aria-live', 'polite');
 		element.setAttribute('aria-atomic', 'true');
 		ariaContainer.appendChild(element);

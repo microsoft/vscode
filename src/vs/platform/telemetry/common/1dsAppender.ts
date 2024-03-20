@@ -45,6 +45,7 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 		// Configure the channel to use a XHR Request override since it's not available in node
 		const channelConfig: IChannelConfiguration = {
 			alwaysUseXhrOverride: true,
+			ignoreMc1Ms0CookieProcessing: true,
 			httpXHROverride: xhrOverride
 		};
 		coreConfig.extensionConfig[collectorChannelPlugin.identifier] = channelConfig;
@@ -52,14 +53,18 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 
 	appInsightsCore.initialize(coreConfig, []);
 
-	// appInsightsCore.addTelemetryInitializer((envelope) => {
-	// 	if (addInternalFlag) {
-	// 		envelope['ext'] = envelope['ext'] ?? {};
-	// 		envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
-	// 		// Sets it to be internal only based on Windows UTC flagging
-	// 		envelope['ext']['utc']['flags'] = 0x0000811ECD;
-	// 	}
-	// });
+	appInsightsCore.addTelemetryInitializer((envelope) => {
+		// Opt the user out of 1DS data sharing
+		envelope['ext'] = envelope['ext'] ?? {};
+		envelope['ext']['web'] = envelope['ext']['web'] ?? {};
+		envelope['ext']['web']['consentDetails'] = '{"GPC_DataSharingOptIn":false}';
+
+		if (addInternalFlag) {
+			envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
+			// Sets it to be internal only based on Windows UTC flagging
+			envelope['ext']['utc']['flags'] = 0x0000811ECD;
+		}
+	});
 
 	return appInsightsCore;
 }
