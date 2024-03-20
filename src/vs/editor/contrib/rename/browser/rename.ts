@@ -245,7 +245,15 @@ class RenameController implements IEditorContribution {
 
 		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, newSymbolNameProvidersResults, renameCandidatesCts);
+		const inputFieldResult = await this._renameInputField.getInput(
+			loc.range,
+			loc.text,
+			selectionStart,
+			selectionEnd,
+			supportPreview,
+			newSymbolNameProvidersResults,
+			renameCandidatesCts
+		);
 		trace('received response from rename input field');
 
 		if (newSymbolNamesProviders.length > 0) { // @ulugbekna: we're interested only in telemetry for rename suggestions currently
