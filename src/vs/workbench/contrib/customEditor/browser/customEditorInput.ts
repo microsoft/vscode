@@ -24,6 +24,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity, createEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
@@ -93,6 +94,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
 	) {
 		super({ providedId: init.viewType, viewType: init.viewType, name: '' }, webview, webviewWorkbenchService);
 		this._editorResource = init.resource;
@@ -110,6 +112,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
+		this._register(this.customEditorLabelService.onDidChange(() => this.updateLabel()));
 	}
 
 	private onLabelEvent(scheme: string): void {
@@ -121,6 +124,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private updateLabel(): void {
 
 		// Clear any cached labels from before
+		this._editorName = undefined;
 		this._shortDescription = undefined;
 		this._mediumDescription = undefined;
 		this._longDescription = undefined;
@@ -166,8 +170,13 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return capabilities;
 	}
 
+	private _editorName: string | undefined = undefined;
 	override getName(): string {
-		return basename(this.labelService.getUriLabel(this.resource));
+		if (typeof this._editorName !== 'string') {
+			this._editorName = this.customEditorLabelService.getName(this.resource) ?? basename(this.labelService.getUriLabel(this.resource));
+		}
+
+		return this._editorName;
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
