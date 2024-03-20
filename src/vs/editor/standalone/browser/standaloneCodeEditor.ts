@@ -55,7 +55,7 @@ export interface IActionDescriptor {
 	 */
 	label: string;
 	/**
-	 * Precondition rule.the value should be a [IContextKey](#IContextKey).
+	 * Precondition rule. The value should be a [context key expression](https://code.visualstudio.com/docs/getstarted/keybindings#_when-clause-contexts).
 	 */
 	precondition?: string;
 	/**
