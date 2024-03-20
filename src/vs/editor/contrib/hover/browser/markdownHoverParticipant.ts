@@ -174,6 +174,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		if (!context.disposables) {
 			return;
 		}
+		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
+		this._hoverData = hoverParts;
 		this._context = context;
 		context.disposables.add(toDisposable(() => {
 			this._hoverData.forEach(hoverData => {
@@ -182,8 +184,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				}
 			});
 		}));
-		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
-		this._hoverData = hoverParts;
 		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
 			const isInstanceOfVerboseHover = hoverPart instanceof VerboseMarkdownHover;
 			const canIncreaseVerbosity = isInstanceOfVerboseHover && hoverPart.hover.canIncreaseVerbosity;
