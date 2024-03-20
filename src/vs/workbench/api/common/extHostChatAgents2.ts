@@ -122,7 +122,7 @@ class ChatAgentResponseStream {
 				},
 				push(part) {
 					throwIfDone(this.push);
-					const dto = typeConvert.ChatResponsePart.to(part);
+					const dto = typeConvert.ChatResponsePart.to(part, that._commandsConverter, that._sessionDisposables);
 					_report(dto);
 					return this;
 				},
