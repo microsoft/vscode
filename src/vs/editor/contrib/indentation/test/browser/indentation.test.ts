@@ -548,6 +548,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 	test('issue #208215: indent after arrow function', () => {
 
 		// https://github.com/microsoft/vscode/issues/208215
+		// consider the regex: /^\s*(var|const|let)\s+\w+\s*=\s*\(.*\)\s*=>\s*$/
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -568,7 +569,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 	test.skip('issue #208215: outdented after semicolon detected after arrow function', () => {
 
 		// Notes: we want to outdent after having detected a semi-colon which marks the end of the line, but only when we have detected an arrow function
-		// We want to have one outdent pattern corresponding to an indent pattern, and not a generic outdent and indent pattern
+		// We could use one outdent pattern corresponding per indent pattern, and not a generic outdent and indent pattern
 
 		const model = createTextModel([
 			'const add1 = (n) =>',
