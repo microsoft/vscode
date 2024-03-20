@@ -146,11 +146,13 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 	private toggleStatusbarItem(active: boolean): void {
 		if (active) {
 			if (!this.statusBarEntry.value) {
+				const text = localize('mouseScrolllingLocked', 'Scrolling Locked');
+				const tooltip = localize('mouseLockScrollingEnabled', 'Lock Scrolling Enabled');
 				this.statusBarEntry.value = this.statusbarService.addEntry({
-					name: localize('mouseScrolllingLocked', 'Scrolling Locked'),
-					text: localize('mouseScrolllingLocked', 'Scrolling Locked'),
-					tooltip: localize('mouseLockScrollingEnabled', 'Lock Scrolling Enabled'),
-					ariaLabel: localize('mouseScrolllingLocked', 'Scrolling Locked'),
+					name: text,
+					text,
+					tooltip,
+					ariaLabel: text,
 					command: {
 						id: 'workbench.action.toggleLockedScrolling',
 						title: ''
