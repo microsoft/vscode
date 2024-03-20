@@ -361,6 +361,7 @@ if (isTest) {
 	const vscodeRegexpp = require('vscode-regexpp')
 	const crypto = require('crypto')
 	const zlib = require('zlib')
+	const vscodeSqlite3 = require('@vscode/sqlite3')
 
 	let runCallback
 	let args
@@ -406,6 +407,7 @@ if (isTest) {
 		gracefulFs,
 		childProcess,
 		vscodeRipgrep,
+		vscodeSqlite3,
 		sinonTest
 	}
 	// @ts-ignore
