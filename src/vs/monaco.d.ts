@@ -785,6 +785,10 @@ declare namespace monaco {
 		 */
 		static isIRange(obj: any): obj is IRange;
 		/**
+		 * Clone the IRange, return an IRange
+		 */
+		static cloneIRange(range: IRange): IRange;
+		/**
 		 * Test if the two ranges are touching in any way.
 		 */
 		static areIntersectingOrTouching(a: IRange, b: IRange): boolean;

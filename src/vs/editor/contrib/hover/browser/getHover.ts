@@ -12,6 +12,8 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Hover, HoverContext, HoverProvider } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { Range } from 'vs/editor/common/core/range';
+import { cloneIMarkdownString } from 'vs/base/common/htmlContent';
 
 export class HoverProviderResult {
 	constructor(
@@ -46,12 +48,24 @@ export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>
 registerModelAndPositionCommand('_executeHoverProvider', async (accessor, model, position, context) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, position, context, CancellationToken.None);
+	const result = hovers.map(h => cloneHover(h));
 	hovers.forEach(hover => hover.dispose());
-	return hovers;
+	return result;
 });
 
 function isValid(result: Hover) {
 	const hasRange = (typeof result.range !== 'undefined');
 	const hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
 	return hasRange && hasHtmlContent;
+}
+
+function cloneHover(h: Hover): Hover {
+	return {
+		id: h.id,
+		contents: h.contents.map(c => cloneIMarkdownString(c)),
+		range: h.range ? Range.cloneIRange(h.range) : undefined,
+		canIncreaseVerbosity: h.canIncreaseVerbosity,
+		canDecreaseVerbosity: h.canDecreaseVerbosity,
+		dispose: () => { }
+	};
 }
