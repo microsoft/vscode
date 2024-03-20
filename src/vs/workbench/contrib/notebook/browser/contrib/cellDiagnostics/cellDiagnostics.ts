@@ -70,7 +70,9 @@ export class CellDiagnostics extends Disposable {
 	}
 
 	public clear() {
-		this.clearDiagnostics();
+		if (this.ErrorDetails) {
+			this.clearDiagnostics();
+		}
 	}
 
 	private clearDiagnostics() {

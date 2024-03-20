@@ -589,10 +589,10 @@ registerAction2(class ExpandAllCellOutputsAction extends NotebookCellAction {
 		super({
 			id: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
 			title: localize2('notebookActions.cellFailureActions', "Show Cell Failure Actions"),
-			precondition: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
+			precondition: ContextKeyExpr.and(NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
 			f1: true,
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.WorkbenchContrib
 			}
@@ -613,7 +613,10 @@ registerAction2(class ExpandAllCellOutputsAction extends NotebookCellAction {
 				const editor = findTargetCellEditor(context, context.cell);
 				if (editor) {
 					const controller = CodeActionController.get(editor);
-					controller?.manualTriggerAtCurrentPosition('not available', CodeActionTriggerSource.Default, { include: CodeActionKind.QuickFix });
+					controller?.manualTriggerAtCurrentPosition(
+						localize('cellCommands.quickFix.noneMessage', "No code actions available"),
+						CodeActionTriggerSource.Default,
+						{ include: CodeActionKind.QuickFix });
 				}
 			}
 		}

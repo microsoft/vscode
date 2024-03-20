@@ -174,7 +174,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			if (outputLayoutChange) {
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 			}
-			if (this._outputCollection.length === 0 && this._cellDiagnostics.ErrorDetails) {
+			if (this._outputCollection.length === 0) {
 				this._cellDiagnostics.clear();
 			}
 			dispose(removedOutputs);
@@ -436,6 +436,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	protected onDidChangeTextModelContent(): void {
 		if (this.getEditState() !== CellEditState.Editing) {
+			this._cellDiagnostics.clear();
 			this.updateEditState(CellEditState.Editing, 'onDidChangeTextModelContent');
 			this._onDidChangeState.fire({ contentChanged: true });
 		}
