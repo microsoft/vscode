@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ParsedPattern, parse } from 'vs/base/common/glob';
+import { ParsedPattern, parse as parseGlob } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isAbsolute } from 'vs/base/common/path';
-import { basename, dirname, extname, relativePath } from 'vs/base/common/resources';
+import { isAbsolute, parse as parsePath, ParsedPath } from 'vs/base/common/path';
+import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -81,7 +81,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 			const template = customLabelPatterns[pattern];
 
 			const isAbsolutePath = isAbsolute(pattern);
-			const parsedPattern = parse(pattern);
+			const parsedPattern = parseGlob(pattern);
 
 			this.patterns.push({ pattern, template, isAbsolutePath, parsedPattern });
 		}
@@ -129,23 +129,24 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	}
 
 	private matchPattern(root: IWorkspaceFolder | null, resource: URI, pattern: ICustomEditorLabelPattern): boolean {
-		const relevantPath = !root || pattern.isAbsolutePath ? resource.fsPath : relativePath(root.uri, resource) ?? resource.fsPath;
+		const relevantPath = !root || pattern.isAbsolutePath ? resource.fsPath : relativePath(root.uri, resource) ?? resource.path;
 
 		return pattern.parsedPattern(relevantPath);
 	}
 
 	private applyTempate(template: string, resource: URI): string {
 		const regex = /\$\{(dirname|filename|extname|dirname\((\d+)\))\}/g;
+		let parsedPath: undefined | ParsedPath;
 		return template.replace(regex, (match: string, variable: string, arg: string) => {
+			parsedPath = parsedPath ?? parsePath(resource.path);
 			switch (variable) {
-				case 'dirname':
-					return this.getDirname(resource);
 				case 'filename':
-					return this.getFilename(resource);
+					return parsedPath.name;
 				case 'extname':
-					return this.getExtname(resource);
+					return parsedPath.ext.slice(1);
 				default: { // dirname(arg)
-					const nthDir = this.getNthDirname(resource, parseInt(arg, 10));
+					const n = variable === 'dirname' ? 0 : parseInt(arg);
+					const nthDir = this.getNthDirname(parsedPath, n);
 					if (nthDir) {
 						return nthDir;
 					}
@@ -156,26 +157,9 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		});
 	}
 
-	private getDirname(resource: URI): string {
-		// grand-parent/parent/filename.ext1.ext2 -> parent
-		return basename(dirname(resource));
-	}
-
-	private getFilename(resource: URI): string {
-		// grand-parent/parent/filename.ext1.ext2 -> filename.ext1
-		const base = basename(resource);
-		const baseSplit = base.split('.');
-		return baseSplit.length > 1 ? baseSplit.slice(0, -1).join('.') : baseSplit[0];
-	}
-
-	private getExtname(resource: URI): string {
-		// grand-parent/parent/filename.ext1.ext2 -> ext2
-		return extname(resource).slice(1);
-	}
-
-	private getNthDirname(resource: URI, n: number): string | undefined {
+	private getNthDirname(path: ParsedPath, n: number): string | undefined {
 		// grand-parent/parent/filename.ext1.ext2 -> [grand-parent, parent]
-		const pathFragments = dirname(resource).path.split('/');
+		const pathFragments = path.dir.split('/');
 
 		const length = pathFragments.length;
 		const nth = length - 1 - n;
