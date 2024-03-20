@@ -251,7 +251,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			executeImmediately: true
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent();
-			const agents = chatAgentService.getRegisteredAgents();
+			const agents = chatAgentService.getAgents();
 
 			// Report prefix
 			if (defaultAgent?.metadata.helpTextPrefix) {
@@ -270,7 +270,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 					const agentWithLeader = `${chatAgentLeader}${a.id}`;
 					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest}` };
 					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
-					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${a.metadata.description}`;
+					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${a.description}`;
 					const commandText = a.slashCommands.map(c => {
 						const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${chatSubcommandLeader}${c.name} ${c.sampleRequest ?? ''}` };
 						const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));

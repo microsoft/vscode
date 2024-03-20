@@ -1427,10 +1427,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
-			createChatParticipant(name: string, handler: vscode.ChatExtendedRequestHandler) {
+			createChatParticipant(id: string, handler: vscode.ChatExtendedRequestHandler) {
 				checkProposedApiEnabled(extension, 'chatParticipant');
-				return extHostChatAgents2.createChatAgent(extension, name, handler);
+				return extHostChatAgents2.createChatAgent(extension, id, handler);
 			},
+			createDynamicChatParticipant(id: string, name: string, description: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
+				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+				return extHostChatAgents2.createDynamicChatAgent(extension, id, name, description, handler);
+			}
 		};
 
 		// namespace: lm

@@ -2548,7 +2548,7 @@ export namespace ChatResponseProgress {
 			};
 		} else if ('participant' in progress) {
 			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-			return { agentName: progress.participant, command: progress.command, kind: 'agentDetection' };
+			return { agentId: progress.participant, command: progress.command, kind: 'agentDetection' };
 		} else if ('message' in progress) {
 			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {

@@ -65,6 +65,7 @@
   "contributes": {
     "chatParticipants": [
       {
+        "id": "api-test.participant",
         "name": "participant",
         "description": "test",
         "isDefault": true,
