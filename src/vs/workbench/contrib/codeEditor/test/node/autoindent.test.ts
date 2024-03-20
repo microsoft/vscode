@@ -51,7 +51,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Test which can be ran to find cases of incorrect indentation...
-	test('Find Cases of Incorrect Indentation', () => {
+	test.skip('Find Cases of Incorrect Indentation', () => {
 
 		const filePath = path.join('..', 'TypeScript', 'src', 'server', 'utilities.ts');
 		const fileContents = fs.readFileSync(filePath).toString();
