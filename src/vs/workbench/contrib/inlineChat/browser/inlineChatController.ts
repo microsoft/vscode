@@ -34,8 +34,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatAgentLeader, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IInlineChatSavingService } from './inlineChatSavingService';
 import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -485,7 +485,6 @@ export class InlineChatController implements IEditorContribution {
 				barrier.open();
 			}));
 
-
 			await barrier.wait();
 			store.dispose();
 		}
@@ -520,9 +519,6 @@ export class InlineChatController implements IEditorContribution {
 			return State.MAKE_REQUEST;
 		}
 
-		// if (!this.getInput()) {
-		// 	return State.WAIT_FOR_INPUT;
-		// }
 		if (!request?.message.text) {
 			return State.WAIT_FOR_INPUT;
 		}
@@ -530,19 +526,19 @@ export class InlineChatController implements IEditorContribution {
 		const input = request.message.text;
 		this._zone.value.widget.value = input;
 
-		const refer = this._session.session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
+		// slash command referring
+		const slashCommandLike = request.message.parts.find(part => part instanceof ChatRequestAgentSubcommandPart || part instanceof ChatRequestSlashCommandPart);
+		const refer = slashCommandLike && this._session.session.slashCommands?.some(value => value.refer && slashCommandLike.text === `/${value.command}`);
 		if (refer) {
 			this._log('[IE] seeing refer command, continuing outside editor', this._session.provider.extensionId);
 			this._editor.setSelection(this._session.wholeRange.value);
 			let massagedInput = input;
-			if (input.startsWith(chatSubcommandLeader)) {
-				const withoutSubCommandLeader = input.slice(1);
-				const cts = new CancellationTokenSource();
-				this._sessionStore.add(cts);
-				for (const agent of this._chatAgentService.getActivatedAgents()) {
+			const withoutSubCommandLeader = slashCommandLike.text.slice(1);
+			for (const agent of this._chatAgentService.getActivatedAgents()) {
+				if (agent.locations.includes(ChatAgentLocation.Panel)) {
 					const commands = agent.slashCommands;
 					if (commands.find((command) => withoutSubCommandLeader.startsWith(command.name))) {
-						massagedInput = `${chatAgentLeader}${agent.id} ${input}`;
+						massagedInput = `${chatAgentLeader}${agent.id} ${slashCommandLike.text}`;
 						break;
 					}
 				}
@@ -564,7 +560,6 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 
-	// TODO@jrieken enter this state when the request is being made (chatmodel-event)
 	private async [State.SHOW_REQUEST](options: InlineChatRunOptions): Promise<State.APPLY_RESPONSE | State.CANCEL> {
 		assertType(this._session);
 		assertType(this._session.lastInput);
@@ -1279,10 +1274,14 @@ export class InlineChatController implements IEditorContribution {
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
 	const chatService = accessor.get(IChatService);
-	const providerId = chatService.getProviderInfos()[0]?.id;
+	const chatAgentService = accessor.get(IChatAgentService);
+	const agent = chatAgentService.getActivatedAgents().find(agent => agent.locations.includes(ChatAgentLocation.Panel) && agent.isDefault);
+	if (!agent) {
+		return;
+	}
 
 	const chatWidgetService = accessor.get(IChatWidgetService);
-	const widget = await chatWidgetService.revealViewForProvider(providerId);
+	const widget = await chatWidgetService.revealViewForProvider(agent.id);
 	if (widget && widget.viewModel) {
 		chatService.addCompleteRequest(widget.viewModel.sessionId, query, undefined, { message: response });
 		widget.focusLastMessage();
@@ -1290,14 +1289,16 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {
-	const chatService = accessor.get(IChatService);
 	const widgetService = accessor.get(IChatWidgetService);
-
-	const providerId = chatService.getProviderInfos()[0]?.id;
-	const widget = await widgetService.revealViewForProvider(providerId);
+	const chatAgentService = accessor.get(IChatAgentService);
+	const agent = chatAgentService.getActivatedAgents().find(agent => agent.locations.includes(ChatAgentLocation.Panel) && agent.isDefault);
+	if (!agent) {
+		return;
+	}
+	const widget = await widgetService.revealViewForProvider(agent.id);
 	if (!widget) {
 		return;
 	}
-
+	widget.focusInput();
 	widget.acceptInput(query);
 }
