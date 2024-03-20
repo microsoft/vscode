@@ -100,7 +100,7 @@ interface IRenameInputField {
 	focusPreviousRenameSuggestion(): void;
 }
 
-export class RenameInputField implements IRenameInputField, IContentWidget, IDisposable {
+export class RenameWidget implements IRenameInputField, IContentWidget, IDisposable {
 
 	// implement IContentWidget
 	readonly allowEditorOverflow: boolean = true;
