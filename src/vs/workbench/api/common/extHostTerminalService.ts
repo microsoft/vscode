@@ -44,10 +44,6 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	readonly onDidExecuteTerminalCommand: Event<vscode.TerminalExecutedCommand>;
 	readonly onDidChangeShell: Event<string>;
 
-	readonly onDidChangeTerminalShellIntegration: Event<vscode.TerminalShellIntegrationChangeEvent>;
-	readonly onDidStartTerminalShellExecution: Event<vscode.TerminalShellExecution>;
-	readonly onDidEndTerminalShellExecution: Event<vscode.TerminalShellExecution>;
-
 	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
 	createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
 	createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
@@ -58,6 +54,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
+	getTerminalById(id: number): ExtHostTerminal | null;
 }
 
 interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableCollection {
@@ -420,13 +417,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	});
 	readonly onDidExecuteTerminalCommand = this._onDidExecuteCommand.event;
 
-	protected readonly _onDidChangeTerminalShellIntegration = new Emitter<vscode.TerminalShellIntegrationChangeEvent>();
-	readonly onDidChangeTerminalShellIntegration = this._onDidChangeTerminalShellIntegration.event;
-	protected readonly _onDidStartTerminalShellExecution = new Emitter<vscode.TerminalShellExecution>();
-	readonly onDidStartTerminalShellExecution = this._onDidStartTerminalShellExecution.event;
-	protected readonly _onDidEndTerminalShellExecution = new Emitter<vscode.TerminalShellExecution>();
-	readonly onDidEndTerminalShellExecution = this._onDidEndTerminalShellExecution.event;
-
 	constructor(
 		supportsProcesses: boolean,
 		@IExtHostCommands private readonly _extHostCommands: IExtHostCommands,
@@ -440,7 +430,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			processArgument: arg => {
 				const deserialize = (arg: any) => {
 					const cast = arg as ISerializedTerminalInstanceContext;
-					return this._getTerminalById(cast.instanceId)?.value;
+					return this.getTerminalById(cast.instanceId)?.value;
 				};
 				switch (arg?.$mid) {
 					case MarshalledId.TerminalContext: return deserialize(arg);
@@ -520,7 +510,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void {
-		const terminal = this._getTerminalById(id);
+		const terminal = this.getTerminalById(id);
 		if (!terminal) {
 			throw new Error(`Cannot resolve terminal with id ${id} for virtual process`);
 		}
@@ -538,7 +528,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			}
 			return;
 		}
-		const terminal = this._getTerminalById(id);
+		const terminal = this.getTerminalById(id);
 		if (terminal) {
 			this._activeTerminal = terminal;
 			if (original !== this._activeTerminal) {
@@ -548,14 +538,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public async $acceptTerminalProcessData(id: number, data: string): Promise<void> {
-		const terminal = this._getTerminalById(id);
+		const terminal = this.getTerminalById(id);
 		if (terminal) {
 			this._onDidWriteTerminalData.fire({ terminal: terminal.value, data });
 		}
 	}
 
 	public async $acceptTerminalDimensions(id: number, cols: number, rows: number): Promise<void> {
-		const terminal = this._getTerminalById(id);
+		const terminal = this.getTerminalById(id);
 		if (terminal) {
 			if (terminal.setDimensions(cols, rows)) {
 				this._onDidChangeTerminalDimensions.fire({
@@ -566,24 +556,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 	}
 
-	public async $acceptDidChangeShellIntegration(id: number): Promise<void> {
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			const apiTerminal = terminal.value;
-			let shellIntegration = apiTerminal.shellIntegration;
-			if (!shellIntegration) {
-				// TODO: Set it
-				shellIntegration = apiTerminal.shellIntegration!;
-			}
-			this._onDidChangeTerminalShellIntegration.fire({
-				terminal: apiTerminal,
-				shellIntegration
-			});
-		}
-	}
-
 	public async $acceptDidExecuteCommand(id: number, command: ITerminalCommandDto): Promise<void> {
-		const terminal = this._getTerminalById(id);
+		const terminal = this.getTerminalById(id);
 		if (terminal) {
 			this._onDidExecuteCommand.fire({ terminal: terminal.value, ...command });
 		}
@@ -596,7 +570,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public async $acceptTerminalTitleChange(id: number, name: string): Promise<void> {
-		const terminal = this._getTerminalById(id);
+		const terminal = this.getTerminalById(id);
 		if (terminal) {
 			terminal.name = name;
 		}
@@ -639,14 +613,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public async $acceptTerminalProcessId(id: number, processId: number): Promise<void> {
-		const terminal = this._getTerminalById(id);
+		const terminal = this.getTerminalById(id);
 		terminal?._setProcessId(processId);
 	}
 
 	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined> {
 		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
 		// Pseudoterminal.start
-		const terminal = this._getTerminalById(id);
+		const terminal = this.getTerminalById(id);
 		if (!terminal) {
 			return { message: localize('launchFail.idMissingOnExtHost', "Could not find the terminal with id {0} on the extension host", id) };
 		}
@@ -703,14 +677,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public $acceptTerminalInteraction(id: number): void {
-		const terminal = this._getTerminalById(id);
+		const terminal = this.getTerminalById(id);
 		if (terminal?.setInteractedWith()) {
 			this._onDidChangeTerminalState.fire(terminal.value);
 		}
 	}
 
 	public $acceptTerminalSelection(id: number, selection: string | undefined): void {
-		this._getTerminalById(id)?.setSelection(selection);
+		this.getTerminalById(id)?.setSelection(selection);
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
@@ -833,7 +807,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
-		const terminal = this._getTerminalById(terminalId);
+		const terminal = this.getTerminalById(terminalId);
 		if (!terminal) {
 			return [];
 		}
@@ -916,7 +890,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._proxy.$sendProcessExit(id, exitCode);
 	}
 
-	private _getTerminalById(id: number): ExtHostTerminal | null {
+	public getTerminalById(id: number): ExtHostTerminal | null {
 		return this._getTerminalObjectById(this._terminals, id);
 	}
 

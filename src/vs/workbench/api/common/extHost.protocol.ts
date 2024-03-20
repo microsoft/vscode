@@ -537,6 +537,9 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
 }
 
+export interface MainThreadTerminalShellIntegrationShape extends IDisposable {
+}
+
 export type TransferQuickPickItemOrSeparator = TransferQuickPickItem | quickInput.IQuickPickSeparator;
 export interface TransferQuickPickItem {
 	handle: number;
@@ -2246,7 +2249,6 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalInteraction(id: number): void;
 	$acceptTerminalSelection(id: number, selection: string | undefined): void;
-	$acceptDidChangeShellIntegration(id: number): void;
 	$startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined>;
 	$acceptProcessAckDataEvent(id: number, charCount: number): void;
 	$acceptProcessInput(id: number, data: string): void;
@@ -2261,6 +2263,11 @@ export interface ExtHostTerminalServiceShape {
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
+}
+
+export interface ExtHostTerminalShellIntegrationShape {
+	$acceptDidChangeShellIntegration(id: number): void;
+	$acceptTerminalShellExecutionStarted(id: number): void;
 }
 
 export interface ExtHostSCMShape {
@@ -2814,6 +2821,7 @@ export const MainContext = {
 	MainThreadSpeech: createProxyIdentifier<MainThreadSpeechShape>('MainThreadSpeechProvider'),
 	MainThreadTelemetry: createProxyIdentifier<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createProxyIdentifier<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
+	MainThreadTerminalShellIntegration: createProxyIdentifier<MainThreadTerminalShellIntegrationShape>('MainThreadTerminalShellIntegration'),
 	MainThreadWebviews: createProxyIdentifier<MainThreadWebviewsShape>('MainThreadWebviews'),
 	MainThreadWebviewPanels: createProxyIdentifier<MainThreadWebviewPanelsShape>('MainThreadWebviewPanels'),
 	MainThreadWebviewViews: createProxyIdentifier<MainThreadWebviewViewsShape>('MainThreadWebviewViews'),
@@ -2874,6 +2882,7 @@ export const ExtHostContext = {
 	ExtHostExtensionService: createProxyIdentifier<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
 	ExtHostLogLevelServiceShape: createProxyIdentifier<ExtHostLogLevelServiceShape>('ExtHostLogLevelServiceShape'),
 	ExtHostTerminalService: createProxyIdentifier<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
+	ExtHostTerminalShellIntegration: createProxyIdentifier<ExtHostTerminalShellIntegrationShape>('ExtHostTerminalShellIntegration'),
 	ExtHostSCM: createProxyIdentifier<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostSearch: createProxyIdentifier<ExtHostSearchShape>('ExtHostSearch'),
 	ExtHostTask: createProxyIdentifier<ExtHostTaskShape>('ExtHostTask'),
