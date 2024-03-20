@@ -240,7 +240,7 @@ export class SearchView extends ViewPane {
 		this.instantiationService = this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService]));
 
-		this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.sortOrder')) {
 				if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 					// If changing away from modified, remove all fileStats
@@ -251,7 +251,7 @@ export class SearchView extends ViewPane {
 			} else if (e.affectsConfiguration('search.aiResults')) {
 				this.refreshHasAISetting();
 			}
-		});
+		}));
 
 		this.viewModel = this._register(this.searchViewModelWorkbenchService.searchModel);
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -332,6 +332,8 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
+		// in each case, we want to cancel our current AI search because it is no longer valid
+		this.model.cancelAISearch();
 		if (visible) {
 			await this.model.addAIResults();
 		} else {
@@ -1634,6 +1636,7 @@ export class SearchView extends ViewPane {
 		});
 
 		this.viewModel.cancelSearch(true);
+		this.viewModel.cancelAISearch(true);
 
 		this.currentSearchQ = this.currentSearchQ
 			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType))
