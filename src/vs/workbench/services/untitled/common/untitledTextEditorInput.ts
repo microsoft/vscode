@@ -20,7 +20,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore, dispose, IReference } from 'vs/base/common/lifecycle';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 /**
  * An editor input to be used for untitled text buffers.

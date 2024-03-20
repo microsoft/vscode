@@ -16,7 +16,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CustomEditorLabelService, ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
+import { CustomEditorLabelService, ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 

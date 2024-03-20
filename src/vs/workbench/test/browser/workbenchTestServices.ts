@@ -173,7 +173,7 @@ import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPa
 import { EditorPaneService } from 'vs/workbench/services/editor/browser/editorPaneService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { CustomEditorLabelService, ICustomEditorLabelService } from '../../common/editor/editorLabels';
+import { CustomEditorLabelService, ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);

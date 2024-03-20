@@ -25,7 +25,7 @@ import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 const enum ForceOpenAs {
 	None,

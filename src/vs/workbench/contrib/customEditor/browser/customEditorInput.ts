@@ -24,7 +24,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity, createEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
@@ -125,6 +125,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private updateLabel(): void {
 
 		// Clear any cached labels from before
+		this._editorName = undefined;
 		this._shortDescription = undefined;
 		this._mediumDescription = undefined;
 		this._longDescription = undefined;
@@ -170,9 +171,13 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return capabilities;
 	}
 
+	private _editorName: string | undefined = undefined;
 	override getName(): string {
-		const customName = this.customEditorLabelService.getName(this.resource);
-		return customName ?? basename(this.labelService.getUriLabel(this.resource));
+		if (this._editorName === undefined) {
+			const customName = this.customEditorLabelService.getName(this.resource);
+			this._editorName = customName ?? basename(this.labelService.getUriLabel(this.resource));
+		}
+		return this._editorName;
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {

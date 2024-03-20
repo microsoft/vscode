@@ -13,7 +13,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isConfigured } from 'vs/platform/configuration/common/configuration';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ICustomEditorLabelService } from 'vs/workbench/common/editor/editorLabels';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 /**
  * The base class for all editor inputs that open resources.
