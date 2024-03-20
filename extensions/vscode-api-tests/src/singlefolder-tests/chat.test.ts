@@ -30,7 +30,7 @@ suite('chat', () => {
 
 	function setupParticipant(): Event<{ request: ChatRequest; context: ChatContext }> {
 		const emitter = new EventEmitter<{ request: ChatRequest; context: ChatContext }>();
-		disposables.push();
+		disposables.push(emitter);
 		disposables.push(interactive.registerInteractiveSessionProvider('provider', {
 			prepareSession: (_token: CancellationToken): ProviderResult<InteractiveSession> => {
 				return {

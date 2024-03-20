@@ -194,7 +194,7 @@ export class ChatAgentService implements IChatAgentService {
 		this._onDidChangeAgents.fire(new MergedChatAgent(entry.data, agentImpl));
 
 		return toDisposable(() => {
-			this._agents = this._agents.filter(a => a !== entry);
+			entry.impl = undefined;
 			this._onDidChangeAgents.fire(undefined);
 		});
 	}
