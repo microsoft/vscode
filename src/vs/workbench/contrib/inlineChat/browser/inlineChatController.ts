@@ -460,31 +460,31 @@ export class InlineChatController implements IEditorContribution {
 
 		let message = Message.NONE;
 		let request: IChatRequestModel | undefined;
+
+		const barrier = new Barrier();
+		const store = new DisposableStore();
+		store.add(this._session.chatModel.onDidChange(e => {
+			if (e.kind === 'addRequest') {
+				request = e.request;
+				this.acceptInput();
+			}
+		}));
+		store.add(this._strategy.onDidAccept(() => this.acceptSession()));
+		store.add(this._strategy.onDidDiscard(() => this.cancelSession()));
+		store.add(Event.once(this._messages.event)(m => {
+			this._log('state=_waitForInput) message received', m);
+			message = m;
+			barrier.open();
+		}));
+
 		if (options.autoSend) {
-			message = Message.ACCEPT_INPUT;
 			delete options.autoSend;
-			// TODO@jrieken accept input on the WIDGET
-
-		} else {
-			const barrier = new Barrier();
-			const store = new DisposableStore();
-			store.add(this._session.chatModel.onDidChange(e => {
-				if (e.kind === 'addRequest') {
-					request = e.request;
-					this.acceptInput();
-				}
-			}));
-			store.add(this._strategy.onDidAccept(() => this.acceptSession()));
-			store.add(this._strategy.onDidDiscard(() => this.cancelSession()));
-			store.add(Event.once(this._messages.event)(m => {
-				this._log('state=_waitForInput) message received', m);
-				message = m;
-				barrier.open();
-			}));
-
-			await barrier.wait();
-			store.dispose();
+			this._showWidget(false);
+			this._zone.value.widget.chatWidget.acceptInput();
 		}
+
+		await barrier.wait();
+		store.dispose();
 
 
 		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {

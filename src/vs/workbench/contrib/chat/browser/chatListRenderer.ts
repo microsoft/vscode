@@ -481,7 +481,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			errorDetails.appendChild($('span', undefined, renderedError.element));
 		}
 
-		if (isResponseVM(element) && element.isComplete && element.edits.size > 0) {
+		if (isResponseVM(element) && element.isComplete && element.edits.size > 0 && element.response.value.length === 0) {
 			dom.append(templateData.value, $('.interactive-edits-summary', undefined, localize('editsSummary', "Made text edits")));
 		}
 
