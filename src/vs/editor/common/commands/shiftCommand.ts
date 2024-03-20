@@ -45,11 +45,13 @@ export class ShiftCommand implements ICommand {
 		const contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
 
 		if (insertSpaces) {
+			// repeat the space indentSize times?
 			const indent = cachedStringRepeat(' ', indentSize);
 			const desiredTabStop = CursorColumns.prevIndentTabStop(contentStartVisibleColumn, indentSize);
 			const indentCount = desiredTabStop / indentSize; // will be an integer
 			return cachedStringRepeat(indent, indentCount);
 		} else {
+			// otherwise insert tabs
 			const indent = '\t';
 			const desiredTabStop = CursorColumns.prevRenderTabStop(contentStartVisibleColumn, tabSize);
 			const indentCount = desiredTabStop / tabSize; // will be an integer
