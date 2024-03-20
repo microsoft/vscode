@@ -24,6 +24,7 @@ import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariabl
 import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { Event } from 'vs/base/common/event';
 
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -85,6 +86,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._store.add(_terminalService.onAnyInstanceTitleChange(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 		this._store.add(_terminalService.onAnyInstanceDataInput(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
 		this._store.add(_terminalService.onAnyInstanceSelectionChange(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
+		// _terminalService.onDidChangeInstanceCapability(e => this._proxy.$acceptShellIntegration
+		const onDidAddCommandDetection = _terminalService.createOnInstanceEvent(instance => Event.map(Event.filter(instance.capabilities.onDidAddCapabilityType, e => e === TerminalCapability.CommandDetection, this._store), () => instance));
+		this._store.add(onDidAddCommandDetection(e => this._proxy.$acceptDidChangeShellIntegration(e.instanceId)));
 
 		// Set initial ext host state
 		for (const instance of this._terminalService.instances) {

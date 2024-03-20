@@ -566,6 +566,22 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 	}
 
+	public async $acceptDidChangeShellIntegration(id: number): Promise<void> {
+		const terminal = this._getTerminalById(id);
+		if (terminal) {
+			const apiTerminal = terminal.value;
+			let shellIntegration = apiTerminal.shellIntegration;
+			if (!shellIntegration) {
+				// TODO: Set it
+				shellIntegration = apiTerminal.shellIntegration!;
+			}
+			this._onDidChangeTerminalShellIntegration.fire({
+				terminal: apiTerminal,
+				shellIntegration
+			});
+		}
+	}
+
 	public async $acceptDidExecuteCommand(id: number, command: ITerminalCommandDto): Promise<void> {
 		const terminal = this._getTerminalById(id);
 		if (terminal) {
