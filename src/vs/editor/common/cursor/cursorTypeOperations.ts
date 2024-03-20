@@ -31,7 +31,9 @@ export class TypeOperations {
 			return [];
 		}
 
+		// This is a collection of commands that modify the text or the cursor state
 		const commands: ICommand[] = [];
+		// Create a command for each selection
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ShiftCommand(selections[i], {
 				isUnshift: false,
@@ -73,6 +75,7 @@ export class TypeOperations {
 	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
+			// The whole selection is replaced by the given text
 			commands[i] = new ReplaceCommand(selections[i], text[i]);
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {

@@ -382,6 +382,11 @@ export enum IndentAction {
 	 * Insert two new lines:
 	 *  - the first one indented which will hold the cursor
 	 *  - the second one at the same indentation level
+	 *
+	 * Meaning, we will have:
+	 * - Enter
+	 * -- Cursor
+	 * - New extra line
 	 */
 	IndentOutdent = 2,
 	/**
