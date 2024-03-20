@@ -28,6 +28,7 @@ import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { autorun, constObservable, IObservable } from 'vs/base/common/observable';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -530,8 +531,11 @@ class TypeNavigationController<T> implements IDisposable {
 			// List: re-announce element on typing end since typed keys will interrupt aria label of focused element
 			// Do not announce if there was a focus change at the end to prevent duplication https://github.com/microsoft/vscode/issues/95961
 			const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(focus[0]));
-			if (ariaLabel) {
+
+			if (typeof ariaLabel === 'string') {
 				alert(ariaLabel);
+			} else if (ariaLabel) {
+				alert(ariaLabel.get());
 			}
 		}
 		this.previouslyFocused = -1;
@@ -853,16 +857,12 @@ export interface IStyleController {
 }
 
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
-	getAriaLabel(element: T): string | null;
+	getAriaLabel(element: T): string | IObservable<string> | null;
 	getWidgetAriaLabel(): string;
 	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
 	onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
-}
-
-export interface IUpdateableAccessibilityProvider<T> extends IListAccessibilityProvider<T> {
-	onDidAriaLabelChange?: Event<T>;
 }
 
 export class DefaultStyleController implements IStyleController {
@@ -1275,18 +1275,11 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, IAccessibilityTemplate
 
 	renderElement(element: T, index: number, data: IAccessibilityTemplateData): void {
 		const ariaLabel = this.accessibilityProvider.getAriaLabel(element);
+		const observable = (ariaLabel && typeof ariaLabel !== 'string') ? ariaLabel : constObservable(ariaLabel);
 
-		this.setAriaLabel(ariaLabel, data.container);
-
-		const accessibilityProvider = this.accessibilityProvider as IUpdateableAccessibilityProvider<T>;
-		if (accessibilityProvider.onDidAriaLabelChange) {
-			data.disposables?.add(accessibilityProvider.onDidAriaLabelChange((e) => {
-				if (e === element) {
-					const ariaLabel = this.accessibilityProvider.getAriaLabel(element);
-					this.setAriaLabel(ariaLabel, data.container);
-				}
-			}));
-		}
+		data.disposables.add(autorun(reader => {
+			this.setAriaLabel(reader.readObservable(observable), data.container);
+		}));
 
 		const ariaLevel = this.accessibilityProvider.getAriaLevel && this.accessibilityProvider.getAriaLevel(element);
 
@@ -1306,11 +1299,11 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, IAccessibilityTemplate
 	}
 
 	disposeElement(element: T, index: number, templateData: IAccessibilityTemplateData, height: number | undefined): void {
-		templateData.disposables?.clear();
+		templateData.disposables.clear();
 	}
 
 	disposeTemplate(templateData: any): void {
-		templateData.disposables?.dispose();
+		templateData.disposables.dispose();
 	}
 }
 
@@ -1472,7 +1465,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const role = this._options.accessibilityProvider && this._options.accessibilityProvider.getWidgetRole ? this._options.accessibilityProvider?.getWidgetRole() : 'list';
 		this.selection = new SelectionTrait(role !== 'listbox');
 
-		const baseRenderers: IListRenderer<T, ITraitTemplateData | IAccessibilityTemplateData>[] = [this.focus.renderer, this.selection.renderer];
+		const baseRenderers: IListRenderer<T, unknown>[] = [this.focus.renderer, this.selection.renderer];
 
 		this.accessibilityProvider = _options.accessibilityProvider;
 
