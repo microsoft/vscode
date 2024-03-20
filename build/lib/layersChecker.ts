@@ -59,6 +59,11 @@ const CORE_TYPES = [
 	'URL',
 	'URLSearchParams',
 	'ReadonlyArray',
+	'Event',
+	'EventTarget',
+	'BroadcastChannel',
+	'performance',
+	'Blob'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -97,6 +102,23 @@ const RULES: IRule[] = [
 		]
 	},
 
+	// Common: vs/base/common/async.ts
+	{
+		target: '**/vs/base/common/async.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to requestIdleCallback & cancelIdleCallback
+			'requestIdleCallback',
+			'cancelIdleCallback'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
 	// Common: vs/platform/environment/common/*
 	{
 		target: '**/vs/platform/environment/common/*.ts',
@@ -122,6 +144,17 @@ const RULES: IRule[] = [
 	// Common: vs/platform/native/common/native.ts
 	{
 		target: '**/vs/platform/native/common/native.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/native/common/nativeHostService.ts
+	{
+		target: '**/vs/platform/native/common/nativeHostService.ts',
 		allowedTypes: CORE_TYPES,
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 		disallowedDefinitions: [

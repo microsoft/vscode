@@ -3,77 +3,74 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
-import 'vs/css!./media/gettingStarted';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { $, Dimension, addDisposableListener, append, clearNode, reset } from 'vs/base/browser/dom';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { coalesce, equals, flatten } from 'vs/base/common/arrays';
+import { Delayer, Throttler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { splitRecentLabel } from 'vs/base/common/labels';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { ILink, LinkedText } from 'vs/base/common/linkedText';
+import { parse } from 'vs/base/common/marshalling';
+import { Schemas, matchesScheme } from 'vs/base/common/network';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { assertIsDefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import 'vs/css!./media/gettingStarted';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { splitName } from 'vs/base/common/labels';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh } from 'vs/base/common/platform';
-import { Delayer, Throttler } from 'vs/base/common/async';
-import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
-import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ILink, LinkedText } from 'vs/base/common/linkedText';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Link } from 'vs/platform/opener/browser/link';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IFileService } from 'vs/platform/files/common/files';
-import { parse } from 'vs/base/common/marshalling';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { coalesce, equals, flatten } from 'vs/base/common/arrays';
-import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { startEntries } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { GettingStartedIndexList } from './gettingStartedList';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Link } from 'vs/platform/opener/browser/link';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Codicon } from 'vs/base/common/codicons';
-import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
-import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IFeaturedExtensionsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/featuredExtensionService';
-import { IFeaturedExtension } from 'vs/base/common/product';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
+import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, isRecentFolder, isRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
+import { OpenFileFolderAction, OpenFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
+import { IEditorOpenContext, IEditorSerializer } from 'vs/workbench/common/editor';
+import { IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
+import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
+import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
+import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
+import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
+import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
+import { startEntries } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
+import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { GettingStartedIndexList } from './gettingStartedList';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -128,9 +125,12 @@ export class GettingStartedPage extends EditorPane {
 	private dispatchListeners: DisposableStore = new DisposableStore();
 	private stepDisposables: DisposableStore = new DisposableStore();
 	private detailsPageDisposables: DisposableStore = new DisposableStore();
+	private mediaDisposables: DisposableStore = new DisposableStore();
 
-	private gettingStartedCategories: IResolvedWalkthrough[];
-	private featuredExtensions?: Promise<IFeaturedExtension[]>;
+	// Ensure that the these are initialized before use.
+	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
+	private recentlyOpened!: Promise<IRecentlyOpened>;
+	private gettingStartedCategories!: IResolvedWalkthrough[];
 
 	private currentWalkthrough: IResolvedWalkthrough | undefined;
 
@@ -145,30 +145,31 @@ export class GettingStartedPage extends EditorPane {
 
 	private contextService: IContextKeyService;
 
-	private recentlyOpened: Promise<IRecentlyOpened>;
 	private hasScrolledToFirstCategory = false;
 	private recentlyOpenedList?: GettingStartedIndexList<RecentEntry>;
 	private startList?: GettingStartedIndexList<IWelcomePageStartEntry>;
 	private gettingStartedList?: GettingStartedIndexList<IResolvedWalkthrough>;
-	private featuredExtensionsList?: GettingStartedIndexList<IFeaturedExtension>;
+	private videoList?: GettingStartedIndexList<IWelcomePageStartEntry>;
 
 	private stepsSlide!: HTMLElement;
 	private categoriesSlide!: HTMLElement;
 	private stepsContent!: HTMLElement;
 	private stepMediaComponent!: HTMLElement;
+	private webview!: IWebviewElement;
 
 	private layoutMarkdown: (() => void) | undefined;
 
 	private detailsRenderer: GettingStartedDetailsRenderer;
 
 	private categoriesSlideDisposables: DisposableStore;
+	private showFeaturedWalkthrough = true;
 
 	constructor(
+		group: IEditorGroup,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWalkthroughsService private readonly gettingStartedService: IWalkthroughsService,
-		@IFeaturedExtensionsService private readonly featuredExtensionService: IFeaturedExtensionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -182,16 +183,16 @@ export class GettingStartedPage extends EditorPane {
 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
 		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHostService private readonly hostService: IHostService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService
+		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService
 	) {
 
-		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
+		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
 
 		this.container = $('.gettingStartedContainer',
 			{
@@ -210,15 +211,12 @@ export class GettingStartedPage extends EditorPane {
 		inWelcomeContext.bindTo(this.contextService).set(true);
 
 		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-		this.featuredExtensions = this.featuredExtensionService.getExtensions();
 
 		this._register(this.dispatchListeners);
 		this.buildSlideThrottle = new Throttler();
 
 		const rerender = () => {
 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-			this.featuredExtensions = this.featuredExtensionService.getExtensions();
-
 			if (this.currentWalkthrough) {
 				const existingSteps = this.currentWalkthrough.steps.map(step => step.id);
 				const newCategory = this.gettingStartedCategories.find(category => this.currentWalkthrough?.id === category.id);
@@ -233,39 +231,14 @@ export class GettingStartedPage extends EditorPane {
 			}
 		};
 
-		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
-			for (const e of result) {
-				const installedFeaturedExtension = (await this.featuredExtensions)?.find(ext => ExtensionIdentifier.equals(ext.id, e.identifier.id));
-				if (installedFeaturedExtension) {
-					this.hideExtension(e.identifier.id);
-				}
-			}
-		}));
-
-		this._register(this.gettingStartedService.onDidAddBuiltInWalkthrough(() => {
-			rerender();
-			const someStepsComplete = this.gettingStartedCategories.some(category => category.steps.find(s => s.done));
-			if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
-				const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
-				const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
-				const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
-
-				if (fistContentBehaviour === 'openToFirstCategory') {
-					const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
-					this.hasScrolledToFirstCategory = true;
-					if (first) {
-						this.currentWalkthrough = first;
-						this.editorInput.selectedCategory = this.currentWalkthrough?.id;
-						this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
-						this.setSlide('details');
-						return;
-					}
-				}
-			}
-		}));
-
 		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
 		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
+
+		this.recentlyOpened = this.workspacesService.getRecentlyOpened();
+		this._register(workspacesService.onDidChangeRecentlyOpened(() => {
+			this.recentlyOpened = workspacesService.getRecentlyOpened();
+			rerender();
+		}));
 
 		this._register(this.gettingStartedService.onDidChangeWalkthrough(category => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
@@ -299,14 +272,16 @@ export class GettingStartedPage extends EditorPane {
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
-				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
+				const badgeelements = assertIsDefined(this.window.document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (step.done) {
+						badgeelement.setAttribute('aria-checked', 'true');
 						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
 						badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 					}
 					else {
+						badgeelement.setAttribute('aria-checked', 'false');
 						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
 						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
@@ -316,10 +291,25 @@ export class GettingStartedPage extends EditorPane {
 			this.updateCategoryProgress();
 		}));
 
-		this.recentlyOpened = workspacesService.getRecentlyOpened();
-		this._register(workspacesService.onDidChangeRecentlyOpened(() => {
-			this.recentlyOpened = workspacesService.getRecentlyOpened();
-			rerender();
+		this._register(this.storageService.onWillSaveState((e) => {
+			if (e.reason !== WillSaveStateReason.SHUTDOWN) {
+				return;
+			}
+
+			if (this.workspaceContextService.getWorkspace().folders.length !== 0) {
+				return;
+			}
+
+			if (!this.editorInput || !this.currentWalkthrough || !this.editorInput.selectedCategory || !this.editorInput.selectedStep) {
+				return;
+			}
+
+			// Save the state of the walkthrough so we can restore it on reload
+			const restoreData: RestoreWalkthroughsConfigurationValue = { folder: UNKNOWN_EMPTY_WINDOW_WORKSPACE.id, category: this.editorInput.selectedCategory, step: this.editorInput.selectedStep };
+			this.storageService.store(
+				restoreWalkthroughsConfigurationKey,
+				JSON.stringify(restoreData),
+				StorageScope.PROFILE, StorageTarget.MACHINE);
 		}));
 	}
 
@@ -353,16 +343,6 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	async makeCategoryVisibleWhenAvailable(categoryID: string, stepId?: string) {
-		if (!this.gettingStartedCategories.some(c => c.id === categoryID)) {
-			await this.gettingStartedService.installedExtensionsRegistered;
-			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-		}
-
-		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
-		if (!ourCategory) {
-			throw Error('Could not find category with ID: ' + categoryID);
-		}
-
 		this.scrollToCategory(categoryID, stepId);
 	}
 
@@ -370,7 +350,13 @@ export class GettingStartedPage extends EditorPane {
 		this.dispatchListeners.clear();
 
 		this.container.querySelectorAll('[x-dispatch]').forEach(element => {
-			const [command, argument] = (element.getAttribute('x-dispatch') ?? '').split(':');
+			const dispatch = element.getAttribute('x-dispatch') ?? '';
+			let command, argument;
+			if (dispatch.startsWith('openLink:https')) {
+				[command, argument] = ['openLink', dispatch.replace('openLink:', '')];
+			} else {
+				[command, argument] = dispatch.split(':');
+			}
 			if (command) {
 				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
 					e.stopPropagation();
@@ -419,12 +405,8 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'selectCategory': {
-				const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
-				if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
-
-				this.gettingStartedService.markWalkthroughOpened(argument);
-				this.gettingStartedList?.setEntries(this.gettingStartedService.getWalkthroughs());
 				this.scrollToCategory(argument);
+				this.gettingStartedService.markWalkthroughOpened(argument);
 				break;
 			}
 			case 'selectStartEntry': {
@@ -462,12 +444,12 @@ export class GettingStartedPage extends EditorPane {
 				}
 				break;
 			}
-			case 'openExtensionPage': {
-				this.commandService.executeCommand('extension.open', argument);
+			case 'hideVideos': {
+				this.hideVideos();
 				break;
 			}
-			case 'hideExtension': {
-				this.hideExtension(argument);
+			case 'openLink': {
+				this.openerService.open(argument);
 				break;
 			}
 			default: {
@@ -484,10 +466,9 @@ export class GettingStartedPage extends EditorPane {
 		this.gettingStartedList?.rerender();
 	}
 
-	private hideExtension(extensionId: string) {
-		this.setHiddenCategories([...this.getHiddenCategories().add(extensionId)]);
-		this.featuredExtensionsList?.rerender();
-		this.registerDispatchListeners();
+	private hideVideos() {
+		this.setHiddenCategories([...this.getHiddenCategories().add('getting-started-videos')]);
+		this.videoList?.setEntries(undefined);
 	}
 
 	private markAllStepsComplete() {
@@ -540,23 +521,42 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private currentMediaComponent: string | undefined = undefined;
-	private async buildMediaComponent(stepId: string) {
+	private currentMediaType: string | undefined = undefined;
+	private async buildMediaComponent(stepId: string, forceRebuild: boolean = false) {
 		if (!this.currentWalkthrough) {
 			throw Error('no walkthrough selected');
 		}
 		const stepToExpand = assertIsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
 
-		if (this.currentMediaComponent === stepId) { return; }
+		if (!forceRebuild && this.currentMediaComponent === stepId) { return; }
 		this.currentMediaComponent = stepId;
 
 		this.stepDisposables.clear();
 
 		this.stepDisposables.add({
 			dispose: () => {
-				clearNode(this.stepMediaComponent);
 				this.currentMediaComponent = undefined;
 			}
 		});
+
+		if (this.currentMediaType !== stepToExpand.media.type) {
+
+			this.currentMediaType = stepToExpand.media.type;
+
+			this.mediaDisposables.add(toDisposable(() => {
+				this.currentMediaType = undefined;
+			}));
+
+			clearNode(this.stepMediaComponent);
+
+			if (stepToExpand.media.type === 'svg') {
+				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: { disableServiceWorker: true }, contentOptions: {}, extension: undefined }));
+				this.webview.mountTo(this.stepMediaComponent, this.window);
+			} else if (stepToExpand.media.type === 'markdown') {
+				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [stepToExpand.media.root], allowScripts: true }, title: '', extension: undefined }));
+				this.webview.mountTo(this.stepMediaComponent, this.window);
+			}
+		}
 
 		if (stepToExpand.media.type === 'image') {
 
@@ -565,6 +565,7 @@ export class GettingStartedPage extends EditorPane {
 
 			const media = stepToExpand.media;
 			const mediaElement = $<HTMLImageElement>('img');
+			clearNode(this.stepMediaComponent);
 			this.stepMediaComponent.appendChild(mediaElement);
 			mediaElement.setAttribute('alt', media.altText);
 			this.updateMediaSourceForColorMode(mediaElement, media.path);
@@ -588,10 +589,7 @@ export class GettingStartedPage extends EditorPane {
 			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: {}, contentOptions: {}, extension: undefined }));
-			webview.mountTo(this.stepMediaComponent);
-
-			webview.setHtml(await this.detailsRenderer.renderSVG(media.path));
+			this.webview.setHtml(await this.detailsRenderer.renderSVG(media.path));
 
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
@@ -600,7 +598,7 @@ export class GettingStartedPage extends EditorPane {
 				// Render again since color vars change
 				const body = await this.detailsRenderer.renderSVG(media.path);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.setHtml(body);
+					this.webview.setHtml(body);
 				}
 			}));
 
@@ -615,7 +613,7 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 
-			this.stepDisposables.add(webview.onDidClickLink(link => {
+			this.stepDisposables.add(this.webview.onDidClickLink(link => {
 				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
 					this.openerService.open(link, { allowCommands: true });
 				}
@@ -629,11 +627,8 @@ export class GettingStartedPage extends EditorPane {
 
 			const media = stepToExpand.media;
 
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [media.root], allowScripts: true }, title: '', extension: undefined }));
-			webview.mountTo(this.stepMediaComponent);
-
 			const rawHTML = await this.detailsRenderer.renderMarkdown(media.path, media.base);
-			webview.setHtml(rawHTML);
+			this.webview.setHtml(rawHTML);
 
 			const serializedContextKeyExprs = rawHTML.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attr => attr.slice('checked-on="'.length, -1)
 				.replace(/&#39;/g, '\'')
@@ -642,7 +637,7 @@ export class GettingStartedPage extends EditorPane {
 			const postTrueKeysMessage = () => {
 				const enabledContextKeys = serializedContextKeyExprs?.filter(expr => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(expr)));
 				if (enabledContextKeys) {
-					webview.postMessage({
+					this.webview.postMessage({
 						enabledContextKeys
 					});
 				}
@@ -660,9 +655,14 @@ export class GettingStartedPage extends EditorPane {
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
 
-			this.stepDisposables.add(webview.onDidClickLink(link => {
+			this.stepDisposables.add(this.webview.onDidClickLink(link => {
 				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
-					this.openerService.open(link, { allowCommands: true });
+					const toSide = link.startsWith('command:toSide:');
+					if (toSide) {
+						link = link.replace('command:toSide:', 'command:');
+						this.focusSideEditorGroup();
+					}
+					this.openerService.open(link, { allowCommands: true, openToSide: toSide });
 				}
 			}));
 
@@ -671,7 +671,7 @@ export class GettingStartedPage extends EditorPane {
 				this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 					const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
 					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-						webview.setHtml(body);
+						this.webview.setHtml(body);
 						postTrueKeysMessage();
 					}
 				}));
@@ -681,7 +681,7 @@ export class GettingStartedPage extends EditorPane {
 
 			this.layoutMarkdown = () => {
 				layoutDelayer.trigger(() => {
-					webview.postMessage({ layoutMeNow: true });
+					this.webview.postMessage({ layoutMeNow: true });
 				});
 			};
 
@@ -690,16 +690,13 @@ export class GettingStartedPage extends EditorPane {
 
 			postTrueKeysMessage();
 
-			this.stepDisposables.add(webview.onMessage(e => {
+			this.stepDisposables.add(this.webview.onMessage(e => {
 				const message: string = e.message as string;
 				if (message.startsWith('command:')) {
 					this.openerService.open(message, { allowCommands: true });
 				} else if (message.startsWith('setTheme:')) {
 					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
-				} else if (message === 'unloaded') {
-					this.buildMediaComponent(stepId);
-				}
-				else {
+				} else {
 					console.error('Unexpected message', message);
 				}
 			}));
@@ -717,8 +714,6 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async selectStep(id: string | undefined, delayFocus = true) {
-		if (id && this.editorInput.selectedStep === id) { return; }
-
 		if (id) {
 			let stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`);
 			if (!stepElement) {
@@ -742,8 +737,8 @@ export class GettingStartedPage extends EditorPane {
 
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
-			this.buildMediaComponent(id);
-			this.gettingStartedService.progressStep(id);
+			this.buildMediaComponent(id, true);
+			this.gettingStartedService.progressByEvent('stepSelected:' + id);
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
@@ -784,6 +779,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async buildCategoriesSlide() {
+
 		this.categoriesSlideDisposables.clear();
 		const showOnStartupCheckbox = new Toggle({
 			icon: Codicon.check,
@@ -822,7 +818,29 @@ export class GettingStartedPage extends EditorPane {
 
 		const startList = this.buildStartList();
 		const recentList = this.buildRecentlyOpenedList();
-		const featuredExtensionList = this.buildFeaturedExtensionsList();
+
+		const showVideoTutorials = await Promise.race([
+			this.tasExperimentService?.getTreatment<boolean>('gettingStarted.showVideoTutorials'),
+			new Promise<boolean | undefined>(resolve => setTimeout(() => resolve(false), 200))
+		]);
+
+		let videoList: GettingStartedIndexList<IWelcomePageStartEntry>;
+		if (showVideoTutorials === true) {
+			this.showFeaturedWalkthrough = false;
+			videoList = this.buildVideosList();
+			const layoutVideos = () => {
+				if (videoList?.itemCount > 0) {
+					reset(rightColumn, videoList?.getDomElement(), gettingStartedList.getDomElement());
+				}
+				else {
+					reset(rightColumn, gettingStartedList.getDomElement());
+				}
+				setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
+				layoutRecentList();
+			};
+			videoList.onDidChange(layoutVideos);
+		}
+
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
 		const footer = $('.footer', {},
@@ -834,31 +852,27 @@ export class GettingStartedPage extends EditorPane {
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
 				this.container.classList.remove('noWalkthroughs');
-				reset(rightColumn, featuredExtensionList.getDomElement(), gettingStartedList.getDomElement());
+				if (videoList?.itemCount > 0) {
+					reset(rightColumn, videoList?.getDomElement(), gettingStartedList.getDomElement());
+				} else {
+					reset(rightColumn, gettingStartedList.getDomElement());
+				}
 			}
 			else {
 				this.container.classList.add('noWalkthroughs');
-				reset(rightColumn, featuredExtensionList.getDomElement());
-			}
-			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
-			layoutRecentList();
-		};
-
-		const layoutFeaturedExtension = () => {
-			if (featuredExtensionList.itemCount) {
-				this.container.classList.remove('noExtensions');
-				reset(rightColumn, featuredExtensionList.getDomElement(), gettingStartedList.getDomElement());
-			}
-			else {
-				this.container.classList.add('noExtensions');
-				reset(rightColumn, gettingStartedList.getDomElement());
+				if (videoList?.itemCount > 0) {
+					reset(rightColumn, videoList?.getDomElement());
+				}
+				else {
+					reset(rightColumn);
+				}
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
 			layoutRecentList();
 		};
 
 		const layoutRecentList = () => {
-			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noExtensions')) {
+			if (this.container.classList.contains('noWalkthroughs') && videoList?.itemCount === 0) {
 				recentList.setLimit(10);
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
@@ -868,8 +882,6 @@ export class GettingStartedPage extends EditorPane {
 			}
 		};
 
-		featuredExtensionList.onDidChange(layoutFeaturedExtension);
-		layoutFeaturedExtension();
 		gettingStartedList.onDidChange(layoutLists);
 		layoutLists();
 
@@ -883,29 +895,44 @@ export class GettingStartedPage extends EditorPane {
 			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 
 			if (!this.currentWalkthrough) {
-				this.container.classList.add('loading');
-				await this.gettingStartedService.installedExtensionsRegistered;
-				this.container.classList.remove('loading');
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
+				if (this.currentWalkthrough) {
+					this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
+					this.setSlide('details');
+					return;
+				}
 			}
-
-			if (!this.currentWalkthrough) {
-				console.error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
-				this.editorInput.selectedCategory = undefined;
-				this.editorInput.selectedStep = undefined;
-			} else {
+			else {
 				this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
 				this.setSlide('details');
 				return;
 			}
 		}
 
+		const someStepsComplete = this.gettingStartedCategories.some(category => category.steps.find(s => s.done));
 		if (this.editorInput.showTelemetryNotice && this.productService.openToWelcomeMainPage) {
 			const telemetryNotice = $('p.telemetry-notice');
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
+		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory && this.showFeaturedWalkthrough) {
+			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
+			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
+			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
+
+			if (fistContentBehaviour === 'openToFirstCategory') {
+				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
+				if (first) {
+					this.hasScrolledToFirstCategory = true;
+					this.currentWalkthrough = first;
+					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
+					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					this.setSlide('details');
+					return;
+				}
+			}
 		}
+
 		this.setSlide('categories');
 	}
 
@@ -921,7 +948,7 @@ export class GettingStartedPage extends EditorPane {
 				windowOpenable = { workspaceUri: recent.workspace.configPath };
 			}
 
-			const { name, parentPath } = splitName(fullPath);
+			const { name, parentPath } = splitRecentLabel(fullPath);
 
 			const li = $('li');
 			const link = $('button.button-link');
@@ -973,7 +1000,6 @@ export class GettingStartedPage extends EditorPane {
 			});
 
 		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
-
 		this.recentlyOpened.then(({ workspaces }) => {
 			// Filter out the current workspace
 			const workspacesWithID = workspaces
@@ -985,7 +1011,6 @@ export class GettingStartedPage extends EditorPane {
 			};
 
 			updateEntries();
-
 			recentlyOpenedList.register(this.labelService.onDidChangeFormatters(() => updateEntries()));
 		}).catch(onUnexpectedError);
 
@@ -1035,7 +1060,7 @@ export class GettingStartedPage extends EditorPane {
 			const featuredBadge = $('.featured-badge', {});
 			const descriptionContent = $('.description-content', {},);
 
-			if (category.isFeatured) {
+			if (category.isFeatured && this.showFeaturedWalkthrough) {
 				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-full')));
 				reset(descriptionContent, ...renderLabelWithIcons(category.description));
 			}
@@ -1043,7 +1068,7 @@ export class GettingStartedPage extends EditorPane {
 			const titleContent = $('h3.category-title.max-lines-3', { 'x-category-title-for': category.id });
 			reset(titleContent, ...renderLabelWithIcons(category.title));
 
-			return $('button.getting-started-category' + (category.isFeatured ? '.featured' : ''),
+			return $('button.getting-started-category' + (category.isFeatured && this.showFeaturedWalkthrough ? '.featured' : ''),
 				{
 					'x-dispatch': 'selectCategory:' + category.id,
 					'title': category.description
@@ -1107,28 +1132,31 @@ export class GettingStartedPage extends EditorPane {
 		return gettingStartedList;
 	}
 
-	private buildFeaturedExtensionsList(): GettingStartedIndexList<IFeaturedExtension> {
+	private buildVideosList(): GettingStartedIndexList<IWelcomePageStartEntry> {
 
-		const renderFeaturedExtensions = (entry: IFeaturedExtension): HTMLElement => {
+		const renderFeaturedExtensions = (entry: IWelcomePageStartEntry): HTMLElement => {
 
-			const descriptionContent = $('.featured-description-content', {},);
+			const featuredBadge = $('.featured-badge', {});
+			const descriptionContent = $('.description-content', {},);
 
+			reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-full')));
 			reset(descriptionContent, ...renderLabelWithIcons(entry.description));
 
 			const titleContent = $('h3.category-title.max-lines-3', { 'x-category-title-for': entry.id });
 			reset(titleContent, ...renderLabelWithIcons(entry.title));
 
-			return $('button.getting-started-category',
+			return $('button.getting-started-category' + '.featured',
 				{
-					'x-dispatch': 'openExtensionPage:' + entry.id,
-					'title': entry.description
+					'x-dispatch': 'openLink:' + entry.command,
+					'title': entry.title
 				},
+				featuredBadge,
 				$('.main-content', {},
-					$('img.featured-icon.icon-widget', { src: entry.imagePath }),
+					this.iconWidgetFor(entry),
 					titleContent,
 					$('a.codicon.codicon-close.hide-category-button', {
 						'tabindex': 0,
-						'x-dispatch': 'hideExtension:' + entry.id,
+						'x-dispatch': 'hideVideos',
 						'title': localize('close', "Hide"),
 						'role': 'button',
 						'aria-label': localize('closeAriaLabel', "Hide"),
@@ -1137,29 +1165,34 @@ export class GettingStartedPage extends EditorPane {
 				descriptionContent);
 		};
 
-		if (this.featuredExtensionsList) {
-			this.featuredExtensionsList.dispose();
+		if (this.videoList) {
+			this.videoList.dispose();
 		}
-
-		const featuredExtensionsList = this.featuredExtensionsList = new GettingStartedIndexList(
+		const videoList = this.videoList = new GettingStartedIndexList(
 			{
-				title: this.featuredExtensionService.title,
-				klass: 'featured-extensions',
-				limit: 5,
+				title: localize('videos', "Videos"),
+				klass: 'getting-started-videos',
+				limit: 1,
 				renderElement: renderFeaturedExtensions,
-				rankElement: (extension) => { if (this.getHiddenCategories().has(extension.id)) { return null; } return 0; },
 				contextService: this.contextService,
 			});
 
-		this.featuredExtensions?.then(extensions => {
-			featuredExtensionsList.setEntries(extensions);
-		});
+		if (this.getHiddenCategories().has('getting-started-videos')) {
+			return videoList;
+		}
 
-		this.featuredExtensionsList?.onDidChange(() => {
+		videoList.setEntries([{
+			id: 'getting-started-videos',
+			title: localize('videos-title', 'Watch Getting Started Tutorials'),
+			description: localize('videos-description', 'Learn VS Code\'s must-have features in short and practical videos'),
+			command: 'https://aka.ms/vscode-getting-started-tutorials',
+			order: 0,
+			icon: { type: 'icon', icon: Codicon.deviceCameraVideo },
+			when: ContextKeyExpr.true(),
+		}]);
+		videoList.onDidChange(() => this.registerDispatchListeners());
 
-			this.registerDispatchListeners();
-		});
-		return featuredExtensionsList;
+		return videoList;
 	}
 
 	layout(size: Dimension) {
@@ -1170,18 +1203,28 @@ export class GettingStartedPage extends EditorPane {
 
 		this.startList?.layout(size);
 		this.gettingStartedList?.layout(size);
-		this.featuredExtensionsList?.layout(size);
 		this.recentlyOpenedList?.layout(size);
+		this.videoList?.layout(size);
+
+		if (this.editorInput?.selectedStep && this.currentMediaType) {
+			this.mediaDisposables.clear();
+			this.stepDisposables.clear();
+			this.buildMediaComponent(this.editorInput.selectedStep);
+		}
 
 		this.layoutMarkdown?.();
 
 		this.container.classList.toggle('height-constrained', size.height <= 600);
 		this.container.classList.toggle('width-constrained', size.width <= 400);
 		this.container.classList.toggle('width-semi-constrained', size.width <= 800);
+
+		this.categoriesPageScrollbar?.scanDomNode();
+		this.detailsPageScrollbar?.scanDomNode();
+		this.detailsScrollbar?.scanDomNode();
 	}
 
 	private updateCategoryProgress() {
-		document.querySelectorAll('.category-progress').forEach(element => {
+		this.window.document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
 			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
@@ -1207,12 +1250,22 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async scrollToCategory(categoryID: string, stepId?: string) {
+
+		if (!this.gettingStartedCategories.some(c => c.id === categoryID)) {
+			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+		}
+
+		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
+		if (!ourCategory) {
+			throw Error('Could not find category with ID: ' + categoryID);
+		}
+
 		this.inProgressScroll = this.inProgressScroll.then(async () => {
 			reset(this.stepsContent);
 			this.editorInput.selectedCategory = categoryID;
 			this.editorInput.selectedStep = stepId;
-			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === categoryID);
-			this.buildCategorySlide(categoryID);
+			this.currentWalkthrough = ourCategory;
+			this.buildCategorySlide(categoryID, stepId);
 			this.setSlide('details');
 		});
 	}
@@ -1223,6 +1276,25 @@ export class GettingStartedPage extends EditorPane {
 		return widget;
 	}
 
+	private focusSideEditorGroup() {
+		const fullSize = this.groupsService.getPart(this.group).contentDimension;
+		if (!fullSize || fullSize.width <= 700) { return; }
+		if (this.groupsService.count === 1) {
+			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
+			this.groupsService.activateGroup(sideGroup);
+
+			const gettingStartedSize = Math.floor(fullSize.width / 2);
+
+			const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
+			this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+		}
+
+		const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
+		if (nonGettingStartedGroup) {
+			this.groupsService.activateGroup(nonGettingStartedGroup);
+			nonGettingStartedGroup.focus();
+		}
+	}
 	private runStepCommand(href: string) {
 
 		const isCommand = href.startsWith('command:');
@@ -1231,23 +1303,8 @@ export class GettingStartedPage extends EditorPane {
 
 		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
-		const fullSize = this.groupsService.contentDimension;
-
-		if (toSide && fullSize.width > 700) {
-			if (this.groupsService.count === 1) {
-				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT, { activate: true });
-
-				const gettingStartedSize = Math.floor(fullSize.width / 2);
-
-				const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-				this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
-			}
-
-			const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
-			if (nonGettingStartedGroup) {
-				this.groupsService.activateGroup(nonGettingStartedGroup);
-				nonGettingStartedGroup.focus();
-			}
+		if (toSide) {
+			this.focusSideEditorGroup();
 		}
 		if (isCommand) {
 			const commandURI = URI.parse(command);
@@ -1267,6 +1324,28 @@ export class GettingStartedPage extends EditorPane {
 			if (!Array.isArray(args)) {
 				args = [args];
 			}
+
+			// If a step is requesting the OpenFolder action to be executed in an empty workspace...
+			if ((commandURI.path === OpenFileFolderAction.ID.toString() ||
+				commandURI.path === OpenFolderAction.ID.toString()) &&
+				this.workspaceContextService.getWorkspace().folders.length === 0) {
+
+				const selectedStepIndex = this.currentWalkthrough?.steps.findIndex(step => step.id === this.editorInput.selectedStep);
+
+				// and there are a few more steps after this step which are yet to be completed...
+				if (selectedStepIndex !== undefined &&
+					selectedStepIndex > -1 &&
+					this.currentWalkthrough?.steps.slice(selectedStepIndex + 1).some(step => !step.done)) {
+					const restoreData: RestoreWalkthroughsConfigurationValue = { folder: UNKNOWN_EMPTY_WINDOW_WORKSPACE.id, category: this.editorInput.selectedCategory, step: this.editorInput.selectedStep };
+
+					// save state to restore after reload
+					this.storageService.store(
+						restoreWalkthroughsConfigurationKey,
+						JSON.stringify(restoreData),
+						StorageScope.PROFILE, StorageTarget.MACHINE);
+				}
+			}
+
 			this.commandService.executeCommand(commandURI.path, ...args).then(result => {
 				const toOpen: URI = result?.openFolder;
 				if (toOpen) {
@@ -1291,7 +1370,7 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private buildStepMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
+	private buildMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
 		while (container.firstChild) { container.removeChild(container.firstChild); }
 
 		for (const linkedText of text) {
@@ -1354,19 +1433,22 @@ export class GettingStartedPage extends EditorPane {
 		});
 
 		this.detailsPageDisposables.clear();
+		this.mediaDisposables.clear();
 
 		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 		if (!category) {
 			throw Error('could not find category with ID ' + categoryID);
 		}
 
+		const descriptionContainer = $('.category-description.description.max-lines-3', { 'x-category-description-for': category.id });
+		this.buildMarkdownDescription(descriptionContainer, parseDescription(category.description));
+
 		const categoryDescriptorComponent =
 			$('.getting-started-category',
 				{},
-				this.iconWidgetFor(category),
 				$('.category-description-container', {},
 					$('h2.category-title.max-lines-3', { 'x-category-title-for': category.id }, ...renderLabelWithIcons(category.title)),
-					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, ...renderLabelWithIcons(category.description))));
+					descriptionContainer));
 
 		const stepListContainer = $('.step-list-container');
 
@@ -1413,10 +1495,11 @@ export class GettingStartedPage extends EditorPane {
 							'x-dispatch': 'toggleStepCompletion:' + step.id,
 							'role': 'checkbox',
 							'tabindex': '0',
+							'aria-checked': step.done ? 'true' : 'false'
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });
-					this.buildStepMarkdownDescription(container, step.description);
+					this.buildMarkdownDescription(container, step.description);
 
 					const stepTitle = $('h3.step-title.max-lines-3', { 'x-step-title-for': step.id });
 					reset(stepTitle, ...renderLabelWithIcons(step.title));
@@ -1437,7 +1520,7 @@ export class GettingStartedPage extends EditorPane {
 							'x-dispatch': 'selectTask:' + step.id,
 							'data-step-id': step.id,
 							'aria-expanded': 'false',
-							'aria-checked': '' + step.done,
+							'aria-checked': step.done ? 'true' : 'false',
 							'role': 'button',
 						},
 						codicon,
@@ -1518,6 +1601,12 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedStep = undefined;
 			this.editorInput.showTelemetryNotice = false;
 
+			if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
+				// extensions may have changed in the time since we last displayed the walkthrough list
+				// rebuild the list
+				this.buildCategoriesSlide();
+			}
+
 			this.selectStep(undefined);
 			this.setSlide('categories');
 			this.container.focus();
@@ -1541,12 +1630,14 @@ export class GettingStartedPage extends EditorPane {
 		if (toEnable === 'categories') {
 			slideManager.classList.remove('showDetails');
 			slideManager.classList.add('showCategories');
+			this.container.querySelector<HTMLButtonElement>('.prev-button.button-link')!.style.display = 'none';
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = false);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = false);
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
+			this.container.querySelector<HTMLButtonElement>('.prev-button.button-link')!.style.display = 'block';
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = true);
@@ -1554,7 +1645,20 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	override focus() {
-		this.container.focus();
+		super.focus();
+
+		const active = this.container.ownerDocument.activeElement;
+
+		let parent = this.container.parentElement;
+		while (parent && parent !== active) {
+			parent = parent.parentElement;
+		}
+
+		if (parent) {
+			// Only set focus if there is no other focued element outside this chain.
+			// This prevents us from stealing back focus from other focused elements such as quick pick due to delayed load.
+			this.container.focus();
+		}
 	}
 }
 

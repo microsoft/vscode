@@ -284,7 +284,7 @@ namespace TaskSourceDTO {
 			scope = value.scope;
 		} else {
 			scope = TaskScope.Folder;
-			workspaceFolder = Types.withNullAsUndefined(workspace.getWorkspaceFolder(URI.revive(value.scope)));
+			workspaceFolder = workspace.getWorkspaceFolder(URI.revive(value.scope)) ?? undefined;
 		}
 		const result: IExtensionTaskSource = {
 			kind: TaskSourceKind.Extension,
@@ -429,7 +429,11 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
 		this._taskService.onDidStateChange(async (event: ITaskEvent) => {
-			const task = event.__task!;
+			if (event.kind === TaskEventKind.Changed) {
+				return;
+			}
+
+			const task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
 				const execution = TaskExecutionDTO.from(task.getTaskExecution());
 				let resolvedDefinition: ITaskDefinitionDTO = execution.task!.definition;
@@ -441,9 +445,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 					resolvedDefinition = await this._configurationResolverService.resolveAnyAsync(task.getWorkspaceFolder(),
 						execution.task.definition, dictionary);
 				}
-				this._proxy.$onDidStartTask(execution, event.terminalId!, resolvedDefinition);
+				this._proxy.$onDidStartTask(execution, event.terminalId, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
-				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
+				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
 				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {

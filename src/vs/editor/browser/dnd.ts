@@ -55,7 +55,16 @@ export function toExternalVSDataTransfer(sourceDataTransfer: DataTransfer, overw
 			for (const item of sourceDataTransfer.items) {
 				const file = item.getAsFile();
 				if (file) {
-					editorData.push((file as FileAdditionalNativeProperties).path ? URI.file((file as FileAdditionalNativeProperties).path!).toString() : file.name);
+					const path = (file as FileAdditionalNativeProperties).path;
+					try {
+						if (path) {
+							editorData.push(URI.file(path).toString());
+						} else {
+							editorData.push(URI.parse(file.name, true).toString());
+						}
+					} catch {
+						// Parsing failed. Leave out from list
+					}
 				}
 			}
 

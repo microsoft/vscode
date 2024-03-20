@@ -27,16 +27,22 @@ import { ExtHostLoggerService } from 'vs/workbench/api/common/extHostLoggerServi
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { ExtHostVariableResolverProviderService, IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
 import { ExtHostLocalizationService, IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
+import { ExtHostManagedSockets, IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
+import { ExtHostAuthentication, IExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
+import { ExtHostLanguageModels, IExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
 
 registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, InstantiationType.Delayed);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
 registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService, InstantiationType.Delayed);
 registerSingleton(IExtHostCommands, ExtHostCommands, InstantiationType.Eager);
+registerSingleton(IExtHostAuthentication, ExtHostAuthentication, InstantiationType.Eager);
+registerSingleton(IExtHostLanguageModels, ExtHostLanguageModels, InstantiationType.Eager);
 registerSingleton(IExtHostConfiguration, ExtHostConfiguration, InstantiationType.Eager);
 registerSingleton(IExtHostConsumerFileSystem, ExtHostConsumerFileSystem, InstantiationType.Eager);
 registerSingleton(IExtHostDebugService, WorkerExtHostDebugService, InstantiationType.Eager);
 registerSingleton(IExtHostDecorations, ExtHostDecorations, InstantiationType.Eager);
 registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors, InstantiationType.Eager);
+registerSingleton(IExtHostManagedSockets, ExtHostManagedSockets, InstantiationType.Eager);
 registerSingleton(IExtHostFileSystemInfo, ExtHostFileSystemInfo, InstantiationType.Eager);
 registerSingleton(IExtHostOutputService, ExtHostOutputService, InstantiationType.Delayed);
 registerSingleton(IExtHostSearch, ExtHostSearch, InstantiationType.Eager);

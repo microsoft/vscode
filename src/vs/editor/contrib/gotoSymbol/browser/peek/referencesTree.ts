@@ -162,12 +162,14 @@ export class FileReferencesRenderer implements ITreeRenderer<FileReferences, Fuz
 //#endregion
 
 //#region render: Reference
-class OneReferenceTemplate {
+class OneReferenceTemplate extends Disposable {
 
 	readonly label: HighlightedLabel;
 
 	constructor(container: HTMLElement) {
-		this.label = new HighlightedLabel(container);
+		super();
+
+		this.label = this._register(new HighlightedLabel(container));
 	}
 
 	set(element: OneReference, score?: FuzzyScore): void {
@@ -202,7 +204,8 @@ export class OneReferenceRenderer implements ITreeRenderer<OneReference, FuzzySc
 	renderElement(node: ITreeNode<OneReference, FuzzyScore>, index: number, templateData: OneReferenceTemplate): void {
 		templateData.set(node.element, node.filterData);
 	}
-	disposeTemplate(): void {
+	disposeTemplate(templateData: OneReferenceTemplate): void {
+		templateData.dispose();
 	}
 }
 

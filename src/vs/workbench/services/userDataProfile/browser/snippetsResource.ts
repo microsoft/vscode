@@ -11,10 +11,10 @@ import { localize } from 'vs/nls';
 import { FileOperationError, FileOperationResult, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ISnippetsContent {
 	snippets: IStringDictionary<string>;
@@ -109,6 +109,7 @@ export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 	constructor(
 		private readonly profile: IUserDataProfile,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) { }
 
 	async getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined> {
@@ -119,6 +120,9 @@ export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 			parent: that,
 			resourceUri: resource,
 			collapsibleState: TreeItemCollapsibleState.None,
+			accessibilityInformation: {
+				label: this.uriIdentityService.extUri.basename(resource),
+			},
 			checkbox: that.checkbox ? {
 				get isChecked() { return !that.excludedSnippets.has(resource); },
 				set isChecked(value: boolean) {
@@ -127,6 +131,9 @@ export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 					} else {
 						that.excludedSnippets.add(resource);
 					}
+				},
+				accessibilityInformation: {
+					label: localize('exclude', "Select Snippet {0}", this.uriIdentityService.extUri.basename(resource)),
 				}
 			} : undefined,
 			command: {
@@ -145,6 +152,11 @@ export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 	async getContent(): Promise<string> {
 		return this.instantiationService.createInstance(SnippetsResource).getContent(this.profile, this.excludedSnippets);
 	}
+
+	isFromDefaultProfile(): boolean {
+		return !this.profile.isDefault && !!this.profile.useDefaultFlags?.snippets;
+	}
+
 
 }
 

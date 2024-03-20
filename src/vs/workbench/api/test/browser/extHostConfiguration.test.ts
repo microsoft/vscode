@@ -19,6 +19,7 @@ import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSyste
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtHostConfiguration', function () {
 
@@ -52,6 +53,8 @@ suite('ExtHostConfiguration', function () {
 			configurationScopes: []
 		};
 	}
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
 		const extHostConfig = createExtHostConfiguration({
@@ -742,7 +745,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		});
 		const configEventData: IConfigurationChange = { keys: ['farboo.updatedConfig', 'farboo.newConfig'], overrides: [] };
-		testObject.onDidChangeConfiguration(e => {
+		store.add(testObject.onDidChangeConfiguration(e => {
 
 			assert.deepStrictEqual(testObject.getConfiguration().get('farboo'), {
 				'config': false,
@@ -766,7 +769,7 @@ suite('ExtHostConfiguration', function () {
 			assert.ok(!e.affectsConfiguration('farboo.config', workspaceFolder.uri));
 			assert.ok(!e.affectsConfiguration('farboo.config', URI.file('any')));
 			done();
-		});
+		}));
 
 		testObject.$acceptConfigurationChanged(newConfigData, configEventData);
 	});

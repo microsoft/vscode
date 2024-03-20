@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -11,7 +12,7 @@ import { AdapterLogger, DEFAULT_LOG_LEVEL, ILogger, LogLevel } from 'vs/platform
 
 export interface IAutomatedWindow {
 	codeAutomationLog(type: string, args: any[]): void;
-	codeAutomationExit(logs: Array<ILogFile>, code: number): void;
+	codeAutomationExit(code: number, logs: Array<ILogFile>): void;
 }
 
 export interface ILogFile {
@@ -75,7 +76,7 @@ export class ConsoleLogInAutomationLogger extends AdapterLogger implements ILogg
 	}
 
 	private consoleLog(type: string, args: any[]): void {
-		const automatedWindow = window as unknown as IAutomatedWindow;
+		const automatedWindow = mainWindow as unknown as IAutomatedWindow;
 		if (typeof automatedWindow.codeAutomationLog === 'function') {
 			try {
 				automatedWindow.codeAutomationLog(type, args);

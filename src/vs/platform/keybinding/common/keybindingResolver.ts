@@ -27,7 +27,7 @@ export type ResolutionResult =
 
 // util definitions to make working with the above types easier within this module:
 
-const NoMatchingKb: ResolutionResult = { kind: ResultKind.NoMatchingKb };
+export const NoMatchingKb: ResolutionResult = { kind: ResultKind.NoMatchingKb };
 const MoreChordsNeeded: ResolutionResult = { kind: ResultKind.MoreChordsNeeded };
 function KbFound(commandId: string | null, commandArgs: any, isBubble: boolean): ResolutionResult {
 	return { kind: ResultKind.KbFound, commandId, commandArgs, isBubble };

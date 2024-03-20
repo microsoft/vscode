@@ -19,13 +19,14 @@ import { HistoryNavigator } from 'vs/base/common/history';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI as uri } from 'vs/base/common/uri';
 import 'vs/css!./media/repl';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
@@ -36,7 +37,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -55,19 +56,21 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { FilterViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
-import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplRawObjectsRenderer, ReplOutputElementRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
-import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, getStateLabel, IDebugConfiguration, IDebugService, IDebugSession, IReplConfiguration, IReplElement, IReplOptions, REPL_VIEW_ID, State } from 'vs/workbench/contrib/debug/common/debug';
+import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplOutputElementRenderer, ReplRawObjectsRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
+import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, IDebugConfiguration, IDebugService, IDebugSession, IReplConfiguration, IReplElement, IReplOptions, REPL_VIEW_ID, State, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
+import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 const $ = dom.$;
 
@@ -106,6 +109,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
+	private styleChangedWhenInvisible: boolean = false;
 	private completionItemProvider: IDisposable | undefined;
 	private modelChangeListener: IDisposable = Disposable.None;
 	private filter: ReplFilter;
@@ -177,7 +181,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			}
 			this.multiSessionRepl.set(this.isMultiSessionView);
 		}));
-		this._register(this.debugService.onDidEndSession(async session => {
+		this._register(this.debugService.onDidEndSession(async () => {
 			// Update view, since orphaned sessions might now be separate
 			await Promise.resolve(); // allow other listeners to go first, so sessions can update parents
 			this.multiSessionRepl.set(this.isMultiSessionView);
@@ -197,6 +201,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
 				this.refreshReplElements(true);
+				if (this.styleChangedWhenInvisible) {
+					this.styleChangedWhenInvisible = false;
+					this.onDidStyleChange();
+				}
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -233,6 +241,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.completionItemProvider?.dispose();
 			if (session.capabilities.supportsCompletionsRequest) {
 				this.completionItemProvider = this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+					_debugDisplayName: 'debugConsole',
 					triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
 					provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 						// Disable history navigation because up and down are used to navigate through the suggest widget
@@ -350,6 +359,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	private onDidStyleChange(): void {
+		if (!this.isVisible()) {
+			this.styleChangedWhenInvisible = true;
+			return;
+		}
 		if (this.styleElement) {
 			this.replInput.updateOptions({
 				fontSize: this.replOptions.replConfiguration.fontSize,
@@ -408,7 +421,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		if (session) {
 			this.replElementsChangeListener?.dispose();
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
-				this.refreshReplElements(session!.getReplElements().length === 0);
+				this.refreshReplElements(session.getReplElements().length === 0);
 			});
 
 			if (this.tree && treeInput !== session) {
@@ -503,6 +516,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	override focus(): void {
+		super.focus();
 		setTimeout(() => this.replInput.focus(), 0);
 	}
 
@@ -562,6 +576,29 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 	// --- Creation
 
+	override render(): void {
+		super.render();
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this, this.filterWidget],
+			focusNextWidget: () => {
+				const element = this.tree?.getHTMLElement();
+				if (this.filterWidget.hasFocus()) {
+					this.tree?.domFocus();
+				} else if (element && dom.isActiveElement(element)) {
+					this.focus();
+				}
+			},
+			focusPreviousWidget: () => {
+				const element = this.tree?.getHTMLElement();
+				if (this.replInput.hasTextFocus()) {
+					this.tree?.domFocus();
+				} else if (element && dom.isActiveElement(element)) {
+					this.focusFilter();
+				}
+			}
+		}));
+	}
+
 	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, $('.repl'));
@@ -589,7 +626,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				new ReplRawObjectsRenderer(linkDetector),
 			],
 			// https://github.com/microsoft/TypeScript/issues/32526
-			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
+			new ReplDataSource() satisfies IAsyncDataSource<IDebugSession, IReplElement>,
 			{
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
@@ -624,7 +661,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this._register(tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(tree.onMouseClick(() => {
-			const selection = window.getSelection();
+			const selection = dom.getWindow(this.treeContainer).getSelection();
 			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
 				// only focus the input if the user is not currently selecting.
 				this.replInput.focus();
@@ -649,15 +686,12 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		CONTEXT_IN_DEBUG_REPL.bindTo(this.scopedContextKeyService).set(true);
 
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-		const options = getSimpleEditorOptions();
+		const options = getSimpleEditorOptions(this.configurationService);
 		options.readOnly = true;
 		options.suggest = { showStatusBar: true };
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
 		options.ariaLabel = localize('debugConsole', "Debug Console");
-		// We must respect some accessibility related settings
-		options.accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
-		options.cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
@@ -753,7 +787,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	override dispose(): void {
-		this.replInput.dispose();
+		this.replInput?.dispose(); // Disposed before rendered? #174558
 		this.replElementsChangeListener?.dispose();
 		this.refreshScheduler.dispose();
 		this.modelChangeListener.dispose();
@@ -938,7 +972,7 @@ registerAction2(class extends ViewAction<Repl> {
 		super({
 			id: 'workbench.debug.panel.action.clearReplAction',
 			viewId: REPL_VIEW_ID,
-			title: { value: localize('clearRepl', "Clear Console"), original: 'Clear Console' },
+			title: localize2('clearRepl', 'Clear Console'),
 			f1: true,
 			icon: debugConsoleClearAll,
 			menu: [{
@@ -955,8 +989,9 @@ registerAction2(class extends ViewAction<Repl> {
 	}
 
 	runInView(_accessor: ServicesAccessor, view: Repl): void {
+		const accessibilitySignalService = _accessor.get(IAccessibilitySignalService);
 		view.clearRepl();
-		aria.status(localize('debugConsoleCleared', "Debug console was cleared"));
+		accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 });
 
@@ -1047,12 +1082,33 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		const nativeSelection = window.getSelection();
+		const debugService = accessor.get(IDebugService);
+		const nativeSelection = dom.getActiveWindow().getSelection();
 		const selectedText = nativeSelection?.toString();
 		if (selectedText && selectedText.length > 0) {
-			await clipboardService.writeText(selectedText);
+			return clipboardService.writeText(selectedText);
 		} else if (element) {
-			await clipboardService.writeText(element.toString());
+			return clipboardService.writeText(await this.tryEvaluateAndCopy(debugService, element) || element.toString());
+		}
+	}
+
+	private async tryEvaluateAndCopy(debugService: IDebugService, element: IReplElement): Promise<string | undefined> {
+		// todo: we should expand DAP to allow copying more types here (#187784)
+		if (!(element instanceof ReplEvaluationResult)) {
+			return;
+		}
+
+		const stackFrame = debugService.getViewModel().focusedStackFrame;
+		const session = debugService.getViewModel().focusedSession;
+		if (!stackFrame || !session || !session.capabilities.supportsClipboardContext) {
+			return;
+		}
+
+		try {
+			const evaluation = await session.evaluate(element.originalExpression, stackFrame.frameId, 'clipboard');
+			return evaluation?.body.result;
+		} catch (e) {
+			return;
 		}
 	}
 });

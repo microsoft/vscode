@@ -9,18 +9,20 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IDialogsModel, IDialogViewItem } from 'vs/workbench/common/dialogs';
 import { BrowserDialogHandler } from 'vs/workbench/browser/parts/dialogs/dialogHandler';
 import { DialogService } from 'vs/workbench/services/dialogs/common/dialogService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Lazy } from 'vs/base/common/lazy';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dialogHandler';
+
 	private readonly model: IDialogsModel;
-	private readonly impl: IDialogHandler;
+	private readonly impl: Lazy<IDialogHandler>;
 
 	private currentDialog: IDialogViewItem | undefined;
 
@@ -35,7 +37,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
-		this.impl = new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService);
+		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService));
 
 		this.model = (this.dialogService as DialogService).model;
 
@@ -52,18 +54,22 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		while (this.model.dialogs.length) {
 			this.currentDialog = this.model.dialogs[0];
 
-			let result: IDialogResult | undefined = undefined;
-			if (this.currentDialog.args.confirmArgs) {
-				const args = this.currentDialog.args.confirmArgs;
-				result = await this.impl.confirm(args.confirmation);
-			} else if (this.currentDialog.args.inputArgs) {
-				const args = this.currentDialog.args.inputArgs;
-				result = await this.impl.input(args.input);
-			} else if (this.currentDialog.args.promptArgs) {
-				const args = this.currentDialog.args.promptArgs;
-				result = await this.impl.prompt(args.prompt);
-			} else {
-				await this.impl.about();
+			let result: IDialogResult | Error | undefined = undefined;
+			try {
+				if (this.currentDialog.args.confirmArgs) {
+					const args = this.currentDialog.args.confirmArgs;
+					result = await this.impl.value.confirm(args.confirmation);
+				} else if (this.currentDialog.args.inputArgs) {
+					const args = this.currentDialog.args.inputArgs;
+					result = await this.impl.value.input(args.input);
+				} else if (this.currentDialog.args.promptArgs) {
+					const args = this.currentDialog.args.promptArgs;
+					result = await this.impl.value.prompt(args.prompt);
+				} else {
+					await this.impl.value.about();
+				}
+			} catch (error) {
+				result = error;
 			}
 
 			this.currentDialog.close(result);
@@ -72,5 +78,8 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(DialogHandlerContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(
+	DialogHandlerContribution.ID,
+	DialogHandlerContribution,
+	WorkbenchPhase.BlockStartup // Block to allow for dialogs to show before restore finished
+);

@@ -10,13 +10,15 @@ import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/url
 import type { LogLevel } from 'vs/platform/log/common/log';
 import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
 import type { Event } from 'vs/base/common/event';
-import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IProductConfiguration } from 'vs/base/common/product';
-import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import type { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import type { IFolderToOpen, IWorkspaceToOpen } from 'vs/platform/window/common/window';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
+import type { IAuthenticationProvider } from 'vs/workbench/services/authentication/common/authentication';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -90,6 +92,17 @@ export interface IWorkbench {
 			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
 			task: (progress: IProgress<IProgressStep>) => Promise<R>
 		): Promise<R>;
+
+		/**
+		 * Creates a terminal with limited capabilities that is intended for
+		 * writing output from the embedder before the workbench has finished
+		 * loading. When an embedder terminal is created it will automatically
+		 * show to the user.
+		 *
+		 * @param options The definition of the terminal, this is similar to
+		 * `ExtensionTerminalOptions` in the extension API.
+		 */
+		createTerminal(options: IEmbedderTerminalOptions): Promise<void>;
 	};
 
 	workspace: {
@@ -128,6 +141,13 @@ export interface IWorkbenchConstructionOptions {
 	 * from. It is for example being used for the websocket connections as address.
 	 */
 	readonly remoteAuthority?: string;
+
+	/**
+	 * The server base path is the path where the workbench is served from.
+	 * The path must be absolute (start with a slash).
+	 * Corresponds to option `server-base-path` on the server side.
+	 */
+	readonly serverBasePath?: string;
 
 	/**
 	 * The connection token to send to the server.
@@ -173,6 +193,15 @@ export interface IWorkbenchConstructionOptions {
 	 */
 	readonly editSessionId?: string;
 
+	/**
+	 * Resource delegation handler that allows for loading of resources when
+	 * using remote resolvers.
+	 *
+	 * This is exclusive with {@link resourceUriProvider}. `resourceUriProvider`
+	 * should be used if a {@link webSocketFactory} is used, and will be preferred.
+	 */
+	readonly remoteResourceProvider?: IRemoteResourceProvider;
+
 	//#endregion
 
 
@@ -189,9 +218,9 @@ export interface IWorkbenchConstructionOptions {
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
 
 	/**
-	 * The credentials provider to store and retrieve secrets.
+	 * The secret storage provider to store and retrieve secrets.
 	 */
-	readonly credentialsProvider?: ICredentialsProvider;
+	readonly secretStorageProvider?: ISecretStorageProvider;
 
 	/**
 	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
@@ -320,7 +349,7 @@ export interface IWorkbenchConstructionOptions {
 	readonly initialColorTheme?: IInitialColorTheme;
 
 	/**
-	 *  Welcome view dialog on first launch. Can be dismissed by the user.
+	 *  Welcome dialog. Can be dismissed by the user.
 	 */
 	readonly welcomeDialog?: IWelcomeDialog;
 
@@ -333,6 +362,15 @@ export interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
+	//#region Authentication Providers
+
+	/**
+	 * Optional authentication provider contributions. These take precedence over
+	 * any authentication providers contributed via extensions.
+	 */
+	readonly authenticationProviders?: readonly IAuthenticationProvider[];
+
+	//#endregion
 
 	//#region Development options
 
@@ -340,6 +378,47 @@ export interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
+}
+
+
+/**
+ * A workspace to open in the workbench can either be:
+ * - a workspace file with 0-N folders (via `workspaceUri`)
+ * - a single folder (via `folderUri`)
+ * - empty (via `undefined`)
+ */
+export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | undefined;
+
+export interface IWorkspaceProvider {
+
+	/**
+	 * The initial workspace to open.
+	 */
+	readonly workspace: IWorkspace;
+
+	/**
+	 * Arbitrary payload from the `IWorkspaceProvider.open` call.
+	 */
+	readonly payload?: object;
+
+	/**
+	 * Return `true` if the provided [workspace](#IWorkspaceProvider.workspace) is trusted, `false` if not trusted, `undefined` if unknown.
+	 */
+	readonly trusted: boolean | undefined;
+
+	/**
+	 * Asks to open a workspace in the current or a new window.
+	 *
+	 * @param workspace the workspace to open.
+	 * @param options optional options for the workspace to open.
+	 * - `reuse`: whether to open inside the current window or a new window
+	 * - `payload`: arbitrary payload that should be made available
+	 * to the opening window via the `IWorkspaceProvider.payload` property.
+	 * @param payload optional payload to send to the workspace to open.
+	 *
+	 * @returns true if successfully opened, false otherwise.
+	 */
+	open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean>;
 }
 
 export interface IResourceUriProvider {
@@ -607,14 +686,19 @@ export interface IWelcomeDialog {
 	buttonText: string;
 
 	/**
-	 * Message text and icon for the welcome dialog.
+	 * Button command to execute from the welcome dialog.
 	 */
-	messages: { message: string; icon: string }[];
+	buttonCommand: string;
 
 	/**
-	 * Optional action to appear as links at the bottom of the welcome dialog.
+	 * Message text for the welcome dialog.
 	 */
-	action?: IWelcomeLinkAction;
+	message: string;
+
+	/**
+	 * Media to include in the welcome dialog.
+	 */
+	media: { altText: string; path: string };
 }
 
 export interface IDefaultView {
@@ -759,4 +843,39 @@ export interface IDevelopmentOptions {
 	 * Whether to enable the smoke test driver.
 	 */
 	readonly enableSmokeTestDriver?: boolean;
+}
+
+/**
+ * Utility provided in the {@link WorkbenchOptions} which allows loading resources
+ * when remote resolvers are used in the web.
+ */
+export interface IRemoteResourceProvider {
+	/**
+	 * Path the workbench should delegate requests to. The embedder should
+	 * install a service worker on this path and emit {@link onDidReceiveRequest}
+	 * events when requests come in for that path.
+	 */
+	readonly path: string;
+
+	/**
+	 * Event that should fire when requests are made on the {@link pathPrefix}.
+	 */
+	readonly onDidReceiveRequest: Event<IRemoteResourceRequest>;
+}
+
+/**
+ * todo@connor4312: this may eventually gain more properties like method and
+ * headers, but for now we only deal with GET requests.
+ */
+export interface IRemoteResourceRequest {
+	/**
+	 * Request URI. Generally will begin with the current
+	 * origin and {@link IRemoteResourceProvider.pathPrefix}.
+	 */
+	uri: URI;
+
+	/**
+	 * A method called by the editor to issue a response to the request.
+	 */
+	respondWith(statusCode: number, body: Uint8Array, headers: Record<string, string>): void;
 }

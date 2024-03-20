@@ -15,17 +15,24 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { language } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { configurationTelemetry, TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { hash } from 'vs/base/common/hash';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { mainWindow } from 'vs/base/browser/window';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { isBoolean, isNumber, isString } from 'vs/base/common/types';
+import { LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
+import { AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 
 type TelemetryData = {
 	mimeType: TelemetryTrustedValue<string>;
@@ -57,7 +64,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -108,7 +114,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		};
 
 		telemetryService.publicLog2<WorkspaceLoadEvent, WorkspaceLoadClassification>('workspaceLoad', {
-			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
+			windowSize: { innerHeight: mainWindow.innerHeight, innerWidth: mainWindow.innerWidth, outerHeight: mainWindow.outerHeight, outerWidth: mainWindow.outerWidth },
 			emptyWorkbench: contextService.getWorkbenchState() === WorkbenchState.EMPTY,
 			'workbench.filesToOpenOrCreate': filesToOpenOrCreate && filesToOpenOrCreate.length || 0,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
@@ -124,9 +130,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 		// Error Telemetry
 		this._register(new ErrorTelemetry(telemetryService));
-
-		// Configuration Telemetry
-		this._register(configurationTelemetry(telemetryService, configurationService));
 
 		//  Files Telemetry
 		this._register(textFileService.files.onDidResolve(e => this.onTextFileModelResolved(e)));
@@ -231,4 +234,187 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TelemetryContribution, LifecyclePhase.Restored);
+class ConfigurationTelemetryContribution extends Disposable implements IWorkbenchContribution {
+
+	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
+		super();
+
+		// Debounce the event by 1000 ms and merge all affected keys into one event
+		const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
+			const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
+			return { ...cur, affectedKeys: newAffectedKeys };
+		}, 1000, true);
+
+		this._register(debouncedConfigService(event => {
+			if (event.source !== ConfigurationTarget.DEFAULT) {
+				type UpdateConfigurationClassification = {
+					owner: 'sandy081';
+					comment: 'Event which fires when user updates settings';
+					configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
+					configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
+				};
+				type UpdateConfigurationEvent = {
+					configurationSource: string;
+					configurationKeys: string[];
+				};
+				telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
+					configurationSource: ConfigurationTargetToString(event.source),
+					configurationKeys: Array.from(event.affectedKeys)
+				});
+			}
+		}));
+
+		const { user, workspace } = configurationService.keys();
+		for (const setting of user) {
+			this.reportTelemetry(setting, ConfigurationTarget.USER_LOCAL);
+		}
+		for (const setting of workspace) {
+			this.reportTelemetry(setting, ConfigurationTarget.WORKSPACE);
+		}
+	}
+
+	/**
+	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
+	 */
+	private getValueToReport(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): string | undefined {
+		const inpsectData = this.configurationService.inspect(key);
+		const value = target === ConfigurationTarget.USER_LOCAL ? inpsectData.user?.value : inpsectData.workspace?.value;
+		if (isNumber(value) || isBoolean(value)) {
+			return value.toString();
+		}
+
+		const schema = this.configurationRegistry.getConfigurationProperties()[key];
+		if (isString(value)) {
+			if (schema?.enum?.includes(value)) {
+				return value;
+			}
+			return undefined;
+		}
+		if (Array.isArray(value)) {
+			if (value.every(v => isNumber(v) || isBoolean(v) || (isString(v) && schema?.enum?.includes(v)))) {
+				return JSON.stringify(value);
+			}
+		}
+		return undefined;
+	}
+
+	private reportTelemetry(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): void {
+		type UpdatedSettingEvent = {
+			settingValue: string | undefined;
+			source: string;
+		};
+		const source = ConfigurationTargetToString(target);
+
+		switch (key) {
+
+			case LayoutSettings.ACTIVITY_BAR_LOCATION:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'sandy081';
+					comment: 'This is used to know where activity bar is shown in the workbench.';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('workbench.activityBar.location', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case AutoUpdateConfigurationKey:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'sandy081';
+					comment: 'This is used to know if extensions are getting auto updated or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('extensions.autoUpdate', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'files.autoSave':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'isidorn';
+					comment: 'This is used to know if auto save is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('files.autoSave', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'editor.stickyScroll.enabled':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'aiday-mar';
+					comment: 'This is used to know if editor sticky scroll is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('editor.stickyScroll.enabled', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case KEYWORD_ACTIVIATION_SETTING_ID:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'bpasero';
+					comment: 'This is used to know if voice keyword activation is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('accessibility.voice.keywordActivation', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'window.zoomLevel':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'bpasero';
+					comment: 'This is used to know if window zoom level is configured or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('window.zoomLevel', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'window.zoomPerWindow':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'bpasero';
+					comment: 'This is used to know if window zoom per window is configured or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('window.zoomPerWindow', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'window.titleBarStyle':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'benibenj';
+					comment: 'This is used to know if window title bar style is set to custom or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'window.customTitleBarVisibility':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'benibenj';
+					comment: 'This is used to know if window custom title bar visibility is configured or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('window.customTitleBarVisibility', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'window.nativeTabs':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'benibenj';
+					comment: 'This is used to know if window native tabs are enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('window.nativeTabs', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'extensions.verifySignature':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'sandy081';
+					comment: 'This is used to know if extensions signature verification is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('extensions.verifySignature', { settingValue: this.getValueToReport(key, target), source });
+				return;
+		}
+	}
+
+}
+
+const workbenchContributionRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContributionRegistry.registerWorkbenchContribution(TelemetryContribution, LifecyclePhase.Restored);
+workbenchContributionRegistry.registerWorkbenchContribution(ConfigurationTelemetryContribution, LifecyclePhase.Eventually);

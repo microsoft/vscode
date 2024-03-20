@@ -22,13 +22,14 @@ import { Range } from 'vs/editor/common/core/range';
 import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IViewModel } from 'vs/editor/common/viewModel';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -73,7 +74,7 @@ export namespace EditorScroll_ {
 		return true;
 	};
 
-	export const description = <ICommandHandlerDescription>{
+	export const metadata = <ICommandMetadata>{
 		description: 'Scroll editor in the given direction',
 		args: [
 			{
@@ -251,7 +252,7 @@ export namespace RevealLine_ {
 		return true;
 	};
 
-	export const description = <ICommandHandlerDescription>{
+	export const metadata = <ICommandMetadata>{
 		description: 'Reveal the given line at the given logical position',
 		args: [
 			{
@@ -315,9 +316,9 @@ abstract class EditorOrNativeTextInputCommand {
 		// 2. handle case when focus is in some other `input` / `textarea`.
 		target.addImplementation(1000, 'generic-dom-input-textarea', (accessor: ServicesAccessor, args: unknown) => {
 			// Only if focused on an element that allows for entering text
-			const activeElement = <HTMLElement>document.activeElement;
+			const activeElement = getActiveElement();
 			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-				this.runDOMCommand();
+				this.runDOMCommand(activeElement);
 				return true;
 			}
 			return false;
@@ -343,7 +344,7 @@ abstract class EditorOrNativeTextInputCommand {
 		return true;
 	}
 
-	public abstract runDOMCommand(): void;
+	public abstract runDOMCommand(activeElement: Element): void;
 	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void>;
 }
 
@@ -396,7 +397,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			if (cursorStateChanged && args.revealType !== NavigationCommandRevealType.None) {
-				viewModel.revealPrimaryCursor(args.source, true, true);
+				viewModel.revealAllCursors(args.source, true, true);
 			}
 		}
 	}
@@ -588,7 +589,7 @@ export namespace CoreNavigationCommands {
 			super({
 				id: 'cursorMove',
 				precondition: undefined,
-				description: CursorMove_.description
+				metadata: CursorMove_.metadata
 			});
 		}
 
@@ -608,7 +609,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args)
 			);
-			viewModel.revealPrimaryCursor(source, true);
+			viewModel.revealAllCursors(source, true);
 		}
 
 		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
@@ -677,7 +678,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.simpleMove(viewModel, viewModel.getCursorStates(), args.direction, args.select, args.value, args.unit)
 			);
-			viewModel.revealPrimaryCursor(dynamicArgs.source, true);
+			viewModel.revealAllCursors(dynamicArgs.source, true);
 		}
 	}
 
@@ -992,7 +993,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfLine(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	}
 
@@ -1036,7 +1037,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				this._exec(viewModel.getCursorStates())
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 
 		private _exec(cursors: CursorState[]): PartialCursorState[] {
@@ -1094,7 +1095,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfLine(viewModel, viewModel.getCursorStates(), this._inSelectionMode, args.sticky || false)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	}
 
@@ -1109,7 +1110,7 @@ export namespace CoreNavigationCommands {
 			primary: KeyCode.End,
 			mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow] }
 		},
-		description: {
+		metadata: {
 			description: `Go to End`,
 			args: [{
 				name: 'args',
@@ -1138,7 +1139,7 @@ export namespace CoreNavigationCommands {
 			primary: KeyMod.Shift | KeyCode.End,
 			mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
 		},
-		description: {
+		metadata: {
 			description: `Select to End`,
 			args: [{
 				name: 'args',
@@ -1172,7 +1173,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				this._exec(viewModel, viewModel.getCursorStates())
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 
 		private _exec(viewModel: IViewModel, cursors: CursorState[]): PartialCursorState[] {
@@ -1227,7 +1228,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfBuffer(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	}
 
@@ -1271,7 +1272,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfBuffer(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	}
 
@@ -1306,7 +1307,7 @@ export namespace CoreNavigationCommands {
 			super({
 				id: 'editorScroll',
 				precondition: undefined,
-				description: EditorScroll_.description
+				metadata: EditorScroll_.metadata
 			});
 		}
 
@@ -1643,7 +1644,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			if (args.revealType !== NavigationCommandRevealType.None) {
-				viewModel.revealPrimaryCursor(args.source, true, true);
+				viewModel.revealAllCursors(args.source, true, true);
 			}
 		}
 	}
@@ -1709,7 +1710,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			if (args.revealType !== NavigationCommandRevealType.None) {
-				viewModel.revealPrimaryCursor(args.source, false, true);
+				viewModel.revealAllCursors(args.source, false, true);
 			}
 		}
 	}
@@ -1788,7 +1789,7 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.cancelSelection(viewModel, viewModel.getPrimaryCursorState())
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	});
 
@@ -1815,7 +1816,7 @@ export namespace CoreNavigationCommands {
 					viewModel.getPrimaryCursorState()
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 			status(nls.localize('removedCursor', "Removed secondary cursors"));
 		}
 	});
@@ -1827,7 +1828,7 @@ export namespace CoreNavigationCommands {
 			super({
 				id: 'revealLine',
 				precondition: undefined,
-				description: RevealLine_.description
+				metadata: RevealLine_.metadata
 			});
 		}
 
@@ -1875,13 +1876,13 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super(SelectAllCommand);
 		}
-		public runDOMCommand(): void {
+		public runDOMCommand(activeElement: Element): void {
 			if (isFirefox) {
-				(<HTMLInputElement>document.activeElement).focus();
-				(<HTMLInputElement>document.activeElement).select();
+				(<HTMLInputElement>activeElement).focus();
+				(<HTMLInputElement>activeElement).select();
 			}
 
-			document.execCommand('selectAll');
+			activeElement.ownerDocument.execCommand('selectAll');
 		}
 		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 			const viewModel = editor._getViewModel();
@@ -2090,8 +2091,8 @@ export namespace CoreEditingCommands {
 		constructor() {
 			super(UndoCommand);
 		}
-		public runDOMCommand(): void {
-			document.execCommand('undo');
+		public runDOMCommand(activeElement: Element): void {
+			activeElement.ownerDocument.execCommand('undo');
 		}
 		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
@@ -2105,8 +2106,8 @@ export namespace CoreEditingCommands {
 		constructor() {
 			super(RedoCommand);
 		}
-		public runDOMCommand(): void {
-			document.execCommand('redo');
+		public runDOMCommand(activeElement: Element): void {
+			activeElement.ownerDocument.execCommand('redo');
 		}
 		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
@@ -2124,11 +2125,11 @@ class EditorHandlerCommand extends Command {
 
 	private readonly _handlerId: string;
 
-	constructor(id: string, handlerId: string, description?: ICommandHandlerDescription) {
+	constructor(id: string, handlerId: string, metadata?: ICommandMetadata) {
 		super({
 			id: id,
 			precondition: undefined,
-			description: description
+			metadata
 		});
 		this._handlerId = handlerId;
 	}
@@ -2143,9 +2144,9 @@ class EditorHandlerCommand extends Command {
 	}
 }
 
-function registerOverwritableCommand(handlerId: string, description?: ICommandHandlerDescription): void {
+function registerOverwritableCommand(handlerId: string, metadata?: ICommandMetadata): void {
 	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
-	registerCommand(new EditorHandlerCommand(handlerId, handlerId, description));
+	registerCommand(new EditorHandlerCommand(handlerId, handlerId, metadata));
 }
 
 registerOverwritableCommand(Handler.Type, {

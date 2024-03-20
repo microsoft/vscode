@@ -15,8 +15,14 @@ import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/file
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { index } from 'vs/base/common/arrays';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -114,6 +120,93 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 	}
 });
 
+class LanguageTableRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.languages;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contributes = manifest.contributes;
+		const rawLanguages = contributes?.languages || [];
+		const languages = rawLanguages.map(l => ({
+			id: l.id,
+			name: (l.aliases || [])[0] || l.id,
+			extensions: l.extensions || [],
+			hasGrammar: false,
+			hasSnippets: false
+		}));
+
+		const byId = index(languages, l => l.id);
+
+		const grammars = contributes?.grammars || [];
+		grammars.forEach(grammar => {
+			let language = byId[grammar.language];
+
+			if (language) {
+				language.hasGrammar = true;
+			} else {
+				language = { id: grammar.language, name: grammar.language, extensions: [], hasGrammar: true, hasSnippets: false };
+				byId[language.id] = language;
+				languages.push(language);
+			}
+		});
+
+		const snippets = contributes?.snippets || [];
+		snippets.forEach(snippet => {
+			let language = byId[snippet.language];
+
+			if (language) {
+				language.hasSnippets = true;
+			} else {
+				language = { id: snippet.language, name: snippet.language, extensions: [], hasGrammar: false, hasSnippets: true };
+				byId[language.id] = language;
+				languages.push(language);
+			}
+		});
+
+		if (!languages.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('language id', "ID"),
+			localize('language name', "Name"),
+			localize('file extensions', "File Extensions"),
+			localize('grammar', "Grammar"),
+			localize('snippets', "Snippets")
+		];
+		const rows: IRowData[][] = languages.sort((a, b) => a.id.localeCompare(b.id))
+			.map(l => {
+				return [
+					l.id, l.name,
+					new MarkdownString().appendMarkdown(`${l.extensions.map(e => `\`${e}\``).join('&nbsp;')}`),
+					l.hasGrammar ? '✔︎' : '\u2014',
+					l.hasSnippets ? '✔︎' : '\u2014'
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'languages',
+	label: localize('languages', "Programming Languages"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(LanguageTableRenderer),
+});
+
 export class WorkbenchLanguageService extends LanguageService {
 	private _configurationService: IConfigurationService;
 	private _extensionService: IExtensionService;
@@ -169,11 +262,11 @@ export class WorkbenchLanguageService extends LanguageService {
 		});
 
 		this.updateMime();
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this.updateMime();
 			}
-		});
+		}));
 		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.updateMime();
 		});

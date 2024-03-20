@@ -72,6 +72,7 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
+	shouldGlobSearch?: boolean;
 }
 
 export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
@@ -153,6 +154,13 @@ export class QueryBuilder {
 			newPattern.notebookInfo.isInNotebookMarkdownInput = options.notebookSearchConfig.includeMarkupInput;
 		}
 
+		if (options.notebookSearchConfig?.includeMarkupPreview) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookMarkdownPreview = options.notebookSearchConfig.includeMarkupPreview;
+		}
+
 		if (options.notebookSearchConfig?.includeCodeInput) {
 			if (!newPattern.notebookInfo) {
 				newPattern.notebookInfo = {};
@@ -181,6 +189,7 @@ export class QueryBuilder {
 			exists: options.exists,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
+			shouldGlobMatchFilePattern: options.shouldGlobSearch
 		};
 	}
 

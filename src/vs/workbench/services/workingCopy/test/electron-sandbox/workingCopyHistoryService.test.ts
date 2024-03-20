@@ -23,6 +23,8 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryService {
 
@@ -30,24 +32,20 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 	readonly _configurationService: TestConfigurationService;
 	readonly _lifecycleService: TestLifecycleService;
 
-	constructor(fileService?: IFileService) {
+	constructor(disposables: DisposableStore, fileService?: IFileService) {
 		const environmentService = TestEnvironmentService;
 		const logService = new NullLogService();
 
 		if (!fileService) {
-			fileService = new FileService(logService);
-			fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
-			fileService.registerProvider(Schemas.vscodeUserData, new InMemoryFileSystemProvider());
+			fileService = disposables.add(new FileService(logService));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+			disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new InMemoryFileSystemProvider())));
 		}
 
 		const remoteAgentService = new TestRemoteAgentService();
-
-		const uriIdentityService = new UriIdentityService(fileService);
-
-		const labelService = new LabelService(environmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), new TestStorageService(), new TestLifecycleService());
-
-		const lifecycleService = new TestLifecycleService();
-
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const lifecycleService = disposables.add(new TestLifecycleService());
+		const labelService = disposables.add(new LabelService(environmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), disposables.add(new TestStorageService()), lifecycleService));
 		const configurationService = new TestConfigurationService();
 
 		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, lifecycleService, logService, configurationService);
@@ -59,6 +57,8 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 }
 
 suite('WorkingCopyHistoryService', () => {
+
+	const disposables = new DisposableStore();
 
 	let testDir: URI;
 	let historyHome: URI;
@@ -84,7 +84,7 @@ suite('WorkingCopyHistoryService', () => {
 		historyHome = joinPath(testDir, 'User', 'History');
 		workHome = joinPath(testDir, 'work');
 
-		service = new TestWorkingCopyHistoryService();
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables));
 		fileService = service._fileService;
 
 		await fileService.createFolder(historyHome);
@@ -118,15 +118,15 @@ suite('WorkingCopyHistoryService', () => {
 	}
 
 	teardown(() => {
-		service.dispose();
+		disposables.clear();
 	});
 
 	test('addEntry', async () => {
 		const addEvents: IWorkingCopyHistoryEvent[] = [];
-		service.onDidAddEntry(e => addEvents.push(e));
+		disposables.add(service.onDidAddEntry(e => addEvents.push(e)));
 
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
-		const workingCopy2 = new TestWorkingCopy(testFile2Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
 		// Add Entry works
 
@@ -164,7 +164,7 @@ suite('WorkingCopyHistoryService', () => {
 
 		// Invalid working copies are ignored
 
-		const workingCopy3 = new TestWorkingCopy(testFile2Path.with({ scheme: 'unsupported' }));
+		const workingCopy3 = disposables.add(new TestWorkingCopy(testFile2Path.with({ scheme: 'unsupported' })));
 		const entry3A = await addEntry({ resource: workingCopy3.resource }, CancellationToken.None, false);
 		assert.ok(!entry3A);
 
@@ -173,9 +173,9 @@ suite('WorkingCopyHistoryService', () => {
 
 	test('renameEntry', async () => {
 		const changeEvents: IWorkingCopyHistoryEvent[] = [];
-		service.onDidChangeEntry(e => changeEvents.push(e));
+		disposables.add(service.onDidChangeEntry(e => changeEvents.push(e)));
 
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		const entry = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 		await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
@@ -200,7 +200,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 3);
@@ -209,9 +209,9 @@ suite('WorkingCopyHistoryService', () => {
 
 	test('removeEntry', async () => {
 		const removeEvents: IWorkingCopyHistoryEvent[] = [];
-		service.onDidRemoveEntry(e => removeEvents.push(e));
+		disposables.add(service.onDidRemoveEntry(e => removeEvents.push(e)));
 
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 		const entry2 = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
@@ -242,14 +242,14 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 3);
 	});
 
 	test('removeEntry - deletes history entries folder when last entry removed', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		let entry = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 
@@ -261,7 +261,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		assert.strictEqual((await fileService.exists(dirname(entry.location))), true);
 
@@ -278,17 +278,17 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		assert.strictEqual((await fileService.exists(dirname(entry.location))), false);
 	});
 
 	test('removeAll', async () => {
 		let removed = false;
-		service.onDidRemoveEntries(() => removed = true);
+		disposables.add(service.onDidRemoveEntries(() => removed = true));
 
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
-		const workingCopy2 = new TestWorkingCopy(testFile2Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
 		await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 		await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
@@ -317,7 +317,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);
@@ -326,8 +326,8 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('getEntries - simple', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
-		const workingCopy2 = new TestWorkingCopy(testFile2Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
 		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);
@@ -355,8 +355,8 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('getEntries - metadata preserved when stored', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
-		const workingCopy2 = new TestWorkingCopy(testFile2Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
 		const entry1 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		const entry2 = await addEntry({ resource: workingCopy2.resource }, CancellationToken.None);
@@ -370,7 +370,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);
@@ -383,7 +383,7 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('getEntries - corrupt meta.json is no problem', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		const entry1 = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 
@@ -395,7 +395,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		const metaFile = joinPath(dirname(entry1.location), 'entries.json');
 		assert.ok((await fileService.exists(metaFile)));
@@ -407,7 +407,7 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('getEntries - missing entries from meta.json is no problem', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		const entry1 = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 		const entry2 = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
@@ -420,7 +420,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		await fileService.del(entry1.location);
 
@@ -430,7 +430,7 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('getEntries - in-memory and on-disk entries are merged', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		const entry1 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		const entry2 = await addEntry({ resource: workingCopy1.resource, source: 'other-source' }, CancellationToken.None);
@@ -443,7 +443,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		const entry3 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		const entry4 = await addEntry({ resource: workingCopy1.resource, source: 'other-source' }, CancellationToken.None);
@@ -457,7 +457,7 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('getEntries - configured max entries respected', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 		await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
@@ -483,8 +483,8 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('getAll', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
-		const workingCopy2 = new TestWorkingCopy(testFile2Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
 		let resources = await service.getAll(CancellationToken.None);
 		assert.strictEqual(resources.length, 0);
@@ -510,9 +510,9 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
-		const workingCopy3 = new TestWorkingCopy(testFile3Path);
+		const workingCopy3 = disposables.add(new TestWorkingCopy(testFile3Path));
 		await addEntry({ resource: workingCopy3.resource, source: 'test-source' }, CancellationToken.None);
 
 		resources = await service.getAll(CancellationToken.None);
@@ -525,7 +525,7 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('getAll - ignores resource when no entries exist', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		const entry = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 
@@ -545,7 +545,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		resources = await service.getAll(CancellationToken.None);
 		assert.strictEqual(resources.length, 0);
@@ -563,7 +563,7 @@ suite('WorkingCopyHistoryService', () => {
 	}
 
 	test('entries cleaned up on shutdown', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		const entry1 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		const entry2 = await addEntry({ resource: workingCopy1.resource, source: 'other-source' }, CancellationToken.None);
@@ -585,7 +585,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 2);
@@ -608,7 +608,7 @@ suite('WorkingCopyHistoryService', () => {
 		// Resolve from file service fresh and verify again
 
 		service.dispose();
-		service = new TestWorkingCopyHistoryService(fileService);
+		service = disposables.add(new TestWorkingCopyHistoryService(disposables, fileService));
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 3);
@@ -619,9 +619,9 @@ suite('WorkingCopyHistoryService', () => {
 
 	test('entries are merged when source is same', async () => {
 		let replaced: IWorkingCopyHistoryEntry | undefined = undefined;
-		service.onDidReplaceEntry(e => replaced = e.entry);
+		disposables.add(service.onDidReplaceEntry(e => replaced = e.entry));
 
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		service._configurationService.setUserConfiguration('workbench.localHistory.mergeWindow', 1);
 
@@ -648,7 +648,7 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('move entries (file rename)', async () => {
-		const workingCopy = new TestWorkingCopy(testFile1Path);
+		const workingCopy = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		const entry1 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
 		const entry2 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
@@ -695,8 +695,8 @@ suite('WorkingCopyHistoryService', () => {
 	});
 
 	test('entries moved (folder rename)', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
-		const workingCopy2 = new TestWorkingCopy(testFile2Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
 		const entry1A = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		const entry2A = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
@@ -782,4 +782,6 @@ suite('WorkingCopyHistoryService', () => {
 			}
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

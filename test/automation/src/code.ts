@@ -185,7 +185,7 @@ export class Code {
 
 					try {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
-						await new Promise(resolve => setTimeout(resolve, 500));
+						await this.wait(500);
 					} catch (error) {
 						done = true;
 						resolve();
@@ -193,6 +193,14 @@ export class Code {
 				}
 			})();
 		}), 'Code#exit()', this.logger);
+	}
+
+	async getElement(selector: string): Promise<IElement | undefined> {
+		return (await this.driver.getElements(selector))?.[0];
+	}
+
+	async getElements(selector: string, recursive: boolean): Promise<IElement[] | undefined> {
+		return this.driver.getElements(selector, recursive);
 	}
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean, retryCount?: number): Promise<string> {
@@ -242,6 +250,10 @@ export class Code {
 		await this.poll(() => this.driver.writeInTerminal(selector, value), () => true, `writeInTerminal '${selector}'`);
 	}
 
+	async whenWorkbenchRestored(): Promise<void> {
+		await this.poll(() => this.driver.whenWorkbenchRestored(), () => true, `when workbench restored`);
+	}
+
 	getLocaleInfo(): Promise<ILocaleInfo> {
 		return this.driver.getLocaleInfo();
 	}
@@ -252,6 +264,10 @@ export class Code {
 
 	getLogs(): Promise<ILogFile[]> {
 		return this.driver.getLogs();
+	}
+
+	wait(millis: number): Promise<void> {
+		return this.driver.wait(millis);
 	}
 
 	private async poll<T>(
@@ -285,7 +301,7 @@ export class Code {
 				lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 			}
 
-			await new Promise(resolve => setTimeout(resolve, retryInterval));
+			await this.wait(retryInterval);
 			trial++;
 		}
 	}

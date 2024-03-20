@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IKeyMods, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -73,7 +73,7 @@ class GotoLineAction extends Action2 {
 	constructor() {
 		super({
 			id: GotoLineAction.ID,
-			title: { value: localize('gotoLine', "Go to Line/Column..."), original: 'Go to Line/Column...' },
+			title: localize2('gotoLine', 'Go to Line/Column...'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

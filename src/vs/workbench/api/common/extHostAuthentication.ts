@@ -5,9 +5,15 @@
 
 import type * as vscode from 'vscode';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+
+export interface IExtHostAuthentication extends ExtHostAuthentication { }
+export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
 
 interface ProviderWithMetadata {
 	label: string;
@@ -16,10 +22,11 @@ interface ProviderWithMetadata {
 }
 
 export class ExtHostAuthentication implements ExtHostAuthenticationShape {
+
+	declare _serviceBrand: undefined;
+
 	private _proxy: MainThreadAuthenticationShape;
 	private _authenticationProviders: Map<string, ProviderWithMetadata> = new Map<string, ProviderWithMetadata>();
-
-	private _providers: vscode.AuthenticationProviderInformation[] = [];
 
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
@@ -27,18 +34,15 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _getSessionTaskSingler = new TaskSingler<vscode.AuthenticationSession | undefined>();
 	private _getSessionsTaskSingler = new TaskSingler<ReadonlyArray<vscode.AuthenticationSession>>();
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService
+	) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadAuthentication);
 	}
 
-	$setProviders(providers: vscode.AuthenticationProviderInformation[]): Promise<void> {
-		this._providers = providers;
-		return Promise.resolve();
-	}
-
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: { detail: string } })): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: vscode.AuthenticationForceNewSessionOptions })): Promise<vscode.AuthenticationSession>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: true }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: { detail: string } }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: vscode.AuthenticationForceNewSessionOptions }): Promise<vscode.AuthenticationSession>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
@@ -75,41 +79,20 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		this._authenticationProviders.set(id, { label, provider, options: options ?? { supportsMultipleAccounts: false } });
-
-		if (!this._providers.find(p => p.id === id)) {
-			this._providers.push({
-				id: id,
-				label: label
-			});
-		}
-
-		const listener = provider.onDidChangeSessions(e => {
-			this._proxy.$sendDidChangeSessions(id, {
-				added: e.added ?? [],
-				changed: e.changed ?? [],
-				removed: e.removed ?? []
-			});
-		});
-
+		const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
 		this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false);
 
 		return new Disposable(() => {
 			listener.dispose();
 			this._authenticationProviders.delete(id);
-
-			const i = this._providers.findIndex(p => p.id === id);
-			if (i > -1) {
-				this._providers.splice(i);
-			}
-
 			this._proxy.$unregisterAuthenticationProvider(id);
 		});
 	}
 
-	$createSession(providerId: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
+	$createSession(providerId: string, scopes: string[], options: vscode.AuthenticationProviderCreateSessionOptions): Promise<vscode.AuthenticationSession> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.createSession(scopes));
+			return Promise.resolve(providerData.provider.createSession(scopes, options));
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
@@ -134,7 +117,10 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	$onDidChangeAuthenticationSessions(id: string, label: string) {
-		this._onDidChangeSessions.fire({ provider: { id, label } });
+		// Don't fire events for the internal auth providers
+		if (!id.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
+			this._onDidChangeSessions.fire({ provider: { id, label } });
+		}
 		return Promise.resolve();
 	}
 }

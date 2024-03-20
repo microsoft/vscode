@@ -63,7 +63,15 @@ export interface IKeybindingService {
 	/**
 	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
 	 */
-	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult | null;
+	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult;
+
+	/**
+	 * Enable hold mode for this command. This is only possible if the command is current being dispatched, meaning
+	 * we are after its keydown and before is keyup event.
+	 *
+	 * @returns A promise that resolves when hold stops, returns undefined if hold mode could not be enabled.
+	 */
+	enableKeybindingHoldMode(commandId: string): Promise<void> | undefined;
 
 	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
 
@@ -100,4 +108,3 @@ export interface IKeybindingService {
 	_dumpDebugInfo(): string;
 	_dumpDebugInfoJSON(): string;
 }
-

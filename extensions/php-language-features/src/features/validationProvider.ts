@@ -197,7 +197,7 @@ export default class PHPValidationProvider {
 					const message = matches[1];
 					const line = parseInt(matches[3]) - 1;
 					const diagnostic: vscode.Diagnostic = new vscode.Diagnostic(
-						new vscode.Range(line, 0, line, Number.MAX_VALUE),
+						new vscode.Range(line, 0, line, 2 ** 31 - 1), // See https://github.com/microsoft/vscode/issues/80288#issuecomment-650636442 for discussion
 						message
 					);
 					diagnostics.push(diagnostic);

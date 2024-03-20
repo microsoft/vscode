@@ -15,7 +15,6 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionPaths, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { platform } from 'vs/base/common/process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
@@ -61,7 +60,6 @@ export abstract class RequireInterceptor {
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
 		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
-		this.register(this._instaService.createInstance(KeytarNodeModuleFactory, extensionPaths));
 		this.register(this._instaService.createInstance(NodeModuleAliasingModuleFactory));
 		if (this._initData.remote.isRemote) {
 			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));
@@ -186,97 +184,6 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 }
 
 //#endregion
-
-
-//#region --- keytar-module
-
-interface IKeytarModule {
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string; password: string }>>;
-}
-
-class KeytarNodeModuleFactory implements INodeModuleFactory {
-	public readonly nodeModuleName: string = 'keytar';
-
-	private readonly _mainThreadTelemetry: MainThreadTelemetryShape;
-	private alternativeNames: Set<string> | undefined;
-	private _impl: IKeytarModule;
-
-	constructor(
-		private readonly _extensionPaths: ExtensionPaths,
-		@IExtHostRpcService rpcService: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-
-	) {
-		this._mainThreadTelemetry = rpcService.getProxy(MainContext.MainThreadTelemetry);
-		const { environment } = initData;
-		const mainThreadKeytar = rpcService.getProxy(MainContext.MainThreadKeytar);
-
-		if (environment.appRoot) {
-			let appRoot = environment.appRoot.fsPath;
-			if (platform === 'win32') {
-				appRoot = appRoot.replace(/\\/g, '/');
-			}
-			if (appRoot[appRoot.length - 1] === '/') {
-				appRoot = appRoot.substr(0, appRoot.length - 1);
-			}
-			this.alternativeNames = new Set();
-			this.alternativeNames.add(`${appRoot}/node_modules.asar/keytar`);
-			this.alternativeNames.add(`${appRoot}/node_modules/keytar`);
-		}
-		this._impl = {
-			getPassword: (service: string, account: string): Promise<string | null> => {
-				return mainThreadKeytar.$getPassword(service, account);
-			},
-			setPassword: (service: string, account: string, password: string): Promise<void> => {
-				return mainThreadKeytar.$setPassword(service, account, password);
-			},
-			deletePassword: (service: string, account: string): Promise<boolean> => {
-				return mainThreadKeytar.$deletePassword(service, account);
-			},
-			findPassword: (service: string): Promise<string | null> => {
-				return mainThreadKeytar.$findPassword(service);
-			},
-			findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
-				return mainThreadKeytar.$findCredentials(service);
-			}
-		};
-	}
-
-	public load(_request: string, parent: URI): any {
-		const ext = this._extensionPaths.findSubstr(parent);
-		type ShimmingKeytarClassification = {
-			owner: 'jrieken';
-			comment: 'Know when the keytar-shim was used';
-			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension is question' };
-		};
-		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingKeytarClassification>('shimming.keytar', { extension: ext?.identifier.value ?? 'unknown_extension' });
-		return this._impl;
-	}
-
-	public alternativeModuleName(name: string): string | undefined {
-		const length = name.length;
-		// We need at least something like: `?/keytar` which requires
-		// more than 7 characters.
-		if (length <= 7 || !this.alternativeNames) {
-			return undefined;
-		}
-		const sep = length - 7;
-		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && name.endsWith('keytar')) {
-			name = name.replace(/\\/g, '/');
-			if (this.alternativeNames.has(name)) {
-				return 'keytar';
-			}
-		}
-		return undefined;
-	}
-}
-
-//#endregion
-
 
 //#region --- opn/open-module
 

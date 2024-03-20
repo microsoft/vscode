@@ -7,16 +7,20 @@ import * as assert from 'assert';
 import { realpathSync } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
-import { join } from 'vs/base/common/path';
+import { dirname, join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
-import { IDiskFileChange, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
 import { FileAccess } from 'vs/base/common/network';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { Emitter, Event } from 'vs/base/common/event';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -27,23 +31,32 @@ import { FileAccess } from 'vs/base/common/network';
 
 	class TestParcelWatcher extends ParcelWatcher {
 
-		testNormalizePaths(paths: string[], excludes: string[] = []): string[] {
+		protected override readonly suspendedWatchRequestPollingInterval = 100;
+
+		private readonly _onDidWatch = this._register(new Emitter<void>());
+		readonly onDidWatch = this._onDidWatch.event;
+
+		readonly onWatchFail = this._onDidWatchFail.event;
+
+		testRemoveDuplicateRequests(paths: string[], excludes: string[] = []): string[] {
 
 			// Work with strings as paths to simplify testing
 			const requests: IRecursiveWatchRequest[] = paths.map(path => {
 				return { path, excludes, recursive: true };
 			});
 
-			return this.normalizeRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
+			return this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
 		}
 
-		override async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
-			await super.watch(requests);
+		protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
+			await super.doWatch(requests);
 			await this.whenReady();
+
+			this._onDidWatch.fire();
 		}
 
 		async whenReady(): Promise<void> {
-			for (const [, watcher] of this.watchers) {
+			for (const watcher of this.watchers) {
 				await watcher.ready;
 			}
 		}
@@ -103,16 +116,22 @@ import { FileAccess } from 'vs/base/common/network';
 		}
 	}
 
-	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string): Promise<IDiskFileChange[]> {
+	async function awaitEvent(watcher: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string, correlationId?: number | null, expectedCount?: number): Promise<IFileChange[]> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
-		const res = await new Promise<IDiskFileChange[]>((resolve, reject) => {
-			const disposable = service.onDidChangeFile(events => {
+		const res = await new Promise<IFileChange[]>((resolve, reject) => {
+			let counter = 0;
+			const disposable = watcher.onDidChangeFile(events => {
 				for (const event of events) {
-					if (event.path === path && event.type === type) {
+					if (extUriBiasedIgnorePathCase.isEqual(event.resource, URI.file(path)) && event.type === type && (correlationId === null || event.cId === correlationId)) {
+						counter++;
+						if (typeof expectedCount === 'number' && counter < expectedCount) {
+							continue; // not yet
+						}
+
 						disposable.dispose();
 						if (failOnEventReason) {
 							reject(new Error(`Unexpected file event: ${failOnEventReason}`));
@@ -134,14 +153,14 @@ import { FileAccess } from 'vs/base/common/network';
 		return res;
 	}
 
-	function awaitMessage(service: TestParcelWatcher, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
+	function awaitMessage(watcher: TestParcelWatcher, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting message of type ${type}`);
 		}
 
 		// Await the message
 		return new Promise<void>(resolve => {
-			const disposable = service.onDidLogMessage(msg => {
+			const disposable = watcher.onDidLogMessage(msg => {
 				if (msg.type === type) {
 					disposable.dispose();
 					resolve();
@@ -287,20 +306,20 @@ import { FileAccess } from 'vs/base/common/network';
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string): Promise<void> {
+	async function basicCrudTest(filePath: string, correlationId?: number | null, expectedCount?: number): Promise<void> {
 
 		// New file
-		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED);
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, undefined, correlationId, expectedCount);
 		await Promises.writeFile(filePath, 'Hello World');
 		await changeFuture;
 
 		// Change file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, undefined, correlationId, expectedCount);
 		await Promises.writeFile(filePath, 'Hello Change');
 		await changeFuture;
 
 		// Delete file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, correlationId, expectedCount);
 		await Promises.unlink(filePath);
 		await changeFuture;
 	}
@@ -509,6 +528,7 @@ import { FileAccess } from 'vs/base/common/network';
 	});
 
 	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support', async function () {
+		addUNCHostToAllowlist('localhost');
 
 		// Local UNC paths are in the form of: \\localhost\c$\my_dir
 		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}`;
@@ -532,7 +552,7 @@ import { FileAccess } from 'vs/base/common/network';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: true }]);
 	});
 
-	test('deleting watched path is handled properly', async function () {
+	(isWindows /* flaky on windows */ ? test.skip : test)('deleting watched path without correlation restarts watching', async function () {
 		const watchedPath = join(testDir, 'deep');
 
 		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true }]);
@@ -555,33 +575,160 @@ import { FileAccess } from 'vs/base/common/network';
 		await changeFuture;
 	});
 
+	test('correlationId is supported', async function () {
+		const correlationId = Math.random();
+		await watcher.watch([{ correlationId, path: testDir, excludes: [], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'newFile.txt'), correlationId);
+	});
+
 	test('should not exclude roots that do not overlap', () => {
 		if (isWindows) {
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a']), ['C:\\a']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a']), ['C:\\a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
 		} else {
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a']), ['/a']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/b']), ['/a', '/b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a']), ['/a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/b']), ['/a', '/b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
 		}
 	});
 
 	test('should remove sub-folders of other paths', () => {
 		if (isWindows) {
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
 		} else {
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/a/b']), ['/a']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/a/b', '/a/c/d']), ['/a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/a/b']), ['/a']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/b', '/a/b']), ['/a', '/b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
+			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/a/b', '/a/c/d']), ['/a']);
 		}
 	});
 
 	test('should ignore when everything excluded', () => {
-		assert.deepStrictEqual(watcher.testNormalizePaths(['/foo/bar', '/bar'], ['**', 'something']), []);
+		assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/foo/bar', '/bar'], ['**', 'something']), []);
+	});
+
+	test('watching same or overlapping paths supported when correlation is applied', async () => {
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: true, correlationId: 1 }
+		]);
+
+		await basicCrudTest(join(testDir, 'newFile.txt'), null, 1);
+
+		// same path, same options
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: true, correlationId: 1 },
+			{ path: testDir, excludes: [], recursive: true, correlationId: 2, },
+			{ path: testDir, excludes: [], recursive: true, correlationId: undefined }
+		]);
+
+		await basicCrudTest(join(testDir, 'newFile.txt'), null, 3);
+		await basicCrudTest(join(testDir, 'otherNewFile.txt'), null, 3);
+
+		// same path, different options
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: true, correlationId: 1 },
+			{ path: testDir, excludes: [], recursive: true, correlationId: 2 },
+			{ path: testDir, excludes: [], recursive: true, correlationId: undefined },
+			{ path: testDir, excludes: [join(realpathSync(testDir), 'deep')], recursive: true, correlationId: 3 },
+			{ path: testDir, excludes: [join(realpathSync(testDir), 'other')], recursive: true, correlationId: 4 },
+		]);
+
+		await basicCrudTest(join(testDir, 'newFile.txt'), null, 5);
+		await basicCrudTest(join(testDir, 'otherNewFile.txt'), null, 5);
+
+		// overlapping paths (same options)
+		await watcher.watch([
+			{ path: dirname(testDir), excludes: [], recursive: true, correlationId: 1 },
+			{ path: testDir, excludes: [], recursive: true, correlationId: 2 },
+			{ path: join(testDir, 'deep'), excludes: [], recursive: true, correlationId: 3 },
+		]);
+
+		await basicCrudTest(join(testDir, 'deep', 'newFile.txt'), null, 3);
+		await basicCrudTest(join(testDir, 'deep', 'otherNewFile.txt'), null, 3);
+
+		// overlapping paths (different options)
+		await watcher.watch([
+			{ path: dirname(testDir), excludes: [], recursive: true, correlationId: 1 },
+			{ path: testDir, excludes: [join(realpathSync(testDir), 'some')], recursive: true, correlationId: 2 },
+			{ path: join(testDir, 'deep'), excludes: [join(realpathSync(testDir), 'other')], recursive: true, correlationId: 3 },
+		]);
+
+		await basicCrudTest(join(testDir, 'deep', 'newFile.txt'), null, 3);
+		await basicCrudTest(join(testDir, 'deep', 'otherNewFile.txt'), null, 3);
+	});
+
+	test('watching missing path emits watcher fail event', async function () {
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'missing');
+		watcher.watch([{ path: folderPath, excludes: [], recursive: true }]);
+
+		await onDidWatchFail;
+	});
+
+	test('deleting watched path emits watcher fail and delete event if correlated', async function () {
+		const folderPath = join(testDir, 'deep');
+
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
+		Promises.rm(folderPath, RimRafMode.UNLINK);
+		await onDidWatchFail;
+		await changeFuture;
+	});
+
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async () => {
+		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'not-found');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+		await onDidWatchFail;
+
+		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		let onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, 1);
+
+		onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await Promises.rm(folderPath);
+		await onDidWatchFail;
+
+		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		await basicCrudTest(filePath, 1);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, exist in beginning)', async () => {
+		const folderPath = join(testDir, 'deep');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, 1);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await Promises.rm(folderPath);
+		await onDidWatchFail;
+
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		const onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		await basicCrudTest(filePath, 1);
 	});
 });

@@ -12,7 +12,7 @@ import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
+import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
 	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
@@ -22,6 +22,12 @@ export type UpdateNotAvailableClassification = {
 	owner: 'joaomoreno';
 	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user has manually checked for updates, or this was an automatic check.' };
 	comment: 'This is used to understand how often VS Code pings the update server for an update and there\'s none available.';
+};
+
+export type UpdateErrorClassification = {
+	owner: 'joaomoreno';
+	messageHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hash of the error message.' };
+	comment: 'This is used to know how often VS Code updates have failed.';
 };
 
 export abstract class AbstractUpdateService implements IUpdateService {
@@ -46,7 +52,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@ILifecycleMainService protected readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IRequestService protected requestService: IRequestService,
@@ -64,15 +70,18 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 */
 	protected async initialize(): Promise<void> {
 		if (!this.environmentMainService.isBuilt) {
+			this.setState(State.Disabled(DisablementReason.NotBuilt));
 			return; // updates are never enabled when running out of sources
 		}
 
 		if (this.environmentMainService.disableUpdates) {
+			this.setState(State.Disabled(DisablementReason.DisabledByEnvironment));
 			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;
 		}
 
 		if (!this.productService.updateUrl || !this.productService.commit) {
+			this.setState(State.Disabled(DisablementReason.MissingConfiguration));
 			this.logService.info('update#ctor - updates are disabled as there is no update URL');
 			return;
 		}
@@ -81,14 +90,23 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
+			this.setState(State.Disabled(DisablementReason.ManuallyDisabled));
 			this.logService.info('update#ctor - updates are disabled by user preference');
 			return;
 		}
 
 		this.url = this.buildUpdateFeedUrl(quality);
 		if (!this.url) {
+			this.setState(State.Disabled(DisablementReason.InvalidConfiguration));
 			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
+		}
+
+		// hidden setting
+		if (this.configurationService.getValue<boolean>('_update.prss')) {
+			const url = new URL(this.url);
+			url.searchParams.set('prss', 'true');
+			this.url = url.toString();
 		}
 
 		this.setState(State.Idle(this.getUpdateType()));

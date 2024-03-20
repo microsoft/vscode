@@ -162,6 +162,11 @@ export interface INotebookRendererContribution {
 	readonly mimeTypes: string[];
 }
 
+export interface IDebugVisualizationContribution {
+	readonly id: string;
+	readonly when: string;
+}
+
 export interface ITranslation {
 	id: string;
 	path: string;
@@ -199,6 +204,7 @@ export interface IExtensionContributions {
 	startEntries?: IStartEntry[];
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
+	readonly debugVisualizers?: IDebugVisualizationContribution[];
 }
 
 export interface IExtensionCapabilities {
@@ -249,6 +255,8 @@ export const EXTENSION_CATEGORIES = [
 	'Testing',
 	'Themes',
 	'Visualization',
+	'AI',
+	'Chat',
 	'Other',
 ];
 
@@ -290,7 +298,6 @@ export const enum ExtensionType {
 
 export const enum TargetPlatform {
 	WIN32_X64 = 'win32-x64',
-	WIN32_IA32 = 'win32-ia32',
 	WIN32_ARM64 = 'win32-arm64',
 
 	LINUX_X64 = 'linux-x64',
@@ -341,7 +348,12 @@ export interface IExtension {
  */
 export class ExtensionIdentifier {
 	public readonly value: string;
-	private readonly _lower: string;
+
+	/**
+	 * Do not use directly. This is public to avoid mangling and thus
+	 * allow compatibility between running from source and a built version.
+	 */
+	readonly _lower: string;
 
 	constructor(value: string) {
 		this.value = value;

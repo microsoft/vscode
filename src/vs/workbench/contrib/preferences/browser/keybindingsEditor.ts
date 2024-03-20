@@ -54,6 +54,13 @@ import { isString } from 'vs/base/common/types';
 import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { CompletionItemKind } from 'vs/editor/common/languages';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = DOM.$;
 
@@ -102,6 +109,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	readonly overflowWidgetsDomNode: HTMLElement;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private readonly keybindingsService: IKeybindingService,
@@ -112,9 +120,10 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(KeybindingsEditor.ID, telemetryService, themeService, storageService);
+		super(KeybindingsEditor.ID, group, telemetryService, themeService, storageService);
 		this.delayedFiltering = new Delayer<void>(300);
 		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(!!this.keybindingFocusContextKey.get())));
 
@@ -129,6 +138,23 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.sortByPrecedenceAction = new Action(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, localize('sortByPrecedeneLabel', "Sort by Precedence (Highest first)"), ThemeIcon.asClassName(keybindingsSortIcon));
 		this.sortByPrecedenceAction.checked = false;
 		this.overflowWidgetsDomNode = $('.keybindings-overflow-widgets-container.monaco-editor');
+	}
+
+	override create(parent: HTMLElement): void {
+		super.create(parent);
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this],
+			focusNextWidget: () => {
+				if (this.searchWidget.hasFocus()) {
+					this.focusKeybindings();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!this.searchWidget.hasFocus()) {
+					this.focusSearch();
+				}
+			}
+		}));
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -165,6 +191,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	}
 
 	override focus(): void {
+		super.focus();
+
 		const activeKeybindingEntry = this.activeKeybindingEntry;
 		if (activeKeybindingEntry) {
 			this.selectEntry(activeKeybindingEntry);
@@ -374,9 +402,9 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 		const actions = [this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction];
 		const toolBar = this._register(new ToolBar(this.actionsContainer, this.contextMenuService, {
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action.id === this.sortByPrecedenceAction.id || action.id === this.recordKeysAction.id) {
-					return new ToggleActionViewItem(null, action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel(), toggleStyles: defaultToggleStyles });
+					return new ToggleActionViewItem(null, action, { ...options, keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel(), toggleStyles: defaultToggleStyles });
 				}
 				return undefined;
 			},
@@ -474,7 +502,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			{
 				identityProvider: { getId: (e: IKeybindingItemEntry) => e.id },
 				horizontalScrolling: false,
-				accessibilityProvider: new AccessibilityProvider(),
+				accessibilityProvider: new AccessibilityProvider(this.configurationService),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IKeybindingItemEntry) => e.keybindingItem.commandLabel || e.keybindingItem.command },
 				overrideStyles: {
 					listBackground: editorBackground
@@ -828,7 +856,7 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 
 	renderTemplate(container: HTMLElement): IActionsColumnTemplateData {
 		const element = DOM.append(container, $('.actions'));
-		const actionBar = new ActionBar(element, { animated: false });
+		const actionBar = new ActionBar(element);
 		return { actionBar };
 	}
 
@@ -873,6 +901,7 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 
 interface ICommandColumnTemplateData {
 	commandColumn: HTMLElement;
+	commandColumnHover: ICustomHover;
 	commandLabelContainer: HTMLElement;
 	commandLabel: HighlightedLabel;
 	commandDefaultLabelContainer: HTMLElement;
@@ -889,13 +918,14 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 
 	renderTemplate(container: HTMLElement): ICommandColumnTemplateData {
 		const commandColumn = DOM.append(container, $('.command'));
+		const commandColumnHover = setupCustomHover(getDefaultHoverDelegate('mouse'), commandColumn, '');
 		const commandLabelContainer = DOM.append(commandColumn, $('.command-label'));
 		const commandLabel = new HighlightedLabel(commandLabelContainer);
 		const commandDefaultLabelContainer = DOM.append(commandColumn, $('.command-default-label'));
 		const commandDefaultLabel = new HighlightedLabel(commandDefaultLabelContainer);
 		const commandIdLabelContainer = DOM.append(commandColumn, $('.command-id.code'));
 		const commandIdLabel = new HighlightedLabel(commandIdLabelContainer);
-		return { commandColumn, commandLabelContainer, commandLabel, commandDefaultLabelContainer, commandDefaultLabel, commandIdLabelContainer, commandIdLabel };
+		return { commandColumn, commandColumnHover, commandLabelContainer, commandLabel, commandDefaultLabelContainer, commandDefaultLabel, commandIdLabelContainer, commandIdLabel };
 	}
 
 	renderElement(keybindingItemEntry: IKeybindingItemEntry, index: number, templateData: ICommandColumnTemplateData, height: number | undefined): void {
@@ -904,7 +934,9 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 
 		templateData.commandColumn.classList.toggle('vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
-		templateData.commandColumn.title = keybindingItem.commandLabel ? localize('title', "{0} ({1})", keybindingItem.commandLabel, keybindingItem.command) : keybindingItem.command;
+		const title = keybindingItem.commandLabel ? localize('title', "{0} ({1})", keybindingItem.commandLabel, keybindingItem.command) : keybindingItem.command;
+		templateData.commandColumn.setAttribute('aria-label', title);
+		templateData.commandColumnHover.update(title);
 
 		if (keybindingItem.commandLabel) {
 			templateData.commandLabelContainer.classList.remove('hide');
@@ -931,7 +963,12 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 		}
 	}
 
-	disposeTemplate(templateData: ICommandColumnTemplateData): void { }
+	disposeTemplate(templateData: ICommandColumnTemplateData): void {
+		templateData.commandColumnHover.dispose();
+		templateData.commandDefaultLabel.dispose();
+		templateData.commandIdLabel.dispose();
+		templateData.commandLabel.dispose();
+	}
 }
 
 interface IKeybindingColumnTemplateData {
@@ -961,11 +998,13 @@ class KeybindingColumnRenderer implements ITableRenderer<IKeybindingItemEntry, I
 	}
 
 	disposeTemplate(templateData: IKeybindingColumnTemplateData): void {
+		templateData.keybindingLabel.dispose();
 	}
 }
 
 interface ISourceColumnTemplateData {
 	sourceColumn: HTMLElement;
+	sourceColumnHover: ICustomHover;
 	sourceLabel: HighlightedLabel;
 	extensionContainer: HTMLElement;
 	extensionLabel: HTMLAnchorElement;
@@ -999,11 +1038,12 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 
 	renderTemplate(container: HTMLElement): ISourceColumnTemplateData {
 		const sourceColumn = DOM.append(container, $('.source'));
+		const sourceColumnHover = setupCustomHover(getDefaultHoverDelegate('mouse'), sourceColumn, '');
 		const sourceLabel = new HighlightedLabel(DOM.append(sourceColumn, $('.source-label')));
 		const extensionContainer = DOM.append(sourceColumn, $('.extension-container'));
 		const extensionLabel = DOM.append<HTMLAnchorElement>(extensionContainer, $('a.extension-label', { tabindex: 0 }));
 		const extensionId = new HighlightedLabel(DOM.append(extensionContainer, $('.extension-id-container.code')));
-		return { sourceColumn, sourceLabel, extensionLabel, extensionContainer, extensionId, disposables: new DisposableStore() };
+		return { sourceColumn, sourceColumnHover, sourceLabel, extensionLabel, extensionContainer, extensionId, disposables: new DisposableStore() };
 	}
 
 	renderElement(keybindingItemEntry: IKeybindingItemEntry, index: number, templateData: ISourceColumnTemplateData, height: number | undefined): void {
@@ -1011,14 +1051,14 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 		if (isString(keybindingItemEntry.keybindingItem.source)) {
 			templateData.extensionContainer.classList.add('hide');
 			templateData.sourceLabel.element.classList.remove('hide');
-			templateData.sourceColumn.title = '';
+			templateData.sourceColumnHover.update('');
 			templateData.sourceLabel.set(keybindingItemEntry.keybindingItem.source || '-', keybindingItemEntry.sourceMatches);
 		} else {
 			templateData.extensionContainer.classList.remove('hide');
 			templateData.sourceLabel.element.classList.add('hide');
 			const extension = keybindingItemEntry.keybindingItem.source;
 			const extensionLabel = extension.displayName ?? extension.identifier.value;
-			templateData.sourceColumn.title = localize('extension label', "Extension ({0})", extensionLabel);
+			templateData.sourceColumnHover.update(localize('extension label', "Extension ({0})", extensionLabel));
 			templateData.extensionLabel.textContent = extensionLabel;
 			templateData.disposables.add(onClick(templateData.extensionLabel, () => {
 				this.extensionsWorkbenchService.open(extension.identifier.value);
@@ -1034,7 +1074,10 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 	}
 
 	disposeTemplate(templateData: ISourceColumnTemplateData): void {
+		templateData.sourceColumnHover.dispose();
 		templateData.disposables.dispose();
+		templateData.sourceLabel.dispose();
+		templateData.extensionId.dispose();
 	}
 }
 
@@ -1160,34 +1203,39 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 		templateData.whenLabelContainer.classList.toggle('empty', !keybindingItemEntry.keybindingItem.when);
 
 		if (keybindingItemEntry.keybindingItem.when) {
-			templateData.whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
-			templateData.whenLabel.element.title = keybindingItemEntry.keybindingItem.when;
-			templateData.element.title = keybindingItemEntry.keybindingItem.when;
+			templateData.whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches, keybindingItemEntry.keybindingItem.when);
+			templateData.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.element, keybindingItemEntry.keybindingItem.when));
 		} else {
 			templateData.whenLabel.set('-');
-			templateData.whenLabel.element.title = '';
-			templateData.element.title = '';
 		}
-
 	}
 
 	disposeTemplate(templateData: IWhenColumnTemplateData): void {
 		templateData.disposables.dispose();
+		templateData.whenLabel.dispose();
 	}
 }
 
 class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingItemEntry> {
 
+	constructor(private readonly configurationService: IConfigurationService) { }
+
 	getWidgetAriaLabel(): string {
 		return localize('keybindingsLabel', "Keybindings");
 	}
 
-	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		let ariaLabel = keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command;
-		ariaLabel += ', ' + (keybindingItemEntry.keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No Keybinding assigned."));
-		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.when ? keybindingItemEntry.keybindingItem.when : localize('noWhen', "No when context.");
-		ariaLabel += ', ' + (isString(keybindingItemEntry.keybindingItem.source) ? keybindingItemEntry.keybindingItem.source : keybindingItemEntry.keybindingItem.source.description ?? keybindingItemEntry.keybindingItem.source.identifier.value);
-		return ariaLabel;
+	getAriaLabel({ keybindingItem }: IKeybindingItemEntry): string {
+		const ariaLabel = [
+			keybindingItem.commandLabel ? keybindingItem.commandLabel : keybindingItem.command,
+			keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No keybinding assigned"),
+			keybindingItem.when ? keybindingItem.when : localize('noWhen', "No when context"),
+			isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.description ?? keybindingItem.source.identifier.value,
+		];
+		if (this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor)) {
+			const kbEditorAriaLabel = localize('keyboard shortcuts aria label', "use space or enter to change the keybinding.");
+			ariaLabel.push(kbEditorAriaLabel);
+		}
+		return ariaLabel.join(', ');
 	}
 }
 

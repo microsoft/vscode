@@ -47,6 +47,11 @@ export interface IOutputBlurMessage extends BaseToWebviewMessage {
 	readonly id: string;
 }
 
+export interface IOutputInputFocusMessage extends BaseToWebviewMessage {
+	readonly type: 'outputInputFocus';
+	readonly inputFocused: boolean;
+}
+
 export interface IScrollToRevealMessage extends BaseToWebviewMessage {
 	readonly type: 'scroll-to-reveal';
 	readonly scrollTop: number;
@@ -163,31 +168,21 @@ export interface IClearMessage {
 	readonly type: 'clear';
 }
 
-export interface IOutputRequestMetadata {
-	/**
-	 * Additional attributes of a cell metadata.
-	 */
-	readonly custom?: { readonly [key: string]: unknown };
-}
-
-export interface IOutputRequestDto {
-	/**
-	 * { mime_type: value }
-	 */
-	readonly data: { readonly [key: string]: unknown };
-
-	readonly metadata?: IOutputRequestMetadata;
-	readonly outputId: string;
-}
-
 export interface OutputItemEntry {
 	readonly mime: string;
 	readonly valueBytes: Uint8Array;
+	readonly appended?: { valueBytes: Uint8Array; previousVersion: number };
 }
 
 export type ICreationContent =
 	| { readonly type: RenderOutputType.Html; readonly htmlContent: string }
-	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly metadata: unknown; readonly output: OutputItemEntry; readonly allOutputs: ReadonlyArray<{ readonly mime: string }> };
+	| {
+		readonly type: RenderOutputType.Extension;
+		readonly outputId: string;
+		readonly metadata: unknown;
+		readonly output: OutputItemEntry;
+		readonly allOutputs: ReadonlyArray<{ readonly mime: string }>;
+	};
 
 export interface ICreationRequestMessage {
 	readonly type: 'html';
@@ -254,9 +249,16 @@ export interface IShowOutputMessage {
 	readonly content?: ICreationContent;
 }
 
+export interface ICopyImageMessage {
+	readonly type: 'copyImage';
+	readonly outputId: string;
+	readonly altOutputId: string;
+}
+
 export interface IFocusOutputMessage {
 	readonly type: 'focus-output';
-	readonly cellId: string;
+	readonly cellOrOutputId: string;
+	readonly alternateId?: string;
 }
 
 export interface IAckOutputHeight {
@@ -392,22 +394,25 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean };
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string };
 }
 
 
-export interface IFindHighlightMessage {
-	readonly type: 'findHighlight';
+export interface IFindHighlightCurrentMessage {
+	readonly type: 'findHighlightCurrent';
 	readonly index: number;
+	readonly ownerID: string;
 }
 
-export interface IFindUnHighlightMessage {
-	readonly type: 'findUnHighlight';
+export interface IFindUnHighlightCurrentMessage {
+	readonly type: 'findUnHighlightCurrent';
 	readonly index: number;
+	readonly ownerID: string;
 }
 
 export interface IFindStopMessage {
 	readonly type: 'findStop';
+	readonly ownerID: string;
 }
 
 export interface ISearchPreviewInfo {
@@ -431,8 +436,8 @@ export interface IDidFindMessage extends BaseToWebviewMessage {
 	readonly matches: IFindMatch[];
 }
 
-export interface IDidFindHighlightMessage extends BaseToWebviewMessage {
-	readonly type: 'didFindHighlight';
+export interface IDidFindHighlightCurrentMessage extends BaseToWebviewMessage {
+	readonly type: 'didFindHighlightCurrent';
 	readonly offset: number;
 }
 
@@ -452,6 +457,11 @@ export interface IReturnOutputItemMessage {
 	readonly type: 'returnOutputItem';
 	readonly requestId: number;
 	readonly output: OutputItemEntry | undefined;
+}
+
+export interface ISelectOutputItemMessage {
+	readonly type: 'select-output-contents';
+	readonly cellOrOutputId: string;
 }
 
 export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
@@ -475,6 +485,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	IMouseLeaveMessage |
 	IOutputFocusMessage |
 	IOutputBlurMessage |
+	IOutputInputFocusMessage |
 	IScrollToRevealMessage |
 	IWheelMessage |
 	IScrollAckMessage |
@@ -496,7 +507,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	IRenderedMarkupMessage |
 	IRenderedCellOutputMessage |
 	IDidFindMessage |
-	IDidFindHighlightMessage |
+	IDidFindHighlightCurrentMessage |
 	IOutputResizedMessage |
 	IGetOutputItemMessage |
 	ILogRendererDebugMessage |
@@ -511,6 +522,7 @@ export type ToWebviewMessage = IClearMessage |
 	IClearOutputRequestMessage |
 	IHideOutputMessage |
 	IShowOutputMessage |
+	ICopyImageMessage |
 	IUpdateControllerPreloadsMessage |
 	IUpdateRenderersMessage |
 	IUpdateDecorationsMessage |
@@ -528,10 +540,11 @@ export type ToWebviewMessage = IClearMessage |
 	ITokenizedCodeBlockMessage |
 	ITokenizedStylesChangedMessage |
 	IFindMessage |
-	IFindHighlightMessage |
-	IFindUnHighlightMessage |
+	IFindHighlightCurrentMessage |
+	IFindUnHighlightCurrentMessage |
 	IFindStopMessage |
-	IReturnOutputItemMessage;
+	IReturnOutputItemMessage |
+	ISelectOutputItemMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

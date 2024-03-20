@@ -9,10 +9,10 @@ import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
@@ -56,7 +56,7 @@ enum ProxyAuthState {
 
 export class ProxyAuthHandler extends Disposable {
 
-	private readonly PROXY_CREDENTIALS_SERVICE_KEY = `${this.productService.urlProtocol}.proxy-credentials`;
+	private readonly PROXY_CREDENTIALS_SERVICE_KEY = 'proxy-credentials://';
 
 	private pendingProxyResolve: Promise<Credentials | undefined> | undefined = undefined;
 
@@ -67,9 +67,8 @@ export class ProxyAuthHandler extends Disposable {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ICredentialsMainService private readonly credentialsService: ICredentialsMainService,
 		@IEncryptionMainService private readonly encryptionMainService: IEncryptionMainService,
-		@IProductService private readonly productService: IProductService
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
 		super();
 
@@ -150,14 +149,13 @@ export class ProxyAuthHandler extends Disposable {
 		// (see https://github.com/microsoft/vscode/issues/109497)
 		const authInfoHash = String(hash({ scheme: authInfo.scheme, host: authInfo.host, port: authInfo.port }));
 
-		// Find any previously stored credentials
-		let storedUsername: string | undefined = undefined;
-		let storedPassword: string | undefined = undefined;
+		let storedUsername: string | undefined;
+		let storedPassword: string | undefined;
 		try {
-			const encryptedSerializedProxyCredentials = await this.credentialsService.getPassword(this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
-			if (encryptedSerializedProxyCredentials) {
-				const credentials: Credentials = JSON.parse(await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials));
-
+			// Try to find stored credentials for the given auth info
+			const encryptedValue = this.applicationStorageMainService.get(this.PROXY_CREDENTIALS_SERVICE_KEY + authInfoHash, StorageScope.APPLICATION);
+			if (encryptedValue) {
+				const credentials: Credentials = JSON.parse(await this.encryptionMainService.decrypt(encryptedValue));
 				storedUsername = credentials.username;
 				storedPassword = credentials.password;
 			}
@@ -212,9 +210,15 @@ export class ProxyAuthHandler extends Disposable {
 						try {
 							if (reply.remember) {
 								const encryptedSerializedCredentials = await this.encryptionMainService.encrypt(JSON.stringify(credentials));
-								await this.credentialsService.setPassword(this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
+								this.applicationStorageMainService.store(
+									this.PROXY_CREDENTIALS_SERVICE_KEY + authInfoHash,
+									encryptedSerializedCredentials,
+									StorageScope.APPLICATION,
+									// Always store in machine scope because we do not want these values to be synced
+									StorageTarget.MACHINE
+								);
 							} else {
-								await this.credentialsService.deletePassword(this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
+								this.applicationStorageMainService.remove(this.PROXY_CREDENTIALS_SERVICE_KEY + authInfoHash, StorageScope.APPLICATION);
 							}
 						} catch (error) {
 							this.logService.error(error); // handle gracefully

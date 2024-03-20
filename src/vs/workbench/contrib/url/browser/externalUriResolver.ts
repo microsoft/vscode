@@ -9,19 +9,22 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 export class ExternalUriResolverContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.externalUriResolver';
+
 	constructor(
 		@IOpenerService _openerService: IOpenerService,
 		@IBrowserWorkbenchEnvironmentService _workbenchEnvironmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 
-		if (_workbenchEnvironmentService.options && _workbenchEnvironmentService.options.resolveExternalUri) {
+		if (_workbenchEnvironmentService.options?.resolveExternalUri) {
 			this._register(_openerService.registerExternalUriResolver({
 				resolveExternalUri: async (resource) => {
 					return {
 						resolved: await _workbenchEnvironmentService.options!.resolveExternalUri!(resource),
 						dispose: () => {
-							// TODO
+							// TODO@mjbvz - do we need to do anything here?
 						}
 					};
 				}

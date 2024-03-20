@@ -5,18 +5,29 @@
   "publisher": "vscode",
   "license": "MIT",
   "enabledApiProposals": [
+    "activeComment",
     "authSession",
+    "chatParticipant",
+    "languageModels",
+    "defaultChatParticipant",
+    "chatVariableResolver",
     "contribViewsRemote",
+    "contribStatusBarItems",
+    "createFileSystemWatcher",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentPaste",
     "editorInsets",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
     "fileSearchProvider",
+    "findFiles2",
     "findTextInFiles",
     "fsChunks",
+    "interactive",
+    "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -24,8 +35,8 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
+    "languageStatusText",
     "resolvers",
-    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
@@ -34,16 +45,15 @@
     "terminalDataWriteEvent",
     "terminalDimensions",
     "tunnels",
-    "envShellEvent",
-    "testCoverage",
     "testObserver",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-    "treeItemCheckbox",
+    "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],
@@ -53,6 +63,19 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "chatParticipants": [
+      {
+        "name": "participant",
+        "description": "test",
+        "isDefault": true,
+        "commands": [
+          {
+            "name": "hello",
+            "description": "Hello"
+          }
+        ]
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "Test Config",
@@ -157,6 +180,12 @@
         ]
       }
     ],
+    "interactiveSession": [
+      {
+        "id": "provider",
+        "label": "Provider"
+      }
+    ],
     "notebooks": [
       {
         "type": "notebookCoreTest",
@@ -186,7 +215,19 @@
           }
         ]
       }
-    ]
+    ],
+    "statusBarItems": {
+      "id": "myStaticItem",
+      "alignment": "right",
+      "priority": 17,
+      "name": "My Static Item",
+      "text": "Hello $(globe)",
+      "tooltip": "Hover World",
+      "accessibilityInformation": {
+        "label": "Hello World",
+        "role": "button"
+      }
+    }
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
@@ -194,7 +235,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "repository": {
     "type": "git",

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
+import { ExtensionRecommendations, GalleryExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { PlatformToString, platform } from 'vs/base/common/platform';
 
 export class RemoteRecommendations extends ExtensionRecommendations {
 
-	private _recommendations: ExtensionRecommendation[] = [];
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+	private _recommendations: GalleryExtensionRecommendation[] = [];
+	get recommendations(): ReadonlyArray<GalleryExtensionRecommendation> { return this._recommendations; }
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -23,7 +23,7 @@ export class RemoteRecommendations extends ExtensionRecommendations {
 		const extensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
 		const currentPlatform = PlatformToString(platform);
 		this._recommendations = Object.values(extensionTips).filter(({ supportedPlatforms }) => !supportedPlatforms || supportedPlatforms.includes(currentPlatform)).map(extension => ({
-			extensionId: extension.extensionId.toLowerCase(),
+			extension: extension.extensionId.toLowerCase(),
 			reason: {
 				reasonId: ExtensionRecommendationReason.Application,
 				reasonText: ''
