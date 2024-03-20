@@ -342,7 +342,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	hasFocus(): boolean {
-		return !!this._chatWidget?.value.hasFocus();
+		return !!this._chatWidget?.rawValue?.hasFocus() ?? false;
 	}
 
 	async acceptCommand(shouldExecute: boolean): Promise<void> {
@@ -350,7 +350,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!code) {
 			return;
 		}
-		this._chatWidget?.value.acceptCommand(code.object.textEditorModel.getValue(), shouldExecute);
+		this._chatWidget?.value.acceptCommand(code.textEditorModel.getValue(), shouldExecute);
 	}
 
 	reveal(): void {

@@ -173,6 +173,7 @@ import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPa
 import { EditorPaneService } from 'vs/workbench/services/editor/browser/editorPaneService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { CustomEditorLabelService, ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -342,6 +343,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
 	instantiationService.stub(IRemoteSocketFactoryService, new RemoteSocketFactoryService());
+	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 
 	return instantiationService;
 }
@@ -909,8 +911,8 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
-	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
-	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
+	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): boolean { return true; }
+	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): boolean { return true; }
 	copyEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }
@@ -1768,11 +1770,11 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		this.moveDisabledReason = reason;
 	}
 
-	override canMove(targetWindowId: number): string | true {
+	override canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): string | true {
 		if (typeof this.moveDisabledReason === 'string') {
 			return this.moveDisabledReason;
 		}
-		return super.canMove(targetWindowId);
+		return super.canMove(sourceGroup, targetGroup);
 	}
 }
 

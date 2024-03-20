@@ -5,7 +5,7 @@
 
 import type * as nbformat from '@jupyterlab/nbformat';
 import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellOutputMetadata, type CellMetadata } from './common';
+import { CellOutputMetadata, useCustomPropertyInMetadata, type CellMetadata } from './common';
 import { textMimeTypes } from './deserializers';
 
 const textDecoder = new TextDecoder();
@@ -55,16 +55,24 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 }
 
 export function getCellMetadata(cell: NotebookCell | NotebookCellData): CellMetadata {
+	if (useCustomPropertyInMetadata()) {
+		const metadata = {
+			// it contains the cell id, and the cell metadata, along with other nb cell metadata
+			...(cell.metadata?.custom ?? {})
+		};
+
+		// promote the cell attachments to the top level
+		const attachments = cell.metadata?.custom?.attachments ?? cell.metadata?.attachments;
+		if (attachments) {
+			metadata.attachments = attachments;
+		}
+		return metadata;
+	}
 	const metadata = {
 		// it contains the cell id, and the cell metadata, along with other nb cell metadata
-		...(cell.metadata?.custom ?? {})
+		...(cell.metadata ?? {})
 	};
 
-	// promote the cell attachments to the top level
-	const attachments = cell.metadata?.custom?.attachments ?? cell.metadata?.attachments;
-	if (attachments) {
-		metadata.attachments = attachments;
-	}
 	return metadata;
 }
 

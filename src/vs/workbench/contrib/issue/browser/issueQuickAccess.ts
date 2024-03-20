@@ -122,12 +122,16 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			return undefined;
 		}
 
-		return {
-			label,
-			highlights: { label: matchesFuzzy(filter, label, true) ?? undefined },
-			buttons,
-			trigger,
-			accept
-		};
+		const highlights = matchesFuzzy(filter, label, true);
+		if (highlights) {
+			return {
+				label,
+				highlights: { label: highlights },
+				buttons,
+				trigger,
+				accept
+			};
+		}
+		return undefined;
 	}
 }

@@ -185,6 +185,14 @@ type SessionData = {
 	store: IDisposable;
 };
 
+export class InlineChatError extends Error {
+	static readonly code = 'InlineChatError';
+	constructor(message: string) {
+		super(message);
+		this.name = InlineChatError.code;
+	}
+}
+
 export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
@@ -329,7 +337,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		} catch (error) {
 			this._logService.error('[IE] FAILED to prepare session', provider.extensionId);
 			this._logService.error(error);
-			return undefined;
+			throw new InlineChatError((error as Error)?.message || 'Failed to prepare session');
 		}
 		if (!rawSession) {
 			this._logService.trace('[IE] NO session', provider.extensionId);
