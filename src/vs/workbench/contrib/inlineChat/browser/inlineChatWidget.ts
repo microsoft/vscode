@@ -189,6 +189,7 @@ export class InlineChatWidget {
 			location,
 			{ resource: true },
 			{
+				// TODO@jrieken support editable code blocks
 				renderStyle: 'compact',
 				renderInputOnTop: true,
 				supportsFileReferences: true,
@@ -430,7 +431,6 @@ export class InlineChatWidget {
 	updateChatMessage(message: IInlineChatMessage | undefined): void;
 	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined;
 	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined {
-		// TODO@jrieken EDITABLE CODE BLOCKS
 		if (!this._chatWidget.viewModel) {
 			return;
 		}

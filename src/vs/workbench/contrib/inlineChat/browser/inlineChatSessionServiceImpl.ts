@@ -85,6 +85,7 @@ class BridgeAgent implements IChatAgentImplementation {
 		};
 
 		const inlineProgress = new Progress<IInlineChatProgressItem>(data => {
+			// TODO@jrieken
 			// if (data.message) {
 			// 	progress({ kind: 'progressMessage', content: new MarkdownString(data.message) });
 			// }
@@ -170,13 +171,6 @@ class BridgeAgent implements IChatAgentImplementation {
 		coalesceInPlace(chatFollowups);
 		return chatFollowups;
 	}
-
-	// provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> {
-	// 	throw new Error('Method not implemented.');
-	// }
-	// provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatFollowup[] | undefined> {
-	// 	throw new Error('Method not implemented.');
-	// }
 }
 
 type SessionData = {

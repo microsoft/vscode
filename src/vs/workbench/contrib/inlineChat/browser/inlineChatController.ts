@@ -597,7 +597,8 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 
-			const editsShouldBeInstant = false; // TODO@jrieken
+			// TODO@jrieken
+			const editsShouldBeInstant = false;
 
 			const edits = response.edits.get(this._session!.textModelN.uri) ?? [];
 			const newEdits = edits.slice(lastLength);
