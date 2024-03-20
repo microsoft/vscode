@@ -335,7 +335,7 @@ export class InlineChatWidget {
 	}
 
 	protected _doLayout(dimension: Dimension): void {
-		console.log('InlineChat#layout', dimension);
+		// console.log('InlineChat#layout', dimension);
 		const extraHeight = this._getExtraHeight();
 		const progressHeight = getTotalHeight(this._elements.progress);
 		const followUpsHeight = getTotalHeight(this._elements.followUps);
@@ -361,7 +361,7 @@ export class InlineChatWidget {
 
 		const result = progressHeight + chatWidgetHeight + followUpsHeight + statusHeight + extraHeight;
 
-		console.log(`InlineChat#contentHeight ${result}, (chat ${chatWidgetHeight})`);
+		// console.log(`InlineChat#contentHeight ${result}, (chat ${chatWidgetHeight})`);
 		return result;
 	}
 

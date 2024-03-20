@@ -292,7 +292,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	private _asChatProviderBrigdeName(provider: IInlineChatSessionProvider) {
-		return `editor-inline-chat:${ExtensionIdentifier.toKey(provider.extensionId)}`;
+		return `inlinechat:${provider.label}:${ExtensionIdentifier.toKey(provider.extensionId)}`;
 	}
 
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
@@ -361,10 +361,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				this._logService.trace(`[IE] provider GONE for ${editor.getId()}, ${provider.extensionId}`);
 				this._releaseSession(session, true);
 			}
-		}));
-
-		store.add(chatModel.onDidChange(e => {
-			console.log('chatModel.onDidChange', e);
 		}));
 
 		const id = generateUuid();
