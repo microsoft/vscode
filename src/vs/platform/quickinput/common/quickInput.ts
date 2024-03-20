@@ -57,6 +57,7 @@ export interface IQuickPickSeparator {
 	type: 'separator';
 	id?: string;
 	label?: string;
+	description?: string;
 	ariaLabel?: string;
 	buttons?: readonly IQuickInputButton[];
 	tooltip?: string | IMarkdownString;
