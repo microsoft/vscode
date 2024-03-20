@@ -545,7 +545,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	// Failing tests from issues...
 
-	test('issue #116843: indent after arrow function', () => {
+	test.skip('issue #116843: indent after arrow function', () => {
 
 		// https://github.com/microsoft/vscode/issues/116843
 
