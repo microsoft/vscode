@@ -2013,6 +2013,7 @@ export class SearchModel extends Disposable {
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private currentAICancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
+	private aiSearchCancelledForNewSearch: boolean = false;
 	public location: SearchModelLocation = SearchModelLocation.PANEL;
 
 	constructor(
@@ -2297,11 +2298,15 @@ export class SearchModel extends Disposable {
 	private onSearchError(e: any, duration: number, ai: boolean): void {
 		if (errors.isCancellationError(e)) {
 			this.onSearchCompleted(
-				this.searchCancelledForNewSearch
+				(ai ? this.aiSearchCancelledForNewSearch : this.searchCancelledForNewSearch)
 					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
 					: undefined,
 				duration, '', ai);
-			this.searchCancelledForNewSearch = false;
+			if (ai) {
+				this.aiSearchCancelledForNewSearch = false;
+			} else {
+				this.searchCancelledForNewSearch = false;
+			}
 		}
 	}
 
@@ -2338,9 +2343,17 @@ export class SearchModel extends Disposable {
 		}
 		return false;
 	}
-
+	cancelAISearch(cancelledForNewSearch = false): boolean {
+		if (this.currentAICancelTokenSource) {
+			this.aiSearchCancelledForNewSearch = cancelledForNewSearch;
+			this.currentAICancelTokenSource.cancel();
+			return true;
+		}
+		return false;
+	}
 	override dispose(): void {
 		this.cancelSearch();
+		this.cancelAISearch();
 		this.searchResult.dispose();
 		super.dispose();
 	}
