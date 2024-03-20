@@ -332,6 +332,8 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
+		// in each case, we want to cancel our current AI search because it is no longer valid
+		this.model.cancelAISearch();
 		if (visible) {
 			await this.model.addAIResults();
 		} else {
@@ -1634,6 +1636,7 @@ export class SearchView extends ViewPane {
 		});
 
 		this.viewModel.cancelSearch(true);
+		this.viewModel.cancelAISearch(true);
 
 		this.currentSearchQ = this.currentSearchQ
 			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType))
