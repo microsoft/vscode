@@ -170,9 +170,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			});
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: (MarkdownHover | VerboseMarkdownHover)[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: (MarkdownHover | VerboseMarkdownHover)[]): IDisposable | undefined {
+		if (!context.disposables) {
+			return;
+		}
 		this._context = context;
-		this._context.disposables?.add(toDisposable(() => {
+		context.disposables.add(toDisposable(() => {
 			this._hoverData.forEach(hoverData => {
 				if (hoverData instanceof VerboseMarkdownHover) {
 					hoverData.hover.dispose();
@@ -181,7 +184,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}));
 		hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 		this._hoverData = hoverParts;
-		const disposables = new DisposableStore();
 		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
 			const isInstanceOfVerboseHover = hoverPart instanceof VerboseMarkdownHover;
 			const canIncreaseVerbosity = isInstanceOfVerboseHover && hoverPart.hover.canIncreaseVerbosity;
@@ -191,11 +193,13 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				hoverIndex,
 				canIncreaseVerbosity,
 				canDecreaseVerbosity,
-				disposables
 			);
-			this._context.fragment.appendChild(renderedMarkdown);
+			if (!renderedMarkdown) {
+				continue;
+			}
+			context.fragment.appendChild(renderedMarkdown);
 		}
-		return disposables;
+		return context.disposables;
 	}
 
 	public async updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
@@ -204,7 +208,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			!this._focusInfo
 			|| !this._position
 			|| !this._context
-			|| !this._context.disposables
 			|| !model
 		) {
 			return;
@@ -232,8 +235,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			focusedIndex,
 			newHover.canIncreaseVerbosity,
 			newHover.canDecreaseVerbosity,
-			this._context.disposables
 		);
+		if (!renderedMarkdown) {
+			return;
+		}
 		this._focusInfo.focusRemains = true;
 		this._focusInfo.element.replaceWith(renderedMarkdown);
 		this._focusInfo.element = renderedMarkdown;
@@ -246,9 +251,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		hoverIndex: number,
 		canIncreaseVerbosity: boolean | undefined,
 		canDecreaseVerbosity: boolean | undefined,
-		store: DisposableStore,
-	): HTMLElement {
-
+	): HTMLElement | undefined {
+		if (!this._context?.disposables) {
+			return;
+		}
 		const contentsWrapper = $('div.hover-row');
 		contentsWrapper.tabIndex = 0;
 		const contents = $('div.hover-row-contents');
@@ -260,20 +266,16 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			hoverContents,
 			this._languageService,
 			this._openerService,
-			store
+			this._context.disposables
 		);
-		if (
-			(!canIncreaseVerbosity && !canDecreaseVerbosity)
-			|| !this._context
-			|| !this._context.disposables
-		) {
+		if (!canIncreaseVerbosity && !canDecreaseVerbosity) {
 			return contentsWrapper;
 		}
 		const actionsContainer = $('div.verbosity-actions');
 		contentsWrapper.prepend(actionsContainer);
 
-		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity ?? false, store);
-		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity ?? false, store);
+		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity ?? false);
+		this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity ?? false);
 
 		const focusTracker = this._context.disposables.add(dom.trackFocus(contentsWrapper));
 		this._context.disposables.add(focusTracker.onDidFocus(() => {
@@ -293,18 +295,21 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return contentsWrapper;
 	}
 
-	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, enabled: boolean, store: DisposableStore): void {
+	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, enabled: boolean): void {
+		if (!this._context?.disposables) {
+			return;
+		}
 		const isActionIncrease = action === HoverVerbosityAction.Increase;
 		const element = dom.append(container, $(ThemeIcon.asCSSSelector(isActionIncrease ? increaseHoverVerbosityIcon : decreaseHoverVerbosityIcon)));
 		element.tabIndex = 0;
 		if (isActionIncrease) {
 			const kb = this._keybindingService.lookupKeybinding('editor.action.increaseHoverVerbosityLevel');
-			store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), element, kb ?
+			this._context.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), element, kb ?
 				nls.localize('increaseVerbosityWithKb', "Increase Verbosity ({0})", kb.getLabel()) :
 				nls.localize('increaseVerbosity', "Increase Verbosity")));
 		} else {
 			const kb = this._keybindingService.lookupKeybinding('editor.action.decreaseHoverVerbosityLevel');
-			store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), element, kb ?
+			this._context.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), element, kb ?
 				nls.localize('decreaseVerbosityWithKb', "Decrease Verbosity ({0})", kb.getLabel()) :
 				nls.localize('decreaseVerbosity', "Decrease Verbosity")));
 		}
@@ -313,7 +318,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			return;
 		}
 		element.classList.add('enabled');
-		registerActionOnClickOrAcceptKeydown(element, () => this.updateFocusedMarkdownHoverVerbosityLevel(action), store);
+		registerActionOnClickOrAcceptKeydown(element, () => this.updateFocusedMarkdownHoverVerbosityLevel(action), this._context.disposables);
 	}
 }
 

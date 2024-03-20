@@ -230,7 +230,10 @@ export class ContentHoverController extends Disposable {
 		for (const participant of this._participants) {
 			const hoverParts = messages.filter(msg => msg.owner === participant);
 			if (hoverParts.length > 0) {
-				disposables.add(participant.renderHoverParts(context, hoverParts));
+				const participantDisposables = participant.renderHoverParts(context, hoverParts);
+				if (participantDisposables) {
+					disposables.add(participantDisposables);
+				}
 			}
 		}
 
