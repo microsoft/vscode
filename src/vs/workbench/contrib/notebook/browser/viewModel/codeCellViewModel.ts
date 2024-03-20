@@ -47,6 +47,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private _outputCollection: number[] = [];
 
 	private readonly _cellDiagnostics: CellDiagnostics;
+	get cellErrorDetails() {
+		return this._cellDiagnostics.ErrorDetails;
+	}
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
@@ -171,7 +174,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			if (outputLayoutChange) {
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 			}
-			if (this._outputCollection.length === 0 && this._cellDiagnostics.ErrorDetails) {
+			if (this._outputCollection.length === 0) {
 				this._cellDiagnostics.clear();
 			}
 			dispose(removedOutputs);
@@ -433,6 +436,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	protected onDidChangeTextModelContent(): void {
 		if (this.getEditState() !== CellEditState.Editing) {
+			this._cellDiagnostics.clear();
 			this.updateEditState(CellEditState.Editing, 'onDidChangeTextModelContent');
 			this._onDidChangeState.fire({ contentChanged: true });
 		}
