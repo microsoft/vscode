@@ -545,9 +545,9 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	// Failing tests from issues...
 
-	test.skip('issue #116843: indent after arrow function', () => {
+	test('issue #208215: indent after arrow function', () => {
 
-		// https://github.com/microsoft/vscode/issues/116843
+		// https://github.com/microsoft/vscode/issues/208215
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -562,11 +562,28 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 				'const add1 = (n) =>',
 				'    ',
 			].join('\n'));
-			viewModel.type('n + 1;');
+		});
+	});
+
+	test.skip('issue #116843: indent after arrow function', () => {
+
+		// https://github.com/microsoft/vscode/issues/116843
+
+		const model = createTextModel("", languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+
+			viewModel.type([
+				'const add1 = (n) =>',
+				'    n + 1;',
+			].join('\n'));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
 				'const add1 = (n) =>',
-				'	n + 1;',
+				'    n + 1;',
 				'',
 			].join('\n'));
 		});

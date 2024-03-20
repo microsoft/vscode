@@ -215,6 +215,12 @@
 			"action": {
 				"indent": "outdent"
 			}
-		}
+		},
+		{
+			"beforeText": "^\\s*(var|const|let)\\s+\\w+\\s*=\\s*\\(.*\\)\\s*=>\\s*$",
+			"action": {
+				"indent": "indent"
+			}
+		},
 	]
 }

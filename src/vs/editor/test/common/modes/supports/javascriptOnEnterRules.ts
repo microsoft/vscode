@@ -40,4 +40,8 @@ export const javascriptOnEnterRules = [
 		beforeText: /^\s+([^{i\s]|i(?!f\b))/,
 		action: { indentAction: IndentAction.Outdent }
 	},
+	{
+		beforeText: /^\s*(var|const|let)\s+\w+\s*=\s*\(.*\)\s*=>\s*$/,
+		action: { indentAction: IndentAction.Indent }
+	},
 ];
