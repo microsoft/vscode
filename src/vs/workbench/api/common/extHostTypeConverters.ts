@@ -2454,7 +2454,7 @@ export namespace ChatResponseReferencePart {
 
 export namespace ChatResponsePart {
 
-	export function to(part: vscode.ChatResponsePart): extHostProtocol.IChatProgressDto {
+	export function to(part: vscode.ChatResponsePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.to(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2465,6 +2465,8 @@ export namespace ChatResponsePart {
 			return ChatResponseProgressPart.to(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.to(part);
+		} else if (part instanceof types.ChatResponseCommandButtonPart) {
+			return ChatResponseCommandButtonPart.to(part, commandsConverter, commandDisposables);
 		}
 		return {
 			kind: 'content',
