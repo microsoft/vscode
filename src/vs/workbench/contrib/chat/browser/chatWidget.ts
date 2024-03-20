@@ -720,7 +720,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.bodyDimension = new dom.Dimension(width, height);
 
 		this.inputPart.layout(height, width);
-		const inputPartHeight = this.inputPart.inputPartHeight;
+		// const inputPartHeight = this.inputPart.inputPartHeight;
+		const inputPartHeight = dom.getTotalHeight(this.inputPart.element);
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 
 		const listHeight = height - inputPartHeight;

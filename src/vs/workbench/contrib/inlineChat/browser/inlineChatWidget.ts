@@ -354,7 +354,7 @@ export class InlineChatWidget {
 	getContentHeight(): number {
 
 		const followUpsHeight = getTotalHeight(this._elements.followUps);
-		const chatWidgetHeight = 200;  //this._chatWidget.contentHeight;
+		const chatWidgetHeight = this._chatWidget.contentHeight;
 		const progressHeight = getTotalHeight(this._elements.progress);
 		const statusHeight = getTotalHeight(this._elements.status);
 		const extraHeight = this._getExtraHeight();
