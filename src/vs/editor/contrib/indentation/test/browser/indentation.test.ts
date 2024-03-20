@@ -675,6 +675,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 	test.skip('issue #43244: incorrect indentation', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
+		// potential regex to fix:  "^.*[if|while|for]\s*\(.*\)\s*",
 
 		const model = createTextModel([
 			'function f() {',
