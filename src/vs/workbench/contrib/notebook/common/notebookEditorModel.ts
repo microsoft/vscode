@@ -309,7 +309,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 
 	pushStackElement(): void {
-		this._notebookModel.pushStackElement('save', undefined, undefined);
+		this._notebookModel.pushStackElement();
 	}
 }
 

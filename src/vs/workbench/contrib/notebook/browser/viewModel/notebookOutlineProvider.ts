@@ -70,7 +70,7 @@ export class NotebookCellOutlineProvider {
 		);
 
 		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
+			if (e.affectsConfiguration('notebook.outline.showCodeCells') || e.affectsConfiguration('notebook.outline.showNonHeaderMarkdownCells')) {
 				this._recomputeState();
 			}
 		}));
@@ -142,6 +142,8 @@ export class NotebookCellOutlineProvider {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
+		const showNonHeaderMarkdownCells = this._configurationService.getValue<boolean>('notebook.outline.showNonHeaderMarkdownCells');
+
 		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
 
 		const entries: OutlineEntry[] = [];
@@ -161,6 +163,11 @@ export class NotebookCellOutlineProvider {
 
 			for (let i = 1; i < entries.length; i++) {
 				const entry = entries[i];
+
+				if (!showNonHeaderMarkdownCells && entry.cell.cellKind === CellKind.Markup && entry.level === 7) {
+					// skip plain text markdown cells
+					continue;
+				}
 
 				while (true) {
 					const len = parentStack.length;

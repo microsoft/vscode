@@ -117,6 +117,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<ExtensionPaths> | null;
+	private _realPathCache = new Map<string, Promise<string>>();
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver };
 
@@ -332,11 +333,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	/**
-	 * Applies realpath to file-uris and returns all others uris unmodified
+	 * Applies realpath to file-uris and returns all others uris unmodified.
+	 * The real path is cached for the lifetime of the extension host.
 	 */
 	private async _realPathExtensionUri(uri: URI): Promise<URI> {
 		if (uri.scheme === Schemas.file && this._hostUtils.fsRealpath) {
-			const realpathValue = await this._hostUtils.fsRealpath(uri.fsPath);
+			const fsPath = uri.fsPath;
+			if (!this._realPathCache.has(fsPath)) {
+				this._realPathCache.set(fsPath, this._hostUtils.fsRealpath(fsPath));
+			}
+			const realpathValue = await this._realPathCache.get(fsPath)!;
 			return URI.file(realpathValue);
 		}
 		return uri;
@@ -986,10 +992,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return result;
 	}
 
-	public $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
+		const newSearchTree = await this._createExtensionPathIndex(myExtensions);
+		const extensionsPaths = await this.getExtensionPathIndex();
+		extensionsPaths.setSearchTree(newSearchTree);
 		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
 		this._myRegistry.set(myExtensions);
 

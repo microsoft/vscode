@@ -11,12 +11,11 @@ import { EditorAction, EditorCommand, EditorContributionInstantiation, ServicesA
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 import { CopyPasteController, changePasteTypeCommandId, pasteWidgetVisibleCtx } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import { DefaultPasteProvidersFeature } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
+import { DefaultPasteProvidersFeature, DefaultTextPasteOrDropEditProvider } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
 import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 registerEditorContribution(CopyPasteController.ID, CopyPasteController, EditorContributionInstantiation.Eager); // eager because it listens to events on the container dom node of the editor
-
 registerEditorFeature(DefaultPasteProvidersFeature);
 
 registerEditorCommand(new class extends EditorCommand {
@@ -31,11 +30,27 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, _args: any) {
+	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor) {
 		return CopyPasteController.get(editor)?.changePasteType();
 	}
 });
 
+registerEditorCommand(new class extends EditorCommand {
+	constructor() {
+		super({
+			id: 'editor.hidePasteWidget',
+			precondition: pasteWidgetVisibleCtx,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyCode.Escape,
+			}
+		});
+	}
+
+	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor) {
+		CopyPasteController.get(editor)?.clearWidgets();
+	}
+});
 
 
 registerEditorAction(class PasteAsAction extends EditorAction {
@@ -72,7 +87,7 @@ registerEditorAction(class PasteAsAction extends EditorAction {
 			// TODO: remove this in the future
 			kind = typeof (args as any).id === 'string' ? (args as any).id : undefined;
 		}
-		return CopyPasteController.get(editor)?.pasteAs(kind ? { kind: new HierarchicalKind(kind) } : undefined);
+		return CopyPasteController.get(editor)?.pasteAs(kind ? new HierarchicalKind(kind) : undefined);
 	}
 });
 
@@ -87,6 +102,6 @@ registerEditorAction(class extends EditorAction {
 	}
 
 	public override run(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return CopyPasteController.get(editor)?.pasteAs({ providerId: 'text' });
+		return CopyPasteController.get(editor)?.pasteAs({ providerId: DefaultTextPasteOrDropEditProvider.id });
 	}
 });

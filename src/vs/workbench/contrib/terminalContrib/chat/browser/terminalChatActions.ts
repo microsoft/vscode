@@ -6,7 +6,6 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize2 } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -40,7 +39,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.reveal();
+		contr?.reveal();
 	}
 });
 
@@ -165,9 +164,9 @@ registerActiveXtermAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	},
 	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
 		order: 0,
-		id: MenuId.ChatCodeBlock,
-		group: 'navigation',
 		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate())
 	},
 	run: (_xterm, _accessor, activeInstance) => {
@@ -196,9 +195,9 @@ registerActiveXtermAction({
 		primary: KeyMod.Alt | KeyCode.Enter,
 	},
 	menu: {
-		id: MenuId.ChatCodeBlock,
-		group: 'navigation',
-		isHiddenByDefault: true,
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
+		order: 1,
 		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate())
 	},
 	run: (_xterm, _accessor, activeInstance) => {
@@ -368,3 +367,42 @@ registerActiveXtermAction({
 	}
 });
 
+registerActiveXtermAction({
+	id: TerminalChatCommandId.PreviousFromHistory,
+	title: localize2('previousFromHistory', 'Previous From History'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined)
+	),
+	keybinding: {
+		weight: KeybindingWeight.EditorCore + 10, // win against core_command
+		primary: KeyCode.UpArrow,
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.populateHistory(true);
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.NextFromHistory,
+	title: localize2('nextFromHistory', 'Next From History'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined)
+	),
+	keybinding: {
+		weight: KeybindingWeight.EditorCore + 10, // win against core_command
+		primary: KeyCode.DownArrow,
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.populateHistory(false);
+	}
+});

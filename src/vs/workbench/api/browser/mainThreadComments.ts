@@ -151,6 +151,20 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		this._onDidChangeState.fire(this._state);
 	}
 
+	private _applicability: languages.CommentThreadApplicability | undefined;
+
+	get applicability(): languages.CommentThreadApplicability | undefined {
+		return this._applicability;
+	}
+
+	set applicability(value: languages.CommentThreadApplicability | undefined) {
+		this._applicability = value;
+		this._onDidChangeApplicability.fire(value);
+	}
+
+	private readonly _onDidChangeApplicability = new Emitter<languages.CommentThreadApplicability | undefined>();
+	readonly onDidChangeApplicability: Event<languages.CommentThreadApplicability | undefined> = this._onDidChangeApplicability.event;
+
 	public get isTemplate(): boolean {
 		return this._isTemplate;
 	}
@@ -185,6 +199,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		if (modified('collapseState')) { this.initialCollapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
 		if (modified('state')) { this.state = changes.state!; }
+		if (modified('applicability')) { this.applicability = changes.applicability!; }
 		if (modified('isTemplate')) { this._isTemplate = changes.isTemplate!; }
 	}
 
