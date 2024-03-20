@@ -105,7 +105,7 @@
 					"name": "keyword.control.content.scss"
 				}
 			},
-			"end": "\\s*((?=;))",
+			"end": "\\s*((?=[;}]))",
 			"name": "meta.content.scss",
 			"patterns": [
 				{
@@ -797,7 +797,7 @@
 					"name": "punctuation.definition.keyword.scss"
 				}
 			},
-			"end": "\\s*((?=;))",
+			"end": "\\s*((?=[;}]))",
 			"name": "meta.at-rule.return.scss",
 			"patterns": [
 				{
