@@ -254,7 +254,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			picks.push({
 				label,
 				type: 'separator',
-				tooltip: description,
+				description,
 				buttons: [{
 					iconClass: ThemeIcon.asClassName(searchOpenInFileIcon),
 					tooltip: localize('QuickSearchOpenInFile', "Open File")
