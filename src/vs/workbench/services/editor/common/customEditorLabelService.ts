@@ -7,12 +7,12 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ParsedPattern, parse as parseGlob } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isAbsolute, parse as parsePath, ParsedPath } from 'vs/base/common/path';
-import { relativePath } from 'vs/base/common/resources';
+import { relativePath as getRelativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 interface ICustomEditorLabelObject {
 	readonly [key: string]: string;
@@ -30,8 +30,8 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 	readonly _serviceBrand: undefined;
 
-	static readonly SETTING_ID_PATTERNS = 'workbench.editor.label.patterns';
-	static readonly SETTING_ID_ENABLED = 'workbench.editor.label.enabled';
+	static readonly SETTING_ID_PATTERNS = 'workbench.editor.customLabels.patterns';
+	static readonly SETTING_ID_ENABLED = 'workbench.editor.customLabels.enabled';
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -119,19 +119,22 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		}
 
 		const root = this.workspaceContextService.getWorkspaceFolder(resource);
+		let relativePath: string | undefined;
+
 		for (const pattern of this.patterns) {
-			if (this.matchPattern(root, resource, pattern)) {
+			let relevantPath: string;
+			if (root && !pattern.isAbsolutePath) {
+				relevantPath = relativePath = relativePath ?? getRelativePath(root.uri, resource) ?? resource.path;
+			} else {
+				relevantPath = resource.path;
+			}
+
+			if (pattern.parsedPattern(relevantPath)) {
 				return this.applyTempate(pattern.template, resource);
 			}
 		}
 
 		return undefined;
-	}
-
-	private matchPattern(root: IWorkspaceFolder | null, resource: URI, pattern: ICustomEditorLabelPattern): boolean {
-		const relevantPath = !root || pattern.isAbsolutePath ? resource.fsPath : relativePath(root.uri, resource) ?? resource.path;
-
-		return pattern.parsedPattern(relevantPath);
 	}
 
 	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|dirname\((\d+)\))\}/g;
