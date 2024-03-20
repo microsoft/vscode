@@ -666,6 +666,31 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test.skip('issue #208232: incorrect indentation inside of comments', () => {
+
+		// https://github.com/microsoft/vscode/issues/208232
+
+		const model = createTextModel([
+			'/**',
+			'indentation done for {',
+			'*/'
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 23, 2, 23));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'/**',
+				'indentation done for {',
+				'',
+				'*/'
+			].join('\n'));
+		});
+	});
+
 	// Add tests for:
 	// https://github.com/microsoft/vscode/issues/88638
 	// https://github.com/microsoft/vscode/issues/63388
