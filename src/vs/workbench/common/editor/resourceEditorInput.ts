@@ -63,7 +63,6 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
-
 		this._register(this.customEditorLabelService.onDidChange(() => this.updateLabel()));
 	}
 
@@ -99,8 +98,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	private _name: string | undefined = undefined;
 	override getName(): string {
 		if (typeof this._name !== 'string') {
-			const customName = this.customEditorLabelService.getName(this._preferredResource);
-			this._name = customName ?? this.labelService.getUriBasenameLabel(this._preferredResource);
+			this._name = this.customEditorLabelService.getName(this._preferredResource) ?? this.labelService.getUriBasenameLabel(this._preferredResource);
 		}
 
 		return this._name;

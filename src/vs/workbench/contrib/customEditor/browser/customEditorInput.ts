@@ -112,7 +112,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
-
 		this._register(this.customEditorLabelService.onDidChange(() => this.updateLabel()));
 	}
 
@@ -173,10 +172,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private _editorName: string | undefined = undefined;
 	override getName(): string {
-		if (this._editorName === undefined) {
-			const customName = this.customEditorLabelService.getName(this.resource);
-			this._editorName = customName ?? basename(this.labelService.getUriLabel(this.resource));
+		if (typeof this._editorName !== 'string') {
+			this._editorName = this.customEditorLabelService.getName(this.resource) ?? basename(this.labelService.getUriLabel(this.resource));
 		}
+
 		return this._editorName;
 	}
 
