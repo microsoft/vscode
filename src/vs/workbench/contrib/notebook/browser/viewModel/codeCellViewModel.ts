@@ -47,6 +47,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private _outputCollection: number[] = [];
 
 	private readonly _cellDiagnostics: CellDiagnostics;
+	get cellErrorDetails() {
+		return this._cellDiagnostics.ErrorDetails;
+	}
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
