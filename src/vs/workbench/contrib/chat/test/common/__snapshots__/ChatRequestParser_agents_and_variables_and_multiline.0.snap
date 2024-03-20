@@ -19,7 +19,8 @@
             name: "subCommand",
             description: ""
           }
-        ]
+        ],
+        locations: [ "panel" ]
       },
       kind: "agent"
     },
