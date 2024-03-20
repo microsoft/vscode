@@ -11,16 +11,19 @@ export function createScopedLineTokens(context: LineTokens, offset: number): Sco
 	const tokenIndex = context.findTokenIndexAtOffset(offset);
 	const desiredLanguageId = context.getLanguageId(tokenIndex);
 
+	// Starting from the tokenIndex + 1, while it is smaller than the token count and the language is the desired one
 	let lastTokenIndex = tokenIndex;
 	while (lastTokenIndex + 1 < tokenCount && context.getLanguageId(lastTokenIndex + 1) === desiredLanguageId) {
 		lastTokenIndex++;
 	}
 
+	// Do the same from tokenIndex - 1
 	let firstTokenIndex = tokenIndex;
 	while (firstTokenIndex > 0 && context.getLanguageId(firstTokenIndex - 1) === desiredLanguageId) {
 		firstTokenIndex--;
 	}
 
+	// Find scope around the token index corresponding to the offset
 	return new ScopedLineTokens(
 		context,
 		desiredLanguageId,

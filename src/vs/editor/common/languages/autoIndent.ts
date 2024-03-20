@@ -390,6 +390,7 @@ export function getIndentForEnter(
 	model.tokenization.forceTokenization(range.startLineNumber);
 	const lineTokens = model.tokenization.getLineTokens(range.startLineNumber);
 	const scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
+	// Text in the scope
 	const scopedLineText = scopedLineTokens.getLineContent();
 
 	let embeddedLanguage = false;
@@ -397,6 +398,7 @@ export function getIndentForEnter(
 	if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
 		// we are in the embeded language content
 		embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
+		// Take the substring from the current range start column minus the first character offset
 		beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 	} else {
 		beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
@@ -404,8 +406,11 @@ export function getIndentForEnter(
 
 	let afterEnterText: string;
 	if (range.isEmpty()) {
+		// If range is empty then means the end and start position coincide
+		// Then take the remaining substring
 		afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 	} else {
+		// Take the token scope around the end position
 		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
 		afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 	}
@@ -440,6 +445,8 @@ export function getIndentForEnter(
 	};
 
 	const currentLineIndent = strings.getLeadingWhitespace(lineTokens.getLineContent());
+	// virtual model is the model after the enter has been made
+	// Getting inherited indent for the next start line number
 	const afterEnterAction = getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService);
 	if (!afterEnterAction) {
 		const beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
@@ -451,6 +458,7 @@ export function getIndentForEnter(
 
 	let afterEnterIndent = embeddedLanguage ? currentLineIndent : afterEnterAction.indentation;
 
+	// If we need to indent, then nident using indent converter
 	if (afterEnterAction.action === IndentAction.Indent) {
 		afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
 	}
@@ -480,6 +488,7 @@ export function getIndentActionForType(
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
+	// get tokens around the range start position
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 
 	if (scopedLineTokens.firstCharOffset) {
@@ -487,6 +496,7 @@ export function getIndentActionForType(
 		return null;
 	}
 
+	// Finding the indent rules support for the language in the scope which is the whole line
 	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId).indentRulesSupport;
 	if (!indentRulesSupport) {
 		return null;
@@ -506,6 +516,8 @@ export function getIndentActionForType(
 
 	// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
 	// Users might change the indentation by purpose and we should honor that instead of readjusting.
+
+	// adding ch into the second string of this check
 	if (!indentRulesSupport.shouldDecrease(beforeTypeText + afterTypeText) && indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
 		// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
 		// 1. Get inherited indent action
@@ -515,6 +527,7 @@ export function getIndentActionForType(
 		}
 
 		let indentation = r.indentation;
+		// If not indent action, we unshift the indent
 		if (r.action !== IndentAction.Indent) {
 			indentation = indentConverter.unshiftIndent(indentation);
 		}
@@ -537,5 +550,6 @@ export function getIndentMetadata(
 	if (lineNumber < 1 || lineNumber > model.getLineCount()) {
 		return null;
 	}
+	// get metadata using the indent rules support for the specific line
 	return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
 }
