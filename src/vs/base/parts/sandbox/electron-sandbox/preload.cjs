@@ -353,6 +353,7 @@ if (isTest) {
 	const sinonTest = require('sinon-test')
 	const fs = require('fs')
 	const net = require('net')
+	const yauzl = require('yauzl')
 	const gracefulFs = require('graceful-fs')
 	const stream = require('stream')
 	const vscodeRipgrep = require('@vscode/ripgrep')
@@ -390,6 +391,7 @@ if (isTest) {
 		glob,
 		sinon,
 		util,
+		yauzl,
 		events,
 		fs,
 		os,

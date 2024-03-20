@@ -22,7 +22,8 @@ const {
 	vscodeRipgrep,
 	gracefulFs,
 	sinonTest,
-	childProcess
+	childProcess,
+	yauzl
 } = globalThis.testGlobals
 
 
@@ -44,6 +45,7 @@ export {
 	zlib,
 	cookie,
 	vscodeSqlite3,
+	yauzl,
 	os,
 	sinon,
 	electron,
