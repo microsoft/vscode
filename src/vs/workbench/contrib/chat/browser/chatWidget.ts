@@ -621,6 +621,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.domFocus();
 	}
 
+	refilter() {
+		this.tree.refilter();
+	}
+
 	setInputPlaceholder(placeholder: string): void {
 		this.viewModel?.setInputPlaceholder(placeholder);
 	}

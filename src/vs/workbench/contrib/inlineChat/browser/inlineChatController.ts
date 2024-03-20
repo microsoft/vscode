@@ -369,7 +369,6 @@ export class InlineChatController implements IEditorContribution {
 		this._sessionStore.add(this._input.value.onDidBlur(() => this.cancelSession()));
 
 		this._input.value.setSession(this._session);
-		this._zone.value.widget.setChatModel(this._session.chatModel);
 		// this._zone.value.widget.updateSlashCommands(this._session.session.slashCommands ?? []);
 		this._updatePlaceholder();
 		const message = this._session.session.message ?? localize('welcome.1', "AI-generated code may be incorrect");
@@ -1049,6 +1048,9 @@ export class InlineChatController implements IEditorContribution {
 		} else {
 			this._input.value.hide();
 			this._zone.value.show(widgetPosition);
+			if (this._session && this._zone.value.widget.chatWidget.viewModel?.model !== this._session.chatModel) {
+				this._zone.value.widget.setChatModel(this._session.chatModel);
+			}
 		}
 
 		if (this._session && this._zone.rawValue) {

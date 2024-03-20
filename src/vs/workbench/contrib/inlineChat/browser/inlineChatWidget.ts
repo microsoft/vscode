@@ -42,7 +42,7 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -189,6 +189,7 @@ export class InlineChatWidget {
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
 
+		let allowRequests = false;
 		this._chatWidget = _instantiationService.createInstance(
 			ChatWidget,
 			location,
@@ -201,21 +202,11 @@ export class InlineChatWidget {
 					telemetrySource: options.telemetrySource
 				},
 				filter: item => {
-					// TODO@jrieken what the heck is this?
-					// when filtering one element all seems to be filtered...
-					// if (isWelcomeVM(item)) {
-					// 	return false;
-					// }
-					if (isRequestVM(item)) {
-						let requestCount = 0;
-						for (const item of this._chatWidget.viewModel!.getItems()) {
-							if (isRequestVM(item)) {
-								if (++requestCount >= 2) {
-									return true;
-								}
-							}
-						}
+					if (isWelcomeVM(item)) {
 						return false;
+					}
+					if (isRequestVM(item)) {
+						return allowRequests;
 					}
 					return true;
 				},
@@ -231,6 +222,34 @@ export class InlineChatWidget {
 		this._elements.chatWidget.style.setProperty(asCssVariableName(chatRequestBackground), asCssVariable(inlineChatBackground));
 		this._chatWidget.setVisible(true);
 		this._store.add(this._chatWidget);
+
+		const viewModelListener = this._store.add(new MutableDisposable());
+		this._store.add(this._chatWidget.onDidChangeViewModel(() => {
+			const model = this._chatWidget.viewModel;
+
+			if (!model) {
+				allowRequests = false;
+				viewModelListener.clear();
+				return;
+			}
+
+			const updateAllowRequestsFilter = () => {
+				let requestCount = 0;
+				for (const item of model.getItems()) {
+					if (isRequestVM(item)) {
+						if (++requestCount >= 2) {
+							break;
+						}
+					}
+				}
+				const newAllowRequest = requestCount >= 2;
+				if (newAllowRequest !== allowRequests) {
+					allowRequests = newAllowRequest;
+					this._chatWidget.refilter();
+				}
+			};
+			viewModelListener.value = model.onDidChange(updateAllowRequestsFilter);
+		}));
 
 		const viewModelStore = this._store.add(new DisposableStore());
 		this._store.add(this._chatWidget.onDidChangeViewModel(() => {
