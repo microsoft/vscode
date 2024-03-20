@@ -21,7 +21,7 @@ const fixEsmImportLine = (relative, line) => {
     const quote2 = importMatch[4];
     const isVs = path.startsWith('vs/');
     const isRelative = path.startsWith('.');
-    if (!isVs && !isRelative || path.endsWith('.js')) {
+    if (!isVs && (!isRelative || path.endsWith('.js'))) {
         return line;
     }
     const extension = commonJs.includes(path) ? '.cjs' : '.js';
@@ -32,6 +32,7 @@ const fixEsmImportLine = (relative, line) => {
     const prefix = '../'.repeat(slashCount - 1);
     return `import${imports}${quote1}${prefix}${path}${extension}${quote2}`;
 };
+
 const fixEsmExportLine = (relative, line) => {
     const exportMatch = line.match(RE_EXPORT);
     if (!exportMatch) {

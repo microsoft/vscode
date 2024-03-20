@@ -22,7 +22,7 @@ const fixEsmImportLine = (relative: string, line: string) => {
 	const quote2 = importMatch[4]
 	const isVs = path.startsWith('vs/')
 	const isRelative = path.startsWith('.')
-	if (!isVs && !isRelative || path.endsWith('.js')) {
+	if (!isVs && (!isRelative || path.endsWith('.js'))) {
 		return line
 	}
 	const extension = commonJs.includes(path) ? '.cjs' : '.js'
