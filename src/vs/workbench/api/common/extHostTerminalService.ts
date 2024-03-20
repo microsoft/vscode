@@ -44,6 +44,10 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	readonly onDidExecuteTerminalCommand: Event<vscode.TerminalExecutedCommand>;
 	readonly onDidChangeShell: Event<string>;
 
+	readonly onDidChangeTerminalShellIntegration: Event<vscode.TerminalShellIntegrationChangeEvent>;
+	readonly onDidStartTerminalShellExecution: Event<vscode.TerminalShellExecution>;
+	readonly onDidEndTerminalShellExecution: Event<vscode.TerminalShellExecution>;
+
 	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
 	createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
 	createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
@@ -117,6 +121,10 @@ export class ExtHostTerminal {
 			},
 			get selection(): string | undefined {
 				return that._selection;
+			},
+			get shellIntegration(): vscode.TerminalShellIntegration | undefined {
+				// TODO: Impl
+				return undefined;
 			},
 			sendText(text: string, shouldExecute: boolean = true): void {
 				that._checkDisposed();
@@ -412,6 +420,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	});
 	readonly onDidExecuteTerminalCommand = this._onDidExecuteCommand.event;
 
+	protected readonly _onDidChangeTerminalShellIntegration = new Emitter<vscode.TerminalShellIntegrationChangeEvent>();
+	readonly onDidChangeTerminalShellIntegration = this._onDidChangeTerminalShellIntegration.event;
+	protected readonly _onDidStartTerminalShellExecution = new Emitter<vscode.TerminalShellExecution>();
+	readonly onDidStartTerminalShellExecution = this._onDidStartTerminalShellExecution.event;
+	protected readonly _onDidEndTerminalShellExecution = new Emitter<vscode.TerminalShellExecution>();
+	readonly onDidEndTerminalShellExecution = this._onDidEndTerminalShellExecution.event;
+
 	constructor(
 		supportsProcesses: boolean,
 		@IExtHostCommands private readonly _extHostCommands: IExtHostCommands,
@@ -453,6 +468,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 				}
 			}
 		});
+
+		setTimeout(() => {
+			console.log('*** TEST CODE');
+			this.onDidChangeTerminalShellIntegration(e => {
+				console.log('*** onDidChangeTerminalShellIntegration', e);
+			});
+		}, 2000);
 	}
 
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
