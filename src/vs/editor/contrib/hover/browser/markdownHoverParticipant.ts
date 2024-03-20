@@ -81,7 +81,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _position: Position | undefined;
 	private _context: IEditorHoverRenderContext | undefined;
 	private _focusInfo: FocusedHoverInfo | undefined;
-
 	private _hoverData: (MarkdownHover | VerboseMarkdownHover)[] = [];
 
 	constructor(
