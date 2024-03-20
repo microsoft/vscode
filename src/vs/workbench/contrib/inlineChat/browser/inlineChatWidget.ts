@@ -190,7 +190,7 @@ export class InlineChatWidget {
 			{ resource: true },
 			{
 				renderStyle: 'compact',
-				renderInputOnTop: false,
+				renderInputOnTop: true,
 				supportsFileReferences: true,
 				menus: {
 					telemetrySource: options.telemetrySource
