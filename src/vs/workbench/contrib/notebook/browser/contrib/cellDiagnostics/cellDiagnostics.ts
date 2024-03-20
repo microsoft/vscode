@@ -91,7 +91,10 @@ export class CellDiagnostics extends Disposable {
 		return {
 			severity: 8,
 			message: message,
-			...location,
+			startLineNumber: location.startLineNumber + 1,
+			startColumn: location.startColumn + 1,
+			endLineNumber: location.endLineNumber + 1,
+			endColumn: location.endColumn + 1,
 			source: 'Cell Execution Error'
 		};
 	}
