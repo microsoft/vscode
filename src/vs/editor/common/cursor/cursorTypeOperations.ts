@@ -100,6 +100,7 @@ export class TypeOperations {
 			if (pasteOnNewLine) {
 				// Paste entire line at the beginning of line
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
+				// The selection here is the first position on that line
 				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
 			} else {
 				commands[i] = new ReplaceCommand(selection, text);
@@ -127,6 +128,8 @@ export class TypeOperations {
 		if (config.multiCursorPaste === 'spread') {
 			// Try to spread the pasted text in case the line count matches the cursor count
 			// Remove trailing \n if present
+
+			// Fetching the last character of the text, verifying it is \n
 			if (text.charCodeAt(text.length - 1) === CharCode.LineFeed) {
 				text = text.substr(0, text.length - 1);
 			}
@@ -158,12 +161,16 @@ export class TypeOperations {
 		let action: IndentAction | EnterAction | null = null;
 		let indentation: string = '';
 
+		// expected indent inherited from the lines above
 		const expectedIndentAction = getInheritIndentForLine(config.autoIndent, model, lineNumber, false, config.languageConfigurationService);
 		if (expectedIndentAction) {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;
 		} else if (lineNumber > 1) {
+			// suppose there is no inherited indent and the line number is not the first
 			let lastLineNumber: number;
+			// Go all the way maybe to line 1 and find the last non whitespae index at the beginning of the text.
+			// When this index >= 0, so there is some indentation and we break the loop.
 			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
 				const lineText = model.getLineContent(lastLineNumber);
 				const nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
@@ -177,9 +184,12 @@ export class TypeOperations {
 				return null;
 			}
 
+			// This is the first line that has some indentation above
 			const maxColumn = model.getLineMaxColumn(lastLineNumber);
+			// Now suppose that after this column we click on enter, find what the indent after enter should be from this line
 			const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn), config.languageConfigurationService);
 			if (expectedEnterAction) {
+				// actual indentation plus the appended text
 				indentation = expectedEnterAction.indentation + expectedEnterAction.appendText;
 			}
 		}
@@ -192,7 +202,7 @@ export class TypeOperations {
 			if (action === IndentAction.Outdent) {
 				indentation = TypeOperations.unshiftIndent(config, indentation);
 			}
-
+			// After shifting and unshifting the indent, we normalize the indent
 			indentation = config.normalizeIndentation(indentation);
 		}
 
@@ -208,6 +218,7 @@ export class TypeOperations {
 
 		const position = selection.getStartPosition();
 		if (config.insertSpaces) {
+			// presumably because you could line wrap enabled, and the line wraps below the viewport, hence the columns would not be visible
 			const visibleColumnFromColumn = config.visibleColumnFromColumn(model, position);
 			const indentSize = config.indentSize;
 			const spacesCnt = indentSize - (visibleColumnFromColumn % indentSize);
@@ -229,10 +240,12 @@ export class TypeOperations {
 			if (selection.isEmpty()) {
 
 				const lineText = model.getLineContent(selection.startLineNumber);
-
+				// consists only of whitespace characters
 				if (/^\s*$/.test(lineText) && model.tokenization.isCheapToTokenize(selection.startLineNumber)) {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
+					// If good indent does not exist just use one tab
 					goodIndent = goodIndent || '\t';
+					// normalize the indentation
 					const possibleTypeText = config.normalizeIndentation(goodIndent);
 					if (!lineText.startsWith(possibleTypeText)) {
 						commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText, true);
@@ -246,6 +259,7 @@ export class TypeOperations {
 					const lineMaxColumn = model.getLineMaxColumn(selection.startLineNumber);
 					if (selection.startColumn !== 1 || selection.endColumn !== lineMaxColumn) {
 						// This is a single line selection that is not the entire line
+						// So the selection is part of the line
 						commands[i] = this._replaceJumpToNextIndent(config, model, selection, false);
 						continue;
 					}
@@ -280,9 +294,12 @@ export class TypeOperations {
 			return null;
 		}
 		const pos = selection.getPosition();
+		// we remove the replace previous character count
 		const startColumn = Math.max(1, pos.column - replacePrevCharCnt);
+		// we add the replace next character count
 		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
 		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
+		// get the initial text
 		const oldText = model.getValueInRange(range);
 		if (oldText === text && positionDelta === 0) {
 			// => ignore composition that doesn't do anything
@@ -300,15 +317,19 @@ export class TypeOperations {
 	}
 
 	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
+		// suppose we have no auto indent, we then add the \n and do no auto indentation
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
 			return TypeOperations._typeCommand(range, '\n', keepPosition);
 		}
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {
 			const lineText = model.getLineContent(range.startLineNumber);
+			// Take the whitespaces in front of the line text and find the indentaiton before the range start column
 			const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
+			// we add a new line and normalize the indentation
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
 
+		// We find the enter action
 		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
@@ -324,6 +345,8 @@ export class TypeOperations {
 				const normalIndent = config.normalizeIndentation(r.indentation);
 				const increasedIndent = config.normalizeIndentation(r.indentation + r.appendText);
 
+				// we add the increase indent after the first new line
+				// we add the normal indent (without the append text) after the second new line
 				const typeText = '\n' + increasedIndent + '\n' + normalIndent;
 
 				if (keepPosition) {
@@ -333,6 +356,7 @@ export class TypeOperations {
 				}
 			} else if (r.indentAction === IndentAction.Outdent) {
 				const actualIndentation = TypeOperations.unshiftIndent(config, r.indentation);
+				// we can unshift the indentation and also add some append text
 				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + r.appendText), keepPosition);
 			}
 		}
@@ -359,6 +383,7 @@ export class TypeOperations {
 				const newLineContent = model.getLineContent(range.endLineNumber);
 				const firstNonWhitespace = strings.firstNonWhitespaceIndex(newLineContent);
 				if (firstNonWhitespace >= 0) {
+					// add the first non whitespace index to the range end column
 					range = range.setEndPosition(range.endLineNumber, Math.max(range.endColumn, firstNonWhitespace + 1));
 				} else {
 					range = range.setEndPosition(range.endLineNumber, model.getLineMaxColumn(range.endLineNumber));
@@ -383,6 +408,7 @@ export class TypeOperations {
 	}
 
 	private static _isAutoIndentType(config: CursorConfiguration, model: ITextModel, selections: Selection[]): boolean {
+		// We auto indent on type only if the strategy is full
 		if (config.autoIndent < EditorAutoIndentStrategy.Full) {
 			return false;
 		}
@@ -411,7 +437,9 @@ export class TypeOperations {
 			return null;
 		}
 
+		// suppose that the actual indentation is not equal to the normalized current indentation
 		if (actualIndentation !== config.normalizeIndentation(currentIndentation)) {
+			// find the first non white space cgaracter on that start line
 			const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(range.startLineNumber);
 			if (firstNonWhitespace === 0) {
 				return TypeOperations._typeCommand(
@@ -423,7 +451,7 @@ export class TypeOperations {
 				return TypeOperations._typeCommand(
 					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
 					config.normalizeIndentation(actualIndentation) +
-					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + ch,
+					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + ch, // also - model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1)
 					false
 				);
 			}
@@ -441,6 +469,7 @@ export class TypeOperations {
 			return false;
 		}
 
+		// cycling through the selections
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
@@ -450,6 +479,7 @@ export class TypeOperations {
 
 			const position = selection.getPosition();
 			const lineText = model.getLineContent(position.lineNumber);
+			// The characters at the current position after the selection position
 			const afterCharacter = lineText.charAt(position.column - 1);
 
 			if (afterCharacter !== ch) {
@@ -457,7 +487,9 @@ export class TypeOperations {
 			}
 
 			// Do not over-type quotes after a backslash
+			// include ', " and `
 			const chIsQuote = isQuote(ch);
+			// The character before the selection position
 			const beforeCharacter = position.column > 2 ? lineText.charCodeAt(position.column - 2) : CharCode.Null;
 			if (beforeCharacter === CharCode.Backslash && chIsQuote) {
 				return false;
@@ -487,7 +519,9 @@ export class TypeOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			const position = selection.getPosition();
+			// The only difference is that the endColumn is one more than the startColumn
 			const typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
+			// replacing with character ch
 			commands[i] = new ReplaceCommand(typeSelection, ch);
 		}
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
@@ -505,6 +539,8 @@ export class TypeOperations {
 		const isBeforeStartingBrace = potentialStartingBraces.some(x => lineAfter.startsWith(x.open));
 		const isBeforeClosingBrace = potentialClosingBraces.some(x => lineAfter.startsWith(x.close));
 
+		// return if is not before start brace and is before closing brace
+		// should not be both before start brace and before closing brace
 		return !isBeforeStartingBrace && isBeforeClosingBrace;
 	}
 
@@ -528,7 +564,9 @@ export class TypeOperations {
 			if (result === null || candidate.open.length > result.open.length) {
 				let candidateIsMatch = true;
 				for (const position of positions) {
+					// removing the length of the candidate from the position.column
 					const relevantText = model.getValueInRange(new Range(position.lineNumber, position.column - candidate.open.length + 1, position.lineNumber, position.column));
+					// adding the character ch to the relevant text
 					if (relevantText + ch !== candidate.open) {
 						candidateIsMatch = false;
 						break;
@@ -803,6 +841,7 @@ export class TypeOperations {
 		}
 
 		if (electricAction.matchOpenBracket) {
+			// Addingthe character to the line content and find the last index of a matching open bracket, updating the end column
 			const endColumn = (lineTokens.getLineContent() + ch).lastIndexOf(electricAction.matchOpenBracket) + 1;
 			const match = model.bracketPairs.findMatchingBracketUp(electricAction.matchOpenBracket, {
 				lineNumber: position.lineNumber,
@@ -816,12 +855,15 @@ export class TypeOperations {
 				}
 				const matchLine = model.getLineContent(match.startLineNumber);
 				const matchLineIndentation = strings.getLeadingWhitespace(matchLine);
+				// normalize the indentation for the line
 				const newIndentation = config.normalizeIndentation(matchLineIndentation);
 
 				const lineText = model.getLineContent(position.lineNumber);
 				const lineFirstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber) || position.column;
 
+				// take the string from that position
 				const prefix = lineText.substring(lineFirstNonBlankColumn - 1, position.column - 1);
+				// adding that text before the character and after the new indentation
 				const typeText = newIndentation + prefix + ch;
 
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, position.column);
@@ -936,6 +978,7 @@ export class TypeOperations {
 
 	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
 
+		// If the character is the new line
 		if (!isDoingComposition && ch === '\n') {
 			const commands: ICommand[] = [];
 			for (let i = 0, len = selections.length; i < len; i++) {
@@ -953,6 +996,7 @@ export class TypeOperations {
 			for (let i = 0, len = selections.length; i < len; i++) {
 				commands[i] = this._runAutoIndentType(config, model, selections[i], ch);
 				if (!commands[i]) {
+					// The automatic indentation does not work
 					autoIndentFails = true;
 					break;
 				}
