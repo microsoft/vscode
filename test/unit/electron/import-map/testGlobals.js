@@ -16,6 +16,7 @@ const {
 	electron,
 	minimist,
 	gracefulFs,
+	sinonTest,
 	childProcess
 } = globalThis.testGlobals
 
@@ -36,6 +37,7 @@ export {
 	os,
 	sinon,
 	electron,
+	sinonTest,
 	minimist,
 	gracefulFs,
 	childProcess

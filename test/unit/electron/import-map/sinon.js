@@ -1,8 +1,8 @@
 import { sinon } from './testGlobals.js'
 
 
-const { stub } = sinon
+const { stub, createSandbox, sandbox } = sinon
 
-export { stub }
+export { stub, createSandbox, sandbox }
 
 export default sinon

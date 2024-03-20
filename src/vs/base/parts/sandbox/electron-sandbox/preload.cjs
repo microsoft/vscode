@@ -349,6 +349,7 @@ if (isTest) {
 	const url = require('url')
 	const sinon = require('sinon')
 	const childProcess = require('child_process')
+	const sinonTest = require('sinon-test')
 	const fs = require('fs')
 	const net = require('net')
 	const gracefulFs = require('graceful-fs')
@@ -396,7 +397,8 @@ if (isTest) {
 		zlib,
 		minimist,
 		gracefulFs,
-		childProcess
+		childProcess,
+		sinonTest
 	}
 	// @ts-ignore
 	window.testGlobals = testGlobals

@@ -1,6 +1,6 @@
 import { electron } from './testGlobals.js';
 
 
-const { ipcMain, screen, BrowserWindow, app } = electron
+const { ipcMain, screen, BrowserWindow, app, nativeTheme, dialog } = electron
 
-export { ipcMain, screen, BrowserWindow, app }
+export { ipcMain, screen, BrowserWindow, app, nativeTheme, dialog }
