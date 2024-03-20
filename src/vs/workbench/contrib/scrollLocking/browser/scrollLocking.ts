@@ -147,10 +147,10 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 		if (active) {
 			if (!this.statusBarEntry.value) {
 				this.statusBarEntry.value = this.statusbarService.addEntry({
-					name: 'Scrolling Locked',
-					text: 'Scrolling Locked',
-					tooltip: 'Lock Scrolling enabled',
-					ariaLabel: 'Scrolling Locked',
+					name: localize('mouseScrolllingLocked', 'Scrolling Locked'),
+					text: localize('mouseScrolllingLocked', 'Scrolling Locked'),
+					tooltip: localize('mouseLockScrollingEnabled', 'Lock Scrolling Enabled'),
+					ariaLabel: localize('mouseScrolllingLocked', 'Scrolling Locked'),
 					command: {
 						id: 'workbench.action.toggleLockedScrolling',
 						title: ''
