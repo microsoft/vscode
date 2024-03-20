@@ -11,6 +11,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { Emitter, type Event } from 'vs/base/common/event';
 import type { URI } from 'vs/base/common/uri';
+import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from 'vs/base/common/async';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
 	readonly _serviceBrand: undefined;
@@ -27,6 +28,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 
 	protected _proxy: MainThreadTerminalShellIntegrationShape;
 
+	private _activeShellIntegrations: Map<number, InternalTerminalShellIntegration> = new Map();
 	private _activeShellExecutions: Map<number, InternalTerminalShellExecution> = new Map();
 
 	protected readonly _onDidChangeTerminalShellIntegration = new Emitter<vscode.TerminalShellIntegrationChangeEvent>();
@@ -60,14 +62,14 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		const terminal = this._extHostTerminalService.getTerminalById(id);
 		if (terminal) {
 			const apiTerminal = terminal.value;
-			let shellIntegration = apiTerminal.shellIntegration;
+			let shellIntegration = this._activeShellIntegrations.get(id);
 			if (!shellIntegration) {
-				// TODO: Set it
-				shellIntegration = apiTerminal.shellIntegration!;
+				shellIntegration = new InternalTerminalShellIntegration();
+				terminal.shellIntegration = shellIntegration.value;
 			}
 			this._onDidChangeTerminalShellIntegration.fire({
 				terminal: apiTerminal,
-				shellIntegration
+				shellIntegration: shellIntegration.value
 			});
 		}
 	}
@@ -90,11 +92,28 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	}
 }
 
+class InternalTerminalShellIntegration {
+	readonly value: vscode.TerminalShellIntegration;
+
+	constructor() {
+		// TODO: impl
+		this.value = {
+			cwd: undefined,
+			executeCommand() {
+				return null!;
+			}
+		};
+	}
+}
+
 class InternalTerminalShellExecution {
+	private _dataStreamBarrier: Barrier | undefined;
+	private _dataStreamEmitter: AsyncIterableEmitter<string> | undefined;
+
 	private readonly _exitCode: Promise<number | undefined>;
 	private _exitCodeResolve: ((exitCode: number | undefined) => void) | undefined;
 
-	value: vscode.TerminalShellExecution;
+	readonly value: vscode.TerminalShellExecution;
 
 	constructor(
 		readonly terminal: vscode.Terminal,
@@ -120,21 +139,24 @@ class InternalTerminalShellExecution {
 				return that._exitCode;
 			},
 			get dataStream(): AsyncIterator<string> {
-				// TODO: This must work across multiple extensions
 				return that._createDataStream();
-			}
-		}
-	}
-
-	private _createDataStream(): AsyncIterator<string> {
-		return {
-			next() {
-				return Promise.resolve({ value: '', done: true });
 			}
 		};
 	}
 
+	private _createDataStream(): AsyncIterator<string> {
+		// TODO: This must work correctly across multiple extensions
+		const barrier = this._dataStreamBarrier = new Barrier();
+		const iterable = new AsyncIterableObject<string>(async emitter => {
+			this._dataStreamEmitter = emitter;
+			await barrier.wait();
+		});
+
+		return iterable[Symbol.asyncIterator]();
+	}
+
 	endExecution(exitCode: number | undefined): void {
+		this._dataStreamBarrier?.open();
 		this._exitCodeResolve?.(exitCode);
 		this._exitCodeResolve = undefined;
 	}
