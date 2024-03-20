@@ -13,6 +13,7 @@ import * as MarkdownItType from 'markdown-it';
 import { commands, languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
 import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
 import { JsonStringScanner } from './jsonReconstruct';
+import { implicitActivationEvent, redundantImplicitActivationEvent } from './constants';
 
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
@@ -30,11 +31,8 @@ const svgsNotValid = l10n.t("SVGs are not a valid image source.");
 const embeddedSvgsNotValid = l10n.t("Embedded SVGs are not a valid image source.");
 const dataUrlsNotValid = l10n.t("Data URLs are not a valid image source.");
 const relativeUrlRequiresHttpsRepository = l10n.t("Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
-const relativeIconUrlRequiresHttpsRepository = l10n.t("An icon requires a repository with HTTPS protocol to be specified in this package.json.");
 const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
-const implicitActivationEvent = l10n.t("This activation event cannot be explicitly listed by your extension.");
-const redundantImplicitActivationEvent = l10n.t("This activation event can be removed as VS Code generates these automatically from your package.json contribution declarations.");
 const bumpEngineForImplicitActivationEvents = l10n.t("This activation event can be removed for extensions targeting engine version ^1.75 as VS Code will generate these automatically from your package.json contribution declarations.");
 const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
 const parsingErrorHeader = l10n.t("Error parsing the when-clause:");
@@ -129,7 +127,7 @@ export class ExtensionLinter {
 
 			const tree = parseTree(document.getText());
 			const info = this.readPackageJsonInfo(this.getUriFolder(document.uri), tree);
-			if (info.isExtension) {
+			if (tree && info.isExtension) {
 
 				const icon = findNodeAtLocation(tree, ['icon']);
 				if (icon && icon.type === 'string') {
@@ -458,11 +456,10 @@ export class ExtensionLinter {
 			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
 		}
 
-		if (!hasScheme && !info.hasHttpsRepository) {
+		if (!hasScheme && !info.hasHttpsRepository && context !== Context.ICON) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			const message = (() => {
 				switch (context) {
-					case Context.ICON: return relativeIconUrlRequiresHttpsRepository;
 					case Context.BADGE: return relativeBadgeUrlRequiresHttpsRepository;
 					default: return relativeUrlRequiresHttpsRepository;
 				}
@@ -525,7 +522,8 @@ function parseImplicitActivationEvents(tree: JsonNode): Set<string> {
 	const languageContributions = findNodeAtLocation(tree, ['contributes', 'languages']);
 	languageContributions?.children?.forEach(child => {
 		const id = findNodeAtLocation(child, ['id']);
-		if (id && id.type === 'string') {
+		const configuration = findNodeAtLocation(child, ['configuration']);
+		if (id && id.type === 'string' && configuration && configuration.type === 'string') {
 			activationEvents.add(`onLanguage:${id.value}`);
 		}
 	});

@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import { EndOfLineSequence, FindMatch, SearchData } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 // --------- Find
 suite('TextModelSearch', () => {
 
-	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS, []);
 
 	function assertFindMatch(actual: FindMatch | null, expectedRange: Range, expectedMatches: string[] | null = null): void {
 		assert.deepStrictEqual(actual, new FindMatch(expectedRange, expectedMatches));

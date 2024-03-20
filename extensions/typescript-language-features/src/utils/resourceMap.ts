@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as fileSchemes from '../utils/fileSchemes';
+import * as fileSchemes from '../configuration/fileSchemes';
+import { looksLikeAbsoluteWindowsPath } from './fs';
 
 /**
  * Maps of file resources
@@ -72,11 +73,11 @@ export class ResourceMap<T> {
 		this._map.clear();
 	}
 
-	public get values(): Iterable<T> {
+	public values(): Iterable<T> {
 		return Array.from(this._map.values(), x => x.value);
 	}
 
-	public get entries(): Iterable<{ resource: vscode.Uri; value: T }> {
+	public entries(): Iterable<{ resource: vscode.Uri; value: T }> {
 		return this._map.values();
 	}
 
@@ -89,13 +90,9 @@ export class ResourceMap<T> {
 	}
 
 	private isCaseInsensitivePath(path: string) {
-		if (isWindowsPath(path)) {
+		if (looksLikeAbsoluteWindowsPath(path)) {
 			return true;
 		}
 		return path[0] === '/' && this.config.onCaseInsensitiveFileSystem;
 	}
-}
-
-function isWindowsPath(path: string): boolean {
-	return /^[a-zA-Z]:[\/\\]/.test(path);
 }

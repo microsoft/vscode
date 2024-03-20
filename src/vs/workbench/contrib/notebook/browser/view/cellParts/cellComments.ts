@@ -63,6 +63,7 @@ export class CellComments extends CellContentPart {
 		this._commentThreadWidget = this.instantiationService.createInstance(
 			CommentThreadWidget,
 			this.container,
+			this.notebookEditor,
 			owner,
 			this.notebookEditor.textModel!.uri,
 			this.contextKeyService,
@@ -140,7 +141,7 @@ export class CellComments extends CellContentPart {
 		if (this.notebookEditor.hasModel()) {
 			const commentInfos = coalesce(await this.commentService.getNotebookComments(element.uri));
 			if (commentInfos.length && commentInfos[0].threads.length) {
-				return { owner: commentInfos[0].owner, thread: commentInfos[0].threads[0] };
+				return { owner: commentInfos[0].uniqueOwner, thread: commentInfos[0].threads[0] };
 			}
 		}
 

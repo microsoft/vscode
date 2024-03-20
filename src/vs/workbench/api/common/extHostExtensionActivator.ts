@@ -193,6 +193,14 @@ export class ExtensionsActivator implements IDisposable {
 		}
 	}
 
+	public async waitForActivatingExtensions(): Promise<void> {
+		const res: Promise<boolean>[] = [];
+		for (const [_, op] of this._operations) {
+			res.push(op.wait());
+		}
+		await Promise.all(res);
+	}
+
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
 		const op = this._operations.get(extensionId);
 		return Boolean(op && op.value);
@@ -223,7 +231,7 @@ export class ExtensionsActivator implements IDisposable {
 	public activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		const desc = this._registry.getExtensionDescription(extensionId);
 		if (!desc) {
-			throw new Error(`Extension '${extensionId}' is not known`);
+			throw new Error(`Extension '${extensionId.value}' is not known`);
 		}
 		return this._activateExtensions([{ id: desc.identifier, reason }]);
 	}

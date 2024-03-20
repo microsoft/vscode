@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, IReference, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -18,12 +18,12 @@ import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/se
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { CellEditState, CellFocusMode, CursorAtBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { getEditorTopPadding, NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -103,6 +103,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
 	private _editorTransientState: IWordWrapTransientState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
+	private _textModelRefChangeDisposable = this._register(new MutableDisposable());
 
 	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>());
 	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
@@ -246,7 +247,7 @@ export abstract class BaseCellViewModel extends Disposable {
 					viewState: {
 						scrollLeft: 0,
 						firstPosition: { lineNumber: 1, column: 1 },
-						firstPositionDeltaTop: getEditorTopPadding()
+						firstPositionDeltaTop: this._viewContext.notebookOptions.getLayoutConfiguration().editorTopPadding
 					}
 				});
 			}
@@ -299,6 +300,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._textModelRef.dispose();
 			this._textModelRef = undefined;
 		}
+		this._textModelRefChangeDisposable.clear();
 	}
 
 	getText(): string {
@@ -386,10 +388,26 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _removeCellDecoration(decorationId: string) {
 		const options = this._resolvedCellDecorations.get(decorationId);
+		this._resolvedCellDecorations.delete(decorationId);
 
 		if (options) {
+			for (const existingOptions of this._resolvedCellDecorations.values()) {
+				// don't remove decorations that are applied from other entries
+				if (options.className === existingOptions.className) {
+					options.className = undefined;
+				}
+				if (options.outputClassName === existingOptions.outputClassName) {
+					options.outputClassName = undefined;
+				}
+				if (options.gutterClassName === existingOptions.gutterClassName) {
+					options.gutterClassName = undefined;
+				}
+				if (options.topClassName === existingOptions.topClassName) {
+					options.topClassName = undefined;
+				}
+			}
+
 			this._cellDecorationsChanged.fire({ added: [], removed: [options] });
-			this._resolvedCellDecorations.delete(decorationId);
 		}
 	}
 
@@ -499,6 +517,33 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForPosition(position.lineNumber, position.column) + editorPadding.top;
 	}
 
+	cursorAtLineBoundary(): CursorAtLineBoundary {
+		if (!this._textEditor || !this.textModel || !this._textEditor.hasTextFocus()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const selection = this._textEditor.getSelection();
+
+		if (!selection || !selection.isEmpty()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const currentLineLength = this.textModel.getLineLength(selection.startLineNumber);
+
+		if (currentLineLength === 0) {
+			return CursorAtLineBoundary.Both;
+		}
+
+		switch (selection.startColumn) {
+			case 1:
+				return CursorAtLineBoundary.Start;
+			case currentLineLength + 1:
+				return CursorAtLineBoundary.End;
+			default:
+				return CursorAtLineBoundary.None;
+		}
+	}
+
 	cursorAtBoundary(): CursorAtBoundary {
 		if (!this._textEditor) {
 			return CursorAtBoundary.None;
@@ -517,7 +562,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		const firstViewLineTop = this._textEditor.getTopForPosition(1, 1);
-		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel!.getLineCount(), this.textModel!.getLineLength(this.textModel!.getLineCount()));
+		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel.getLineCount(), this.textModel.getLineLength(this.textModel.getLineCount()));
 		const selectionTop = this._textEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
 
 		if (selectionTop === lastViewLineTop) {
@@ -575,8 +620,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			if (!this._textModelRef) {
 				throw new Error(`Cannot resolve text model for ${this.uri}`);
 			}
-
-			this._register(this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent()));
+			this._textModelRefChangeDisposable.value = this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent());
 		}
 
 		return this.textModel!;

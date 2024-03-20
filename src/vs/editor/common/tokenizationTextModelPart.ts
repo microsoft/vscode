@@ -6,7 +6,6 @@
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 
@@ -14,11 +13,6 @@ import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTo
  * Provides tokenization related functionality of the text model.
 */
 export interface ITokenizationTextModelPart {
-	/**
-	 * @internal
-	 */
-	setTokens(tokens: ContiguousMultilineTokens[]): void;
-
 	readonly hasTokens: boolean;
 
 	/**
@@ -63,6 +57,12 @@ export interface ITokenizationTextModelPart {
 	tokenizeIfCheap(lineNumber: number): void;
 
 	/**
+	 * Check if tokenization information is accurate for `lineNumber`.
+	 * @internal
+	 */
+	hasAccurateTokensForLine(lineNumber: number): boolean;
+
+	/**
 	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
 	 * This is based on a heuristic.
 	 * @internal
@@ -87,11 +87,6 @@ export interface ITokenizationTextModelPart {
 	 * @internal
 	*/
 	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
-
-	/**
-	 * @internal
-	 */
-	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
 
 	getLanguageId(): string;
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;

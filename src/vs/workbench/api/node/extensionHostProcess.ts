@@ -7,7 +7,7 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
 import * as performance from 'vs/base/common/performance';
-import type { UtilityNodeJSProcess, MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
+import type { MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
 import { isCancellationError, isSigPipeError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -76,6 +76,7 @@ const args = minimist(process.argv.slice(2), {
 
 // custom process.exit logic...
 const nativeExit: IExitFn = process.exit.bind(process);
+const nativeOn = process.on.bind(process);
 function patchProcess(allowExit: boolean) {
 	process.exit = function (code?: number) {
 		if (allowExit) {
@@ -97,6 +98,23 @@ function patchProcess(allowExit: boolean) {
 	// on the desktop.
 	// Refs https://github.com/microsoft/vscode/issues/151012#issuecomment-1156593228
 	process.env['ELECTRON_RUN_AS_NODE'] = '1';
+
+	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
+		if (event === 'uncaughtException') {
+			listener = function () {
+				try {
+					return listener.call(undefined, arguments);
+				} catch {
+					// DO NOT HANDLE NOR PRINT the error here because this can and will lead to
+					// more errors which will cause error handling to be reentrant and eventually
+					// overflowing the stack. Do not be sad, we do handle and annotate uncaught
+					// errors properly in 'extensionHostMain'
+				}
+			};
+		}
+		nativeOn(event, listener);
+	};
+
 }
 
 interface IRendererConnection {
@@ -132,7 +150,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				});
 			};
 
-			(process as UtilityNodeJSProcess).parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
+			process.parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
 		});
 
 	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
@@ -382,8 +400,8 @@ async function startExtensionHostProcess(): Promise<void> {
 		declare readonly _serviceBrand: undefined;
 		public readonly pid = process.pid;
 		exit(code: number) { nativeExit(code); }
-		exists(path: string) { return Promises.exists(path); }
-		realpath(path: string) { return realpath(path); }
+		fsExists(path: string) { return Promises.exists(path); }
+		fsRealpath(path: string) { return realpath(path); }
 	};
 
 	// Attempt to load uri transformer

@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ITextModel } from 'vs/editor/common/model';
+import { ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageIdCodec, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ITextModel } from 'vs/editor/common/model';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 
-const ttPolicy = window.trustedTypes?.createPolicy('standaloneColorizer', { createHTML: value => value });
+const ttPolicy = createTrustedTypesPolicy('standaloneColorizer', { createHTML: value => value });
 
 export interface IColorizerOptions {
 	tabSize?: number;

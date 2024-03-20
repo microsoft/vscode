@@ -9,7 +9,8 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { AbstractURLService } from 'vs/platform/url/common/urlService';
 import { Event } from 'vs/base/common/event';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IOpenerService, IOpener, OpenExternalOptions, OpenInternalOptions, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService, IOpener, OpenExternalOptions, OpenInternalOptions } from 'vs/platform/opener/common/opener';
+import { matchesScheme } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface IURLCallbackProvider {

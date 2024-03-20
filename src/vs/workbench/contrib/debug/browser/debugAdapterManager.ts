@@ -341,9 +341,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		// Or if a breakpoint can be set in the current file (good hint that an extension can handle it)
 		if ((!languageLabel || gettingConfigurations || (model && this.canSetBreakpointsIn(model))) && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
+
 			candidates = this.debuggers
 				.filter(a => a.enabled)
-				.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
+				.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasDynamicConfigurationProviders() || dbg.hasConfigurationProvider());
 		}
 
 		if (candidates.length === 0 && languageLabel) {
@@ -364,6 +365,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		this.initExtensionActivationsIfNeeded();
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
+		candidates = candidates.filter(a => !a.isHiddenFromDropdown);
 
 		const suggestedCandidates: Debugger[] = [];
 		const otherCandidates: Debugger[] = [];

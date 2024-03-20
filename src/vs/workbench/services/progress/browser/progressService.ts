@@ -11,7 +11,7 @@ import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IP
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, INotificationHandle, NotificationPriority, isNotificationSource, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -21,10 +21,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
 import { parseLinkedText } from 'vs/base/common/linkedText';
-import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -67,8 +69,18 @@ export class ProgressService extends Disposable implements IProgressService {
 		}
 
 		switch (location) {
-			case ProgressLocation.Notification:
-				return this.withNotificationProgress({ ...options, location, silent: this.notificationService.doNotDisturbMode }, task, onDidCancel);
+			case ProgressLocation.Notification: {
+				let priority = (options as IProgressNotificationOptions).priority;
+				if (priority !== NotificationPriority.URGENT) {
+					if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
+						priority = NotificationPriority.SILENT;
+					} else if (isNotificationSource(options.source) && this.notificationService.getFilter(options.source) === NotificationsFilter.ERROR) {
+						priority = NotificationPriority.SILENT;
+					}
+				}
+
+				return this.withNotificationProgress({ ...options, location, priority }, task, onDidCancel);
+			}
 			case ProgressLocation.Window: {
 				const type = (options as IProgressWindowOptions).type;
 				if ((options as IProgressWindowOptions).command) {
@@ -78,7 +90,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				// Window progress without command can be shown as silent notification
 				// which will first appear in the status bar and can then be brought to
 				// the front when clicking.
-				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, silent: true, location: ProgressLocation.Notification, type }, task, onDidCancel);
+				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, priority: NotificationPriority.SILENT, location: ProgressLocation.Notification, type }, task, onDidCancel);
 			}
 			case ProgressLocation.Explorer:
 				return this.withPaneCompositeProgress('workbench.view.explorer', ViewContainerLocation.Sidebar, task, { ...options, location });
@@ -266,7 +278,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			return toDisposable(() => promise.complete());
 		};
 
-		const createNotification = (message: string, silent: boolean, increment?: number): INotificationHandle => {
+		const createNotification = (message: string, priority?: NotificationPriority, increment?: number): INotificationHandle => {
 			const notificationDisposables = new DisposableStore();
 
 			const primaryActions = options.primaryActions ? Array.from(options.primaryActions) : [];
@@ -310,7 +322,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				source: options.source,
 				actions: { primary: primaryActions, secondary: secondaryActions },
 				progress: typeof increment === 'number' && increment >= 0 ? { total: 100, worked: increment } : { infinite: true },
-				silent
+				priority
 			});
 
 			// Switch to window based progress once the notification
@@ -328,7 +340,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				}
 			};
 			notificationDisposables.add(notification.onDidChangeVisibility(onVisibilityChange));
-			if (silent) {
+			if (priority === NotificationPriority.SILENT) {
 				onVisibilityChange(false);
 			}
 
@@ -365,10 +377,10 @@ export class ProgressService extends Disposable implements IProgressService {
 				// create notification now or after a delay
 				if (typeof options.delay === 'number' && options.delay > 0) {
 					if (typeof notificationTimeout !== 'number') {
-						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, !!options.silent, step?.increment), options.delay);
+						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, options.priority, step?.increment), options.delay);
 					}
 				} else {
-					notificationHandle = createNotification(titleAndMessage, !!options.silent, step?.increment);
+					notificationHandle = createNotification(titleAndMessage, options.priority, step?.increment);
 				}
 			}
 
@@ -451,7 +463,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		let activityProgress: IDisposable;
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
-			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), clazz: 'progress-badge', priority: 100 });
+			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), priority: 100 });
 			const startTimeVisible = Date.now();
 			const minTimeVisible = 300;
 			activityProgress = {
@@ -545,7 +557,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 
 			dialog = new Dialog(
-				this.layoutService.container,
+				this.layoutService.activeContainer,
 				message,
 				buttons,
 				{
@@ -555,8 +567,8 @@ export class ProgressService extends Disposable implements IProgressService {
 					disableCloseAction: options.sticky,
 					disableDefaultAction: options.sticky,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
-						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-						if (resolved?.commandId) {
+						const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
+						if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 							if (!allowableCommands.includes(resolved.commandId)) {
 								EventHelper.stop(event, true);
 							}

@@ -18,11 +18,13 @@ let _isCI = false;
 let _isMobile = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
+let _platformLocale: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
 let _userAgent: string | undefined = undefined;
 
 interface NLSConfig {
 	locale: string;
+	osLocale: string;
 	availableLanguages: { [key: string]: string };
 	_translationsConfigFile: string;
 }
@@ -43,6 +45,7 @@ export interface INodeProcess {
 	arch: string;
 	env: IProcessEnvironment;
 	versions?: {
+		node?: string;
 		electron?: string;
 		chrome?: string;
 	};
@@ -51,19 +54,14 @@ export interface INodeProcess {
 }
 
 declare const process: INodeProcess;
-declare const global: unknown;
-declare const self: unknown;
 
-/**
- * @deprecated use `globalThis` instead
- */
-export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
+const $globalThis: any = globalThis;
 
 let nodeProcess: INodeProcess | undefined = undefined;
-if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
+if (typeof $globalThis.vscode !== 'undefined' && typeof $globalThis.vscode.process !== 'undefined') {
 	// Native environment (sandboxed)
-	nodeProcess = globals.vscode.process;
-} else if (typeof process !== 'undefined') {
+	nodeProcess = $globalThis.vscode.process;
+} else if (typeof process !== 'undefined' && typeof process?.versions?.node === 'string') {
 	// Native environment (non-sandboxed)
 	nodeProcess = process;
 }
@@ -74,11 +72,38 @@ const isElectronRenderer = isElectronProcess && nodeProcess?.type === 'renderer'
 interface INavigator {
 	userAgent: string;
 	maxTouchPoints?: number;
+	language: string;
 }
 declare const navigator: INavigator;
 
+// Native environment
+if (typeof nodeProcess === 'object') {
+	_isWindows = (nodeProcess.platform === 'win32');
+	_isMacintosh = (nodeProcess.platform === 'darwin');
+	_isLinux = (nodeProcess.platform === 'linux');
+	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
+	_isElectron = isElectronProcess;
+	_isCI = !!nodeProcess.env['CI'] || !!nodeProcess.env['BUILD_ARTIFACTSTAGINGDIRECTORY'];
+	_locale = LANGUAGE_DEFAULT;
+	_language = LANGUAGE_DEFAULT;
+	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
+	if (rawNlsConfig) {
+		try {
+			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
+			const resolved = nlsConfig.availableLanguages['*'];
+			_locale = nlsConfig.locale;
+			_platformLocale = nlsConfig.osLocale;
+			// VSCode's default language is 'en'
+			_language = resolved ? resolved : LANGUAGE_DEFAULT;
+			_translationsConfigFile = nlsConfig._translationsConfigFile;
+		} catch (e) {
+		}
+	}
+	_isNative = true;
+}
+
 // Web environment
-if (typeof navigator === 'object' && !isElectronRenderer) {
+else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_userAgent = navigator.userAgent;
 	_isWindows = _userAgent.indexOf('Windows') >= 0;
 	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
@@ -96,33 +121,8 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	);
 
 	_locale = configuredLocale || LANGUAGE_DEFAULT;
-
 	_language = _locale;
-}
-
-// Native environment
-else if (typeof nodeProcess === 'object') {
-	_isWindows = (nodeProcess.platform === 'win32');
-	_isMacintosh = (nodeProcess.platform === 'darwin');
-	_isLinux = (nodeProcess.platform === 'linux');
-	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
-	_isElectron = isElectronProcess;
-	_isCI = !!nodeProcess.env['CI'] || !!nodeProcess.env['BUILD_ARTIFACTSTAGINGDIRECTORY'];
-	_locale = LANGUAGE_DEFAULT;
-	_language = LANGUAGE_DEFAULT;
-	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
-	if (rawNlsConfig) {
-		try {
-			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
-			const resolved = nlsConfig.availableLanguages['*'];
-			_locale = nlsConfig.locale;
-			// VSCode's default language is 'en'
-			_language = resolved ? resolved : LANGUAGE_DEFAULT;
-			_translationsConfigFile = nlsConfig._translationsConfigFile;
-		} catch (e) {
-		}
-	}
-	_isNative = true;
+	_platformLocale = navigator.language;
 }
 
 // Unknown environment
@@ -163,7 +163,8 @@ export const isLinuxSnap = _isLinuxSnap;
 export const isNative = _isNative;
 export const isElectron = _isElectron;
 export const isWeb = _isWeb;
-export const isWebWorker = (_isWeb && typeof globals.importScripts === 'function');
+export const isWebWorker = (_isWeb && typeof $globalThis.importScripts === 'function');
+export const webWorkerOrigin = isWebWorker ? $globalThis.origin : undefined;
 export const isIOS = _isIOS;
 export const isMobile = _isMobile;
 /**
@@ -175,8 +176,8 @@ export const platform = _platform;
 export const userAgent = _userAgent;
 
 /**
- * The language used for the user interface. or the locale specified by --locale
- * The format of the string is all lower case (e.g. zh-tw for Traditional
+ * The language used for the user interface. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
  * Chinese)
  */
 export const language = _language;
@@ -203,17 +204,26 @@ export namespace Language {
 }
 
 /**
- * The OS locale. The format of the string is all lower case (e.g. zh-tw for Traditional
+ * The OS locale or the locale specified by --locale. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
  * Chinese). The UI is not necessarily shown in the provided locale.
  */
 export const locale = _locale;
+
+/**
+ * This will always be set to the OS/browser's locale regardless of
+ * what was specified by --locale. The format of the string is all
+ * lower case (e.g. zh-tw for Traditional Chinese). The UI is not
+ * necessarily shown in the provided locale.
+ */
+export const platformLocale = _platformLocale;
 
 /**
  * The translations that are available through language packs.
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-export const setTimeout0IsFaster = (typeof globals.postMessage === 'function' && !globals.importScripts);
+export const setTimeout0IsFaster = (typeof $globalThis.postMessage === 'function' && !$globalThis.importScripts);
 
 /**
  * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
@@ -228,7 +238,8 @@ export const setTimeout0 = (() => {
 			callback: () => void;
 		}
 		const pending: IQueueElement[] = [];
-		globals.addEventListener('message', (e: MessageEvent) => {
+
+		$globalThis.addEventListener('message', (e: any) => {
 			if (e.data && e.data.vscodeScheduleAsyncWork) {
 				for (let i = 0, len = pending.length; i < len; i++) {
 					const candidate = pending[i];
@@ -247,7 +258,7 @@ export const setTimeout0 = (() => {
 				id: myId,
 				callback: callback
 			});
-			globals.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
+			$globalThis.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
 		};
 	}
 	return (callback: () => void) => setTimeout(callback);
@@ -279,3 +290,7 @@ export const isFirefox = !!(userAgent && userAgent.indexOf('Firefox') >= 0);
 export const isSafari = !!(!isChrome && (userAgent && userAgent.indexOf('Safari') >= 0));
 export const isEdge = !!(userAgent && userAgent.indexOf('Edg/') >= 0);
 export const isAndroid = !!(userAgent && userAgent.indexOf('Android') >= 0);
+
+export function isBigSurOrNewer(osVersion: string): boolean {
+	return parseFloat(osVersion) >= 20;
+}

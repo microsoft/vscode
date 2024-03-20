@@ -5,7 +5,7 @@
 
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -21,9 +21,8 @@ export class ToggleStickyScroll extends Action2 {
 		super({
 			id: 'editor.action.toggleStickyScroll',
 			title: {
-				value: localize('toggleStickyScroll', "Toggle Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Sticky Scroll"),
-				original: 'Toggle Sticky Scroll',
+				...localize2('toggleEditorStickyScroll', "Toggle Editor Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Editor Sticky Scroll"),
 			},
 			category: Categories.View,
 			toggled: {
@@ -33,7 +32,7 @@ export class ToggleStickyScroll extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 2 },
+				{ id: MenuId.MenubarAppearanceMenu, group: '4_editor', order: 3 },
 				{ id: MenuId.StickyScrollContext }
 			]
 		});
@@ -46,7 +45,7 @@ export class ToggleStickyScroll extends Action2 {
 	}
 }
 
-const weight = KeybindingWeight.EditorContrib + 10000;
+const weight = KeybindingWeight.EditorContrib;
 
 export class FocusStickyScroll extends EditorAction2 {
 
@@ -54,9 +53,8 @@ export class FocusStickyScroll extends EditorAction2 {
 		super({
 			id: 'editor.action.focusStickyScroll',
 			title: {
-				value: localize('focusStickyScroll', "Focus Sticky Scroll"),
+				...localize2('focusStickyScroll', "Focus Sticky Scroll"),
 				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Focus Sticky Scroll"),
-				original: 'Focus Sticky Scroll',
 			},
 			precondition: ContextKeyExpr.and(ContextKeyExpr.has('config.editor.stickyScroll.enabled'), EditorContextKeys.stickyScrollVisible),
 			menu: [
@@ -66,10 +64,7 @@ export class FocusStickyScroll extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.focus();
-		}
+		StickyScrollController.get(editor)?.focus();
 	}
 }
 
@@ -77,10 +72,7 @@ export class SelectNextStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.selectNextStickyScrollLine',
-			title: {
-				value: localize('selectNextStickyScrollLine.title', "Select next sticky scroll line"),
-				original: 'Select next sticky scroll line'
-			},
+			title: localize2('selectNextStickyScrollLine.title', "Select next sticky scroll line"),
 			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
 			keybinding: {
 				weight,
@@ -90,10 +82,7 @@ export class SelectNextStickyScrollLine extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.focusNext();
-		}
+		StickyScrollController.get(editor)?.focusNext();
 	}
 }
 
@@ -101,10 +90,7 @@ export class SelectPreviousStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.selectPreviousStickyScrollLine',
-			title: {
-				value: localize('selectPreviousStickyScrollLine.title', "Select previous sticky scroll line"),
-				original: 'Select previous sticky scroll line'
-			},
+			title: localize2('selectPreviousStickyScrollLine.title', "Select previous sticky scroll line"),
 			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
 			keybinding: {
 				weight,
@@ -114,10 +100,7 @@ export class SelectPreviousStickyScrollLine extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.focusPrevious();
-		}
+		StickyScrollController.get(editor)?.focusPrevious();
 	}
 }
 
@@ -125,10 +108,7 @@ export class GoToStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.goToFocusedStickyScrollLine',
-			title: {
-				value: localize('goToFocusedStickyScrollLine.title', "Go to focused sticky scroll line"),
-				original: 'Go to focused sticky scroll line'
-			},
+			title: localize2('goToFocusedStickyScrollLine.title', "Go to focused sticky scroll line"),
 			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
 			keybinding: {
 				weight,
@@ -138,9 +118,25 @@ export class GoToStickyScrollLine extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.goToFocused();
-		}
+		StickyScrollController.get(editor)?.goToFocused();
+	}
+}
+
+export class SelectEditor extends EditorAction2 {
+
+	constructor() {
+		super({
+			id: 'editor.action.selectEditor',
+			title: localize2('selectEditor.title', "Select Editor"),
+			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
+			keybinding: {
+				weight,
+				primary: KeyCode.Escape
+			}
+		});
+	}
+
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		StickyScrollController.get(editor)?.selectEditor();
 	}
 }

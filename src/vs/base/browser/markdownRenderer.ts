@@ -12,7 +12,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
+import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -80,7 +80,8 @@ const defaultMarkedRenderers = Object.freeze({
 			.replace(/>/g, '&gt;')
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#39;');
-		return `<a href="${href}" title="${title || href}">${text}</a>`;
+
+		return `<a href="${href}" title="${title || href}" draggable="false">${text}</a>`;
 	},
 });
 
@@ -195,7 +196,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
 		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
 		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
-			const mouseEvent = new StandardMouseEvent(e);
+			const mouseEvent = new StandardMouseEvent(DOM.getWindow(element), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
 			}
@@ -378,7 +379,7 @@ function sanitizeRenderedMarkdown(
 		if (e.attrName === 'style' || e.attrName === 'class') {
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
-					e.keepAttr = /^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/.test(e.attrValue);
+					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?$/.test(e.attrValue);
 					return;
 				} else if (e.attrName === 'class') {
 					e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
@@ -387,8 +388,25 @@ function sanitizeRenderedMarkdown(
 			}
 			e.keepAttr = false;
 			return;
+		} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
+			if ((e.attrName === 'type' && e.attrValue === 'checkbox') || e.attrName === 'disabled' || e.attrName === 'checked') {
+				e.keepAttr = true;
+				return;
+			}
+			e.keepAttr = false;
 		}
 	});
+
+	dompurify.addHook('uponSanitizeElement', (element, e) => {
+		if (e.tagName === 'input') {
+			if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
+				element.setAttribute('disabled', '');
+			} else {
+				element.parentElement?.removeChild(element);
+			}
+		}
+	});
+
 
 	const hook = DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes);
 
@@ -404,10 +422,13 @@ export const allowedMarkdownAttr = [
 	'align',
 	'autoplay',
 	'alt',
+	'checked',
 	'class',
 	'controls',
 	'data-code',
 	'data-href',
+	'disabled',
+	'draggable',
 	'height',
 	'href',
 	'loop',
@@ -418,6 +439,7 @@ export const allowedMarkdownAttr = [
 	'style',
 	'target',
 	'title',
+	'type',
 	'width',
 	'start',
 ];
@@ -558,14 +580,76 @@ function mergeRawTokenText(tokens: marked.Token[]): string {
 	return mergedTokenText;
 }
 
+function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens.Paragraph): marked.Token | undefined {
+	for (let i = 0; i < token.tokens.length; i++) {
+		const subtoken = token.tokens[i];
+		if (subtoken.type === 'text') {
+			const lines = subtoken.raw.split('\n');
+			const lastLine = lines[lines.length - 1];
+			if (lastLine.includes('`')) {
+				return completeCodespan(token);
+			} else if (lastLine.includes('**')) {
+				return completeDoublestar(token);
+			} else if (lastLine.match(/\*\w/)) {
+				return completeStar(token);
+			} else if (lastLine.match(/(^|\s)__\w/)) {
+				return completeDoubleUnderscore(token);
+			} else if (lastLine.match(/(^|\s)_\w/)) {
+				return completeUnderscore(token);
+			} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
+				const nextTwoSubTokens = token.tokens.slice(i + 1);
+				if (nextTwoSubTokens[0]?.type === 'link' && nextTwoSubTokens[1]?.type === 'text' && nextTwoSubTokens[1].raw.match(/^ *"[^"]*$/)) {
+					// A markdown link can look like
+					// [link text](https://microsoft.com "more text")
+					// Where "more text" is a title for the link or an argument to a vscode command link
+					return completeLinkTargetArg(token);
+				}
+				return completeLinkTarget(token);
+			} else if (hasStartOfLinkTarget(lastLine)) {
+				return completeLinkTarget(token);
+			} else if (lastLine.match(/(^|\s)\[\w/) && !token.tokens.slice(i + 1).some(t => hasStartOfLinkTarget(t.raw))) {
+				return completeLinkText(token);
+			}
+		}
+	}
+
+	return undefined;
+}
+
+function hasStartOfLinkTarget(str: string): boolean {
+	return !!str.match(/^[^\[]*\]\([^\)]*$/);
+}
+
+// function completeListItemPattern(token: marked.Tokens.List): marked.Tokens.List | undefined {
+// 	// Patch up this one list item
+// 	const lastItem = token.items[token.items.length - 1];
+
+// 	const newList = completeSingleLinePattern(lastItem);
+// 	if (!newList || newList.type !== 'list') {
+// 		// Nothing to fix, or not a pattern we were expecting
+// 		return;
+// 	}
+
+// 	// Re-parse the whole list with the last item replaced
+// 	const completeList = marked.lexer(mergeRawTokenText(token.items.slice(0, token.items.length - 1)) + newList.items[0].raw);
+// 	if (completeList.length === 1 && completeList[0].type === 'list') {
+// 		return completeList[0];
+// 	}
+
+// 	// Not a pattern we were expecting
+// 	return undefined;
+// }
+
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
 	let i: number;
 	let newTokens: marked.Token[] | undefined;
 	for (i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
-		if (token.type === 'paragraph' && token.raw.match(/(\n|^)```/)) {
+		let codeblockStart: RegExpMatchArray | null;
+		if (token.type === 'paragraph' && (codeblockStart = token.raw.match(/(\n|^)(````*)/))) {
+			const codeblockLead = codeblockStart[2];
 			// If the code block was complete, it would be in a type='code'
-			newTokens = completeCodeBlock(tokens.slice(i));
+			newTokens = completeCodeBlock(tokens.slice(i), codeblockLead);
 			break;
 		}
 
@@ -573,12 +657,29 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 			newTokens = completeTable(tokens.slice(i));
 			break;
 		}
+
+		// if (i === tokens.length - 1 && token.type === 'list') {
+		// 	const newListToken = completeListItemPattern(token);
+		// 	if (newListToken) {
+		// 		newTokens = [newListToken];
+		// 		break;
+		// 	}
+		// }
+
+		if (i === tokens.length - 1 && token.type === 'paragraph') {
+			// Only operates on a single token, because any newline that follows this should break these patterns
+			const newToken = completeSingleLinePattern(token);
+			if (newToken) {
+				newTokens = [newToken];
+				break;
+			}
+		}
 	}
 
 	if (newTokens) {
 		const newTokensList = [
 			...tokens.slice(0, i),
-			...newTokens,
+			...newTokens
 		];
 		(newTokensList as marked.TokensList).links = tokens.links;
 		return newTokensList as marked.TokensList;
@@ -587,12 +688,52 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 	return tokens;
 }
 
-function completeCodeBlock(tokens: marked.Token[]): marked.Token[] {
+function completeCodeBlock(tokens: marked.Token[], leader: string): marked.Token[] {
 	const mergedRawText = mergeRawTokenText(tokens);
-	return marked.lexer(mergedRawText + '\n```');
+	return marked.lexer(mergedRawText + `\n${leader}`);
 }
 
-function completeTable(tokens: marked.Token[]): marked.Token[] {
+function completeCodespan(token: marked.Token): marked.Token {
+	return completeWithString(token, '`');
+}
+
+function completeStar(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '*');
+}
+
+function completeUnderscore(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '_');
+}
+
+function completeLinkTarget(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, ')');
+}
+
+function completeLinkTargetArg(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '")');
+}
+
+function completeLinkText(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '](about:blank)');
+}
+
+function completeDoublestar(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '**');
+}
+
+function completeDoubleUnderscore(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '__');
+}
+
+function completeWithString(tokens: marked.Token[] | marked.Token, closingString: string): marked.Token {
+	const mergedRawText = mergeRawTokenText(Array.isArray(tokens) ? tokens : [tokens]);
+
+	// If it was completed correctly, this should be a single token.
+	// Expecting either a Paragraph or a List
+	return marked.lexer(mergedRawText + closingString)[0] as marked.Token;
+}
+
+function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {
 	const mergedRawText = mergeRawTokenText(tokens);
 	const lines = mergedRawText.split('\n');
 
@@ -610,14 +751,14 @@ function completeTable(tokens: marked.Token[]): marked.Token[] {
 				if (i !== lines.length - 1) {
 					// We got the line1 header row, and the line2 separator row, but there are more lines, and it wasn't parsed as a table!
 					// That's strange and means that the table is probably malformed in the source, so I won't try to patch it up.
-					return tokens;
+					return undefined;
 				}
 
 				// Got a line2 separator row- partial or complete, doesn't matter, we'll replace it with a correct one
 				hasSeparatorRow = true;
 			} else {
 				// The line after the header row isn't a valid separator row, so the table is malformed, don't fix it up
-				return tokens;
+				return undefined;
 			}
 		}
 	}
@@ -629,5 +770,5 @@ function completeTable(tokens: marked.Token[]): marked.Token[] {
 		return marked.lexer(newRawText);
 	}
 
-	return tokens;
+	return undefined;
 }

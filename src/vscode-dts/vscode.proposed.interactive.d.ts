@@ -5,78 +5,123 @@
 
 declare module 'vscode' {
 
+	export interface InteractiveEditorSlashCommand {
+		command: string;
+		detail?: string;
+		refer?: boolean;
+		/**
+		 * Whether the command should execute as soon
+		 * as it is entered. Defaults to `false`.
+		 */
+		executeImmediately?: boolean;
+		// kind: CompletionItemKind;
+	}
+
 	// todo@API make classes
 	export interface InteractiveEditorSession {
 		placeholder?: string;
+		input?: string;
+		slashCommands?: InteractiveEditorSlashCommand[];
+		wholeRange?: Range;
+		message?: string;
 	}
 
 	// todo@API make classes
 	export interface InteractiveEditorRequest {
-		session: InteractiveEditorSession;
 		prompt: string;
-
 		selection: Selection;
 		wholeRange: Range;
+		attempt: number;
+
+		/**
+		 * @deprecated, use previewDocument
+		 */
+		live: boolean;
+		previewDocument: TextDocument;
+		withIntentDetection: boolean;
 	}
 
 	// todo@API make classes
 	export interface InteractiveEditorResponse {
-		edits: TextEdit[];
+		edits: TextEdit[] | WorkspaceEdit;
+		contents?: MarkdownString;
 		placeholder?: string;
+		wholeRange?: Range;
+	}
+
+	// todo@API make classes
+	export interface InteractiveEditorMessageResponse {
+		contents: MarkdownString;
+		placeholder?: string;
+		wholeRange?: Range;
+	}
+
+	export interface InteractiveEditorProgressItem {
+		message?: string;
+		edits?: TextEdit[];
+		editsShouldBeInstant?: boolean;
+		slashCommand?: InteractiveEditorSlashCommand;
+		content?: string | MarkdownString;
+	}
+
+	export enum InteractiveEditorResponseFeedbackKind {
+		Unhelpful = 0,
+		Helpful = 1,
+		Undone = 2,
+		Accepted = 3,
+		Bug = 4
 	}
 
 	export interface TextDocumentContext {
 		document: TextDocument;
 		selection: Selection;
-		action?: string;
 	}
 
-	export interface InteractiveEditorSessionProvider {
-		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
-		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<InteractiveEditorSession>;
+	export interface InteractiveEditorSessionProviderMetadata {
+		label?: string;
+		supportReportIssue?: boolean;
+	}
 
-		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<InteractiveEditorResponse>;
+	export interface InteractiveEditorReplyFollowup {
+		message: string;
+		tooltip?: string;
+		title?: string;
+	}
+
+	export interface InteractiveEditorCommandFollowup {
+		commandId: string;
+		args?: any[];
+		title: string;
+		when?: string;
+	}
+
+	export type InteractiveEditorFollowup = InteractiveEditorReplyFollowup | InteractiveEditorCommandFollowup;
+
+	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
+
+		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
+		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
+
+		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<InteractiveEditorProgressItem>, token: CancellationToken): ProviderResult<R>;
+
+		provideFollowups?(session: S, response: R, token: CancellationToken): ProviderResult<InteractiveEditorFollowup[]>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		releaseInteractiveEditorSession?(session: InteractiveEditorSession): any;
+		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
-
-
-	export interface InteractiveSessionState { }
 
 	export interface InteractiveSession {
-		saveState?(): InteractiveSessionState;
 	}
 
-	export interface InteractiveSessionRequestArgs {
-		command: string;
-		args: any;
+	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
+		prepareSession(token: CancellationToken): ProviderResult<S>;
 	}
 
-	export interface InteractiveRequest {
-		session: InteractiveSession;
+	export interface InteractiveSessionDynamicRequest {
+		/**
+		 * The message that will be displayed in the UI
+		 */
 		message: string;
-	}
-
-	export interface InteractiveResponse {
-		content: string;
-		followups?: string[];
-	}
-
-	export interface InteractiveResponseForProgress {
-		followups?: string[];
-	}
-
-	export interface InteractiveProgress {
-		content: string;
-	}
-
-	export interface InteractiveSessionProvider {
-		provideInitialSuggestions?(token: CancellationToken): ProviderResult<string[]>;
-		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<InteractiveSession>;
-		resolveRequest(session: InteractiveSession, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
-		provideResponse?(request: InteractiveRequest, token: CancellationToken): ProviderResult<InteractiveResponse>;
-		provideResponseWithProgress?(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
 	}
 
 	export namespace interactive {
@@ -84,8 +129,9 @@ declare module 'vscode' {
 		export const _version: 1 | number;
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
-		export function addInteractiveRequest(context: InteractiveSessionRequestArgs): void;
 
-		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
+		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider, metadata?: InteractiveEditorSessionProviderMetadata): Disposable;
+
+		export function transferChatSession(session: InteractiveSession, toWorkspace: Uri): void;
 	}
 }

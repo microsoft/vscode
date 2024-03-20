@@ -112,12 +112,23 @@ export function getShellIntegrationInjection(
 	logService: ILogService,
 	productService: IProductService
 ): IShellIntegrationConfigInjection | undefined {
-	// Shell integration arg injection is disabled when:
+	// Conditionally disable shell integration arg injection
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
 	const useWinpty = isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309);
-	if (!options.shellIntegration.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration || useWinpty) {
+	if (
+		// The global setting is disabled
+		!options.shellIntegration.enabled ||
+		// There is no executable (so there's no way to determine how to inject)
+		!shellLaunchConfig.executable ||
+		// It's a feature terminal (tasks, debug), unless it's explicitly being forced
+		(shellLaunchConfig.isFeatureTerminal && !shellLaunchConfig.forceShellIntegration) ||
+		// The ignoreShellIntegration flag is passed (eg. relaunching without shell integration)
+		shellLaunchConfig.ignoreShellIntegration ||
+		// Winpty is unsupported
+		useWinpty
+	) {
 		return undefined;
 	}
 
@@ -128,6 +139,10 @@ export function getShellIntegrationInjection(
 	const envMixin: IProcessEnvironment = {
 		'VSCODE_INJECTION': '1'
 	};
+
+	if (options.shellIntegration.nonce) {
+		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
+	}
 
 	// Windows
 	if (isWindows) {
@@ -172,7 +187,7 @@ export function getShellIntegrationInjection(
 			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
 			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
 			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
-			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data');
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/fish_xdg_data');
 			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
 			addEnvMixinPathPrefix(options, envMixin);
 			return { newArgs: undefined, envMixin };
@@ -259,7 +274,7 @@ function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProc
 		const merged = new MergedEnvironmentVariableCollection(deserialized);
 
 		// Get all prepend PATH entries
-		const pathEntry = merged.map.get('PATH');
+		const pathEntry = merged.getVariableMap({ workspaceFolder: options.workspaceFolder }).get('PATH');
 		const prependToPath: string[] = [];
 		if (pathEntry) {
 			for (const mutator of pathEntry) {

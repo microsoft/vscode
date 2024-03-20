@@ -17,6 +17,11 @@ export interface LanguageFilter {
 	 */
 	readonly hasAccessToAllModels?: boolean;
 	readonly exclusive?: boolean;
+
+	/**
+	 * This provider comes from a builtin extension.
+	 */
+	readonly isBuiltin?: boolean;
 }
 
 export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;
@@ -124,5 +129,16 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 
 	} else {
 		return 0;
+	}
+}
+
+
+export function targetsNotebooks(selector: LanguageSelector): boolean {
+	if (typeof selector === 'string') {
+		return false;
+	} else if (Array.isArray(selector)) {
+		return selector.some(targetsNotebooks);
+	} else {
+		return !!(<LanguageFilter>selector).notebookType;
 	}
 }

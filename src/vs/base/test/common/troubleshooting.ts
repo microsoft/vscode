@@ -41,7 +41,7 @@ export function beginTrackingDisposables(): void {
 export function endTrackingDisposables(): void {
 	if (currentTracker) {
 		setDisposableTracker(null);
-		console.log(currentTracker!.allDisposables.map(e => `${e[0]}\n${e[1]}`).join('\n\n'));
+		console.log(currentTracker.allDisposables.map(e => `${e[0]}\n${e[1]}`).join('\n\n'));
 		currentTracker = null;
 	}
 }

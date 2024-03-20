@@ -26,6 +26,8 @@ import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/no
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
 import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
+import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { createHash } from 'crypto';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -42,8 +44,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
 		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
+		@IExtHostCommands commands: IExtHostCommands,
 	) {
-		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver);
+		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands);
 	}
 
 	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -87,8 +90,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
 
-			const shellConfig = JSON.stringify({ shell, shellArgs });
-			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
+			const termKey = createKeyForShell(shell, shellArgs, args);
+			let terminal = await this._integratedTerminalInstances.checkout(termKey, terminalName, true);
 
 			let cwdForPrepareCommand: string | undefined;
 			let giveShellTimeToInitialize = false;
@@ -100,13 +103,17 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					cwd: args.cwd,
 					name: terminalName,
 					iconPath: new ThemeIcon('debug'),
+					env: args.env,
 				};
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, {
 					isFeatureTerminal: true,
+					// Since debug termnials are REPLs, we want shell integration to be enabled.
+					// Ignore isFeatureTerminal when evaluating shell integration enablement.
+					forceShellIntegration: true,
 					useShellEnvironment: true
 				});
-				this._integratedTerminalInstances.insert(terminal, shellConfig);
+				this._integratedTerminalInstances.insert(terminal, termKey);
 
 			} else {
 				cwdForPrepareCommand = args.cwd;
@@ -120,6 +127,10 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				// give a new terminal some time to initialize the shell
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			} else {
+				if (terminal.state.isInteractedWith) {
+					terminal.sendText('\u0003'); // Ctrl+C for #106743. Not part of the same command for #107969
+				}
+
 				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
 					// clear terminal before reusing it
 					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
@@ -134,13 +145,13 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				}
 			}
 
-			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand, args.env);
+			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand);
 			terminal.sendText(command);
 
 			// Mark terminal as unused when its session ends, see #112055
 			const sessionListener = this.onDidTerminateDebugSession(s => {
 				if (s.id === sessionId) {
-					this._integratedTerminalInstances.free(terminal!);
+					this._integratedTerminalInstances.free(terminal);
 					sessionListener.dispose();
 				}
 			});
@@ -152,6 +163,14 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		}
 		return super.$runInTerminal(args, sessionId);
 	}
+}
+
+/** Creates a key that determines how terminals get reused */
+function createKeyForShell(shell: string, shellArgs: string | string[], args: DebugProtocol.RunInTerminalRequestArguments) {
+	const hash = createHash('sha256');
+	hash.update(JSON.stringify({ shell, shellArgs }));
+	hash.update(JSON.stringify(Object.entries(args.env || {}).sort(([k1], [k2]) => k1.localeCompare(k2))));
+	return hash.digest('base64');
 }
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;
@@ -180,7 +199,7 @@ class DebugTerminalCollection {
 
 	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number; config: string }>();
 
-	public async checkout(config: string, name: string) {
+	public async checkout(config: string, name: string, cleanupOthersByName = false) {
 		const entries = [...this._terminalInstances.entries()];
 		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
 
@@ -200,6 +219,9 @@ class DebugTerminalCollection {
 			}
 
 			if (termInfo.config !== config) {
+				if (cleanupOthersByName) {
+					terminal.dispose();
+				}
 				return null;
 			}
 

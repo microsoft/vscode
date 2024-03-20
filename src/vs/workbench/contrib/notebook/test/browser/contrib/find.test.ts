@@ -17,8 +17,11 @@ import { IActiveNotebookEditor, ICellModelDecorations, ICellModelDeltaDecoration
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Notebook Find', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
 	const configurationValue: IConfigurationValue<any> = {
 		value: USUAL_WORD_SEPARATORS
 	};
@@ -55,14 +58,14 @@ suite('Notebook Find', () => {
 				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<NotebookFindFilters>();
-				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
+				const state = disposables.add(new FindReplaceState<NotebookFindFilters>());
+				const model = disposables.add(new FindModel(editor, state, accessor.get(IConfigurationService)));
 
-				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const found = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);
 				await found;
@@ -77,12 +80,12 @@ suite('Notebook Find', () => {
 
 				assert.strictEqual(editor.textModel.length, 3);
 
-				const found2 = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const found2 = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 3, count: 0, cells: [
-						new TestCell(viewModel.viewType, 3, '# next paragraph 1', 'markdown', CellKind.Code, [], accessor.get(ILanguageService)),
+						disposables.add(new TestCell(viewModel.viewType, 3, '# next paragraph 1', 'markdown', CellKind.Code, [], accessor.get(ILanguageService))),
 					]
 				}], true, undefined, () => undefined, undefined, true);
 				await found2;
@@ -101,14 +104,14 @@ suite('Notebook Find', () => {
 				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<NotebookFindFilters>();
-				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
-				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const state = disposables.add(new FindReplaceState<NotebookFindFilters>());
+				const model = disposables.add(new FindModel(editor, state, accessor.get(IConfigurationService)));
+				const found = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);
 				await found;
@@ -122,9 +125,9 @@ suite('Notebook Find', () => {
 				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 3);
 
-				const found2 = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const found2 = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 2, count: 1, cells: []
 				}], true, undefined, () => undefined, undefined, true);
@@ -152,14 +155,14 @@ suite('Notebook Find', () => {
 				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<NotebookFindFilters>();
-				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
-				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const state = disposables.add(new FindReplaceState<NotebookFindFilters>());
+				const model = disposables.add(new FindModel(editor, state, accessor.get(IConfigurationService)));
+				const found = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);
 				await found;
@@ -169,9 +172,9 @@ suite('Notebook Find', () => {
 				model.find({ previous: true });
 				assert.strictEqual(model.currentMatch, 4);
 
-				const found2 = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const found2 = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 2, count: 1, cells: []
 				}], true, undefined, () => undefined, undefined, true);
@@ -194,14 +197,14 @@ suite('Notebook Find', () => {
 				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<NotebookFindFilters>();
-				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
-				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const state = disposables.add(new FindReplaceState<NotebookFindFilters>());
+				const model = disposables.add(new FindModel(editor, state, accessor.get(IConfigurationService)));
+				const found = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);
 				await found;
@@ -212,9 +215,9 @@ suite('Notebook Find', () => {
 				model.find({ previous: false });
 				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 3);
-				const found2 = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const found2 = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				(viewModel.viewCells[1].textBuffer as ITextBuffer).applyEdits([
 					new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 14), '', false, false, false)
 				], false, true);
@@ -232,13 +235,13 @@ suite('Notebook Find', () => {
 				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
-				const state = new FindReplaceState<NotebookFindFilters>();
-				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
-				const found = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const state = disposables.add(new FindReplaceState<NotebookFindFilters>());
+				const model = disposables.add(new FindModel(editor, state, accessor.get(IConfigurationService)));
+				const found = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				state.change({ isRevealed: true }, true);
 				state.change({ searchString: '1' }, true);
 				await found;
@@ -253,9 +256,9 @@ suite('Notebook Find', () => {
 
 				assert.strictEqual(editor.textModel.length, 3);
 
-				const found2 = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
+				const found2 = new Promise<boolean>(resolve => disposables.add(state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
-				}));
+				})));
 				state.change({ searchString: '3' }, true);
 				await found2;
 				assert.strictEqual(model.currentMatch, -1);

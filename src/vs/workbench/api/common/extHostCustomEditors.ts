@@ -254,6 +254,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			title: string;
 			contentOptions: extHostProtocol.IWebviewContentOptions;
 			options: extHostProtocol.IWebviewPanelOptions;
+			active: boolean;
 		},
 		position: EditorGroupColumn,
 		cancellation: CancellationToken,
@@ -266,7 +267,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		const viewColumn = typeConverters.ViewColumn.to(position);
 
 		const webview = this._extHostWebview.createNewWebview(handle, initData.contentOptions, entry.extension);
-		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.options, webview, true);
+		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.options, webview, initData.active);
 
 		const revivedResource = URI.revive(resource);
 
