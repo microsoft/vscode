@@ -5,7 +5,7 @@
 
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { observableFromEvent } from 'vs/base/common/observable';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,11 +16,9 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { CellKind, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
-export class NotebookAccessibilityProvider implements IListAccessibilityProvider<CellViewModel>, IDisposable {
+export class NotebookAccessibilityProvider extends Disposable implements IListAccessibilityProvider<CellViewModel> {
 	private readonly _onDidAriaLabelChange = new Emitter<CellViewModel>();
 	private readonly onDidAriaLabelChange = this._onDidAriaLabelChange.event;
-
-	private listener: IDisposable;
 
 	constructor(
 		private readonly notebookExecutionStateService: INotebookExecutionStateService,
@@ -28,7 +26,8 @@ export class NotebookAccessibilityProvider implements IListAccessibilityProvider
 		private readonly keybindingService: IKeybindingService,
 		private readonly configurationService: IConfigurationService
 	) {
-		this.listener = Event.debounce<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent, number[]>(
+		super();
+		this._register(Event.debounce<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent, number[]>(
 			this.notebookExecutionStateService.onDidChangeExecution,
 			(last: number[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent) => this.mergeEvents(last, e),
 			100
@@ -42,11 +41,7 @@ export class NotebookAccessibilityProvider implements IListAccessibilityProvider
 					}
 				}
 			}
-		}, this);
-	}
-
-	dispose(): void {
-		this.listener.dispose();
+		}, this));
 	}
 
 	getAriaLabel(element: CellViewModel) {
