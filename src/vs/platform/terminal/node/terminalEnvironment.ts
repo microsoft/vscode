@@ -112,12 +112,23 @@ export function getShellIntegrationInjection(
 	logService: ILogService,
 	productService: IProductService
 ): IShellIntegrationConfigInjection | undefined {
-	// Shell integration arg injection is disabled when:
+	// Conditionally disable shell integration arg injection
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
 	const useWinpty = isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309);
-	if (!options.shellIntegration.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration || useWinpty) {
+	if (
+		// The global setting is disabled
+		!options.shellIntegration.enabled ||
+		// There is no executable (so there's no way to determine how to inject)
+		!shellLaunchConfig.executable ||
+		// It's a feature terminal (tasks, debug), unless it's explicitly being forced
+		(shellLaunchConfig.isFeatureTerminal && !shellLaunchConfig.forceShellIntegration) ||
+		// The ignoreShellIntegration flag is passed (eg. relaunching without shell integration)
+		shellLaunchConfig.ignoreShellIntegration ||
+		// Winpty is unsupported
+		useWinpty
+	) {
 		return undefined;
 	}
 

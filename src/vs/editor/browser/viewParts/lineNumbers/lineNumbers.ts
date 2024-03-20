@@ -131,6 +131,10 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			if (modelLineNumber % 10 === 0) {
 				return String(modelLineNumber);
 			}
+			const finalLineNumber = this._context.viewModel.getLineCount();
+			if (modelLineNumber === finalLineNumber) {
+				return String(modelLineNumber);
+			}
 			return '';
 		}
 

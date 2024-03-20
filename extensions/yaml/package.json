@@ -37,10 +37,10 @@
           "yaml"
         ],
         "extensions": [
+          ".yaml",
           ".yml",
           ".eyaml",
           ".eyml",
-          ".yaml",
           ".cff",
           ".yaml-tmlanguage",
           ".yaml-tmpreferences",

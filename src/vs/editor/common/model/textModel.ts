@@ -1256,7 +1256,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		);
 	}
 
-	private _validateEditOperations(rawOperations: model.IIdentifiedSingleEditOperation[]): model.ValidAnnotatedEditOperation[] {
+	private _validateEditOperations(rawOperations: readonly model.IIdentifiedSingleEditOperation[]): model.ValidAnnotatedEditOperation[] {
 		const result: model.ValidAnnotatedEditOperation[] = [];
 		for (let i = 0, len = rawOperations.length; i < len; i++) {
 			result[i] = this._validateEditOperation(rawOperations[i]);
@@ -1406,10 +1406,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	public applyEdits(operations: model.IIdentifiedSingleEditOperation[]): void;
-	public applyEdits(operations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
-	public applyEdits(operations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: true): model.IValidEditOperation[];
-	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: boolean = false): void | model.IValidEditOperation[] {
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[]): void;
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true): model.IValidEditOperation[];
+	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: boolean = false): void | model.IValidEditOperation[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
@@ -2219,12 +2219,15 @@ export class ModelDecorationGlyphMarginOptions {
 
 export class ModelDecorationMinimapOptions extends DecorationOptions {
 	readonly position: model.MinimapPosition;
+	readonly sectionHeaderStyle: model.MinimapSectionHeaderStyle | null;
+	readonly sectionHeaderText: string | null;
 	private _resolvedColor: Color | undefined;
-
 
 	constructor(options: model.IModelDecorationMinimapOptions) {
 		super(options);
 		this.position = options.position;
+		this.sectionHeaderStyle = options.sectionHeaderStyle ?? null;
+		this.sectionHeaderText = options.sectionHeaderText ?? null;
 	}
 
 	public getColor(theme: IColorTheme): Color | undefined {

@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
-import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
+import { IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 import { IInputBoxStyles, IMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -42,6 +42,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { SearchFindInput } from 'vs/workbench/contrib/search/browser/searchFindInput';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -60,6 +62,7 @@ export interface ISearchWidgetOptions {
 	inputBoxStyles: IInputBoxStyles;
 	toggleStyles: IToggleStyles;
 	notebookOptions?: NotebookToggleState;
+	initialAIButtonVisibility?: boolean;
 }
 
 interface NotebookToggleState {
@@ -119,7 +122,7 @@ export class SearchWidget extends Widget {
 
 	domNode: HTMLElement | undefined;
 
-	searchInput: FindInput | undefined;
+	searchInput: SearchFindInput | undefined;
 	searchInputFocusTracker: dom.IFocusTracker | undefined;
 	private searchInputBoxFocused: IContextKey<boolean>;
 
@@ -169,6 +172,7 @@ export class SearchWidget extends Widget {
 	public contextLinesInput!: InputBox;
 
 	private _notebookFilters: NotebookFindFilters;
+	private _toggleReplaceButtonListener: MutableDisposable<IDisposable>;
 
 	constructor(
 		container: HTMLElement,
@@ -205,12 +209,12 @@ export class SearchWidget extends Widget {
 
 		this._register(
 			this._notebookFilters.onDidChange(() => {
-				if (this.searchInput instanceof SearchFindInput) {
+				if (this.searchInput) {
 					this.searchInput.updateStyles();
 				}
 			}));
 		this._register(this.editorService.onDidEditorsChange((e) => {
-			if (this.searchInput instanceof SearchFindInput &&
+			if (this.searchInput &&
 				e.event.editor instanceof NotebookEditorInput &&
 				(e.event.kind === GroupModelChangeKind.EDITOR_OPEN || e.event.kind === GroupModelChangeKind.EDITOR_CLOSE)) {
 				this.searchInput.filterVisible = this._hasNotebookOpen();
@@ -218,6 +222,7 @@ export class SearchWidget extends Widget {
 		}));
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
+		this._toggleReplaceButtonListener = this._register(new MutableDisposable<IDisposable>());
 
 		this.render(container, options);
 
@@ -370,15 +375,15 @@ export class SearchWidget extends Widget {
 			buttonSecondaryBackground: undefined,
 			buttonSecondaryForeground: undefined,
 			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined
+			buttonSeparator: undefined,
+			title: nls.localize('search.replace.toggle.button.title', "Toggle Replace"),
+			hoverDelegate: getDefaultHoverDelegate('element'),
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
 		this.toggleReplaceButton.element.classList.add('toggle-replace-button');
 		this.toggleReplaceButton.icon = searchHideReplaceIcon;
-		// TODO@joao need to dispose this listener eventually
-		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
-		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
+		this._toggleReplaceButtonListener.value = this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -400,7 +405,19 @@ export class SearchWidget extends Widget {
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
 
-		this.searchInput = this._register(new SearchFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, this.contextMenuService, this.instantiationService, this._notebookFilters, this._hasNotebookOpen()));
+		this.searchInput = this._register(
+			new SearchFindInput(
+				searchInputContainer,
+				this.contextViewService,
+				inputOptions,
+				this.contextKeyService,
+				this.contextMenuService,
+				this.instantiationService,
+				this._notebookFilters,
+				options.initialAIButtonVisibility ?? false,
+				this._hasNotebookOpen()
+			)
+		);
 
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
@@ -441,6 +458,7 @@ export class SearchWidget extends Widget {
 			isChecked: false,
 			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId)),
 			icon: searchShowContextIcon,
+			hoverDelegate: getDefaultHoverDelegate('element'),
 			...defaultToggleStyles
 		});
 		this._register(this.showContextToggle.onChange(() => this.onContextLinesChanged()));
@@ -582,6 +600,7 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 
 		if (this.searchConfiguration.searchOnType) {
+			const delayMultiplierFromAISearch = (this.searchInput && this.searchInput.isAIEnabled) ? 5 : 1; // expand debounce period to multiple by 5 if AI is enabled
 			if (this.searchInput?.getRegex()) {
 				try {
 					const regex = new RegExp(this.searchInput.getValue(), 'ug');
@@ -600,12 +619,13 @@ export class SearchWidget extends Widget {
 							matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
 								10; // only things matching empty string
 
-					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
+
+					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier * delayMultiplierFromAISearch);
 				} catch {
 					// pass
 				}
 			} else {
-				this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod);
+				this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplierFromAISearch);
 			}
 		}
 	}

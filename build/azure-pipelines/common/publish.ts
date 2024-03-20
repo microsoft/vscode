@@ -69,6 +69,10 @@ interface CreateProvisionedFilesErrorResponse {
 
 type CreateProvisionedFilesResponse = CreateProvisionedFilesSuccessResponse | CreateProvisionedFilesErrorResponse;
 
+function isCreateProvisionedFilesErrorResponse(response: unknown): response is CreateProvisionedFilesErrorResponse {
+	return (response as CreateProvisionedFilesErrorResponse)?.ErrorDetails?.Code !== undefined;
+}
+
 class ProvisionService {
 
 	constructor(
@@ -93,6 +97,11 @@ class ProvisionService {
 		this.log(`Provisioning ${fileName} (releaseId: ${releaseId}, fileId: ${fileId})...`);
 		const res = await retry(() => this.request<CreateProvisionedFilesResponse>('POST', '/api/v2/ProvisionedFiles/CreateProvisionedFiles', { body }));
 
+		if (isCreateProvisionedFilesErrorResponse(res) && res.ErrorDetails.Code === 'FriendlyFileNameAlreadyProvisioned') {
+			this.log(`File already provisioned (most likley due to a re-run), skipping: ${fileName}`);
+			return;
+		}
+
 		if (!res.IsSuccess) {
 			throw new Error(`Failed to submit provisioning request: ${JSON.stringify(res.ErrorDetails)}`);
 		}
@@ -112,8 +121,11 @@ class ProvisionService {
 
 		const res = await fetch(`https://dsprovisionapi.microsoft.com${url}`, opts);
 
-		if (!res.ok || res.status < 200 || res.status >= 500) {
-			throw new Error(`Unexpected status code: ${res.status}`);
+
+		// 400 normally means the request is bad or something is already provisioned, so we will return as retries are useless
+		// Otherwise log the text body and headers. We do text because some responses are not JSON.
+		if ((!res.ok || res.status < 200 || res.status >= 500) && res.status !== 400) {
+			throw new Error(`Unexpected status code: ${res.status}\nResponse Headers: ${JSON.stringify(res.headers)}\nBody Text: ${await res.text()}`);
 		}
 
 		return await res.json();
@@ -519,7 +531,7 @@ interface Asset {
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string): string {
+function getPlatform(product: string, os: string, arch: string, type: string, isLegacy: boolean): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -570,9 +582,12 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'client':
 							return `linux-${arch}`;
 						case 'server':
-							return `server-linux-${arch}`;
+							return isLegacy ? `legacy-server-linux-${arch}` : `server-linux-${arch}`;
 						case 'web':
-							return arch === 'standalone' ? 'web-standalone' : `server-linux-${arch}-web`;
+							if (arch === 'standalone') {
+								return 'web-standalone';
+							}
+							return isLegacy ? `legacy-server-linux-${arch}-web` : `server-linux-${arch}-web`;
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
@@ -627,7 +642,7 @@ function getRealType(type: string) {
 
 async function processArtifact(artifact: Artifact, artifactFilePath: string): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
-	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
+	const match = /^vscode(?:_legacy)?_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
 		throw new Error(`Invalid artifact name: ${artifact.name}`);
@@ -637,7 +652,8 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	const quality = e('VSCODE_QUALITY');
 	const commit = e('BUILD_SOURCEVERSION');
 	const { product, os, arch, unprocessedType } = match.groups!;
-	const platform = getPlatform(product, os, arch, unprocessedType);
+	const isLegacy = artifact.name.includes('_legacy');
+	const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
 	const type = getRealType(unprocessedType);
 	const size = fs.statSync(artifactFilePath).size;
 	const stream = fs.createReadStream(artifactFilePath);

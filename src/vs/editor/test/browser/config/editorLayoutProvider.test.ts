@@ -58,6 +58,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			maxColumn: input.minimapMaxColumn,
 			showSlider: 'mouseover',
 			scale: 1,
+			showRegionSectionHeaders: true,
+			showMarkSectionHeaders: true,
+			sectionHeaderFontSize: 9
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {

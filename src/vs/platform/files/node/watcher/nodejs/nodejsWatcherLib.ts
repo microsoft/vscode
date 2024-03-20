@@ -57,9 +57,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	readonly ready = this.watch();
 
 	constructor(
-		private request: INonRecursiveWatchRequest,
-		private onDidFilesChange: (changes: IFileChange[]) => void,
-		private onLogMessage?: (msg: ILogMessage) => void,
+		private readonly request: INonRecursiveWatchRequest,
+		private readonly onDidFilesChange: (changes: IFileChange[]) => void,
+		private readonly onDidWatchFail?: () => void,
+		private readonly onLogMessage?: (msg: ILogMessage) => void,
 		private verboseLogging?: boolean
 	) {
 		super();
@@ -73,16 +74,21 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				return;
 			}
 
-			// Watch via node.js
 			const stat = await Promises.stat(realPath);
-			this._register(await this.doWatch(realPath, stat.isDirectory()));
 
+			if (this.cts.token.isCancellationRequested) {
+				return;
+			}
+
+			this._register(await this.doWatch(realPath, stat.isDirectory()));
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				this.error(error);
 			} else {
-				this.trace(error);
+				this.trace(`ignoring a path for watching who's stat info failed to resolve: ${this.request.path} (error: ${error})`);
 			}
+
+			this.onDidWatchFail?.();
 		}
 	}
 
@@ -97,7 +103,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			// Second check for casing difference
 			// Note: this will be a no-op on Linux platforms
 			if (request.path === realPath) {
-				realPath = await realcase(request.path) ?? request.path;
+				realPath = await realcase(request.path, this.cts.token) ?? request.path;
 			}
 
 			// Correct watch path as needed
@@ -164,9 +170,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			watcher.on('error', (code: number, signal: string) => {
 				this.error(`Failed to watch ${path} for changes using fs.watch() (${code}, ${signal})`);
 
-				// The watcher is no longer functional reliably
-				// so we go ahead and dispose it
-				this.dispose();
+				this.onDidWatchFail?.();
 			});
 
 			watcher.on('change', (type, raw) => {
@@ -224,15 +228,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							// file watching specifically we want to handle
 							// the atomic-write cases where the file is being
 							// deleted and recreated with different contents.
-							//
-							// Same as with recursive watching, we do not
-							// emit a delete event in this case.
 							if (changedFileName === pathBasename && !await Promises.exists(path)) {
-								this.warn('Watcher shutdown because watched path got deleted');
-
-								// The watcher is no longer functional reliably
-								// so we go ahead and dispose it
-								this.dispose();
+								this.onWatchedPathDeleted(requestResource);
 
 								return;
 							}
@@ -326,16 +323,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 								disposables.add(await this.doWatch(path, false));
 							}
 
-							// File seems to be really gone, so emit a deleted event and dispose
+							// File seems to be really gone, so emit a deleted and failed event
 							else {
-								this.onFileChange({ resource: requestResource, type: FileChangeType.DELETED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
-
-								// Important to flush the event delivery
-								// before disposing the watcher, otherwise
-								// we will loose this event.
-								this.fileChangesAggregator.flush();
-
-								this.dispose();
+								this.onWatchedPathDeleted(requestResource);
 							}
 						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
 
@@ -352,15 +342,27 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				}
 			});
 		} catch (error) {
-			if (await Promises.exists(path) && !cts.token.isCancellationRequested) {
+			if (!cts.token.isCancellationRequested) {
 				this.error(`Failed to watch ${path} for changes using fs.watch() (${error.toString()})`);
 			}
+
+			this.onDidWatchFail?.();
 		}
 
 		return toDisposable(() => {
 			cts.dispose(true);
 			disposables.dispose();
 		});
+	}
+
+	private onWatchedPathDeleted(resource: URI): void {
+		this.warn('Watcher shutdown because watched path got deleted');
+
+		// Emit events and flush in case the watcher gets disposed
+		this.onFileChange({ resource, type: FileChangeType.DELETED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
+		this.fileChangesAggregator.flush();
+
+		this.onDidWatchFail?.();
 	}
 
 	private onFileChange(event: IFileChange, skipIncludeExcludeChecks = false): void {
@@ -454,8 +456,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	override dispose(): void {
-		this.trace(`stopping file watcher on ${this.request.path}`);
-
 		this.cts.dispose(true);
 
 		super.dispose();

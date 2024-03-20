@@ -5,6 +5,15 @@
 
 set -e
 
+# The script checks necessary server requirements for the classic server
+# scenarios. Currently, the script can exit with any of the following
+# 3 exit codes and should be handled accordingly on the extension side.
+#
+# 0: All requirements are met, use the default server.
+# 99: Unsupported OS, abort server startup with appropriate error message.
+# 100: Use legacy server.
+#
+
 # Do not remove this check.
 # Provides a way to skip the server requirements check from
 # outside the install flow. A system process can create this
@@ -17,6 +26,12 @@ if [ -f "/tmp/vscode-skip-server-requirements-check" ]; then
 	echo "!!! WARNING: Skipping server pre-requisite check !!!"
 	echo "!!! Server stability is not guaranteed. Proceed at your own risk. !!!"
 	exit 0
+fi
+
+# Default to legacy server if the following file is present.
+if [ -f "$HOME/@@SERVER_APPLICATION_NAME@@-use-legacy" ]; then
+    echo "!!! WARNING: Using legacy server due to the presence of $HOME/@@SERVER_APPLICATION_NAME@@-use-legacy !!!"
+    exit 100
 fi
 
 ARCH=$(uname -m)
@@ -57,11 +72,7 @@ if [ "$OS_ID" != "alpine" ]; then
         else
             libstdcpp_path=$(echo "$libstdcpp_paths" | awk '{print $NF}')
         fi
-    fi
-fi
-
-if [ -z "$libstdcpp_path" ]; then
-    if [ -f /usr/lib/libstdc++.so.6 ]; then
+    elif [ -f /usr/lib/libstdc++.so.6 ]; then
 	    # Typical path
 	    libstdcpp_path='/usr/lib/libstdc++.so.6'
     elif [ -f /usr/lib64/libstdc++.so.6 ]; then
@@ -70,22 +81,26 @@ if [ -z "$libstdcpp_path" ]; then
     else
 	    echo "Warning: Can't find libstdc++.so or ldconfig, can't verify libstdc++ version"
     fi
-fi
 
-while [ -n "$libstdcpp_path" ]; do
-	# Extracts the version number from the path, e.g. libstdc++.so.6.0.22 -> 6.0.22
-	# which is then compared based on the fact that release versioning and symbol versioning
-	# are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
-	# (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
-    libstdcpp_path_line=$(echo "$libstdcpp_path" | head -n1)
-    libstdcpp_real_path=$(readlink -f "$libstdcpp_path_line")
-    libstdcpp_version=$(echo "$libstdcpp_real_path" | awk -F'\\.so\\.' '{print $NF}')
-    if [ "$(printf '%s\n' "6.0.25" "$libstdcpp_version" | sort -V | head -n1)" = "6.0.25" ]; then
-        found_required_glibcxx=1
-        break
-    fi
-    libstdcpp_path=$(echo "$libstdcpp_path" | tail -n +2)    # remove first line
-done
+    while [ -n "$libstdcpp_path" ]; do
+	    # Extracts the version number from the path, e.g. libstdc++.so.6.0.22 -> 6.0.22
+	    # which is then compared based on the fact that release versioning and symbol versioning
+	    # are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
+	    # (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
+        libstdcpp_path_line=$(echo "$libstdcpp_path" | head -n1)
+        libstdcpp_real_path=$(readlink -f "$libstdcpp_path_line")
+        libstdcpp_version=$(grep -ao 'GLIBCXX_[0-9]*\.[0-9]*\.[0-9]*' "$libstdcpp_real_path" | sort -V | tail -1)
+        libstdcpp_version_number=$(echo "$libstdcpp_version" | sed 's/GLIBCXX_//')
+        if [ "$(printf '%s\n' "3.4.24" "$libstdcpp_version_number" | sort -V | head -n1)" = "3.4.24" ]; then
+            found_required_glibcxx=1
+            break
+        fi
+        libstdcpp_path=$(echo "$libstdcpp_path" | tail -n +2)    # remove first line
+    done
+else
+    echo "Warning: alpine distro detected, skipping GLIBCXX check"
+    found_required_glibcxx=1
+fi
 if [ "$found_required_glibcxx" = "0" ]; then
     echo "Warning: Missing GLIBCXX >= 3.4.25! from $libstdcpp_real_path"
 fi
@@ -144,7 +159,7 @@ else
 fi
 
 if [ "$found_required_glibc" = "0" ] || [ "$found_required_glibcxx" = "0" ]; then
-	echo "Error: Missing required dependencies. Please refer to our FAQ https://aka.ms/vscode-remote/faq/old-linux for additional information."
+	echo "Warning: Missing required dependencies. Please refer to our FAQ https://aka.ms/vscode-remote/faq/old-linux for additional information."
 	# Custom exit code based on https://tldp.org/LDP/abs/html/exitcodes.html
-	#exit 99
+	exit 100
 fi

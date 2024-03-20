@@ -4,7 +4,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.minifyTask = exports.optimizeTask = exports.optimizeLoaderTask = exports.loaderConfig = void 0;
+exports.loaderConfig = loaderConfig;
+exports.optimizeLoaderTask = optimizeLoaderTask;
+exports.optimizeTask = optimizeTask;
+exports.minifyTask = minifyTask;
 const es = require("event-stream");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
@@ -33,7 +36,6 @@ function loaderConfig() {
     result['vs/css'] = { inlineResources: true };
     return result;
 }
-exports.loaderConfig = loaderConfig;
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 function loaderPlugin(src, base, amdModuleId) {
     return (gulp
@@ -223,7 +225,6 @@ function optimizeManualTask(options) {
 function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', externalLoaderInfo) {
     return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
 }
-exports.optimizeLoaderTask = optimizeLoaderTask;
 function optimizeTask(opts) {
     return function () {
         const optimizers = [optimizeAMDTask(opts.amd)];
@@ -236,7 +237,6 @@ function optimizeTask(opts) {
         return es.merge(...optimizers).pipe(gulp.dest(opts.out));
     };
 }
-exports.optimizeTask = optimizeTask;
 function minifyTask(src, sourceMapBaseUrl) {
     const esbuild = require('esbuild');
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
@@ -284,5 +284,4 @@ function minifyTask(src, sourceMapBaseUrl) {
         }), gulp.dest(src + '-min'), (err) => cb(err));
     };
 }
-exports.minifyTask = minifyTask;
 //# sourceMappingURL=optimize.js.map

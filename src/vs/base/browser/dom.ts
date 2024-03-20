@@ -921,13 +921,6 @@ export function getActiveWindow(): CodeWindow {
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
-export function focusWindow(element: Node): void {
-	const window = getWindow(element);
-	if (!window.document.hasFocus()) {
-		window.focus();
-	}
-}
-
 const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
 
 export function isGlobalStylesheet(node: Node): boolean {

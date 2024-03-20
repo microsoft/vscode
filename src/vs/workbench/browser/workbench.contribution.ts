@@ -12,6 +12,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { CustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -84,6 +85,32 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'markdownDescription': localize('decorations.colors', "Controls whether editor file decorations should use colors."),
 				'default': true
+			},
+			[CustomEditorLabelService.SETTING_ID_ENABLED]: {
+				'type': 'boolean',
+				'markdownDescription': localize('workbench.editor.label.enabled', "Controls whether the custom workbench editor labels should be applied."),
+				'default': true,
+			},
+			[CustomEditorLabelService.SETTING_ID_PATTERNS]: {
+				'type': 'object',
+				'markdownDescription': (() => {
+					let customEditorLabelDescription = localize('workbench.editor.label.patterns', "Controls the rendering of the editor label. Each __Item__ is a pattern that matches a file path. Both relative and absolute file paths are supported. In case multiple patterns match, the longest matching path will be picked. Each __Value__ is the template for the rendered editor when the __Item__ matches. Variables are substituted based on the context:");
+					customEditorLabelDescription += '\n- ' + [
+						localize('workbench.editor.label.dirname', "`${dirname}`: name of the folder in which the file is located (e.g. `root/folder/file.txt -> folder`)."),
+						localize('workbench.editor.label.nthdirname', "`${dirname(N)}`: name of the nth parent folder in which the file is located (e.g. `N=1: root/folder/file.txt -> root`)."),
+						localize('workbench.editor.label.filename', "`${filename}`: name of the file without the file extension (e.g. `root/folder/file.txt -> file`)."),
+						localize('workbench.editor.label.extname', "`${extname}`: the file extension (e.g. `root/folder/file.txt -> txt`)."),
+					].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
+					customEditorLabelDescription += '\n\n' + localize('customEditorLabelDescriptionExample', "Example: `\"**/static/**/*.html\": \"${filename} - ${dirname} (${extname})\"` will render a file `root/static/folder/file.html` as `file - folder (html)`.");
+
+					return customEditorLabelDescription;
+				})(),
+				additionalProperties:
+				{
+					type: 'string',
+					markdownDescription: localize('workbench.editor.label.template', "The template which should be rendered when the pattern mtches. May include the variables ${dirname}, ${filename} and ${extname}."),
+				},
+				'default': {}
 			},
 			'workbench.editor.labelFormat': {
 				'type': 'string',
@@ -497,13 +524,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				'type': 'string',
-				'enum': ['side', 'top', 'hidden'],
-				'default': 'side',
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar. It can either show to the `side` or `top` of the Primary Side Bar or `hidden`."),
+				'enum': ['default', 'top', 'bottom', 'hidden'],
+				'default': 'default',
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar. It can either show to the `default` or `top` / `bottom` of the Primary and Secondary Side Bar or `hidden`."),
 				'enumDescriptions': [
-					localize('workbench.activityBar.location.side', "Show the Activity Bar to the side of the Primary Side Bar."),
-					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary Side Bar."),
-					localize('workbench.activityBar.location.hide', "Hide the Activity Bar.")
+					localize('workbench.activityBar.location.default', "Show the Activity Bar of the Primary Side Bar on the side."),
+					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary and Secondary Side Bar."),
+					localize('workbench.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Primary and Secondary Side Bar."),
+					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary and Secondary Side Bar.")
 				],
 			},
 			'workbench.activityBar.iconClickBehavior': {
@@ -807,6 +835,17 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 				result.push([LayoutSettings.ACTIVITY_BAR_LOCATION, { value: ActivityBarPosition.HIDDEN }]);
 			}
 			return result;
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: LayoutSettings.ACTIVITY_BAR_LOCATION, migrateFn: (value: any) => {
+			const results: ConfigurationKeyValuePairs = [];
+			if (value === 'side') {
+				results.push([LayoutSettings.ACTIVITY_BAR_LOCATION, { value: ActivityBarPosition.DEFAULT }]);
+			}
+			return results;
 		}
 	}]);
 

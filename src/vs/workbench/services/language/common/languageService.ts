@@ -22,6 +22,7 @@ import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry,
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { index } from 'vs/base/common/arrays';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -181,7 +182,7 @@ class LanguageTableRenderer extends Disposable implements IExtensionFeatureTable
 			.map(l => {
 				return [
 					l.id, l.name,
-					{ data: l.extensions, type: 'code' },
+					new MarkdownString().appendMarkdown(`${l.extensions.map(e => `\`${e}\``).join('&nbsp;')}`),
 					l.hasGrammar ? '✔︎' : '\u2014',
 					l.hasSnippets ? '✔︎' : '\u2014'
 				];
@@ -261,11 +262,11 @@ export class WorkbenchLanguageService extends LanguageService {
 		});
 
 		this.updateMime();
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this.updateMime();
 			}
-		});
+		}));
 		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.updateMime();
 		});

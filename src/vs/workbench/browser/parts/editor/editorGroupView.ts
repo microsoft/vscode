@@ -11,7 +11,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, focusWindow, getWindow, getActiveElement } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -42,7 +42,7 @@ import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -156,7 +156,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(themeService);
 
@@ -544,6 +545,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Visibility
 		this._register(this.groupsView.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
+
+		// Focus
+		this._register(this.onDidFocus(() => this.onDidGainFocus()));
 	}
 
 	private onDidGroupModelChange(e: IGroupModelChangeEvent): void {
@@ -577,6 +581,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				break;
 			case GroupModelChangeKind.EDITOR_DIRTY:
 				this.onDidChangeEditorDirty(e.editor);
+				break;
+			case GroupModelChangeKind.EDITOR_TRANSIENT:
+				this.onDidChangeEditorTransient(e.editor);
 				break;
 			case GroupModelChangeKind.EDITOR_LABEL:
 				this.onDidChangeEditorLabel(e.editor);
@@ -714,7 +721,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close active one last
 		if (activeEditor) {
-			this.doCloseEditor(activeEditor);
+			this.doCloseEditor(activeEditor, true);
 		}
 	}
 
@@ -762,6 +769,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleControl.updateEditorDirty(editor);
 	}
 
+	private onDidChangeEditorTransient(editor: EditorInput): void {
+		const transient = this.model.isTransient(editor);
+
+		// Transient state overrides the `enablePreview` setting,
+		// so when an editor leaves the transient state, we have
+		// to ensure its preview state is also cleared.
+		if (!transient && !this.groupsView.partOptions.enablePreview) {
+			this.pinEditor(editor);
+		}
+	}
+
 	private onDidChangeEditorLabel(editor: EditorInput): void {
 
 		// Forward to title control
@@ -772,6 +790,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to active editor pane
 		this.editorPane.setVisible(visible);
+	}
+
+	private onDidGainFocus(): void {
+		if (this.activeEditor) {
+
+			// We aggressively clear the transient state of editors
+			// as soon as the group gains focus. This is to ensure
+			// that the transient state is not staying around when
+			// the user interacts with the editor.
+
+			this.model.setTransient(this.activeEditor, false);
+		}
 	}
 
 	//#endregion
@@ -886,6 +916,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isSticky(editorOrIndex);
 	}
 
+	isTransient(editorOrIndex: EditorInput | number): boolean {
+		return this.model.isTransient(editorOrIndex);
+	}
+
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
 		return this.model.isActive(editor);
 	}
@@ -942,9 +976,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	focus(): void {
-
-		// Ensure window focus
-		focusWindow(this.element);
 
 		// Pass focus to editor panes
 		if (this.activeEditorPane) {
@@ -1033,7 +1064,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Determine options
 		const pinned = options?.sticky
-			|| !this.groupsView.partOptions.enablePreview
+			|| (!this.groupsView.partOptions.enablePreview && !options?.transient)
 			|| editor.isDirty()
 			|| (options?.pinned ?? typeof options?.index === 'number' /* unless specified, prefer to pin when opening with index */)
 			|| (typeof options?.index === 'number' && this.model.isSticky(options.index))
@@ -1042,6 +1073,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			index: options ? options.index : undefined,
 			pinned,
 			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
+			transient: !!options?.transient,
 			active: this.count === 0 || !options || !options.inactive,
 			supportSideBySide: internalOptions?.supportSideBySide
 		};
@@ -1215,7 +1247,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region moveEditor()
 
-	moveEditors(editors: { editor: EditorInput; options?: IEditorOptions }[], target: EditorGroupView): void {
+	moveEditors(editors: { editor: EditorInput; options?: IEditorOptions }[], target: EditorGroupView): boolean {
 
 		// Optimization: knowing that we move many editors, we
 		// delay the title update to a later point for this group
@@ -1226,29 +1258,38 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			skipTitleUpdate: this !== target
 		};
 
+		let moveFailed = false;
+
+		const movedEditors = new Set<EditorInput>();
 		for (const { editor, options } of editors) {
-			this.moveEditor(editor, target, options, internalOptions);
+			if (this.moveEditor(editor, target, options, internalOptions)) {
+				movedEditors.add(editor);
+			} else {
+				moveFailed = true;
+			}
 		}
 
 		// Update the title control all at once with all editors
 		// in source and target if the title update was skipped
 		if (internalOptions.skipTitleUpdate) {
-			const movedEditors = editors.map(({ editor }) => editor);
-			target.titleControl.openEditors(movedEditors);
-			this.titleControl.closeEditors(movedEditors);
+			target.titleControl.openEditors(Array.from(movedEditors));
+			this.titleControl.closeEditors(Array.from(movedEditors));
 		}
+
+		return !moveFailed;
 	}
 
-	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalMoveCopyOptions): void {
+	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalMoveCopyOptions): boolean {
 
 		// Move within same group
 		if (this === target) {
 			this.doMoveEditorInsideGroup(editor, options);
+			return true;
 		}
 
 		// Move across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: false });
+			return this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: false });
 		}
 	}
 
@@ -1289,8 +1330,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): void {
+	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): boolean {
 		const keepCopy = internalOptions?.keepCopy;
+
+		// Validate that we can move
+		if (!keepCopy || editor.hasCapability(EditorInputCapabilities.Singleton) /* singleton editors will always move */) {
+			const canMoveVeto = editor.canMove(this.id, target.id);
+			if (typeof canMoveVeto === 'string') {
+				this.dialogService.error(canMoveVeto, localize('moveErrorDetails', "Try saving or reverting the editor first and then try again."));
+
+				return false;
+			}
+		}
 
 		// When moving/copying an editor, try to preserve as much view state as possible
 		// by checking for the editor to be a text editor and creating the options accordingly
@@ -1317,6 +1368,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!keepCopy) {
 			this.doCloseEditor(editor, true /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
 		}
+
+		return true;
 	}
 
 	//#endregion

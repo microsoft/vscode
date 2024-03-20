@@ -466,10 +466,20 @@
           "description": "%markdown.server.log.desc%"
         },
         "markdown.editor.drop.enabled": {
-          "type": "boolean",
-          "default": true,
+          "type": "string",
+          "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
-          "scope": "resource"
+          "default": "smart",
+          "enum": [
+            "always",
+            "smart",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.editor.drop.enabled.always%",
+            "%configuration.markdown.editor.drop.enabled.smart%",
+            "%configuration.markdown.editor.drop.enabled.never%"
+          ]
         },
         "markdown.editor.drop.copyIntoWorkspace": {
           "type": "string",
@@ -488,7 +498,17 @@
           "type": "boolean",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.filePaste.enabled%",
-          "default": true
+          "default": "smart",
+          "enum": [
+            "always",
+            "smart",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.editor.filePaste.enabled.always%",
+            "%configuration.markdown.editor.filePaste.enabled.smart%",
+            "%configuration.markdown.editor.filePaste.enabled.never%"
+          ]
         },
         "markdown.editor.filePaste.copyIntoWorkspace": {
           "type": "string",

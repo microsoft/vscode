@@ -434,6 +434,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 							}
 							finalMatchedTargets.add(uri);
 						});
+					}).catch(err => {
+						// temporary fix for https://github.com/microsoft/vscode/issues/205044: don't show notebook results for remotehub repos.
+						if (err.code === 'ENOENT') {
+							console.warn(`Could not find notebook search results, ignoring notebook results.`);
+							return {
+								limitHit: false,
+								messages: [],
+							};
+						} else {
+							throw err;
+						}
 					});
 				}))
 			));
@@ -614,7 +625,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				);
 
 				// add cell document as vscode.TextDocument
-				addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(document.apiNotebook, cell)));
+				addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(cell)));
 
 				this._documents.get(uri)?.dispose();
 				this._documents.set(uri, document);

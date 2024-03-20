@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -22,6 +22,7 @@ import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/edito
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -109,12 +110,14 @@ class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant
 	) { }
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
-		if (this.configurationService.getValue<boolean>('files.trimTrailingWhitespace')) {
-			await this.doTrimTrailingWhitespace(workingCopy, context.reason === SaveReason.AUTO, progress);
+		const trimTrailingWhitespaceOption = this.configurationService.getValue<boolean>('files.trimTrailingWhitespace');
+		const trimInRegexAndStrings = this.configurationService.getValue<boolean>('files.trimTrailingWhitespaceInRegexAndStrings');
+		if (trimTrailingWhitespaceOption) {
+			await this.doTrimTrailingWhitespace(workingCopy, context.reason === SaveReason.AUTO, trimInRegexAndStrings, progress);
 		}
 	}
 
-	private async doTrimTrailingWhitespace(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, isAutoSaved: boolean, progress: IProgress<IProgressStep>) {
+	private async doTrimTrailingWhitespace(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, isAutoSaved: boolean, trimInRegexesAndStrings: boolean, progress: IProgress<IProgressStep>) {
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
 			return;
 		}
@@ -149,7 +152,7 @@ class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant
 					}
 				}
 
-				const ops = trimTrailingWhitespace(model, cursors);
+				const ops = trimTrailingWhitespace(model, cursors, trimInRegexesAndStrings);
 				if (!ops.length) {
 					return []; // Nothing to do
 				}
@@ -224,8 +227,11 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 				const textBuffer = cell.textBuffer;
 				const lastNonEmptyLine = this.findLastNonEmptyLine(textBuffer);
 				const deleteFromLineNumber = Math.max(lastNonEmptyLine + 1, cannotTouchLineNumber + 1);
-				const deletionRange = new Range(deleteFromLineNumber, 1, textBuffer.getLineCount(), textBuffer.getLineLastNonWhitespaceColumn(textBuffer.getLineCount()));
+				if (deleteFromLineNumber > textBuffer.getLineCount()) {
+					return;
+				}
 
+				const deletionRange = new Range(deleteFromLineNumber, 1, textBuffer.getLineCount(), textBuffer.getLineLastNonWhitespaceColumn(textBuffer.getLineCount()));
 				if (deletionRange.isEmpty()) {
 					return;
 				}
@@ -244,7 +250,7 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 	}
 }
 
-class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
+class InsertFinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -419,8 +425,8 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		}
 	}
 
-	private createCodeActionsOnSave(settingItems: readonly string[]): CodeActionKind[] {
-		const kinds = settingItems.map(x => new CodeActionKind(x));
+	private createCodeActionsOnSave(settingItems: readonly string[]): HierarchicalKind[] {
+		const kinds = settingItems.map(x => new HierarchicalKind(x));
 
 		// Remove subsets
 		return kinds.filter(kind => {
@@ -428,7 +434,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		});
 	}
 
-	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly HierarchicalKind[], excludes: readonly HierarchicalKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		const getActionProgress = new class implements IProgress<CodeActionProvider> {
 			private _names = new Set<string>();
@@ -491,7 +497,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		}
 	}
 
-	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
+	private getActionsToRun(model: ITextModel, codeActionKind: HierarchicalKind, excludes: readonly HierarchicalKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
 		return getCodeActions(this.languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Invoke,
 			triggerAction: CodeActionTriggerSource.OnSave,
@@ -520,7 +526,7 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimWhitespaceParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(CodeActionOnSaveParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FormatOnSaveParticipant)));
-		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FinalNewLineParticipant)));
+		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(InsertFinalNewLineParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimFinalNewLinesParticipant)));
 	}
 }
