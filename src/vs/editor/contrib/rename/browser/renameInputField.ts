@@ -553,8 +553,8 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 		return this._editor.getTopForLineNumber(this._position!.lineNumber) - this._editor.getTopForLineNumber(firstLineInViewport);
 	}
 
-	private _trace(...args: any[]) {
-		this._logService.trace('RenameInputField', ...args);
+	private _trace(...args: unknown[]) {
+		this._logService.trace('RenameWidget', ...args);
 	}
 }
 
