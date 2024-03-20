@@ -241,7 +241,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _cursorPositions: Cursor[];
 
 	private _renderedDecorations: OverviewRulerDecorationsGroup[] = [];
-	private _renderedCursorPositions: Position[] = [];
+	private _renderedCursorPositions: Cursor[] = [];
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -261,7 +261,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			}
 		});
 
-		this._cursorPositions = [new Position(1, 1)];
+		this._cursorPositions = [{ position: new Position(1, 1), color: this._settings.cursorColorSingle }];
 	}
 
 	public override dispose(): void {
@@ -368,7 +368,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		if (this._actualShouldRender === ShouldRenderValue.Maybe && !OverviewRulerDecorationsGroup.equalsArr(this._renderedDecorations, decorations)) {
 			this._actualShouldRender = ShouldRenderValue.Needed;
 		}
-		if (this._actualShouldRender === ShouldRenderValue.Maybe && !equals(this._renderedCursorPositions, this._cursorPositions, (a, b) => a.lineNumber === b.lineNumber)) {
+		if (this._actualShouldRender === ShouldRenderValue.Maybe && !equals(this._renderedCursorPositions, this._cursorPositions, (a, b) => a.position.lineNumber === b.position.lineNumber && a.color === b.color)) {
 			this._actualShouldRender = ShouldRenderValue.Needed;
 		}
 		if (this._actualShouldRender === ShouldRenderValue.Maybe) {
