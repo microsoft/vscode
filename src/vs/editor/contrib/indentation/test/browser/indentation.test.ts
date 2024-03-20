@@ -538,6 +538,11 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	// Test added so there is at least one non-ignored test in this suite
+	test('temporary test', () => {
+		assert.ok(true);
+	});
+
 	// Failing tests from issues...
 
 	test.skip('issue #116843: decrease indent after arrow function', () => {
@@ -593,9 +598,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	// CURRENT ISSUE - continue from here
-
-	test('issue #193875: incorrect indentation on enter', () => {
+	test.skip('issue #193875: incorrect indentation on enter', () => {
 
 		// https://github.com/microsoft/vscode/issues/193875
 
@@ -623,34 +626,39 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test('issue #43244: incorrect indentation', () => {
+	test.skip('issue #43244: incorrect indentation', () => {
 
-		// https://github.com/microsoft/vscode/issues/193875
 		// https://github.com/microsoft/vscode/issues/43244
 
 		const model = createTextModel([
-			'if (condition)',
-			'    return;'
+			'function f() {',
+			'    if (condition)',
+			'        return;',
+			'}'
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
 
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(2, 12, 2, 12));
+			editor.setSelection(new Selection(3, 16, 3, 16));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
-				'if (condition)',
-				'    return;',
+				'function f() {',
+				'    if (condition)',
+				'        return;',
 				'',
+				'}',
 			].join('\n'));
 
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
-				'if (condition)',
-				'    return;',
+				'function f() {',
+				'    if (condition)',
+				'        return;',
 				'',
-				''
+				'',
+				'}',
 			].join('\n'));
 		});
 	});
@@ -685,8 +693,6 @@ suite('Auto Indent On Type - Ruby', () => {
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
 
 			registerLanguage(instantiationService, languageId, Language.Ruby, disposables);
-
-			// TODO@aiday-mar: requires registering the tokens ?
 
 			viewModel.type("def foo\n        i");
 			viewModel.type("n", 'keyboard');

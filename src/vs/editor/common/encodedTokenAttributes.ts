@@ -103,10 +103,6 @@ export class TokenMetadata {
 	}
 
 	public static getTokenType(metadata: number): StandardTokenType {
-		console.log('metadata : ', metadata);
-		console.log('MetadataConsts.TOKEN_TYPE_MASK : ', MetadataConsts.TOKEN_TYPE_MASK);
-		console.log('MetadataConsts.TOKEN_TYPE_OFFSET : ', MetadataConsts.TOKEN_TYPE_OFFSET);
-		console.log('(metadata & MetadataConsts.TOKEN_TYPE_MASK) >>> MetadataConsts.TOKEN_TYPE_OFFSET : ', (metadata & MetadataConsts.TOKEN_TYPE_MASK) >>> MetadataConsts.TOKEN_TYPE_OFFSET);
 		return (metadata & MetadataConsts.TOKEN_TYPE_MASK) >>> MetadataConsts.TOKEN_TYPE_OFFSET;
 	}
 
