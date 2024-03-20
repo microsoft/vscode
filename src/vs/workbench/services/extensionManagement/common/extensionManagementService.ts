@@ -8,7 +8,7 @@ import {
 	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SYNC_CONTEXT, InstallExtensionInfo,
 	IProductVersion
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, extensionsConfigurationNodeBase, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -38,6 +38,8 @@ import { IExtensionsScannerService, IScannedExtension } from 'vs/platform/extens
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -82,6 +84,21 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+
+		if (productService.quality !== 'stable') {
+			Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+				.registerConfiguration({
+					...extensionsConfigurationNodeBase,
+					properties: {
+						'extensions.experimental.supportWorkspaceExtensions': {
+							type: 'boolean',
+							description: localize('extensions.experimental.supportWorkspaceExtensions', "Enables support for workspace specific local extensions."),
+							default: false,
+							scope: ConfigurationScope.APPLICATION
+						}
+					}
+				});
+		}
 
 		if (this.productService.quality !== 'stable' && this.configurationService.getValue('extensions.experimental.supportWorkspaceExtensions') === true) {
 			this.workspaceExtensionManagementService = this._register(this.instantiationService.createInstance(WorkspaceExtensionsManagementService));
