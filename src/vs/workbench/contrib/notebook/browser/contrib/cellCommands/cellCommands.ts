@@ -16,7 +16,7 @@ import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/
 import { changeCellToKind, computeCellLinesContents, copyCellRange, joinCellsWithSurrounds, joinSelectedCells, moveCellRange } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { cellExecutionArgs, CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookCellAction, NotebookMultiCellAction, parseMultiCellExecutionArgs, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellOutputViewModel, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellEditType, CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -589,10 +589,10 @@ registerAction2(class ExpandAllCellOutputsAction extends NotebookCellAction {
 		super({
 			id: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
 			title: localize2('notebookActions.cellFailureActions', "Show Cell Failure Actions"),
-			precondition: ContextKeyExpr.and(NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
+			precondition: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
 			f1: true,
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.WorkbenchContrib
 			}
