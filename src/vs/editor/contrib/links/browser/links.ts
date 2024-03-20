@@ -10,7 +10,9 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
+import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { URI } from 'vs/base/common/uri';
 import 'vs/css!./links';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -227,47 +229,23 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 		link.resolve(CancellationToken.None).then(uri => {
 
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
-			// With additional support of file://../relativeFolder/.../relativeFile.txt
 			if (typeof uri === 'string' && this.editor.hasModel()) {
 				const modelUri = this.editor.getModel().uri;
 				if (modelUri.scheme === Schemas.file && uri.startsWith(`${Schemas.file}:`)) {
-					let linkToFileToOpen = uri.replace('file:///', '');
-					if (linkToFileToOpen === uri) {
-						linkToFileToOpen = uri.replace('file://', '');
-						uri = uri.replace('file://', 'file:///');
-					}
-					if (linkToFileToOpen.startsWith('.')) {
-						const pathToFileToOpen = linkToFileToOpen.substring(0, linkToFileToOpen.lastIndexOf('/'));
-						const fileName = linkToFileToOpen.substring(linkToFileToOpen.lastIndexOf('/') + 1);
+					const parsedUri = URI.parse(uri);
+					if (parsedUri.scheme === Schemas.file) {
+						const fsPath = resources.originalFSPath(parsedUri);
 
-						// Splitting path of currently opened file in pieces, ignoring the name of the file itself
-						const pathPieces = modelUri.path.split('/');
-						pathPieces.pop();
-
-						const linkPieces = (pathToFileToOpen.includes('/')) ? pathToFileToOpen.split('/') : [pathToFileToOpen];
-						for (let i = 0; i < linkPieces.length; i++) {
-							const dotCount = (linkPieces[i].match(/\./g) || []).length;
-							if (linkPieces[i].length > dotCount) {
-								pathPieces.push(linkPieces[i]);
-							} else if (dotCount > 1) {
-								for (let i = 0; i < dotCount - 1; i++) {
-									if (pathPieces.length === 0) {
-										// Too much dots provided! Let the openerService handle the broken file path
-										return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true, fromWorkspace: true });
-									}
-									// For every dot (except first one) remove the last path piece from the stack, as we are going up the directory
-									pathPieces.pop();
-								}
-							}
+						let relativePath: string | null = null;
+						if (fsPath.startsWith('/./') || fsPath.startsWith('\\.\\')) {
+							relativePath = `.${fsPath.substr(1)}`;
+						} else if (fsPath.startsWith('//./') || fsPath.startsWith('\\\\.\\')) {
+							relativePath = `.${fsPath.substr(2)}`;
 						}
 
-						// Now construct the new file link
-						let pathToFolder = '';
-						for (let i = 0; i < pathPieces.length; i++) {
-							pathToFolder = pathToFolder + `/${pathPieces[i]}`;
+						if (relativePath) {
+							uri = resources.joinPath(modelUri, relativePath);
 						}
-						pathToFolder = pathToFolder + '/';
-						uri = `${Schemas.file}:/` + pathToFolder + fileName;
 					}
 				}
 			}
