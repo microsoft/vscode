@@ -86,6 +86,8 @@ export class ExtHostTerminal {
 	private _state: vscode.TerminalState = { isInteractedWith: false };
 	private _selection: string | undefined;
 
+	shellIntegration: vscode.TerminalShellIntegration | undefined;
+
 	public isOpen: boolean = false;
 
 	readonly value: vscode.Terminal;
@@ -120,8 +122,7 @@ export class ExtHostTerminal {
 				return that._selection;
 			},
 			get shellIntegration(): vscode.TerminalShellIntegration | undefined {
-				// TODO: Impl
-				return undefined;
+				return that.shellIntegration;
 			},
 			sendText(text: string, shouldExecute: boolean = true): void {
 				that._checkDisposed();
@@ -458,13 +459,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 				}
 			}
 		});
-
-		setTimeout(() => {
-			console.log('*** TEST CODE');
-			this.onDidChangeTerminalShellIntegration(e => {
-				console.log('*** onDidChangeTerminalShellIntegration', e);
-			});
-		}, 2000);
 	}
 
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;

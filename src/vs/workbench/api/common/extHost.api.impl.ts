@@ -750,15 +750,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeTerminalShellIntegration(listener, thisArg?, disposables?) {
 				checkProposedApiEnabled(extension, 'terminalShellIntegration');
-				return _asExtensionEvent(extHostTerminalService.onDidChangeTerminalShellIntegration)(listener, thisArg, disposables);
+				return _asExtensionEvent(extHostTerminalShellIntegration.onDidChangeTerminalShellIntegration)(listener, thisArg, disposables);
 			},
 			onDidStartTerminalShellExecution(listener, thisArg?, disposables?) {
 				checkProposedApiEnabled(extension, 'terminalShellIntegration');
-				return _asExtensionEvent(extHostTerminalService.onDidStartTerminalShellExecution)(listener, thisArg, disposables);
+				return _asExtensionEvent(extHostTerminalShellIntegration.onDidStartTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			onDidEndTerminalShellExecution(listener, thisArg?, disposables?) {
 				checkProposedApiEnabled(extension, 'terminalShellIntegration');
-				return _asExtensionEvent(extHostTerminalService.onDidEndTerminalShellExecution)(listener, thisArg, disposables);
+				return _asExtensionEvent(extHostTerminalShellIntegration.onDidEndTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			get state() {
 				return extHostWindow.getState(extension);

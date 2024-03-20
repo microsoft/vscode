@@ -16,15 +16,14 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService terminalService: ITerminalService
 	) {
 		super();
 
-		console.log('init!');
-
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalShellIntegration);
 
-		const onDidAddCommandDetection = _terminalService.createOnInstanceEvent(instance => {
+		// onDidChangeTerminalShellIntegration
+		const onDidAddCommandDetection = terminalService.createOnInstanceEvent(instance => {
 			return Event.map(
 				Event.filter(instance.capabilities.onDidAddCapabilityType, e => {
 					return e === TerminalCapability.CommandDetection;
@@ -32,10 +31,23 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			);
 		});
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$acceptDidChangeShellIntegration(e.instanceId)));
-		const commandDetectionStartedEvent = this._store.add(
-			_terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandStarted)
+
+		// onDidStartTerminalShellExecution
+		const commandDetectionStartEvent = this._store.add(
+			terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandStarted)
 		);
-		commandDetectionStartedEvent.event(e => this._proxy.$acceptTerminalShellExecutionStarted(e.instance.instanceId)); // TODO: Fill in
+		this._store.add(commandDetectionStartEvent.event(e => {
+			const command = e.data;
+			this._proxy.$acceptTerminalShellExecutionStart(e.instance.instanceId, command.command, command.cwd);
+		}));
+
+		// onDidEndTerminalShellExecution
+		const commandDetectionEndEvent = this._store.add(
+			terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished)
+		);
+		this._store.add(commandDetectionEndEvent.event(e => {
+			this._proxy.$acceptTerminalShellExecutionEnd(e.instance.instanceId, e.data.exitCode);
+		}));
 	}
 
 }
