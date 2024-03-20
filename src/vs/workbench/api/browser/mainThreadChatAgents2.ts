@@ -27,7 +27,7 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 
 interface AgentData {
 	dispose: () => void;
-	id: string; // TODO name
+	id: string;
 	extensionId: ExtensionIdentifier;
 	hasFollowups?: boolean;
 }
