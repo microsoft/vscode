@@ -130,13 +130,20 @@ async function loadWorkbenchTestingUtilsModule() {
 	return module
 }
 
+const doImportUrl = async url => {
+	try {
+		return await import(url)
+	} catch (error) {
+		throw new Error(`Failed to import ${url}: ${error}`)
+	}
+}
+
 async function loadModules(modules) {
-	console.log({ modules })
 	for (const file of modules) {
 		const importUrl = url.pathToFileURL(path.join(_out, file)).toString()
 		console.log({ importUrl })
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-		const m = await import(importUrl)
+		const m = await doImportUrl(importUrl)
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
 	}

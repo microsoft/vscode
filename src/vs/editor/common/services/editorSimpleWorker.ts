@@ -29,7 +29,7 @@ import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiff
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
-import { AppResourcePath, FileAccess } from 'vs/base/common/network.js';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
