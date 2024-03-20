@@ -234,22 +234,11 @@ class RenameController implements IEditorContribution {
 		const newSymbolNameProvidersResults = newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, renameCandidatesCts.token));
 		trace(`requested new symbol names from ${newSymbolNamesProviders.length} providers`);
 
-		const selection = this.editor.getSelection();
-		let selectionStart = 0;
-		let selectionEnd = loc.text.length;
-
-		if (!Range.isEmpty(selection) && !Range.spansMultipleLines(selection) && Range.containsRange(loc.range, selection)) {
-			selectionStart = Math.max(0, selection.startColumn - loc.range.startColumn);
-			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
-		}
-
 		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
 		const inputFieldResult = await this._renameInputField.getInput(
 			loc.range,
 			loc.text,
-			selectionStart,
-			selectionEnd,
 			supportPreview,
 			newSymbolNameProvidersResults,
 			renameCandidatesCts

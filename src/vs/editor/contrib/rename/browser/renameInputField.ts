@@ -23,7 +23,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { NewSymbolName, NewSymbolNameTag, ProviderResult } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
@@ -85,7 +85,13 @@ interface IRenameInputField {
 	/**
 	 * @returns a `boolean` standing for `shouldFocusEditor`, if user didn't pick a new name, or a {@link RenameInputFieldResult}
 	 */
-	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean>;
+	getInput(
+		where: IRange,
+		currentName: string,
+		supportPreview: boolean,
+		candidates: ProviderResult<NewSymbolName[]>[],
+		cts: CancellationTokenSource
+	): Promise<RenameInputFieldResult | boolean>;
 
 	acceptInput(wantsPreview: boolean): void;
 	cancelInput(focusEditor: boolean, caller: string): void;
@@ -349,12 +355,12 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 	getInput(
 		where: IRange,
 		currentName: string,
-		selectionStart: number,
-		selectionEnd: number,
 		supportPreview: boolean,
 		candidates: ProviderResult<NewSymbolName[]>[],
 		cts: CancellationTokenSource
 	): Promise<RenameInputFieldResult | boolean> {
+
+		const { start: selectionStart, end: selectionEnd } = this._getSelection(where, currentName);
 
 		this._isEditingRenameCandidate = false;
 
@@ -439,6 +445,24 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		this._show();
 
 		return inputResult.p;
+	}
+
+	/**
+	 * This allows selecting only part of the symbol name in the input field based on the selection in the editor
+	 */
+	private _getSelection(where: IRange, currentName: string): { start: number; end: number } {
+		assertType(this._editor.hasModel());
+
+		const selection = this._editor.getSelection();
+		let start = 0;
+		let end = currentName.length;
+
+		if (!Range.isEmpty(selection) && !Range.spansMultipleLines(selection) && Range.containsRange(where, selection)) {
+			start = Math.max(0, selection.startColumn - where.startColumn);
+			end = Math.min(where.endColumn, selection.endColumn) - where.startColumn;
+		}
+
+		return { start, end };
 	}
 
 	private _show(): void {
