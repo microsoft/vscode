@@ -22,7 +22,6 @@ import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/te
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { InlineChatHistory } from 'vs/workbench/contrib/inlineChat/browser/inlineChatHistory';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';

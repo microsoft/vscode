@@ -118,7 +118,7 @@ suite('InteractiveChatController', function () {
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IContextKeyService, contextKeyService],
 			[IChatContributionService, new MockChatContributionService(
-				[{ extensionId: nullExtensionDescription.identifier, name: 'testAgent', isDefault: true }])],
+				[{ extensionId: nullExtensionDescription.identifier, id: 'testAgent', name: 'testAgent', isDefault: true }])],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IInlineChatService, inlineChatService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
@@ -159,7 +159,7 @@ suite('InteractiveChatController', function () {
 				return {};
 			},
 		} satisfies IChatAgentImplementation;
-		store.add(chatAgentService.registerAgentImplementation({ id: 'testAgent', extensionId: nullExtensionDescription.identifier }, agent));
+		store.add(chatAgentService.registerAgentImplementation('testAgent', agent));
 
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 

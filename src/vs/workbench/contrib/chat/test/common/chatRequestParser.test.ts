@@ -15,7 +15,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('ChatRequestParser', () => {
@@ -112,7 +112,7 @@ suite('ChatRequestParser', () => {
 	});
 
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
-		return <IChatAgentData>{ id: 'agent', metadata: { description: '' }, slashCommands };
+		return <IChatAgentData>{ id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, locations: [], metadata: { description: '' }, slashCommands };
 	};
 
 	test('agent with subcommand after text', async () => {

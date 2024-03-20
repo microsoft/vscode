@@ -57,6 +57,7 @@ class SimpleTestProvider extends Disposable implements IChatProvider {
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
+	name: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
 	locations: [ChatAgentLocation.Panel],
 	metadata: {},
@@ -106,8 +107,8 @@ suite('Chat', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatContributionService, new MockChatContributionService(
 			[
-				{ extensionId: nullExtensionDescription.identifier, name: 'testAgent', isDefault: true },
-				{ extensionId: nullExtensionDescription.identifier, name: chatAgentWithUsedContextId },
+				{ extensionId: nullExtensionDescription.identifier, id: 'testAgent', name: 'testAgent', isDefault: true },
+				{ extensionId: nullExtensionDescription.identifier, id: chatAgentWithUsedContextId, name: chatAgentWithUsedContextId },
 			]));
 
 		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
@@ -118,9 +119,8 @@ suite('Chat', () => {
 				return {};
 			},
 		} satisfies IChatAgentImplementation;
-		const id: IChatAgentIdentifier = { id: 'testAgent', extensionId: nullExtensionDescription.identifier };
-		testDisposables.add(chatAgentService.registerAgentImplementation(id, agent));
-		chatAgentService.updateAgent(id, { requester: { name: 'test' }, fullName: 'test' });
+		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
+		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' }, fullName: 'test' });
 	});
 
 	test('retrieveSession', async () => {
@@ -210,9 +210,8 @@ suite('Chat', () => {
 	});
 
 	test('can serialize', async () => {
-		const id: IChatAgentIdentifier = { id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier };
-		testDisposables.add(chatAgentService.registerAgentImplementation(id, chatAgentWithUsedContext));
-		chatAgentService.updateAgent(id, { requester: { name: 'test' }, fullName: 'test' });
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
+		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' }, fullName: 'test' });
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
 
@@ -232,8 +231,7 @@ suite('Chat', () => {
 
 	test('can deserialize', async () => {
 		let serializedChatData: ISerializableChatData;
-		const id: IChatAgentIdentifier = { id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier };
-		testDisposables.add(chatAgentService.registerAgentImplementation(id, chatAgentWithUsedContext));
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
 
 		// create the first service, send request, get response, and serialize the state
 		{  // serapate block to not leak variables in outer scope
