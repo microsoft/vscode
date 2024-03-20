@@ -1,5 +1,5 @@
 import { path } from './testGlobals.js';
 
-const { join, resolve, dirname } = path
+const { join, resolve, dirname, isAbsolute } = path
 
-export { join, resolve, dirname }
+export { join, resolve, dirname, isAbsolute }

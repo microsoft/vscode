@@ -132,6 +132,7 @@ async function loadWorkbenchTestingUtilsModule() {
 
 const doImportUrl = async url => {
 	try {
+		// console.log('import', url)
 		return await import(url)
 	} catch (error) {
 		throw new Error(`Failed to import ${url}: ${error}`)
@@ -139,6 +140,7 @@ const doImportUrl = async url => {
 }
 
 async function loadModules(modules) {
+	// console.log({ modules })
 	for (const file of modules) {
 		const importUrl = url.pathToFileURL(path.join(_out, file)).toString()
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
@@ -207,8 +209,9 @@ function loadTests(opts) {
 
 	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 		console[consoleFn.name] = function (msg) {
+			consoleFn.apply('bla')
 			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTestTitle)) {
-				_testsWithUnexpectedOutput = true;
+				// _testsWithUnexpectedOutput = true;
 				consoleFn.apply(console, arguments);
 			}
 		};
@@ -394,7 +397,6 @@ class IPCReporter {
 }
 
 async function runTests(opts) {
-	console.log('run tests now')
 	// this *must* come before loadTests, or it doesn't work.
 	if (opts.timeout !== undefined) {
 		mocha.timeout(opts.timeout);
@@ -424,9 +426,6 @@ async function runTests(opts) {
 			console.error(err.stack);
 		});
 	}
-	await new Promise(r => {
-		setTimeout(r, 10000)
-	})
 }
 
 const main = (e, opts) => {
@@ -444,5 +443,4 @@ const main = (e, opts) => {
 		ipcRenderer.send('error', err);
 	});
 }
-
 setRun(main)

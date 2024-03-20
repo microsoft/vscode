@@ -5,6 +5,10 @@
 
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 
+
+// @ts-ignore
+const { assert } = globalThis['testGlobals']
+
 /**
  * This function is called before test running and also again at the end of test running
  * and can be used to add assertions. e.g. that registries are empty, etc.
@@ -13,7 +17,7 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
  *
  * @skipMangle
  */
-export function assertCleanState(assert: any): void {
+export function assertCleanState(): void {
 	// If this test fails, it is a clear indication that
 	// your test or suite is leaking services (e.g. via leaking text models)
 	// assert.strictEqual(LanguageService.instanceCount, 0, 'No leaking ILanguageService');
