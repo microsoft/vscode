@@ -349,12 +349,15 @@ if (isTest) {
 	const url = require('url')
 	const sinon = require('sinon')
 	const childProcess = require('child_process')
+	const stringDecoder = require('string_decoder')
 	const sinonTest = require('sinon-test')
 	const fs = require('fs')
 	const net = require('net')
 	const gracefulFs = require('graceful-fs')
 	const stream = require('stream')
+	const vscodeRipgrep = require('@vscode/ripgrep')
 	const electron = require('electron')
+	const cookie = require('cookie')
 	const crypto = require('crypto')
 	const zlib = require('zlib')
 
@@ -388,7 +391,9 @@ if (isTest) {
 		events,
 		fs,
 		os,
+		stringDecoder,
 		setRun,
+		cookie,
 		url,
 		net,
 		crypto,
@@ -398,6 +403,7 @@ if (isTest) {
 		minimist,
 		gracefulFs,
 		childProcess,
+		vscodeRipgrep,
 		sinonTest
 	}
 	// @ts-ignore
