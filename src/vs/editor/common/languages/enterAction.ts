@@ -15,8 +15,6 @@ export function getEnterAction(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ): CompleteEnterAction | null {
-	console.log('getEnterAction');
-
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 	const richEditSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId);
 	if (!richEditSupport) {
@@ -45,16 +43,7 @@ export function getEnterAction(
 		}
 	}
 
-	console.log('previousLineText : ', previousLineText);
-	console.log('previousLineText.length : ', previousLineText.length);
-	console.log('beforeEnterText : ', beforeEnterText);
-	console.log('beforeEnterText.length : ', beforeEnterText.length);
-	console.log('afterEnterText : ', afterEnterText);
-	console.log('afterEnterText.length : ', afterEnterText.length);
-
 	const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
-	console.log('enterResult : ', JSON.stringify(enterResult));
-
 	if (!enterResult) {
 		return null;
 	}
