@@ -1,0 +1,11 @@
+[
+  {
+    content: {
+      value: "textmarkdown",
+      isTrusted: { enabledCommands: [  ] },
+      supportThemeIcons: false,
+      supportHtml: false
+    },
+    kind: "markdownContent"
+  }
+]

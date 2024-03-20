@@ -38,6 +38,7 @@ class CheckoutStatusBar {
 
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 		repository.onDidRunGitStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
+		repository.onDidChangeBranchProtection(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
 	get command(): Command | undefined {

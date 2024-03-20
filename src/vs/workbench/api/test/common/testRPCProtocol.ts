@@ -28,6 +28,18 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRp
 	};
 }
 
+/** Makes a fake {@link SingleProxyRPCProtocol} on which any method can be called */
+export function AnyCallRPCProtocol<T>(useCalls?: { [K in keyof T]: T[K] }) {
+	return SingleProxyRPCProtocol(new Proxy({}, {
+		get(_target, prop: string) {
+			if (useCalls && prop in useCalls) {
+				return (useCalls as any)[prop];
+			}
+			return () => Promise.resolve(undefined);
+		}
+	}));
+}
+
 export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 
 	public _serviceBrand: undefined;

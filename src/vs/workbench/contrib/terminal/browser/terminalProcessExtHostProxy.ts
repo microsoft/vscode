@@ -34,17 +34,13 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	readonly onRequestInitialCwd: Event<void> = this._onRequestInitialCwd.event;
 	private readonly _onRequestCwd = this._register(new Emitter<void>());
 	readonly onRequestCwd: Event<void> = this._onRequestCwd.event;
-	private readonly _onRequestLatency = this._register(new Emitter<void>());
-	readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 
-
 	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
 	private _pendingCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
-	private _pendingLatencyRequests: ((value: number | PromiseLike<number>) => void)[] = [];
 
 	constructor(
 		public instanceId: number,
@@ -64,7 +60,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	emitReady(pid: number, cwd: string): void {
-		this._onProcessReady.fire({ pid, cwd });
+		this._onProcessReady.fire({ pid, cwd, windowsPty: undefined });
 	}
 
 	emitProcessProperty({ type, value }: IProcessProperty<any>): void {
@@ -112,12 +108,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		}
 	}
 
-	emitLatency(latency: number): void {
-		while (this._pendingLatencyRequests.length > 0) {
-			this._pendingLatencyRequests.pop()!(latency);
-		}
-	}
-
 	async start(): Promise<ITerminalLaunchError | undefined> {
 		return this._terminalService.requestStartExtensionTerminal(this, this._cols, this._rows);
 	}
@@ -132,6 +122,10 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 
 	resize(cols: number, rows: number): void {
 		this._onResize.fire({ cols, rows });
+	}
+
+	clearBuffer(): void | Promise<void> {
+		// no-op
 	}
 
 	acknowledgeDataEvent(): void {
@@ -158,13 +152,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		return new Promise<string>(resolve => {
 			this._onRequestCwd.fire();
 			this._pendingCwdRequests.push(resolve);
-		});
-	}
-
-	getLatency(): Promise<number> {
-		return new Promise<number>(resolve => {
-			this._onRequestLatency.fire();
-			this._pendingLatencyRequests.push(resolve);
 		});
 	}
 

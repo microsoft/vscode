@@ -28,6 +28,8 @@ import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpres
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 
@@ -82,7 +84,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	}
 
 	disposeTemplate(templateData: IReplEvaluationInputTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 
@@ -199,7 +201,7 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${basename(element.sourceData.source.name)}:${element.sourceData.lineNumber}` : '';
-		templateData.source.title = element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : '';
+		templateData.toDispose.push(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.source, element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : ''));
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
@@ -239,13 +241,14 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 
 	public renderElement(node: ITreeNode<IExpression | ReplVariableElement, FuzzyScore>, _index: number, data: IExpressionTemplateData): void {
 		const element = node.element;
-		super.renderExpressionElement(element instanceof ReplVariableElement ? element.expr : element, node, data);
+		super.renderExpressionElement(element instanceof ReplVariableElement ? element.expression : element, node, data);
 	}
 
 	protected renderExpression(expression: IExpression | ReplVariableElement, data: IExpressionTemplateData, highlights: IHighlight[]): void {
 		const isReplVariable = expression instanceof ReplVariableElement;
 		if (isReplVariable || !expression.name) {
-			renderExpressionValue(isReplVariable ? expression.expr : expression, data.value, { showHover: false, colorize: true, linkDetector: this.linkDetector });
+			data.label.set('');
+			renderExpressionValue(isReplVariable ? expression.expression : expression, data.value, { showHover: false, colorize: true, linkDetector: this.linkDetector });
 			data.expression.classList.remove('nested-variable');
 		} else {
 			renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
@@ -296,7 +299,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 	}
 
 	disposeTemplate(templateData: IRawObjectReplTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 

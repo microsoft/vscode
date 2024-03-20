@@ -135,18 +135,16 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	tmpDir: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
-	installSourcePath: string;
 
 	// --- extensions
 	extensionsPath: string;
 	extensionsDownloadLocation: URI;
 	builtinExtensionsPath: string;
 
-	// --- use keytar for credentials
-	disableKeytar?: boolean;
+	// --- use in-memory Secret Storage
+	useInMemorySecretStorage?: boolean;
 
 	crossOriginIsolated?: boolean;
-	isRemoteServer?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

@@ -20,7 +20,7 @@ export interface IWorkingCopyEditorHandler {
 	 * Whether the handler is capable of opening the specific backup in
 	 * an editor.
 	 */
-	handles(workingCopy: IWorkingCopyIdentifier): boolean;
+	handles(workingCopy: IWorkingCopyIdentifier): boolean | Promise<boolean>;
 
 	/**
 	 * Whether the provided working copy is opened in the provided editor.
@@ -87,7 +87,7 @@ export class WorkingCopyEditorService extends Disposable implements IWorkingCopy
 
 	private isOpen(workingCopy: IWorkingCopy, editor: EditorInput): boolean {
 		for (const handler of this.handlers) {
-			if (handler.handles(workingCopy) && handler.isOpen(workingCopy, editor)) {
+			if (handler.isOpen(workingCopy, editor)) {
 				return true;
 			}
 		}

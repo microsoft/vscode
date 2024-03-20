@@ -29,6 +29,10 @@
 	z-index: 600 !important;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .overlayWidgets {
+	z-index: 638 !important;
+}
+
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div.parameter-hints-widget {
 	z-index: 639 !important;
 }
@@ -39,6 +43,10 @@
 
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div .suggest-details-container {
 	z-index: 641 !important;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .zone-widget.interactive-editor-widget .interactive-editor .markdownMessage {
+	white-space: normal;
 }
 
 .monaco-workbench .notebookOverlay .cell-list-container {
@@ -250,7 +258,7 @@
 	text-align: center;
 }
 
-.monaco-workbench .notebookOverlay>.cell-list-container>.monaco-list>.monaco-scrollable-element>.monaco-list-rows>.monaco-list-row .cell-statusbar-hidden .execution-count-label {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-statusbar-hidden .execution-count-label {
 	line-height: 15px;
 }
 
@@ -260,15 +268,9 @@
 
 .monaco-workbench .notebookOverlay .cell .monaco-progress-container {
 	top: -3px;
-
 	position: absolute;
 	left: 0;
 	z-index: var(--z-index-notebook-progress-bar);
-	height: 2px;
-}
-
-.monaco-workbench .notebookOverlay .cell .monaco-progress-container .progress-bit {
-	height: 2px;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list:not(.element-focused):focus:before {
@@ -411,6 +413,7 @@
 
 /** Selected cell background */
 .notebookOverlay .monaco-list.selection-multiple .markdown-cell-row.selected,
+.notebookOverlay .monaco-list.selection-multiple .markdown-cell-row.selected .cell-focus-indicator-bottom,
 .notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-top,
 .notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-left,
 .notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-right,
@@ -509,3 +512,9 @@
 }
 
 .monaco-workbench .notebookOverlay .codicon-debug-continue { color: var(--vscode-icon-foreground) !important; }
+
+/** Cell Chat **/
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-chatGenerationHighlight .cell-focus-indicator,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-chatGenerationHighlight {
+	background-color: var(--vscode-notebook-selectedCellBackground) !important;
+}

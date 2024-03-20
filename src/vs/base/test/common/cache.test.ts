@@ -6,8 +6,11 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { Cache } from 'vs/base/common/cache';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Cache', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('simple value', () => {
 		let counter = 0;

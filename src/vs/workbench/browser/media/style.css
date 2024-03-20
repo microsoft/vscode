@@ -87,6 +87,11 @@ body.web {
 	text-decoration: none;
 }
 
+.monaco-workbench.hc-black p > a,
+.monaco-workbench.hc-light p > a {
+	text-decoration: underline !important;
+}
+
 .monaco-workbench a:active {
 	color: inherit;
 	background-color: inherit;
@@ -107,6 +112,16 @@ body.web {
 	color: inherit;
 	font-family: inherit;
 	font-size: 100%;
+}
+
+.monaco-workbench table {
+	/*
+	 * Somehow this is required when tables show in floating windows
+	 * to override the user-agent style which sets a specific color
+	 * and font-size
+	 */
+	color: inherit;
+	font-size: inherit;
 }
 
 .monaco-workbench input::placeholder { color: var(--vscode-input-placeholderForeground); }
@@ -148,6 +163,17 @@ body.web {
 
 .monaco-workbench .codicon[class*='codicon-'] {
 	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
+}
+
+.monaco-workbench .predefined-file-icon[class*='codicon-']::before {
+	font-family: 'codicon';
+	width: 16px;
+	padding-left: 3px; /* width (16px) - font-size (13px) = padding-left (3px) */
+	padding-right: 3px;
+}
+
+.monaco-workbench:not(.file-icons-enabled) .predefined-file-icon[class*='codicon-']::before {
+	content: unset !important;
 }
 
 .monaco-workbench.modal-dialog-visible .monaco-progress-container.infinite .progress-bit {
@@ -230,7 +256,7 @@ body.web {
 	left: 0;
 	width: 100%;
 	height: 100%;
-	z-index: 5; /* make sure we are on top of the tree items */
+	z-index: 15; /* make sure we are on top of the tree sticky scroll widget */
 	content: "";
 	pointer-events: none; /* enable click through */
 	outline: 1px solid; /* we still need to handle the empty tree or no focus item case */

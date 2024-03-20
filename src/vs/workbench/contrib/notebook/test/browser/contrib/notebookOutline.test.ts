@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { mock } from 'vs/base/test/common/mock';
 import { Event } from 'vs/base/common/event';
@@ -17,18 +16,23 @@ import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib
 import { IActiveNotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-
+import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Notebook Outline', function () {
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
-	suiteSetup(() => {
+	teardown(() => disposables.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
-		instantiationService.set(IMarkerService, new MarkerService());
+		instantiationService.set(IMarkerService, disposables.add(new MarkerService()));
 		instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
 			override onDidFileIconThemeChange = Event.None;
 			override getFileIconTheme(): IFileIconTheme {
@@ -37,7 +41,6 @@ suite('Notebook Outline', function () {
 		});
 	});
 
-	suiteTeardown(() => disposables.dispose());
 
 	function withNotebookOutline<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (outline: NotebookCellOutline, editor: IActiveNotebookEditor) => R): Promise<R> {
 		return withTestNotebook(cells, (editor) => {
@@ -50,6 +53,8 @@ suite('Notebook Outline', function () {
 				}
 				override onDidChangeModel: Event<void> = Event.None;
 			}, OutlineTarget.OutlinePane);
+
+			disposables.add(outline);
 			return callback(outline, editor);
 		});
 

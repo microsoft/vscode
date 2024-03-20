@@ -5,12 +5,12 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { API } from '../tsServer/api';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { Disposable } from '../utils/dispose';
-import * as fileSchemes from '../utils/fileSchemes';
-import { isTypeScriptDocument } from '../utils/languageIds';
+import * as fileSchemes from '../configuration/fileSchemes';
+import { isTypeScriptDocument } from '../configuration/languageIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
@@ -161,6 +161,7 @@ export default class FileConfigurationManager extends Disposable {
 			placeOpenBraceOnNewLineForFunctions: config.get<boolean>('placeOpenBraceOnNewLineForFunctions'),
 			placeOpenBraceOnNewLineForControlBlocks: config.get<boolean>('placeOpenBraceOnNewLineForControlBlocks'),
 			semicolons: config.get<Proto.SemicolonPreference>('semicolons'),
+			indentSwitchCase: config.get<boolean>('indentSwitchCase'),
 		};
 	}
 
@@ -190,10 +191,13 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
+			// @ts-expect-error until 5.3 #56090
+			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
 			disableLineTextInReferences: true,
+			interactiveInlayHints: true,
 			...getInlayHintsPreferences(config),
 		};
 
@@ -211,12 +215,16 @@ export default class FileConfigurationManager extends Disposable {
 	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
 		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
 			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
-			const slashNormalized = p.replace(/\\/g, '/');
-			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
+			const isRelative = /^\.\.?($|[\/\\])/.test(p);
+			// In TypeScript < 5.3, the first path component cannot be a wildcard, so we need to prefix
+			// it with a path root (e.g. `/` or `c:\`)
+			const wildcardPrefix = this.client.apiVersion.gte(API.v540)
+				? ''
+				: path.parse(this.client.toTsFilePath(workspaceFolder)!).root;
 			return path.isAbsolute(p) ? p :
-				p.startsWith('*') ? '/' + slashNormalized :
-					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
-						'/**/' + slashNormalized;
+				p.startsWith('*') ? wildcardPrefix + p :
+					isRelative ? this.client.toTsFilePath(vscode.Uri.joinPath(workspaceFolder, p))! :
+						wildcardPrefix + '**' + path.sep + p;
 		});
 	}
 }

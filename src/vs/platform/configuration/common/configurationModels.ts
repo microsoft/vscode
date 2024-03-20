@@ -13,7 +13,7 @@ import * as objects from 'vs/base/common/objects';
 import { IExtUri } from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
+import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IInspectValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -23,11 +23,7 @@ function freeze<T>(data: T): T {
 	return Object.isFrozen(data) ? data : objects.deepFreeze(data);
 }
 
-interface IInspectValue<V> {
-	value?: V;
-	override?: V;
-	merged?: V;
-}
+type InspectValue<V> = IInspectValue<V> & { merged?: V };
 
 export class ConfigurationModel implements IConfigurationModel {
 
@@ -82,11 +78,29 @@ export class ConfigurationModel implements IConfigurationModel {
 		return section ? getConfigurationValue<any>(this.contents, section) : this.contents;
 	}
 
-	inspect<V>(section: string | undefined, overrideIdentifier?: string | null): IInspectValue<V> {
-		const value = this.rawConfiguration.getValue<V>(section);
-		const override = overrideIdentifier ? this.rawConfiguration.getOverrideValue<V>(section, overrideIdentifier) : undefined;
-		const merged = overrideIdentifier ? this.rawConfiguration.override(overrideIdentifier).getValue<V>(section) : value;
-		return { value, override, merged };
+	inspect<V>(section: string | undefined, overrideIdentifier?: string | null): InspectValue<V> {
+		const that = this;
+		return {
+			get value() {
+				return freeze(that.rawConfiguration.getValue<V>(section));
+			},
+			get override() {
+				return overrideIdentifier ? freeze(that.rawConfiguration.getOverrideValue<V>(section, overrideIdentifier)) : undefined;
+			},
+			get merged() {
+				return freeze(overrideIdentifier ? that.rawConfiguration.override(overrideIdentifier).getValue<V>(section) : that.rawConfiguration.getValue<V>(section));
+			},
+			get overrides() {
+				const overrides: { readonly identifiers: string[]; readonly value: V }[] = [];
+				for (const { contents, identifiers, keys } of that.rawConfiguration.overrides) {
+					const value = new ConfigurationModel(contents, keys).getValue<V>(section);
+					if (value !== undefined) {
+						overrides.push({ identifiers, value });
+					}
+				}
+				return overrides.length ? freeze(overrides) : undefined;
+			}
+		};
 	}
 
 	getOverrideValue<V>(section: string | undefined, overrideIdentifier: string): V | undefined {
@@ -211,7 +225,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			}
 		};
 		for (const override of this.overrides) {
-			if (arrays.equals(override.identifiers, [identifier])) {
+			if (override.identifiers.length === 1 && override.identifiers[0] === identifier) {
 				contentsForIdentifierOnly = override.contents;
 			} else if (override.identifiers.includes(identifier)) {
 				mergeContents(override.contents);
@@ -269,8 +283,10 @@ export class ConfigurationModel implements IConfigurationModel {
 }
 
 export interface ConfigurationParseOptions {
-	scopes: ConfigurationScope[] | undefined;
+	scopes?: ConfigurationScope[];
 	skipRestricted?: boolean;
+	include?: string[];
+	exclude?: string[];
 }
 
 export class ConfigurationModelParser {
@@ -383,7 +399,7 @@ export class ConfigurationModelParser {
 
 	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}; restricted: string[]; hasExcludedProperties: boolean } {
 		let hasExcludedProperties = false;
-		if (!options?.scopes && !options?.skipRestricted) {
+		if (!options?.scopes && !options?.skipRestricted && !options?.exclude?.length) {
 			return { raw: properties, restricted: [], hasExcludedProperties };
 		}
 		const raw: any = {};
@@ -400,9 +416,10 @@ export class ConfigurationModelParser {
 				if (propertySchema?.restricted) {
 					restricted.push(key);
 				}
-				// Load unregistered configurations always.
-				if ((scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) // Check scopes
-					&& !(options.skipRestricted && propertySchema?.restricted)) { // Check restricted
+				if (!options.exclude?.includes(key) /* Check exclude */
+					&& (options.include?.includes(key) /* Check include */
+						|| ((scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) /* Check scopes */
+							&& !(options.skipRestricted && propertySchema?.restricted)))) /* Check restricted */ {
 					raw[key] = properties[key];
 				} else {
 					hasExcludedProperties = true;
@@ -435,19 +452,17 @@ export class ConfigurationModelParser {
 export class UserSettings extends Disposable {
 
 	private readonly parser: ConfigurationModelParser;
-	private readonly parseOptions: ConfigurationParseOptions;
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		private readonly userSettingsResource: URI,
-		private readonly scopes: ConfigurationScope[] | undefined,
+		protected parseOptions: ConfigurationParseOptions,
 		extUri: IExtUri,
 		private readonly fileService: IFileService
 	) {
 		super();
 		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString());
-		this.parseOptions = { scopes: this.scopes };
 		this._register(this.fileService.watch(extUri.dirname(this.userSettingsResource)));
 		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
 		this._register(this.fileService.watch(this.userSettingsResource));
@@ -467,7 +482,10 @@ export class UserSettings extends Disposable {
 		}
 	}
 
-	reparse(): ConfigurationModel {
+	reparse(parseOptions?: ConfigurationParseOptions): ConfigurationModel {
+		if (parseOptions) {
+			this.parseOptions = parseOptions;
+		}
 		this.parser.reparse(this.parseOptions);
 		return this.parser.configurationModel;
 	}
@@ -500,19 +518,14 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return freeze(this._value);
 	}
 
-	private inspect<V>(model: ConfigurationModel, section: string | undefined, overrideIdentifier?: string | null): IInspectValue<V> {
-		const inspectValue = model.inspect<V>(section, overrideIdentifier);
-		return {
-			get value() { return freeze(inspectValue.value); },
-			get override() { return freeze(inspectValue.override); },
-			get merged() { return freeze(inspectValue.merged); }
-		};
+	private toInspectValue(inspectValue: IInspectValue<V> | undefined | null): IInspectValue<V> | undefined {
+		return inspectValue?.value !== undefined || inspectValue?.override !== undefined || inspectValue?.overrides !== undefined ? inspectValue : undefined;
 	}
 
-	private _defaultInspectValue: IInspectValue<V> | undefined;
-	private get defaultInspectValue(): IInspectValue<V> {
+	private _defaultInspectValue: InspectValue<V> | undefined;
+	private get defaultInspectValue(): InspectValue<V> {
 		if (!this._defaultInspectValue) {
-			this._defaultInspectValue = this.inspect<V>(this.defaultConfiguration, this.key, this.overrides.overrideIdentifier);
+			this._defaultInspectValue = this.defaultConfiguration.inspect<V>(this.key, this.overrides.overrideIdentifier);
 		}
 		return this._defaultInspectValue;
 	}
@@ -521,14 +534,14 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.defaultInspectValue.merged;
 	}
 
-	get default(): { value?: V; override?: V } | undefined {
-		return this.defaultInspectValue.value !== undefined || this.defaultInspectValue.override !== undefined ? { value: this.defaultInspectValue.value, override: this.defaultInspectValue.override } : undefined;
+	get default(): IInspectValue<V> | undefined {
+		return this.toInspectValue(this.defaultInspectValue);
 	}
 
-	private _policyInspectValue: IInspectValue<V> | undefined | null;
-	private get policyInspectValue(): IInspectValue<V> | null {
+	private _policyInspectValue: InspectValue<V> | undefined | null;
+	private get policyInspectValue(): InspectValue<V> | null {
 		if (this._policyInspectValue === undefined) {
-			this._policyInspectValue = this.policyConfiguration ? this.inspect<V>(this.policyConfiguration, this.key) : null;
+			this._policyInspectValue = this.policyConfiguration ? this.policyConfiguration.inspect<V>(this.key) : null;
 		}
 		return this._policyInspectValue;
 	}
@@ -537,14 +550,14 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.policyInspectValue?.merged;
 	}
 
-	get policy(): { value?: V; override?: V } | undefined {
+	get policy(): IInspectValue<V> | undefined {
 		return this.policyInspectValue?.value !== undefined ? { value: this.policyInspectValue.value } : undefined;
 	}
 
-	private _applicationInspectValue: IInspectValue<V> | undefined | null;
-	private get applicationInspectValue(): IInspectValue<V> | null {
+	private _applicationInspectValue: InspectValue<V> | undefined | null;
+	private get applicationInspectValue(): InspectValue<V> | null {
 		if (this._applicationInspectValue === undefined) {
-			this._applicationInspectValue = this.applicationConfiguration ? this.inspect<V>(this.applicationConfiguration, this.key) : null;
+			this._applicationInspectValue = this.applicationConfiguration ? this.applicationConfiguration.inspect<V>(this.key) : null;
 		}
 		return this._applicationInspectValue;
 	}
@@ -553,14 +566,14 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.applicationInspectValue?.merged;
 	}
 
-	get application(): { value?: V; override?: V } | undefined {
-		return this.applicationInspectValue?.value !== undefined || this.applicationInspectValue?.override !== undefined ? { value: this.applicationInspectValue.value, override: this.applicationInspectValue.override } : undefined;
+	get application(): IInspectValue<V> | undefined {
+		return this.toInspectValue(this.applicationInspectValue);
 	}
 
-	private _userInspectValue: IInspectValue<V> | undefined;
-	private get userInspectValue(): IInspectValue<V> {
+	private _userInspectValue: InspectValue<V> | undefined;
+	private get userInspectValue(): InspectValue<V> {
 		if (!this._userInspectValue) {
-			this._userInspectValue = this.inspect<V>(this.userConfiguration, this.key, this.overrides.overrideIdentifier);
+			this._userInspectValue = this.userConfiguration.inspect<V>(this.key, this.overrides.overrideIdentifier);
 		}
 		return this._userInspectValue;
 	}
@@ -569,14 +582,14 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.userInspectValue.merged;
 	}
 
-	get user(): { value?: V; override?: V } | undefined {
-		return this.userInspectValue.value !== undefined || this.userInspectValue.override !== undefined ? { value: this.userInspectValue.value, override: this.userInspectValue.override } : undefined;
+	get user(): IInspectValue<V> | undefined {
+		return this.toInspectValue(this.userInspectValue);
 	}
 
-	private _userLocalInspectValue: IInspectValue<V> | undefined;
-	private get userLocalInspectValue(): IInspectValue<V> {
+	private _userLocalInspectValue: InspectValue<V> | undefined;
+	private get userLocalInspectValue(): InspectValue<V> {
 		if (!this._userLocalInspectValue) {
-			this._userLocalInspectValue = this.inspect<V>(this.localUserConfiguration, this.key, this.overrides.overrideIdentifier);
+			this._userLocalInspectValue = this.localUserConfiguration.inspect<V>(this.key, this.overrides.overrideIdentifier);
 		}
 		return this._userLocalInspectValue;
 	}
@@ -585,14 +598,14 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.userLocalInspectValue.merged;
 	}
 
-	get userLocal(): { value?: V; override?: V } | undefined {
-		return this.userLocalInspectValue.value !== undefined || this.userLocalInspectValue.override !== undefined ? { value: this.userLocalInspectValue.value, override: this.userLocalInspectValue.override } : undefined;
+	get userLocal(): IInspectValue<V> | undefined {
+		return this.toInspectValue(this.userLocalInspectValue);
 	}
 
-	private _userRemoteInspectValue: IInspectValue<V> | undefined;
-	private get userRemoteInspectValue(): IInspectValue<V> {
+	private _userRemoteInspectValue: InspectValue<V> | undefined;
+	private get userRemoteInspectValue(): InspectValue<V> {
 		if (!this._userRemoteInspectValue) {
-			this._userRemoteInspectValue = this.inspect<V>(this.remoteUserConfiguration, this.key, this.overrides.overrideIdentifier);
+			this._userRemoteInspectValue = this.remoteUserConfiguration.inspect<V>(this.key, this.overrides.overrideIdentifier);
 		}
 		return this._userRemoteInspectValue;
 	}
@@ -601,14 +614,14 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.userRemoteInspectValue.merged;
 	}
 
-	get userRemote(): { value?: V; override?: V } | undefined {
-		return this.userRemoteInspectValue.value !== undefined || this.userRemoteInspectValue.override !== undefined ? { value: this.userRemoteInspectValue.value, override: this.userRemoteInspectValue.override } : undefined;
+	get userRemote(): IInspectValue<V> | undefined {
+		return this.toInspectValue(this.userRemoteInspectValue);
 	}
 
-	private _workspaceInspectValue: IInspectValue<V> | undefined | null;
-	private get workspaceInspectValue(): IInspectValue<V> | null {
+	private _workspaceInspectValue: InspectValue<V> | undefined | null;
+	private get workspaceInspectValue(): InspectValue<V> | null {
 		if (this._workspaceInspectValue === undefined) {
-			this._workspaceInspectValue = this.workspaceConfiguration ? this.inspect<V>(this.workspaceConfiguration, this.key, this.overrides.overrideIdentifier) : null;
+			this._workspaceInspectValue = this.workspaceConfiguration ? this.workspaceConfiguration.inspect<V>(this.key, this.overrides.overrideIdentifier) : null;
 		}
 		return this._workspaceInspectValue;
 	}
@@ -617,14 +630,14 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.workspaceInspectValue?.merged;
 	}
 
-	get workspace(): { value?: V; override?: V } | undefined {
-		return this.workspaceInspectValue?.value !== undefined || this.workspaceInspectValue?.override !== undefined ? { value: this.workspaceInspectValue.value, override: this.workspaceInspectValue.override } : undefined;
+	get workspace(): IInspectValue<V> | undefined {
+		return this.toInspectValue(this.workspaceInspectValue);
 	}
 
-	private _workspaceFolderInspectValue: IInspectValue<V> | undefined | null;
-	private get workspaceFolderInspectValue(): IInspectValue<V> | null {
+	private _workspaceFolderInspectValue: InspectValue<V> | undefined | null;
+	private get workspaceFolderInspectValue(): InspectValue<V> | null {
 		if (this._workspaceFolderInspectValue === undefined) {
-			this._workspaceFolderInspectValue = this.folderConfigurationModel ? this.inspect<V>(this.folderConfigurationModel, this.key, this.overrides.overrideIdentifier) : null;
+			this._workspaceFolderInspectValue = this.folderConfigurationModel ? this.folderConfigurationModel.inspect<V>(this.key, this.overrides.overrideIdentifier) : null;
 		}
 		return this._workspaceFolderInspectValue;
 	}
@@ -633,14 +646,14 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.workspaceFolderInspectValue?.merged;
 	}
 
-	get workspaceFolder(): { value?: V; override?: V } | undefined {
-		return this.workspaceFolderInspectValue?.value !== undefined || this.workspaceFolderInspectValue?.override !== undefined ? { value: this.workspaceFolderInspectValue.value, override: this.workspaceFolderInspectValue.override } : undefined;
+	get workspaceFolder(): IInspectValue<V> | undefined {
+		return this.toInspectValue(this.workspaceFolderInspectValue);
 	}
 
-	private _memoryInspectValue: IInspectValue<V> | undefined;
-	private get memoryInspectValue(): IInspectValue<V> {
+	private _memoryInspectValue: InspectValue<V> | undefined;
+	private get memoryInspectValue(): InspectValue<V> {
 		if (this._memoryInspectValue === undefined) {
-			this._memoryInspectValue = this.inspect<V>(this.memoryConfigurationModel, this.key, this.overrides.overrideIdentifier);
+			this._memoryInspectValue = this.memoryConfigurationModel.inspect<V>(this.key, this.overrides.overrideIdentifier);
 		}
 		return this._memoryInspectValue;
 	}
@@ -649,8 +662,8 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.memoryInspectValue.merged;
 	}
 
-	get memory(): { value?: V; override?: V } | undefined {
-		return this.memoryInspectValue.value !== undefined || this.memoryInspectValue.override !== undefined ? { value: this.memoryInspectValue.value, override: this.memoryInspectValue.override } : undefined;
+	get memory(): IInspectValue<V> | undefined {
+		return this.toInspectValue(this.memoryInspectValue);
 	}
 
 }
@@ -908,7 +921,7 @@ export class Configuration {
 		return this._workspaceConfiguration;
 	}
 
-	protected get folderConfigurations(): ResourceMap<ConfigurationModel> {
+	get folderConfigurations(): ResourceMap<ConfigurationModel> {
 		return this._folderConfigurations;
 	}
 
@@ -1012,7 +1025,7 @@ export class Configuration {
 		this._defaultConfiguration.keys.forEach(key => keys.add(key));
 		this.userConfiguration.keys.forEach(key => keys.add(key));
 		this._workspaceConfiguration.keys.forEach(key => keys.add(key));
-		this._folderConfigurations.forEach(folderConfiguraiton => folderConfiguraiton.keys.forEach(key => keys.add(key)));
+		this._folderConfigurations.forEach(folderConfiguration => folderConfiguration.keys.forEach(key => keys.add(key)));
 		return [...keys.values()];
 	}
 
@@ -1021,7 +1034,7 @@ export class Configuration {
 		this._defaultConfiguration.getAllOverrideIdentifiers().forEach(key => keys.add(key));
 		this.userConfiguration.getAllOverrideIdentifiers().forEach(key => keys.add(key));
 		this._workspaceConfiguration.getAllOverrideIdentifiers().forEach(key => keys.add(key));
-		this._folderConfigurations.forEach(folderConfiguraiton => folderConfiguraiton.getAllOverrideIdentifiers().forEach(key => keys.add(key)));
+		this._folderConfigurations.forEach(folderConfiguration => folderConfiguration.getAllOverrideIdentifiers().forEach(key => keys.add(key)));
 		return [...keys.values()];
 	}
 
@@ -1030,7 +1043,7 @@ export class Configuration {
 		this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key));
 		this.userConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key));
 		this._workspaceConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key));
-		this._folderConfigurations.forEach(folderConfiguraiton => folderConfiguraiton.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key)));
+		this._folderConfigurations.forEach(folderConfiguration => folderConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key)));
 		return [...keys.values()];
 	}
 
@@ -1083,7 +1096,6 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 
 	readonly affectedKeys = new Set<string>();
 	source!: ConfigurationTarget;
-	sourceConfig: any;
 
 	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace; data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
 		for (const key of change.keys) {

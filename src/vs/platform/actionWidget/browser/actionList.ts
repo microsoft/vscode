@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./actionWidget';
 import { localize } from 'vs/nls';
-import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -23,20 +22,21 @@ import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 
-export interface IRenderDelegate {
+export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
-	onSelect(action: IActionItem, preview?: boolean): Promise<any>;
+	onSelect(action: T, preview?: boolean): void;
+	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
+	onFocus?(action: T | undefined): void;
 }
 
-export interface IListMenuItem<T extends IActionItem> {
+export interface IActionListItem<T> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
 	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
-	readonly description?: string;
-
 	readonly keybinding?: ResolvedKeybinding;
+	canPreview?: boolean | undefined;
 }
 
 interface IActionMenuTemplateData {
@@ -56,7 +56,7 @@ interface IHeaderTemplateData {
 	readonly text: HTMLElement;
 }
 
-class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements IListRenderer<T, IHeaderTemplateData> {
+class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Header; }
 
@@ -69,7 +69,7 @@ class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements IListRende
 		return { container, text };
 	}
 
-	renderElement(element: IListMenuItem<IActionItem>, _index: number, templateData: IHeaderTemplateData): void {
+	renderElement(element: IActionListItem<T>, _index: number, templateData: IHeaderTemplateData): void {
 		templateData.text.textContent = element.group?.title ?? '';
 	}
 
@@ -78,7 +78,7 @@ class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements IListRende
 	}
 }
 
-class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListRenderer<T, IActionMenuTemplateData> {
+class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IActionMenuTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Action; }
 
@@ -103,7 +103,7 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		return { container, icon, text, keybinding };
 	}
 
-	renderElement(element: T, _index: number, data: IActionMenuTemplateData): void {
+	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
 			if (element.group.icon.color) {
@@ -120,12 +120,8 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 
 		data.text.textContent = stripNewlines(element.label);
 
-		if (!element.keybinding) {
-			dom.hide(data.keybinding.element);
-		} else {
-			data.keybinding.set(element.keybinding);
-			dom.show(data.keybinding.element);
-		}
+		data.keybinding.set(element.keybinding);
+		dom.setVisibility(!!element.keybinding, data.keybinding.element);
 
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
@@ -133,7 +129,7 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			if (this._supportsPreview) {
+			if (this._supportsPreview && element.canPreview) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
 			} else {
 				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
@@ -141,16 +137,10 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		} else {
 			data.container.title = '';
 		}
-
-		if (element.description) {
-			const label = new HighlightedLabel(dom.append(data.container, dom.$('span.label-description')));
-			label.element.classList.add('action-list-description');
-			label.set(element.description);
-		}
 	}
 
 	disposeTemplate(_templateData: IActionMenuTemplateData): void {
-		// noop
+		_templateData.keybinding.dispose();
 	}
 }
 
@@ -162,22 +152,32 @@ class PreviewSelectedEvent extends UIEvent {
 	constructor() { super('previewSelectedAction'); }
 }
 
-export class ActionList<T extends IActionItem> extends Disposable {
+function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undefined {
+	// Filter out header vs. action
+	if (item.kind === 'action') {
+		return item.label;
+	}
+	return undefined;
+}
+
+export class ActionList<T> extends Disposable {
 
 	public readonly domNode: HTMLElement;
 
-	private readonly _list: List<IListMenuItem<IActionItem>>;
+	private readonly _list: List<IActionListItem<T>>;
 
 	private readonly _actionLineHeight = 24;
 	private readonly _headerLineHeight = 26;
 
-	private readonly _allMenuItems: readonly IListMenuItem<IActionItem>[];
+	private readonly _allMenuItems: readonly IActionListItem<T>[];
+
+	private readonly cts = this._register(new CancellationTokenSource());
 
 	constructor(
 		user: string,
 		preview: boolean,
-		items: readonly IListMenuItem<T>[],
-		private readonly _delegate: IRenderDelegate,
+		items: readonly IActionListItem<T>[],
+		private readonly _delegate: IActionListDelegate<T>,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
@@ -185,16 +185,18 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
-		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>> = {
+		const virtualDelegate: IListVirtualDelegate<IActionListItem<T>> = {
 			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService),
+			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
 			new HeaderRenderer(),
 		], {
 			keyboardSupport: false,
+			typeNavigationEnabled: true,
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
@@ -208,14 +210,15 @@ export class ActionList<T extends IActionItem> extends Disposable {
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
 				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
-				getWidgetRole: () => 'listbox'
+				getWidgetRole: () => 'listbox',
 			},
 		}));
+
 		this._list.style(defaultListStyles);
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
-		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
+		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
 		this._allMenuItems = items;
@@ -226,12 +229,13 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		}
 	}
 
-	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
+	private focusCondition(element: IActionListItem<unknown>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
+		this.cts.cancel();
 		this._contextViewService.hideContextView();
 	}
 
@@ -241,30 +245,35 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		const itemsHeight = this._allMenuItems.length * this._actionLineHeight;
 		const heightWithHeaders = itemsHeight + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
 		this._list.layout(heightWithHeaders);
+		let maxWidth = minWidth;
 
-		// For finding width dynamically (not using resize observer)
-		const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
-			const element = document.getElementById(this._list.getElementID(index));
-			if (element) {
-				element.style.width = 'auto';
-				const width = element.getBoundingClientRect().width;
-				element.style.width = '';
-				return width;
-			}
-			return 0;
-		});
+		if (this._allMenuItems.length >= 50) {
+			maxWidth = 380;
+		} else {
+			// For finding width dynamically (not using resize observer)
+			const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
+				const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+				if (element) {
+					element.style.width = 'auto';
+					const width = element.getBoundingClientRect().width;
+					element.style.width = '';
+					return width;
+				}
+				return 0;
+			});
 
-		// resize observer - can be used in the future since list widget supports dynamic height but not width
-		const width = Math.max(...itemWidths, minWidth);
+			// resize observer - can be used in the future since list widget supports dynamic height but not width
+			maxWidth = Math.max(...itemWidths, minWidth);
+		}
 
 		const maxVhPrecentage = 0.7;
-		const height = Math.min(heightWithHeaders, document.body.clientHeight * maxVhPrecentage);
-		this._list.layout(height, width);
+		const height = Math.min(heightWithHeaders, this.domNode.ownerDocument.body.clientHeight * maxVhPrecentage);
+		this._list.layout(height, maxWidth);
 
 		this.domNode.style.height = `${height}px`;
 
 		this._list.domFocus();
-		return width;
+		return maxWidth;
 	}
 
 	focusPrevious() {
@@ -291,7 +300,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		this._list.setSelection([focusIndex], event);
 	}
 
-	private onListSelection(e: IListEvent<IListMenuItem<IActionItem>>): void {
+	private onListSelection(e: IListEvent<IActionListItem<T>>): void {
 		if (!e.elements.length) {
 			return;
 		}
@@ -304,11 +313,32 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		}
 	}
 
-	private onListHover(e: IListMouseEvent<IListMenuItem<IActionItem>>): void {
+	private onFocus() {
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return;
+		}
+		const focusIndex = focused[0];
+		const element = this._list.element(focusIndex);
+		this._delegate.onFocus?.(element.item);
+	}
+
+	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
+		const element = e.element;
+		if (element && element.item && this.focusCondition(element)) {
+			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
+				const result = await this._delegate.onHover(element.item, this.cts.token);
+				element.canPreview = result ? result.canPreview : undefined;
+			}
+			if (e.index) {
+				this._list.splice(e.index, 1, [element]);
+			}
+		}
+
 		this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 
-	private onListClick(e: IListMouseEvent<IListMenuItem<IActionItem>>): void {
+	private onListClick(e: IListMouseEvent<IActionListItem<T>>): void {
 		if (e.element && this.focusCondition(e.element)) {
 			this._list.setFocus([]);
 		}

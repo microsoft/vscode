@@ -65,7 +65,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 				}
 			};
 
-			const onMessage = (_event: Event, method: string, params: unknown, sessionId?: string) =>
+			const onMessage = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) =>
 				writeMessage(({ method, params, sessionId }));
 
 			win.on('close', () => {

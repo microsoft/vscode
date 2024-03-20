@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
+import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { Mutable, isNumber, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -377,10 +380,6 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	override dispose(): void {
-		// noop
-	}
-
 	flush(): void {
 		// noop
 	}
@@ -389,44 +388,61 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 
 export class ConsoleLogger extends AbstractLogger implements ILogger {
 
-	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
+	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL, private readonly useColors: boolean = true) {
 		super();
 		this.setLevel(logLevel);
 	}
 
 	trace(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Trace)) {
-			console.log('%cTRACE', 'color: #888', message, ...args);
+			if (this.useColors) {
+				console.log('%cTRACE', 'color: #888', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Debug)) {
-			console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+			if (this.useColors) {
+				console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Info)) {
-			console.log('%c INFO', 'color: #33f', message, ...args);
+			if (this.useColors) {
+				console.log('%c INFO', 'color: #33f', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Warning)) {
-			console.log('%c WARN', 'color: #993', message, ...args);
+			if (this.useColors) {
+				console.log('%c WARN', 'color: #993', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Error)) {
-			console.log('%c  ERR', 'color: #f33', message, ...args);
+			if (this.useColors) {
+				console.log('%c  ERR', 'color: #f33', message, ...args);
+			} else {
+				console.error(message, ...args);
+			}
 		}
 	}
 
-	override dispose(): void {
-		// noop
-	}
 
 	flush(): void {
 		// noop
@@ -476,10 +492,6 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 		}
 
 		return toErrorMessage(msg, this.checkLogLevel(LogLevel.Trace));
-	}
-
-	override dispose(): void {
-		// noop
 	}
 
 	flush(): void {
@@ -543,6 +555,7 @@ export class MultiplexLogger extends AbstractLogger implements ILogger {
 		for (const logger of this.loggers) {
 			logger.dispose();
 		}
+		super.dispose();
 	}
 }
 
@@ -587,18 +600,17 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		return this.getLoggerEntry(resourceOrId)?.logger;
 	}
 
-	createLogger(resource: URI, options?: ILoggerOptions): ILogger;
-	createLogger(id: string, options?: ILoggerOptions): ILogger;
 	createLogger(idOrResource: URI | string, options?: ILoggerOptions): ILogger {
 		const resource = this.toResource(idOrResource);
+		const id = isString(idOrResource) ? idOrResource : (options?.id ?? hash(resource.toString()).toString(16));
 		let logger = this._loggers.get(resource)?.logger;
 		const logLevel = options?.logLevel === 'always' ? LogLevel.Trace : options?.logLevel;
 		if (!logger) {
-			logger = this.doCreateLogger(resource, logLevel ?? this.getLogLevel(resource) ?? this.logLevel, options);
+			logger = this.doCreateLogger(resource, logLevel ?? this.getLogLevel(resource) ?? this.logLevel, { ...options, id });
 		}
 		const loggerEntry: LoggerEntry = {
 			logger,
-			info: { resource, id: options?.id ?? resource.toString(), logLevel, name: options?.name, hidden: options?.hidden, extensionId: options?.extensionId, when: options?.when }
+			info: { resource, id, logLevel, name: options?.name, hidden: options?.hidden, extensionId: options?.extensionId, when: options?.when }
 		};
 		this.registerLogger(loggerEntry.info);
 		// TODO: @sandy081 Remove this once registerLogger can take ILogger
@@ -732,6 +744,17 @@ export function LogLevelToString(logLevel: LogLevel): string {
 		case LogLevel.Warning: return 'warn';
 		case LogLevel.Error: return 'error';
 		case LogLevel.Off: return 'off';
+	}
+}
+
+export function LogLevelToLocalizedString(logLevel: LogLevel): ILocalizedString {
+	switch (logLevel) {
+		case LogLevel.Trace: return { original: 'Trace', value: nls.localize('trace', "Trace") };
+		case LogLevel.Debug: return { original: 'Debug', value: nls.localize('debug', "Debug") };
+		case LogLevel.Info: return { original: 'Info', value: nls.localize('info', "Info") };
+		case LogLevel.Warning: return { original: 'Warning', value: nls.localize('warn', "Warning") };
+		case LogLevel.Error: return { original: 'Error', value: nls.localize('error', "Error") };
+		case LogLevel.Off: return { original: 'Off', value: nls.localize('off', "Off") };
 	}
 }
 

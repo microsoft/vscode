@@ -28,10 +28,13 @@
 	color: #eee;
 	line-height: 1.75em;
 	text-align: center;
-	transition: opacity 0.3s ease-out;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.monaco-workbench:not(.reduce-motion) .screencast-keyboard {
+	transition: opacity 0.3s ease-out;
 }
 
 .monaco-workbench .screencast-keyboard:empty {

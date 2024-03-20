@@ -25,6 +25,7 @@ import { SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntr
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Emitter } from 'vs/base/common/event';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const viewFilterMenu = new MenuId('menu.view.filter');
 export const viewFilterSubmenu = new MenuId('submenu.view.filter');
@@ -81,6 +82,10 @@ export class FilterWidget extends Widget {
 	private moreFiltersActionViewItem: MoreFiltersActionViewItem | undefined;
 	private isMoreFiltersChecked: boolean = false;
 
+	private focusTracker: DOM.IFocusTracker;
+	public get onDidFocus() { return this.focusTracker.onDidFocus; }
+	public get onDidBlur() { return this.focusTracker.onDidBlur; }
+
 	constructor(
 		private readonly options: IFilterWidgetOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -97,13 +102,19 @@ export class FilterWidget extends Widget {
 		}
 
 		this.element = DOM.$('.viewpane-filter');
-		this.filterInputBox = this.createInput(this.element);
+		[this.filterInputBox, this.focusTracker] = this.createInput(this.element);
+		this._register(this.filterInputBox);
+		this._register(this.focusTracker);
 
 		const controlsContainer = DOM.append(this.element, DOM.$('.viewpane-filter-controls'));
 		this.filterBadge = this.createBadge(controlsContainer);
 		this.toolbar = this._register(this.createToolBar(controlsContainer));
 
 		this.adjustInputBox();
+	}
+
+	hasFocus(): boolean {
+		return this.filterInputBox.hasFocus();
 	}
 
 	focus(): void {
@@ -145,7 +156,7 @@ export class FilterWidget extends Widget {
 		}
 	}
 
-	private createInput(container: HTMLElement): ContextScopedHistoryInputBox {
+	private createInput(container: HTMLElement): [ContextScopedHistoryInputBox, DOM.IFocusTracker] {
 		const inputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: this.options.placeholder,
 			ariaLabel: this.options.ariaLabel,
@@ -156,8 +167,8 @@ export class FilterWidget extends Widget {
 		if (this.options.text) {
 			inputBox.value = this.options.text;
 		}
-		this._register(inputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(inputBox!))));
-		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, inputBox!)));
+		this._register(inputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(inputBox))));
+		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, inputBox)));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.CLICK, (e) => {
@@ -171,7 +182,7 @@ export class FilterWidget extends Widget {
 			this._register(focusTracker.onDidBlur(() => this.focusContextKey!.set(false)));
 			this._register(toDisposable(() => this.focusContextKey!.reset()));
 		}
-		return inputBox;
+		return [inputBox, focusTracker];
 	}
 
 	private createBadge(container: HTMLElement): HTMLElement {
@@ -186,9 +197,9 @@ export class FilterWidget extends Widget {
 		return this.instantiationService.createInstance(MenuWorkbenchToolBar, container, viewFilterMenu,
 			{
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				actionViewItemProvider: (action: IAction) => {
+				actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 					if (action instanceof SubmenuItemAction && action.item.submenu.id === viewFilterSubmenu.id) {
-						this.moreFiltersActionViewItem = this.instantiationService.createInstance(MoreFiltersActionViewItem, action, undefined);
+						this.moreFiltersActionViewItem = this.instantiationService.createInstance(MoreFiltersActionViewItem, action, options);
 						this.moreFiltersActionViewItem.checked = this.isMoreFiltersChecked;
 						return this.moreFiltersActionViewItem;
 					}

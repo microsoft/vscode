@@ -9,9 +9,6 @@ export interface ActionSet<T> extends IDisposable {
 	readonly validActions: readonly T[];
 	readonly allActions: readonly T[];
 	readonly hasAutoFix: boolean;
-}
-
-export interface IActionItem {
-	// TODO: Use generics
-	action: any;
+	readonly hasAIFix: boolean;
+	readonly allAIFixes: boolean;
 }

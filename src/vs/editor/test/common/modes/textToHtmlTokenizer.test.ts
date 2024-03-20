@@ -5,10 +5,11 @@
 
 import * as assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
+import { _tokenizeToString, tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
@@ -27,6 +28,8 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function toStr(pieces: { className: string; text: string }[]): string {
 		const resultArr = pieces.map((t) => `<span class="${t.className}">${t.text}</span>`);

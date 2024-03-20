@@ -24,6 +24,9 @@ export const foldingManualExpandedIcon = registerIcon('folding-manual-expanded',
 
 const foldedBackgroundMinimap = { color: themeColorFromId(foldBackground), position: MinimapPosition.Inline };
 
+const collapsed = localize('linesCollapsed', "Click to expand the range.");
+const expanded = localize('linesExpanded', "Click to collapse the range.");
+
 export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -31,6 +34,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
+		linesDecorationsTooltip: collapsed,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
 	});
 
@@ -41,6 +45,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		className: 'folded-background',
 		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
+		linesDecorationsTooltip: collapsed,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
 	});
 
@@ -49,6 +54,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
+		linesDecorationsTooltip: collapsed,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon)
 	});
 
@@ -59,6 +65,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		className: 'folded-background',
 		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
+		linesDecorationsTooltip: collapsed,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon)
 	});
 
@@ -66,7 +73,8 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		description: 'folding-no-controls-range-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
-		isWholeLine: true
+		isWholeLine: true,
+		linesDecorationsTooltip: collapsed,
 	});
 
 	private static readonly NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_DECORATION = ModelDecorationOptions.register({
@@ -75,35 +83,40 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
 		minimap: foldedBackgroundMinimap,
-		isWholeLine: true
+		isWholeLine: true,
+		linesDecorationsTooltip: collapsed,
 	});
 
 	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-expanded-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		isWholeLine: true,
-		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingExpandedIcon)
+		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingExpandedIcon),
+		linesDecorationsTooltip: expanded,
 	});
 
 	private static readonly EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-expanded-auto-hide-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingExpandedIcon)
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingExpandedIcon),
+		linesDecorationsTooltip: expanded,
 	});
 
 	private static readonly MANUALLY_EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-manually-expanded-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		isWholeLine: true,
-		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingManualExpandedIcon)
+		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingManualExpandedIcon),
+		linesDecorationsTooltip: expanded,
 	});
 
 	private static readonly MANUALLY_EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-manually-expanded-auto-hide-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualExpandedIcon)
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualExpandedIcon),
+		linesDecorationsTooltip: expanded,
 	});
 
 	private static readonly NO_CONTROLS_EXPANDED_RANGE_DECORATION = ModelDecorationOptions.register({
