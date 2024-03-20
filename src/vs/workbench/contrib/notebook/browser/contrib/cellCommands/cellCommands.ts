@@ -25,7 +25,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
-import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 
 //#region Move/Copy cells
 const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
@@ -590,7 +590,12 @@ registerAction2(class ExpandAllCellOutputsAction extends NotebookCellAction {
 			id: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
 			title: localize2('notebookActions.cellFailureActions', "Show Cell Failure Actions"),
 			precondition: ContextKeyExpr.and(NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
-			f1: true
+			f1: true,
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
+				primary: KeyMod.CtrlCmd | KeyCode.Period,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
 		});
 	}
 
@@ -598,11 +603,17 @@ registerAction2(class ExpandAllCellOutputsAction extends NotebookCellAction {
 		if (context.cell instanceof CodeCellViewModel) {
 			const error = context.cell.cellErrorDetails;
 			if (error?.location) {
-				context.notebookEditor.setCellEditorSelection(context.cell, Range.lift(error.location));
+				const location = Range.lift({
+					startLineNumber: error.location.startLineNumber + 1,
+					startColumn: error.location.startColumn + 1,
+					endLineNumber: error.location.endLineNumber + 1,
+					endColumn: error.location.endColumn + 1
+				});
+				context.notebookEditor.setCellEditorSelection(context.cell, Range.lift(location));
 				const editor = findTargetCellEditor(context, context.cell);
 				if (editor) {
 					const controller = CodeActionController.get(editor);
-					controller?.manualTriggerAtCurrentPosition('not available', CodeActionTriggerSource.Default);
+					controller?.manualTriggerAtCurrentPosition('not available', CodeActionTriggerSource.Default, { include: CodeActionKind.QuickFix });
 				}
 			}
 		}
