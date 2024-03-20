@@ -83,7 +83,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 	},
 };
 
-suite('Chat', () => {
+suite('ChatService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let storageService: IStorageService;
@@ -105,11 +105,6 @@ suite('Chat', () => {
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IChatService, new MockChatService());
-		instantiationService.stub(IChatContributionService, new MockChatContributionService(
-			[
-				{ extensionId: nullExtensionDescription.identifier, id: 'testAgent', name: 'testAgent', isDefault: true },
-				{ extensionId: nullExtensionDescription.identifier, id: chatAgentWithUsedContextId, name: chatAgentWithUsedContextId },
-			]));
 
 		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
 		instantiationService.stub(IChatAgentService, chatAgentService);
@@ -119,6 +114,8 @@ suite('Chat', () => {
 				return {};
 			},
 		} satisfies IChatAgentImplementation;
+		testDisposables.add(chatAgentService.registerAgent('testAgent', { name: 'testAgent', id: 'testAgent', isDefault: true, extensionId: nullExtensionDescription.identifier, locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
+		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, { name: chatAgentWithUsedContextId, id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier, locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
 		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' }, fullName: 'test' });
 	});
