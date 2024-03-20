@@ -1,5 +1,5 @@
 import { childProcess } from './testGlobals.js'
 
-const { fork } = childProcess
+const { fork, exec } = childProcess
 
-export { fork }
+export { fork, exec }

@@ -1,5 +1,5 @@
 import { os } from './testGlobals.js'
 
-const { tmpdir, networkInterfaces, homedir, userInfo, release } = os
+const { tmpdir, networkInterfaces, homedir, userInfo, release, hostname } = os
 
-export { tmpdir, networkInterfaces, homedir, userInfo, release }
+export { tmpdir, networkInterfaces, homedir, userInfo, release, hostname }

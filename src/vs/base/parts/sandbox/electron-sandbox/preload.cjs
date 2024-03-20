@@ -358,6 +358,7 @@ if (isTest) {
 	const vscodeRipgrep = require('@vscode/ripgrep')
 	const electron = require('electron')
 	const cookie = require('cookie')
+	const vscodeRegexpp = require('vscode-regexpp')
 	const crypto = require('crypto')
 	const zlib = require('zlib')
 
@@ -397,6 +398,7 @@ if (isTest) {
 		url,
 		net,
 		crypto,
+		vscodeRegexpp,
 		electron,
 		stream,
 		zlib,
