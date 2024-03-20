@@ -75,6 +75,7 @@ export interface IChatResponseModel {
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly slashCommand?: IChatAgentCommand;
+	readonly agentOrSlashCommandDetected: boolean;
 	readonly response: IResponse;
 	readonly edits: ResourceMap<TextEdit[]>;
 	readonly isComplete: boolean;
@@ -268,6 +269,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._slashCommand;
 	}
 
+	private _agentOrSlashCommandDetected: boolean | undefined;
+	public get agentOrSlashCommandDetected(): boolean {
+		return this._agentOrSlashCommandDetected ?? false;
+	}
+
 	private _usedContext: IChatUsedContext | undefined;
 	public get usedContext(): IChatUsedContext | undefined {
 		return this._usedContext;
@@ -341,9 +347,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		}
 	}
 
-	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
+	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand, detected?: boolean) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
+		this._agentOrSlashCommandDetected = detected;
 		this._onDidChange.fire();
 	}
 
@@ -724,7 +731,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'agentDetection') {
 			const agent = this.chatAgentService.getAgent(progress.agentName);
 			if (agent) {
-				request.response.setAgent(agent, progress.command);
+				request.response.setAgent(agent, progress.command, progress.detected);
 			}
 		} else if (progress.kind === 'textEdit') {
 			request.response.updateTextEdits(progress.uri, progress.edits);

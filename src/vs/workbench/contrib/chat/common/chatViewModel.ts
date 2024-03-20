@@ -19,6 +19,8 @@ import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserT
 import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { CodeBlockModelCollection } from './codeBlockModelCollection';
+import { TextEdit } from 'vs/editor/common/languages';
+import { ResourceMap } from 'vs/base/common/map';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -119,10 +121,12 @@ export interface IChatResponseViewModel {
 	readonly avatarIcon?: URI | ThemeIcon;
 	readonly agent?: IChatAgentData;
 	readonly slashCommand?: IChatAgentCommand;
+	readonly agentOrSlashCommandDetected: boolean;
 	readonly response: IResponse;
 	readonly usedContext: IChatUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
+	readonly edits: ResourceMap<TextEdit[]>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
@@ -406,6 +410,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.slashCommand;
 	}
 
+	get agentOrSlashCommandDetected() {
+		return this._model.agentOrSlashCommandDetected;
+	}
+
 	get response(): IResponse {
 		return this._model.response;
 	}
@@ -420,6 +428,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get progressMessages(): ReadonlyArray<IChatProgressMessage> {
 		return this._model.progressMessages;
+	}
+
+	get edits(): ResourceMap<TextEdit[]> {
+		return this._model.edits;
 	}
 
 	get isComplete() {

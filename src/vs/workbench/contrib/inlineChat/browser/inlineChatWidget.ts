@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from 'vs/base/browser/dom';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -113,7 +112,6 @@ export class InlineChatWidget {
 	protected readonly _elements = h(
 		'div.inline-chat@root',
 		[
-			h('div.detectedIntent.hidden@detectedIntent'),
 			h('div.previewDiff.hidden@previewDiff'),
 			h('div.previewCreateTitle.show-file-icons.hidden@previewCreateTitle'),
 			h('div.previewCreate.hidden@previewCreate'),
@@ -146,15 +144,11 @@ export class InlineChatWidget {
 	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
 	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
 
-	private readonly _onRequestWithoutIntentDetection = this._store.add(new Emitter<void>());
-	readonly onRequestWithoutIntentDetection: Event<void> = this._onRequestWithoutIntentDetection.event;
-
 	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
 
 
 	private _followUpDisposables = this._store.add(new DisposableStore());
-	private _slashCommandUsedDisposables = this._store.add(new DisposableStore());
 
 	private _chatMessage: MarkdownString | undefined;
 
@@ -344,7 +338,6 @@ export class InlineChatWidget {
 		console.log('InlineChat#layout', dimension);
 		const extraHeight = this._getExtraHeight();
 		const progressHeight = getTotalHeight(this._elements.progress);
-		const detectedIntentHeight = getTotalHeight(this._elements.detectedIntent);
 		const followUpsHeight = getTotalHeight(this._elements.followUps);
 		const statusHeight = getTotalHeight(this._elements.status);
 
@@ -353,21 +346,20 @@ export class InlineChatWidget {
 		this._elements.progress.style.width = `${dimension.width}px`;
 
 		this._chatWidget.layout(
-			dimension.height - progressHeight - detectedIntentHeight - followUpsHeight - statusHeight - extraHeight,
+			dimension.height - progressHeight - followUpsHeight - statusHeight - extraHeight,
 			dimension.width
 		);
 	}
 
 	getContentHeight(): number {
 
-		const detectedIntentHeight = getTotalHeight(this._elements.detectedIntent);
 		const followUpsHeight = getTotalHeight(this._elements.followUps);
 		const chatWidgetHeight = 200;  //this._chatWidget.contentHeight;
 		const progressHeight = getTotalHeight(this._elements.progress);
 		const statusHeight = getTotalHeight(this._elements.status);
 		const extraHeight = this._getExtraHeight();
 
-		const result = progressHeight + chatWidgetHeight + detectedIntentHeight + followUpsHeight + statusHeight + extraHeight;
+		const result = progressHeight + chatWidgetHeight + followUpsHeight + statusHeight + extraHeight;
 
 		console.log(`InlineChat#contentHeight ${result}, (chat ${chatWidgetHeight})`);
 		return result;
@@ -480,43 +472,10 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	private _currentSlashCommands: IInlineChatSlashCommand[] = [];
 
 	updateSlashCommands(commands: IInlineChatSlashCommand[]) {
-		this._currentSlashCommands = commands;
 		// this._inputWidget.updateSlashCommands(commands);
 		// TODO@jrieken
-	}
-
-	updateSlashCommandUsed(command: string): void {
-		const details = this._currentSlashCommands.find(candidate => candidate.command === command);
-		if (!details) {
-			return;
-		}
-
-		this._elements.detectedIntent.classList.toggle('hidden', false);
-
-		this._slashCommandUsedDisposables.clear();
-
-		const label = localize('slashCommandUsed', "Using {0} to generate response ([[re-run without]])", `\`\`/${details.command}\`\``);
-		const usingSlashCommandText = renderFormattedText(label, {
-			inline: true,
-			renderCodeSegments: true,
-			className: 'slash-command-pill',
-			actionHandler: {
-				callback: (content) => {
-					if (content !== '0') {
-						return;
-					}
-					this._elements.detectedIntent.classList.toggle('hidden', true);
-					this._onRequestWithoutIntentDetection.fire();
-				},
-				disposables: this._slashCommandUsedDisposables,
-			}
-		});
-
-		reset(this._elements.detectedIntent, usingSlashCommandText);
-		this._onDidChangeHeight.fire();
 	}
 
 	updateInfo(message: string): void {
@@ -553,7 +512,6 @@ export class InlineChatWidget {
 		this.updateFollowUps(undefined);
 
 		reset(this._elements.statusLabel);
-		this._elements.detectedIntent.classList.toggle('hidden', true);
 		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.statusToolbar.classList.add('hidden');
 		this._elements.feedbackToolbar.classList.add('hidden');

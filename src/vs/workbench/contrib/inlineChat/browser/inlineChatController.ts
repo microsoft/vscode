@@ -72,7 +72,6 @@ const enum Message {
 	CANCEL_REQUEST = 1 << 3,
 	CANCEL_INPUT = 1 << 4,
 	ACCEPT_INPUT = 1 << 5,
-	RERUN_INPUT = 1 << 6,
 }
 
 export abstract class InlineChatRunOptions {
@@ -134,6 +133,9 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _stashedSession = this._store.add(new MutableDisposable<StashedSession>());
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
+
+	private _nextAttempt: number = 0;
+	private _nextWithIntentDetection: boolean = true;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -351,12 +353,6 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.clear();
 
-		this._sessionStore.add(this._zone.value.widget.onRequestWithoutIntentDetection(async () => {
-			options.withIntentDetection = false;
-
-			this.regenerate();
-		}));
-
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 		const updateWholeRangeDecoration = () => {
 			const newDecorations = this._strategy?.getWholeRangeDecoration() ?? [];
@@ -467,6 +463,7 @@ export class InlineChatController implements IEditorContribution {
 		if (options.autoSend) {
 			message = Message.ACCEPT_INPUT;
 			delete options.autoSend;
+			// TODO@jrieken accept input on the WIDGET
 
 		} else {
 			const barrier = new Barrier();
@@ -503,22 +500,6 @@ export class InlineChatController implements IEditorContribution {
 			return State.ACCEPT;
 		}
 
-		if (message & Message.RERUN_INPUT && this._session.lastExchange) {
-			const { lastExchange } = this._session;
-			if (options.withIntentDetection === undefined) { // @ulugbekna: if we're re-running with intent detection turned off, no need to update `attempt` #
-				this._session.addInput(lastExchange.prompt.retry());
-			}
-			if (lastExchange.response instanceof ReplyResponse) {
-				try {
-					this._session.hunkData.ignoreTextModelNChanges = true;
-					await this._strategy.undoChanges(lastExchange.response.modelAltVersionId);
-				} finally {
-					this._session.hunkData.ignoreTextModelNChanges = false;
-				}
-			}
-			return State.MAKE_REQUEST;
-		}
-
 		if (!request?.message.text) {
 			return State.WAIT_FOR_INPUT;
 		}
@@ -553,9 +534,15 @@ export class InlineChatController implements IEditorContribution {
 			return State.WAIT_FOR_INPUT;
 		}
 
-		this._session.addInput(new SessionPrompt(input));
-		// return State.MAKE_REQUEST;
-		this._showWidget(false);
+		this._session.addInput(new SessionPrompt(input, this._nextAttempt, this._nextWithIntentDetection));
+
+		// we globally store the next attempt and intent detection flag
+		// to be able to use it in the next request. This is because they
+		// aren't part of the chat widget state and we need to remembered here
+		this._nextAttempt = 0;
+		this._nextWithIntentDetection = true;
+
+
 		return State.SHOW_REQUEST;
 	}
 
@@ -709,12 +696,7 @@ export class InlineChatController implements IEditorContribution {
 				// TODO@jrieken this seems to pile up
 				// this._session?.chatModel.acceptResponseProgress(chatRequest, { kind: 'progressMessage', content: { value: data.message } });
 			}
-			if (data.slashCommand) {
-				const valueNow = this.getInput();
-				if (!valueNow.startsWith('/')) {
-					this._zone.value.widget.updateSlashCommandUsed(data.slashCommand);
-				}
-			}
+
 			if (data.edits?.length) {
 				if (!request.live) {
 					throw new Error('Progress in NOT supported in non-live mode');
@@ -852,7 +834,7 @@ export class InlineChatController implements IEditorContribution {
 			return State.PAUSE;
 		} else if (message & Message.ACCEPT_SESSION) {
 			return State.ACCEPT;
-		} else if (message & (Message.ACCEPT_INPUT | Message.RERUN_INPUT)) {
+		} else if (message & (Message.ACCEPT_INPUT)) {
 			return State.MAKE_REQUEST;
 		} else {
 			return State.APPLY_RESPONSE;
@@ -1150,8 +1132,35 @@ export class InlineChatController implements IEditorContribution {
 			: this._zone.value.widget.value;
 	}
 
-	regenerate(): void {
-		this._messages.fire(Message.RERUN_INPUT);
+	async rerun(opts: { retry?: boolean; withoutIntentDetection?: boolean }) {
+		if (this._session?.lastExchange && this._strategy) {
+			const { lastExchange } = this._session;
+
+			const request = tail(this._session.chatModel.getRequests());
+			if (!request || !request.response?.isComplete) {
+				return;
+			}
+
+			this._session.chatModel.removeRequest(request.id);
+
+			if (lastExchange.response instanceof ReplyResponse) {
+				try {
+					this._session.hunkData.ignoreTextModelNChanges = true;
+					await this._strategy.undoChanges(lastExchange.response.modelAltVersionId);
+				} finally {
+					this._session.hunkData.ignoreTextModelNChanges = false;
+				}
+			}
+
+			if (opts.retry) {
+				this._nextAttempt = lastExchange.prompt.attempt + 1;
+			}
+			if (opts.withoutIntentDetection) {
+				this._nextWithIntentDetection = false;
+			}
+
+			this._zone.value.widget.chatWidget.acceptInput(request.message.text);
+		}
 	}
 
 	cancelCurrentRequest(): void {

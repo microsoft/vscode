@@ -27,19 +27,19 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IChatFollowup, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { coalesceInPlace, isNonEmptyArray } from 'vs/base/common/arrays';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TextEdit } from 'vs/editor/common/languages';
-import { localize } from 'vs/nls';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { Codicon } from 'vs/base/common/codicons';
 
 class BridgeAgent implements IChatAgentImplementation {
 
 	constructor(
+		private readonly _data: IChatAgentData,
 		private readonly _sessions: ReadonlyMap<string, SessionData>,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) { }
@@ -66,14 +66,18 @@ class BridgeAgent implements IChatAgentImplementation {
 
 		const { session, editor } = data;
 
+		if (!session.lastInput) {
+			throw new Error('FAILED to find last input');
+		}
+
 		const modelAltVersionIdNow = session.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
 
 		const inlineRequest: IInlineChatRequest = {
 			requestId: request.requestId,
 			prompt: request.message,
-			attempt: session.lastInput?.attempt ?? 1, // TODO@jrieken
-			withIntentDetection: true, // TODO@jrieken
+			attempt: session.lastInput.attempt,
+			withIntentDetection: session.lastInput.withIntentDetection,
 			live: session.editMode !== EditMode.Preview,
 			previewDocument: session.textModelN.uri,
 			selection: editor.getSelection()!,
@@ -85,10 +89,8 @@ class BridgeAgent implements IChatAgentImplementation {
 			// 	progress({ kind: 'progressMessage', content: new MarkdownString(data.message) });
 			// }
 			if (data.slashCommand) {
-				// progress({ kind: 'usedSlashCommand', slashCommand: data.slashCommand });
-				// const label = localize('slashCommandUsed', "Using {0} to generate response ([[re-run without]])", `\`\`/${details.command}\`\``);
-				// TODO@jrieken implement rerun
-				progress({ kind: 'markdownContent', content: new MarkdownString(localize('slashCmd', "Using `/{0}` to generate response ([re-run without](command:rerun))\n\n", data.slashCommand), true) });
+				const command = this._data.slashCommands.find(c => c.name === data.slashCommand);
+				progress({ kind: 'agentDetection', detected: true, agentName: this._data.id, command });
 			}
 			if (data.markdownFragment) {
 				progress({ kind: 'markdownContent', content: new MarkdownString(data.markdownFragment) });
@@ -221,7 +223,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		// MARK: register fake chat agent
 
 		const that = this;
-		this._store.add(this._chatAgentService.registerDynamicAgent({
+		const agentData: IChatAgentData = {
 			id: 'editor',
 			extensionId: nullExtensionDescription.identifier,
 			isDefault: true,
@@ -251,7 +253,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				isSticky: false,
 				themeIcon: Codicon.copilot,
 			},
-		}, this._instaService.createInstance(BridgeAgent, this._sessions)));
+		};
+		this._store.add(this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions)));
 
 		// MARK: register fake chat provider
 

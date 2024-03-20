@@ -519,7 +519,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		assertType(this._activeSession);
 		this._warmupRequestCts?.dispose(true);
 		this._warmupRequestCts = undefined;
-		this._activeSession.addInput(new SessionPrompt(this._widget.inlineChatWidget.value));
+		this._activeSession.addInput(new SessionPrompt(this._widget.inlineChatWidget.value, 0, true));
 
 		assertType(this._activeSession.lastInput);
 		const value = this._activeSession.lastInput.value;
