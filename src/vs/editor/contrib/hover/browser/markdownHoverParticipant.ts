@@ -83,7 +83,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	private _focusInfo: FocusedHoverInfo | undefined;
 
 	private _hoverData: (MarkdownHover | VerboseMarkdownHover)[] = [];
-	private _verbosityLevelsByHoverIdx: number[] = [];
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
@@ -196,7 +195,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			);
 			this._context.fragment.appendChild(renderedMarkdown);
 		}
-		this._verbosityLevelsByHoverIdx = new Array(hoverParts.length).fill(0);
 		return disposables;
 	}
 
@@ -218,7 +216,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 		const provider = currentHoverData.sourceProvider;
 		const hover = currentHoverData.hover;
-		this._verbosityLevelsByHoverIdx[focusedIndex] += (action === HoverVerbosityAction.Increase ? 1 : -1);
 		const context: HoverContext = { action, hover };
 		let newHover: Hover | null | undefined;
 		try {
@@ -269,7 +266,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			(!canIncreaseVerbosity && !canDecreaseVerbosity)
 			|| !this._context
 			|| !this._context.disposables
-			|| !this._verbosityLevelsByHoverIdx
 		) {
 			return contentsWrapper;
 		}
