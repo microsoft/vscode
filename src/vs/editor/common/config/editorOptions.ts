@@ -5897,7 +5897,7 @@ export const EditorOptions = {
 	)),
 	renderFinalNewline: register(new EditorStringEnumOption(
 		EditorOption.renderFinalNewline, 'renderFinalNewline',
-		(platform.isLinux || platform.isMacintosh ? 'dimmed' : 'on') as 'off' | 'on' | 'dimmed',
+		(platform.isLinux ? 'dimmed' : 'on') as 'off' | 'on' | 'dimmed',
 		['off', 'on', 'dimmed'] as const,
 		{ description: nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.") }
 	)),
