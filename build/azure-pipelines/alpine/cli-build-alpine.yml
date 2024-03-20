@@ -98,9 +98,10 @@ steps:
         inputs:
           targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_alpine_arm64_cli.tar.gz
           artifactName: vscode_cli_alpine_arm64_cli
-          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
-          sbomPackageName: "VS Code Alpine arm64 CLI"
-          sbomPackageVersion: $(Build.SourceVersion)
+          sbomEnabled: false
+          # sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
+          # sbomPackageName: "VS Code Alpine arm64 CLI"
+          # sbomPackageVersion: $(Build.SourceVersion)
         displayName: Publish vscode_cli_alpine_arm64_cli artifact
 
     - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
