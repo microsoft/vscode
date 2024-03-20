@@ -38,7 +38,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_RENAME_INPUT_VISIBLE, NewNameSource, RenameInputField, RenameInputFieldResult } from './renameInputField';
+import { CONTEXT_RENAME_INPUT_VISIBLE, NewNameSource, RenameInputFieldResult, RenameWidget } from './renameInputField';
 
 class RenameSkeleton {
 
@@ -138,7 +138,7 @@ class RenameController implements IEditorContribution {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
-	private readonly _renameInputField: RenameInputField;
+	private readonly _renameInputField: RenameWidget;
 	private readonly _disposableStore = new DisposableStore();
 	private _cts: CancellationTokenSource = new CancellationTokenSource();
 
@@ -153,7 +153,7 @@ class RenameController implements IEditorContribution {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
-		this._renameInputField = this._disposableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
+		this._renameInputField = this._disposableStore.add(this._instaService.createInstance(RenameWidget, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
 	}
 
 	dispose(): void {
