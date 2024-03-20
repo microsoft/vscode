@@ -545,7 +545,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	// Failing tests from issues...
 
-	test.skip('issue #116843: decrease indent after arrow function', () => {
+	test('issue #116843: indent after arrow function', () => {
 
 		// https://github.com/microsoft/vscode/issues/116843
 
@@ -556,10 +556,13 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
 
-			viewModel.type([
+			viewModel.type('const add1 = (n) =>');
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
 				'const add1 = (n) =>',
-				'	n + 1;',
+				'    ',
 			].join('\n'));
+			viewModel.type('n + 1;');
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
 				'const add1 = (n) =>',
