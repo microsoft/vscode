@@ -9,8 +9,11 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('MainThreadCommands', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('dispose on unregister', function () {
 
@@ -24,6 +27,9 @@ suite('MainThreadCommands', function () {
 		// unregister
 		commands.$unregisterCommand('foo');
 		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
+
+		commands.dispose();
+
 	});
 
 	test('unregister all on dispose', function () {
@@ -83,5 +89,7 @@ suite('MainThreadCommands', function () {
 		runs.length = 0;
 		await commands.$executeCommand('bazz', [1, 2, true], false);
 		assert.deepStrictEqual(runs, ['bazz']);
+
+		commands.dispose();
 	});
 });

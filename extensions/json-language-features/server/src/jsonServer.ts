@@ -6,14 +6,15 @@
 import {
 	Connection,
 	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic, CodeAction, CodeActionKind
 } from 'vscode-languageserver';
 
 import { runSafe, runSafeAsync } from './utils/runner';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
-import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position } from 'vscode-json-languageservice';
+import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { Utils, URI } from 'vscode-uri';
+import * as l10n from '@vscode/l10n';
 
 type ISchemaAssociations = Record<string, string[]>;
 
@@ -39,6 +40,20 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+export interface DocumentSortingParams {
+	/**
+	 * The uri of the document to sort.
+	 */
+	uri: string;
+	/**
+	 * The sort options
+	 */
+	options: SortOptions;
+}
+
+namespace DocumentSortingRequest {
+	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
+}
 
 const workspaceContext = {
 	resolveRelativePath: (relativePath: string, resource: string) => {
@@ -109,8 +124,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let resultLimit = Number.MAX_VALUE;
 	let jsonFoldingRangeLimit = Number.MAX_VALUE;
 	let jsoncFoldingRangeLimit = Number.MAX_VALUE;
-	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
+	let jsonColorDecoratorLimit = Number.MAX_VALUE;
+	let jsoncColorDecoratorLimit = Number.MAX_VALUE;
 
+	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
 	let diagnosticsSupport: DiagnosticsSupport | undefined;
 
 
@@ -172,7 +189,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				documentSelector: null,
 				interFileDependencies: false,
 				workspaceDiagnostics: false
-			}
+			},
+			codeActionProvider: true
 		};
 
 		return { capabilities };
@@ -190,6 +208,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			resultLimit?: number;
 			jsonFoldingLimit?: number;
 			jsoncFoldingLimit?: number;
+			jsonColorDecoratorLimit?: number;
+			jsoncColorDecoratorLimit?: number;
 		};
 		http?: {
 			proxy?: string;
@@ -201,6 +221,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		fileMatch?: string[];
 		url?: string;
 		schema?: JSONSchema;
+		folderUri?: string;
 	}
 
 
@@ -224,6 +245,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		resultLimit = sanitizeLimitSetting(settings.json?.resultLimit || Number.MAX_VALUE);
 		jsonFoldingRangeLimit = sanitizeLimitSetting(settings.json?.jsonFoldingLimit || foldingRangeLimitDefault);
 		jsoncFoldingRangeLimit = sanitizeLimitSetting(settings.json?.jsoncFoldingLimit || foldingRangeLimitDefault);
+		jsonColorDecoratorLimit = sanitizeLimitSetting(settings.json?.jsonColorDecoratorLimit || Number.MAX_VALUE);
+		jsoncColorDecoratorLimit = sanitizeLimitSetting(settings.json?.jsoncColorDecoratorLimit || Number.MAX_VALUE);
 
 		// dynamically enable & disable the formatter
 		if (dynamicFormatterRegistration) {
@@ -286,6 +309,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 	});
 
+	connection.onRequest(DocumentSortingRequest.type, async params => {
+		const uri = params.uri;
+		const options = params.options;
+		const document = documents.get(uri);
+		if (document) {
+			return languageService.sort(document, options);
+		}
+		return [];
+	});
+
 	function updateConfiguration() {
 		const languageSettings = {
 			validate: validateEnabled,
@@ -313,7 +346,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 					uri = schema.schema.id || `vscode://schemas/custom/${index}`;
 				}
 				if (uri) {
-					languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
+					languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema, folderUri: schema.folderUri });
 				}
 			});
 		}
@@ -393,7 +426,23 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 	});
 
+	connection.onCodeAction((codeActionParams, token) => {
+		return runSafeAsync(runtime, async () => {
+			const document = documents.get(codeActionParams.textDocument.uri);
+			if (document) {
+				const sortCodeAction = CodeAction.create('Sort JSON', CodeActionKind.Source.concat('.sort', '.json'));
+				sortCodeAction.command = {
+					command: 'json.sort',
+					title: l10n.t('Sort JSON')
+				};
+				return [sortCodeAction];
+			}
+			return [];
+		}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`, token);
+	});
+
 	function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): TextEdit[] {
+
 		options.keepLines = keepLinesEnabled;
 		const document = documents.get(textDocument.uri);
 		if (document) {
@@ -421,6 +470,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			if (document) {
 
 				const jsonDocument = getJSONDocument(document);
+				const resultLimit = document.languageId === 'jsonc' ? jsoncColorDecoratorLimit : jsonColorDecoratorLimit;
 				return languageService.findDocumentColors(document, jsonDocument, { resultLimit });
 			}
 			return [];

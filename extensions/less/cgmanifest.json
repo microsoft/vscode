@@ -5,12 +5,12 @@
 				"type": "git",
 				"git": {
 					"name": "language-less",
-					"repositoryUrl": "https://github.com/atom/language-less",
-					"commitHash": "87d4d59e8de6796b506b81a16e1dc1fafc99d30f"
+					"repositoryUrl": "https://github.com/radium-v/Better-Less",
+					"commitHash": "05de79f600227201e35f07a49f07acce80e49dbf"
 				}
 			},
 			"license": "MIT",
-			"version": "0.34.2"
+			"version": "0.6.1"
 		}
 	],
 	"version": 1

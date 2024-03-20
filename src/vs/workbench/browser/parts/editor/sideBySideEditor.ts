@@ -122,6 +122,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	private lastFocusedSide: Side.PRIMARY | Side.SECONDARY | undefined = undefined;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -131,7 +132,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(SideBySideEditor.ID, SideBySideEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		super(SideBySideEditor.ID, group, SideBySideEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
 		this.registerListeners();
 	}
@@ -203,7 +204,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		// Splitview widget
 		this.splitview = this.splitviewDisposables.add(new SplitView(parent, { orientation: this.orientation }));
 		this.splitviewDisposables.add(this.splitview.onDidSashReset(() => this.splitview?.distributeViewSizes()));
-		this.splitview.orthogonalEndSash = this._boundarySashes?.bottom;
+
+		if (this.orientation === Orientation.HORIZONTAL) {
+			this.splitview.orthogonalEndSash = this._boundarySashes?.bottom;
+		} else {
+			this.splitview.orthogonalStartSash = this._boundarySashes?.left;
+			this.splitview.orthogonalEndSash = this._boundarySashes?.right;
+		}
 
 		// Figure out sizing
 		let leftSizing: number | Sizing = Sizing.Distribute;
@@ -344,9 +351,9 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		}
 
 		// Create editor pane and make visible
-		const editorPane = editorPaneDescriptor.instantiate(this.instantiationService);
+		const editorPane = editorPaneDescriptor.instantiate(this.instantiationService, this.group);
 		editorPane.create(container);
-		editorPane.setVisible(this.isVisible(), this.group);
+		editorPane.setVisible(this.isVisible());
 
 		// Track selections if supported
 		if (isEditorPaneWithSelection(editorPane)) {
@@ -390,13 +397,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		this.getLastFocusedEditorPane()?.setOptions(options);
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean): void {
 
 		// Forward to both sides
-		this.primaryEditorPane?.setVisible(visible, group);
-		this.secondaryEditorPane?.setVisible(visible, group);
+		this.primaryEditorPane?.setVisible(visible);
+		this.secondaryEditorPane?.setVisible(visible);
 
-		super.setEditorVisible(visible, group);
+		super.setEditorVisible(visible);
 	}
 
 	override clearInput(): void {
@@ -412,6 +419,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	}
 
 	override focus(): void {
+		super.focus();
+
 		this.getLastFocusedEditorPane()?.focus();
 	}
 

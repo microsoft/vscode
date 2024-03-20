@@ -59,6 +59,11 @@ const CORE_TYPES = [
 	'URL',
 	'URLSearchParams',
 	'ReadonlyArray',
+	'Event',
+	'EventTarget',
+	'BroadcastChannel',
+	'performance',
+	'Blob'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -68,7 +73,9 @@ const NATIVE_TYPES = [
 	'INativeEnvironmentService',
 	'AbstractNativeEnvironmentService',
 	'INativeWindowConfiguration',
-	'ICommonNativeHostService'
+	'ICommonNativeHostService',
+	'INativeHostService',
+	'IMainProcessService'
 ];
 
 const RULES: IRule[] = [
@@ -79,12 +86,6 @@ const RULES: IRule[] = [
 		skip: true // -> skip all test files
 	},
 
-	// TODO@bpasero remove me once electron utility process has landed
-	{
-		target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
-		skip: true
-	},
-
 	// Common: vs/base/common/platform.ts
 	{
 		target: '**/vs/base/common/platform.ts',
@@ -93,6 +94,23 @@ const RULES: IRule[] = [
 
 			// Safe access to postMessage() and friends
 			'MessageEvent',
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/base/common/async.ts
+	{
+		target: '**/vs/base/common/async.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to requestIdleCallback & cancelIdleCallback
+			'requestIdleCallback',
+			'cancelIdleCallback'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
@@ -126,6 +144,17 @@ const RULES: IRule[] = [
 	// Common: vs/platform/native/common/native.ts
 	{
 		target: '**/vs/platform/native/common/native.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/native/common/nativeHostService.ts
+	{
+		target: '**/vs/platform/native/common/nativeHostService.ts',
 		allowedTypes: CORE_TYPES,
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 		disallowedDefinitions: [
@@ -200,12 +229,6 @@ const RULES: IRule[] = [
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
-	},
-
-	// Electron (renderer): skip
-	{
-		target: '**/vs/**/electron-browser/**',
-		skip: true // -> supports all types
 	},
 
 	// Electron (main)

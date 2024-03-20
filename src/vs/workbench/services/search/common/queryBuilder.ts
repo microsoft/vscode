@@ -72,6 +72,7 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
+	shouldGlobSearch?: boolean;
 }
 
 export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
@@ -80,6 +81,12 @@ export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	beforeContext?: number;
 	afterContext?: number;
 	isSmartCase?: boolean;
+	notebookSearchConfig?: {
+		includeMarkupInput: boolean;
+		includeMarkupPreview: boolean;
+		includeCodeInput: boolean;
+		includeOutput: boolean;
+	};
 }
 
 export class QueryBuilder {
@@ -112,7 +119,8 @@ export class QueryBuilder {
 			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
 			beforeContext: options.beforeContext,
 			afterContext: options.afterContext,
-			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles
+			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
+
 		};
 	}
 
@@ -139,6 +147,34 @@ export class QueryBuilder {
 			newPattern.isMultiline = true;
 		}
 
+		if (options.notebookSearchConfig?.includeMarkupInput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookMarkdownInput = options.notebookSearchConfig.includeMarkupInput;
+		}
+
+		if (options.notebookSearchConfig?.includeMarkupPreview) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookMarkdownPreview = options.notebookSearchConfig.includeMarkupPreview;
+		}
+
+		if (options.notebookSearchConfig?.includeCodeInput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookCellInput = options.notebookSearchConfig.includeCodeInput;
+		}
+
+		if (options.notebookSearchConfig?.includeOutput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookCellOutput = options.notebookSearchConfig.includeOutput;
+		}
+
 		return newPattern;
 	}
 
@@ -153,6 +189,7 @@ export class QueryBuilder {
 			exists: options.exists,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
+			shouldGlobMatchFilePattern: options.shouldGlobSearch
 		};
 	}
 
@@ -579,6 +616,18 @@ function normalizeGlobPattern(pattern: string): string {
 }
 
 /**
+ * Escapes a path for use as a glob pattern that would match the input precisely.
+ * Characters '?', '*', '[', and ']' are escaped into character range glob syntax
+ * (for example, '?' becomes '[?]').
+ * NOTE: This implementation makes no special cases for UNC paths. For example,
+ * given the input "//?/C:/A?.txt", this would produce output '//[?]/C:/A[?].txt',
+ * which may not be desirable in some cases. Use with caution if UNC paths could be expected.
+ */
+function escapeGlobPattern(path: string): string {
+	return path.replace(/([?*[\]])/g, '[$1]');
+}
+
+/**
  * Construct an include pattern from a list of folders uris to search in.
  */
 export function resolveResourcesForSearchIncludes(resources: URI[], contextService: IWorkspaceContextService): string[] {
@@ -616,7 +665,7 @@ export function resolveResourcesForSearchIncludes(resources: URI[], contextServi
 			}
 
 			if (folderPath) {
-				folderPaths.push(folderPath);
+				folderPaths.push(escapeGlobPattern(folderPath));
 			}
 		});
 	}

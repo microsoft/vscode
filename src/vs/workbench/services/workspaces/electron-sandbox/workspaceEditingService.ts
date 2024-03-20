@@ -25,7 +25,7 @@ import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { isMacintosh } from 'vs/base/common/platform';
 import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -33,6 +33,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -87,73 +88,83 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
 
-		enum ConfirmResult {
-			SAVE,
-			DONT_SAVE,
-			CANCEL
+		const confirmSaveUntitledWorkspace = this.configurationService.getValue<boolean>('window.confirmSaveUntitledWorkspace') !== false;
+		if (!confirmSaveUntitledWorkspace) {
+			await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+
+			return false; // no confirmation configured
 		}
 
-		const buttons = [
-			{ label: localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"), result: ConfirmResult.SAVE },
-			{ label: localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"), result: ConfirmResult.DONT_SAVE },
-			{ label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL }
-		];
-		const message = localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
-		const detail = localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
-		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId: 2 });
+		let canceled = false;
+		const { result, checkboxChecked } = await this.dialogService.prompt<boolean>({
+			type: Severity.Warning,
+			message: localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?"),
+			detail: localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again."),
+			buttons: [
+				{
+					label: localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+					run: async () => {
+						const newWorkspacePath = await this.pickNewWorkspacePath();
+						if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
+							return true; // keep veto if no target was provided
+						}
 
-		switch (buttons[choice].result) {
+						try {
+							await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
-			// Cancel: veto unload
-			case ConfirmResult.CANCEL:
-				return true;
+							// Make sure to add the new workspace to the history to find it again
+							const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
+							await this.workspacesService.addRecentlyOpened([{
+								label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: Verbosity.LONG }),
+								workspace: newWorkspaceIdentifier,
+								remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
+							}]);
 
-			// Don't Save: delete workspace
-			case ConfirmResult.DONT_SAVE:
-				await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				return false;
+							// Delete the untitled one
+							await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+						} catch (error) {
+							// ignore
+						}
 
-			// Save: save workspace, but do not veto unload if path provided
-			case ConfirmResult.SAVE: {
-				const newWorkspacePath = await this.pickNewWorkspacePath();
-				if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
-					return true; // keep veto if no target was provided
+						return false;
+					}
+				},
+				{
+					label: localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+					run: async () => {
+						await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+
+						return false;
+					}
 				}
+			],
+			cancelButton: {
+				run: () => {
+					canceled = true;
 
-				try {
-					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
-
-					// Make sure to add the new workspace to the history to find it again
-					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
-					await this.workspacesService.addRecentlyOpened([{
-						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: Verbosity.LONG }),
-						workspace: newWorkspaceIdentifier,
-						remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
-					}]);
-
-					// Delete the untitled one
-					await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				} catch (error) {
-					// ignore
+					return true; // veto
 				}
-
-				return false;
+			},
+			checkbox: {
+				label: localize('doNotAskAgain', "Always discard untitled workspaces without asking")
 			}
+		});
+
+		if (!canceled && checkboxChecked) {
+			await this.configurationService.updateValue('window.confirmSaveUntitledWorkspace', false, ConfigurationTarget.USER);
 		}
+
+		return result;
 	}
 
 	override async isValidTargetWorkspacePath(workspaceUri: URI): Promise<boolean> {
-		const windows = await this.nativeHostService.getWindows();
+		const windows = await this.nativeHostService.getWindows({ includeAuxiliaryWindows: false });
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (windows.some(window => isWorkspaceIdentifier(window.workspace) && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, workspaceUri))) {
-			await this.dialogService.show(
-				Severity.Info,
+			await this.dialogService.info(
 				localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspaceUri)),
-				undefined,
-				{
-					detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
-				}
+				localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
 			);
 
 			return false;
@@ -163,6 +174,11 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
+		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace."));
+		if (!stopped) {
+			return;
+		}
+
 		const result = await this.doEnterWorkspace(workspaceUri);
 		if (result) {
 
@@ -184,7 +200,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		// Restart the extension host: entering a workspace means a new location for
 		// storage and potentially a change in the workspace.rootPath property.
 		else {
-			this.extensionService.restartExtensionHost();
+			this.extensionService.startExtensionHosts();
 		}
 	}
 }

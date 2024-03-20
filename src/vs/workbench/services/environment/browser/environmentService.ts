@@ -32,6 +32,11 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 	 * Options used to configure the workbench.
 	 */
 	readonly options?: IWorkbenchConstructionOptions;
+
+	/**
+	 * Gets whether a resolver extension is expected for the environment.
+	 */
+	readonly expectsResolverExtension: boolean;
 }
 
 export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
@@ -42,10 +47,12 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
 
 	@memoize
-	get isBuilt(): boolean { return !!this.productService.commit; }
+	get expectsResolverExtension(): boolean {
+		return !!this.options.remoteAuthority?.includes('+') && !this.options.webSocketFactory;
+	}
 
 	@memoize
-	get logsPath(): string { return this.logsHome.path; }
+	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize
 	get logLevel(): string | undefined {
@@ -121,12 +128,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	 */
 	@memoize
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.workspaceId); }
-
-	@memoize
-	get userDataSyncLogResource(): URI { return joinPath(this.logsHome, 'userDataSync.log'); }
-
-	@memoize
-	get editSessionsLogResource(): URI { return joinPath(this.logsHome, 'editSessions.log'); }
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
@@ -235,7 +236,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
-	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
 	get extensionTelemetryLogResource(): URI { return joinPath(this.logsHome, 'extensionTelemetry.log'); }
 
 	@memoize
@@ -265,7 +265,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	constructor(
 		private readonly workspaceId: string,
-		private readonly logsHome: URI,
+		readonly logsHome: URI,
 		readonly options: IWorkbenchConstructionOptions,
 		private readonly productService: IProductService
 	) {

@@ -14,7 +14,7 @@ import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos, ISerializedWorkspaceBackupInfo, ISerializedFolderBackupInfo, ISerializedEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
@@ -43,14 +43,14 @@ export class BackupMainService implements IBackupMainService {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
-		@IStateMainService private readonly stateMainService: IStateMainService
+		@IStateService private readonly stateService: IStateService
 	) {
 	}
 
 	async initialize(): Promise<void> {
 
 		// read backup workspaces
-		const serializedBackupWorkspaces = this.stateMainService.getItem<ISerializedBackupWorkspaces>(BackupMainService.backupWorkspacesMetadataStorageKey) ?? { workspaces: [], folders: [], emptyWindows: [] };
+		const serializedBackupWorkspaces = this.stateService.getItem<ISerializedBackupWorkspaces>(BackupMainService.backupWorkspacesMetadataStorageKey) ?? { workspaces: [], folders: [], emptyWindows: [] };
 
 		// validate empty workspaces backups first
 		this.emptyWindows = await this.validateEmptyWorkspaces(serializedBackupWorkspaces.emptyWindows);
@@ -130,7 +130,7 @@ export class BackupMainService implements IBackupMainService {
 		// When we have data to migrate from, move it over to the target location
 		if (await Promises.exists(moveFromPath)) {
 			try {
-				await Promises.rename(moveFromPath, backupPath);
+				await Promises.rename(moveFromPath, backupPath, false /* no retry */);
 			} catch (error) {
 				this.logService.error(`Backup: Could not move backup folder to new location: ${error.toString()}`);
 			}
@@ -285,7 +285,7 @@ export class BackupMainService implements IBackupMainService {
 		// Rename backupPath to new empty window backup path
 		const newEmptyWindowBackupPath = join(this.backupHome, newEmptyWindowBackupInfo.backupFolder);
 		try {
-			await Promises.rename(backupPath, newEmptyWindowBackupPath);
+			await Promises.rename(backupPath, newEmptyWindowBackupPath, false /* no retry */);
 		} catch (error) {
 			this.logService.error(`Backup: Could not rename backup folder: ${error.toString()}`);
 			return false;
@@ -397,7 +397,7 @@ export class BackupMainService implements IBackupMainService {
 			})
 		};
 
-		this.stateMainService.setItem(BackupMainService.backupWorkspacesMetadataStorageKey, serializedBackupWorkspaces);
+		this.stateService.setItem(BackupMainService.backupWorkspacesMetadataStorageKey, serializedBackupWorkspaces);
 	}
 
 	protected getFolderHash(folder: IFolderBackupInfo): string {
@@ -410,6 +410,6 @@ export class BackupMainService implements IBackupMainService {
 			key = folderUri.toString().toLowerCase();
 		}
 
-		return createHash('md5').update(key).digest('hex');
+		return createHash('md5').update(key).digest('hex'); // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -23,6 +23,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { isEqualAuthority } from 'vs/base/common/resources';
 import { isWeb } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
+import { promiseWithResolvers } from 'vs/base/common/async';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
@@ -90,10 +91,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private readonly storageKey = WORKSPACE_TRUST_STORAGE_KEY;
 
-	private _workspaceResolvedPromise: Promise<void>;
-	private _workspaceResolvedPromiseResolve!: () => void;
-	private _workspaceTrustInitializedPromise: Promise<void>;
-	private _workspaceTrustInitializedPromiseResolve!: () => void;
+	private readonly _workspaceResolvedPromise: Promise<void>;
+	private readonly _workspaceResolvedPromiseResolve: () => void;
+	private readonly _workspaceTrustInitializedPromise: Promise<void>;
+	private readonly _workspaceTrustInitializedPromiseResolve: () => void;
 
 	private readonly _onDidChangeTrust = this._register(new Emitter<boolean>());
 	readonly onDidChangeTrust = this._onDidChangeTrust.event;
@@ -127,12 +128,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._canonicalUrisResolved = false;
 		this._canonicalWorkspace = this.workspaceService.getWorkspace();
 
-		this._workspaceResolvedPromise = new Promise((resolve) => {
-			this._workspaceResolvedPromiseResolve = resolve;
-		});
-		this._workspaceTrustInitializedPromise = new Promise((resolve) => {
-			this._workspaceTrustInitializedPromiseResolve = resolve;
-		});
+		({ promise: this._workspaceResolvedPromise, resolve: this._workspaceResolvedPromiseResolve } = promiseWithResolvers());
+		({ promise: this._workspaceTrustInitializedPromise, resolve: this._workspaceTrustInitializedPromiseResolve } = promiseWithResolvers());
 
 		this._storedTrustState = new WorkspaceTrustMemento(isWeb && this.isEmptyWorkspace() ? undefined : this.storageService);
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
@@ -190,9 +187,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private registerListeners(): void {
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
-		this._register(this.storageService.onDidChangeValue(async changeEvent => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._register(new DisposableStore()))(async () => {
 			/* This will only execute if storage was changed by a user action in a separate window */
-			if (changeEvent.key === this.storageKey && JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
+			if (JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
 				this._trustStateInfo = this.loadTrustInfo();
 				this._onDidChangeTrustedFolders.fire();
 
@@ -849,6 +846,7 @@ class WorkspaceTrustTransitionManager extends Disposable {
 
 	override dispose(): void {
 		this.participants.clear();
+		super.dispose();
 	}
 }
 

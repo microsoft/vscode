@@ -1,0 +1,11 @@
+# Learn more about the syntax here:
+# https://docs.github.com/en/early-access/github/save-time-with-slash-commands/syntax-for-user-defined-slash-commands
+---
+trigger: codespaces_issue
+title: Codespaces Issue
+description: Report downstream
+
+steps:
+  - type: fill
+    template: |-
+      This looks like an issue with the Codespaces service which we don't track in this repository. You can report this to the Codespaces team at https://github.com/orgs/community/discussions/categories/codespaces

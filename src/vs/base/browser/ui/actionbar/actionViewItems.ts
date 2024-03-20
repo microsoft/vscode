@@ -5,12 +5,13 @@
 
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -210,6 +211,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		// implement in subclass
 	}
 
+	protected getClass(): string | undefined {
+		return this.action.class;
+	}
+
 	protected getTooltip(): string | undefined {
 		return this.action.tooltip;
 	}
@@ -220,14 +225,15 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		}
 		const title = this.getTooltip() ?? '';
 		this.updateAriaLabel();
-		if (!this.options.hoverDelegate) {
+
+		if (this.options.hoverDelegate?.showNativeHover) {
+			/* While custom hover is not inside custom hover */
 			this.element.title = title;
 		} else {
-			this.element.title = '';
-			if (!this.customHover) {
-				this.customHover = setupCustomHover(this.options.hoverDelegate, this.element, title);
-				this._store.add(this.customHover);
-			} else {
+			if (!this.customHover && title !== '') {
+				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
+				this.customHover = this._store.add(setupCustomHover(hoverDelegate, this.element, title));
+			} else if (this.customHover) {
 				this.customHover.update(title);
 			}
 		}
@@ -283,25 +289,20 @@ export class ActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+		types.assertType(this.element);
 
-		if (this.element) {
-			this.label = append(this.element, $('a.action-label'));
-		}
+		const label = document.createElement('a');
+		label.classList.add('action-label');
+		label.setAttribute('role', this.getDefaultAriaRole());
 
-		if (this.label) {
-			if (this._action.id === Separator.ID) {
-				this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
-			} else {
-				if (this.options.isMenu) {
-					this.label.setAttribute('role', 'menuitem');
-				} else {
-					this.label.setAttribute('role', 'button');
-				}
-			}
-		}
+		this.label = label;
+		this.element.appendChild(label);
 
-		if (this.options.label && this.options.keybinding && this.element) {
-			append(this.element, $('span.keybinding')).textContent = this.options.keybinding;
+		if (this.options.label && this.options.keybinding) {
+			const kbLabel = document.createElement('span');
+			kbLabel.classList.add('keybinding');
+			kbLabel.textContent = this.options.keybinding;
+			this.element.appendChild(kbLabel);
 		}
 
 		this.updateClass();
@@ -309,6 +310,18 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.updateTooltip();
 		this.updateEnabled();
 		this.updateChecked();
+	}
+
+	private getDefaultAriaRole(): 'presentation' | 'menuitem' | 'button' {
+		if (this._action.id === Separator.ID) {
+			return 'presentation'; // A separator is a presentation item
+		} else {
+			if (this.options.isMenu) {
+				return 'menuitem';
+			} else {
+				return 'button';
+			}
+		}
 	}
 
 	// Only set the tabIndex on the element once it is about to get focused
@@ -362,9 +375,8 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
-
 		if (this.options.icon) {
-			this.cssClass = this.action.class;
+			this.cssClass = this.getClass();
 
 			if (this.label) {
 				this.label.classList.add('codicon');
@@ -406,16 +418,20 @@ export class ActionViewItem extends BaseActionViewItem {
 
 	protected override updateChecked(): void {
 		if (this.label) {
-			if (this.action.checked) {
-				this.label.classList.add('checked');
+			if (this.action.checked !== undefined) {
+				this.label.classList.toggle('checked', this.action.checked);
+				this.label.setAttribute('aria-checked', this.action.checked ? 'true' : 'false');
+				this.label.setAttribute('role', 'checkbox');
 			} else {
 				this.label.classList.remove('checked');
+				this.label.removeAttribute('aria-checked');
+				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}
 	}
 }
 
-export class SelectActionViewItem extends BaseActionViewItem {
+export class SelectActionViewItem<T = string> extends BaseActionViewItem {
 	protected selectBox: SelectBox;
 
 	constructor(ctx: unknown, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
@@ -444,7 +460,7 @@ export class SelectActionViewItem extends BaseActionViewItem {
 		this.actionRunner.run(this._action, this.getActionContext(option, index));
 	}
 
-	protected getActionContext(option: string, index: number) {
+	protected getActionContext(option: string, index: number): T | string {
 		return option;
 	}
 

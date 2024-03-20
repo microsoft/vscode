@@ -9,6 +9,7 @@ import {
 	ThemeIcon, TextDocument, LanguageStatusSeverity, l10n
 } from 'vscode';
 import { JSONLanguageStatus, JSONSchemaSettings } from './jsonClient';
+import { DocumentSelector } from 'vscode-languageclient';
 
 type ShowSchemasInput = {
 	schemas: string[];
@@ -163,7 +164,7 @@ function showSchemaList(input: ShowSchemasInput) {
 	});
 }
 
-export function createLanguageStatusItem(documentSelector: string[], statusRequest: (uri: string) => Promise<JSONLanguageStatus>): Disposable {
+export function createLanguageStatusItem(documentSelector: DocumentSelector, statusRequest: (uri: string) => Promise<JSONLanguageStatus>): Disposable {
 	const statusItem = languages.createLanguageStatusItem('json.projectStatus', documentSelector);
 	statusItem.name = l10n.t('JSON Validation Status');
 	statusItem.severity = LanguageStatusSeverity.Information;
@@ -268,23 +269,14 @@ export function createLimitStatusItem(newItem: (limit: number) => Disposable) {
 const openSettingsCommand = 'workbench.action.openSettings';
 const configureSettingsLabel = l10n.t('Configure');
 
-export function createDocumentSymbolsLimitItem(documentSelector: string[], settingId: string, limit: number): Disposable {
+export function createDocumentSymbolsLimitItem(documentSelector: DocumentSelector, settingId: string, limit: number): Disposable {
 	const statusItem = languages.createLanguageStatusItem('json.documentSymbolsStatus', documentSelector);
 	statusItem.name = l10n.t('JSON Outline Status');
 	statusItem.severity = LanguageStatusSeverity.Warning;
-	statusItem.text = l10n.t('Outline Limited');
-	statusItem.detail = l10n.t('only {0} document symbols shown', limit);
+	statusItem.text = l10n.t('Outline');
+	statusItem.detail = l10n.t('only {0} document symbols shown for performance reasons', limit);
 	statusItem.command = { command: openSettingsCommand, arguments: [settingId], title: configureSettingsLabel };
 	return Disposable.from(statusItem);
 }
 
-export function createDocumentColorsLimitItem(documentSelector: string[], settingId: string, limit: number): Disposable {
-	const statusItem = languages.createLanguageStatusItem('json.documentColorsStatus', documentSelector);
-	statusItem.name = l10n.t('JSON Color Symbol Status');
-	statusItem.severity = LanguageStatusSeverity.Warning;
-	statusItem.text = l10n.t('Color Symbols Limited');
-	statusItem.detail = l10n.t('only {0} color decorators shown', limit);
-	statusItem.command = { command: openSettingsCommand, arguments: [settingId], title: configureSettingsLabel };
-	return Disposable.from(statusItem);
-}
 

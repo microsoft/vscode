@@ -8,12 +8,16 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { isObject } from 'vs/base/common/types';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { isObject, isUndefined } from 'vs/base/common/types';
+import { ExtensionIdentifierMap, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -188,7 +192,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 	}
 });
 
-const extensionConfigurations: Map<string, IConfigurationNode[]> = new Map<string, IConfigurationNode[]>();
+const extensionConfigurations: ExtensionIdentifierMap<IConfigurationNode[]> = new ExtensionIdentifierMap<IConfigurationNode[]>();
 
 configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
@@ -198,9 +202,8 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 	if (removed.length) {
 		const removedConfigurations: IConfigurationNode[] = [];
 		for (const extension of removed) {
-			const key = ExtensionIdentifier.toKey(extension.description.identifier);
-			removedConfigurations.push(...(extensionConfigurations.get(key) || []));
-			extensionConfigurations.delete(key);
+			removedConfigurations.push(...(extensionConfigurations.get(extension.description.identifier) || []));
+			extensionConfigurations.delete(extension.description.identifier);
 		}
 		_configDelta.removedConfigurations = removedConfigurations;
 	}
@@ -289,7 +292,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 			} else {
 				configurations.push(...handleConfiguration(value, extension));
 			}
-			extensionConfigurations.set(ExtensionIdentifier.toKey(extension.description.identifier), configurations);
+			extensionConfigurations.set(extension.description.identifier, configurations);
 			addedConfigurations.push(...configurations);
 		}
 
@@ -385,4 +388,54 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 		}
 	},
 	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")
+});
+
+
+class SettingsTableRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.configuration;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const configuration = manifest.contributes?.configuration;
+		let properties: any = {};
+		if (Array.isArray(configuration)) {
+			configuration.forEach(config => {
+				properties = { ...properties, ...config.properties };
+			});
+		} else if (configuration) {
+			properties = configuration.properties;
+		}
+
+		const contrib = properties ? Object.keys(properties) : [];
+		const headers = [nls.localize('setting name', "ID"), nls.localize('description', "Description"), nls.localize('default', "Default")];
+		const rows: IRowData[][] = contrib.sort((a, b) => a.localeCompare(b))
+			.map(key => {
+				return [
+					new MarkdownString().appendMarkdown(`\`${key}\``),
+					properties[key].markdownDescription ? new MarkdownString(properties[key].markdownDescription, false) : properties[key].description ?? '',
+					new MarkdownString().appendCodeblock('json', JSON.stringify(isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default, null, 2)),
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'configuration',
+	label: nls.localize('settings', "Settings"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(SettingsTableRenderer),
 });

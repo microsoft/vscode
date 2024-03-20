@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./notebookKernelActionViewItem';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +15,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { KernelPickerFlatStrategy, KernelPickerMRUStrategy, KernelQuickPickContext } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
+import { KernelPickerMRUStrategy, KernelQuickPickContext } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -46,9 +44,10 @@ registerAction2(class extends Action2 {
 		super({
 			id: SELECT_KERNEL_ID,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			title: { value: localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
+			title: localize2('notebookActions.selectKernel', 'Select Notebook Kernel'),
 			icon: selectKernelIcon,
 			f1: true,
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			menu: [{
 				id: MenuId.EditorTitle,
 				when: ContextKeyExpr.and(
@@ -68,7 +67,7 @@ registerAction2(class extends Action2 {
 				group: 'status',
 				order: -10
 			}],
-			description: {
+			metadata: {
 				description: localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
 				args: [
 					{
@@ -97,7 +96,6 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor, context?: KernelQuickPickContext): Promise<boolean> {
 		const instantiationService = accessor.get(IInstantiationService);
-		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IEditorService);
 
 		const editor = getEditorFromContext(editorService, context);
@@ -126,15 +124,8 @@ registerAction2(class extends Action2 {
 		}
 
 		const wantedKernelId = controllerId ? `${extensionId}/${controllerId}` : undefined;
-		const kernelPickerType = configurationService.getValue<'all' | 'mru'>('notebook.kernelPicker.type');
-
-		if (kernelPickerType === 'mru') {
-			const strategy = instantiationService.createInstance(KernelPickerMRUStrategy);
-			return await strategy.showQuickPick(editor, wantedKernelId);
-		} else {
-			const strategy = instantiationService.createInstance(KernelPickerFlatStrategy);
-			return await strategy.showQuickPick(editor, wantedKernelId);
-		}
+		const strategy = instantiationService.createInstance(KernelPickerMRUStrategy);
+		return strategy.showQuickPick(editor, wantedKernelId);
 	}
 });
 
@@ -145,14 +136,14 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	constructor(
 		actualAction: IAction,
 		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined; scopedContextKeyService?: IContextKeyService } | INotebookEditor,
+		options: IActionViewItemOptions,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(
 			undefined,
 			new Action('fakeAction', undefined, ThemeIcon.asClassName(selectKernelIcon), true, (event) => actualAction.run(event)),
-			{ label: false, icon: true }
+			{ ...options, label: false, icon: true }
 		);
 		this._register(_editor.onDidChangeModel(this._update, this));
 		this._register(_notebookKernelService.onDidAddKernel(this._update, this));
@@ -176,7 +167,6 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		if (this._kernelLabel) {
 			this._kernelLabel.classList.add('kernel-label');
 			this._kernelLabel.innerText = this._action.label;
-			this._kernelLabel.title = this._action.tooltip;
 		}
 	}
 
@@ -188,12 +178,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		const kernelPickerType = this._configurationService.getValue<'all' | 'mru'>('notebook.kernelPicker.type');
-		if (kernelPickerType === 'mru') {
-			KernelPickerMRUStrategy.updateKernelStatusAction(notebook, this._action, this._notebookKernelService, this._notebookKernelHistoryService);
-		} else {
-			KernelPickerFlatStrategy.updateKernelStatusAction(notebook, this._action, this._notebookKernelService, this._editor.scopedContextKeyService);
-		}
+		KernelPickerMRUStrategy.updateKernelStatusAction(notebook, this._action, this._notebookKernelService, this._notebookKernelHistoryService);
 
 		this.updateClass();
 	}

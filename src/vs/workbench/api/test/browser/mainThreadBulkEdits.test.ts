@@ -12,8 +12,11 @@ import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IWorkspaceTextEdit } from 'vs/editor/common/languages';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('MainThreadBulkEdits', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('"Rename failed to apply edits" in monorepo with pnpm #158845', function () {
 
@@ -51,6 +54,8 @@ suite('MainThreadBulkEdits', function () {
 		assert.strictEqual((<IWorkspaceTextEdit>out.edits[1]).resource.path, '/hello/WORLD/foo.txt'); // the FIRST occurrence defined the shape!
 		assert.strictEqual((<IWorkspaceTextEdit>out.edits[2]).resource.path, '/other/path.txt');
 		assert.strictEqual((<IWorkspaceTextEdit>out.edits[3]).resource.path, '/other/path.txt');
+
+		uriIdentityService.dispose();
 
 	});
 });

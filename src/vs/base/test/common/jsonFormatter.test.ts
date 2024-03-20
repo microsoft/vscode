@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as Formatter from 'vs/base/common/jsonFormatter';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('JSON - formatter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function format(content: string, expected: string, insertSpaces = true) {
 		let range: Formatter.Range | undefined = undefined;

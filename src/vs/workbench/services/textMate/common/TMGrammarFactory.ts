@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import type { IGrammar, Registry, StateStack, IOnigLib, IRawTheme } from 'vscode-textmate';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TMScopeRegistry, IValidGrammarDefinition, IValidEmbeddedLanguagesMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
+import { URI } from 'vs/base/common/uri';
+import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, TMScopeRegistry } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
+import type { IGrammar, IOnigLib, IRawTheme, Registry, StateStack } from 'vscode-textmate';
 
 interface ITMGrammarFactoryHost {
 	logTrace(msg: string): void;
@@ -19,6 +19,7 @@ export interface ICreateGrammarResult {
 	grammar: IGrammar | null;
 	initialState: StateStack;
 	containsEmbeddedLanguages: boolean;
+	sourceExtensionId?: string;
 }
 
 export const missingTMGrammarErrorMessage = 'No TM Grammar registered for this language.';
@@ -37,7 +38,7 @@ export class TMGrammarFactory extends Disposable {
 		super();
 		this._host = host;
 		this._initialState = vscodeTextmate.INITIAL;
-		this._scopeRegistry = this._register(new TMScopeRegistry());
+		this._scopeRegistry = new TMScopeRegistry();
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();
@@ -160,7 +161,8 @@ export class TMGrammarFactory extends Disposable {
 			languageId: languageId,
 			grammar: grammar,
 			initialState: this._initialState,
-			containsEmbeddedLanguages: containsEmbeddedLanguages
+			containsEmbeddedLanguages: containsEmbeddedLanguages,
+			sourceExtensionId: grammarDefinition.sourceExtensionId,
 		};
 	}
 }

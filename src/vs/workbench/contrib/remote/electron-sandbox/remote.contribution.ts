@@ -5,12 +5,12 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchContributionsExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -28,7 +28,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
@@ -44,6 +44,12 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 					.then(info => {
 						if (info) {
 							(info as IRemoteDiagnosticInfo).hostName = hostName;
+							if (remoteConnectionLatencyMeasurer.latency?.high) {
+								(info as IRemoteDiagnosticInfo).latency = {
+									average: remoteConnectionLatencyMeasurer.latency.average,
+									current: remoteConnectionLatencyMeasurer.latency.current
+								};
+							}
 						}
 
 						ipcRenderer.send(request.replyChannel, info);
@@ -80,6 +86,9 @@ class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
 }
 
 class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteTelemetryEnablementUpdater';
+
 	constructor(
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -102,6 +111,9 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 
 
 class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteEmptyWorkbenchPresentation';
+
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -139,6 +151,8 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
  */
 class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.wslContextKeyInitializer';
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@INativeHostService nativeHostService: INativeHostService,
@@ -172,10 +186,10 @@ class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribut
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Ready);
+registerWorkbenchContribution2(RemoteTelemetryEnablementUpdater.ID, RemoteTelemetryEnablementUpdater, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(RemoteEmptyWorkbenchPresentation.ID, RemoteEmptyWorkbenchPresentation, WorkbenchPhase.BlockRestore);
 if (isWindows) {
-	workbenchContributionsRegistry.registerWorkbenchContribution(WSLContextKeyInitializer, LifecyclePhase.Ready);
+	registerWorkbenchContribution2(WSLContextKeyInitializer.ID, WSLContextKeyInitializer, WorkbenchPhase.BlockRestore);
 }
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
@@ -198,7 +212,7 @@ if (isMacintosh) {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.CtrlCmd | KeyCode.KeyO,
 		when: RemoteFileDialogContext,
-		description: { description: OpenLocalFileFolderCommand.LABEL, args: [] },
+		metadata: { description: OpenLocalFileFolderCommand.LABEL, args: [] },
 		handler: OpenLocalFileFolderCommand.handler()
 	});
 } else {
@@ -207,7 +221,7 @@ if (isMacintosh) {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.CtrlCmd | KeyCode.KeyO,
 		when: RemoteFileDialogContext,
-		description: { description: OpenLocalFileCommand.LABEL, args: [] },
+		metadata: { description: OpenLocalFileCommand.LABEL, args: [] },
 		handler: OpenLocalFileCommand.handler()
 	});
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -215,7 +229,7 @@ if (isMacintosh) {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyO),
 		when: RemoteFileDialogContext,
-		description: { description: OpenLocalFolderCommand.LABEL, args: [] },
+		metadata: { description: OpenLocalFolderCommand.LABEL, args: [] },
 		handler: OpenLocalFolderCommand.handler()
 	});
 }
@@ -225,6 +239,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
 	when: RemoteFileDialogContext,
-	description: { description: SaveLocalFileCommand.LABEL, args: [] },
+	metadata: { description: SaveLocalFileCommand.LABEL, args: [] },
 	handler: SaveLocalFileCommand.handler()
 });

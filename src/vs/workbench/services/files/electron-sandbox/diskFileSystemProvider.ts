@@ -5,17 +5,17 @@
 
 import { Event } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
-import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability, IFileChange } from 'vs/platform/files/common/files';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
-import { IDiskFileChange, ILogMessage, AbstractUniversalWatcherClient } from 'vs/platform/files/common/watcher';
+import { ILogMessage, AbstractUniversalWatcherClient } from 'vs/platform/files/common/watcher';
 import { UniversalWatcherClient } from 'vs/workbench/services/files/electron-sandbox/watcherClient';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 
 /**
  * A sandbox ready disk file system provider that delegates almost all calls
@@ -34,7 +34,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	constructor(
 		private readonly mainProcessService: IMainProcessService,
-		private readonly sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
+		private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
 		logService: ILogService
 	) {
 		super(logService, { watcher: { forceUniversal: true /* send all requests to universal watcher process */ } });
@@ -45,8 +45,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	private registerListeners(): void {
 
 		// Forward events from the embedded provider
-		this.provider.onDidChangeFile(changes => this._onDidChangeFile.fire(changes));
-		this.provider.onDidWatchError(error => this._onDidWatchError.fire(error));
+		this._register(this.provider.onDidChangeFile(changes => this._onDidChangeFile.fire(changes)));
+		this._register(this.provider.onDidWatchError(error => this._onDidWatchError.fire(error)));
 	}
 
 	//#region File Capabilities
@@ -132,11 +132,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	//#region File Watching
 
 	protected createUniversalWatcher(
-		onChange: (changes: IDiskFileChange[]) => void,
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractUniversalWatcherClient {
-		return new UniversalWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging, this.sharedProcessWorkerWorkbenchService);
+		return new UniversalWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging, this.utilityProcessWorkerWorkbenchService);
 	}
 
 	protected createNonRecursiveWatcher(): never {

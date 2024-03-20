@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IProfileAnalysisWorkerService, ProfilingOutput } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -106,7 +106,7 @@ export class RendererProfiling {
 
 
 	private async _store(profile: IV8Profile, sessionId: string): Promise<void> {
-		const path = joinPath(this._environmentService.tmpDir, `renderer-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
+		const path = joinPath(this._environmentService.tmpDir, `renderer-${Math.random().toString(16).slice(2, 8)}.cpuprofile.json`);
 		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile)));
 		this._logService.info(`[perf] stored profile to DISK '${path}'`, sessionId);
 	}

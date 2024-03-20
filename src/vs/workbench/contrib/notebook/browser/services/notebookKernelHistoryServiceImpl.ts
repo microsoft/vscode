@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LinkedMap, Touch } from 'vs/base/common/map';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -36,6 +36,9 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 
 		this._loadState();
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
+		this._register(this._storageService.onDidChangeValue(StorageScope.WORKSPACE, NotebookKernelHistoryService.STORAGE_KEY, this._register(new DisposableStore()))(() => {
+			this._loadState();
+		}));
 	}
 
 	getKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined; all: INotebookKernel[] } {
@@ -44,10 +47,10 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 		const selectedKernel = allAvailableKernels.selected;
 		// We will suggest the only kernel
 		const suggested = allAvailableKernels.all.length === 1 ? allAvailableKernels.all[0] : undefined;
-		this._notebookLoggingService.log('History', `getMatchingKernels: ${allAvailableKernels.all.length} kernels available for ${notebook.uri.path}. Selected: ${allAvailableKernels.selected?.label}. Suggested: ${suggested?.label}`);
+		this._notebookLoggingService.debug('History', `getMatchingKernels: ${allAvailableKernels.all.length} kernels available for ${notebook.uri.path}. Selected: ${allAvailableKernels.selected?.label}. Suggested: ${suggested?.label}`);
 		const mostRecentKernelIds = this._mostRecentKernelsMap[notebook.viewType] ? [...this._mostRecentKernelsMap[notebook.viewType].values()] : [];
 		const all = mostRecentKernelIds.map(kernelId => allKernels.find(kernel => kernel.id === kernelId)).filter(kernel => !!kernel) as INotebookKernel[];
-		this._notebookLoggingService.log('History', `mru: ${mostRecentKernelIds.length} kernels in history, ${all.length} registered already.`);
+		this._notebookLoggingService.debug('History', `mru: ${mostRecentKernelIds.length} kernels in history, ${all.length} registered already.`);
 
 		return {
 			selected: selectedKernel ?? suggested,
@@ -79,7 +82,7 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 
 		if (notEmpty) {
 			const serialized = this._serialize();
-			this._storageService.store(NotebookKernelHistoryService.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this._storageService.store(NotebookKernelHistoryService.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this._storageService.remove(NotebookKernelHistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		}
@@ -135,10 +138,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.clearNotebookKernelsMRUCache',
-			title: {
-				value: localize('workbench.notebook.clearNotebookKernelsMRUCache', "Clear Notebook Kernels MRU Cache"),
-				original: 'Clear Notebook Kernels MRU Cache'
-			},
+			title: localize2('workbench.notebook.clearNotebookKernelsMRUCache', "Clear Notebook Kernels MRU Cache"),
 			category: Categories.Developer,
 			f1: true
 		});

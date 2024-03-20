@@ -6,8 +6,6 @@
 import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'vscode-languageserver/browser';
 import { RuntimeEnvironment, startServer } from '../htmlServer';
 
-declare let self: any;
-
 const messageReader = new BrowserMessageReader(self);
 const messageWriter = new BrowserMessageWriter(self);
 

@@ -20,7 +20,7 @@ type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
 
 const foldingRangeLimit: FoldingLimitReporter = {
 	limit: 5000,
-	report: () => { }
+	update: () => { }
 };
 
 export class FoldingModel implements IDisposable {
@@ -317,7 +317,7 @@ export function* getMarkdownHeadersInCell(cellContent: string): Iterable<{ reado
 		if (token.type === 'heading') {
 			yield {
 				depth: token.depth,
-				text: renderMarkdownAsPlaintext({ value: token.text }).trim()
+				text: renderMarkdownAsPlaintext({ value: token.raw }).trim()
 			};
 		}
 	}

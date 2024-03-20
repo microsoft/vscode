@@ -5,13 +5,13 @@
 
 .monaco-progress-container {
 	width: 100%;
-	height: 5px;
+	height: 2px;
 	overflow: hidden; /* keep progress bit in bounds */
 }
 
 .monaco-progress-container .progress-bit {
 	width: 2%;
-	height: 5px;
+	height: 2px;
 	position: absolute;
 	left: 0;
 	display: none;

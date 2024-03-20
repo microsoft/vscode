@@ -57,13 +57,16 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('fs.write/stat/delete', async function () {
+	test('fs.write/stat/read/delete', async function () {
 
 		const uri = root.with({ path: posix.join(root.path, 'new.file') });
 		await vscode.workspace.fs.writeFile(uri, Buffer.from('HELLO'));
 
 		const stat = await vscode.workspace.fs.stat(uri);
 		assert.strictEqual(stat.type, vscode.FileType.File);
+
+		const contents = await vscode.workspace.fs.readFile(uri);
+		assert.strictEqual(Buffer.from(contents).toString(), 'HELLO');
 
 		await vscode.workspace.fs.delete(uri);
 
@@ -122,7 +125,7 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('throws FileSystemError', async function () {
+	test('throws FileSystemError (1)', async function () {
 
 		try {
 			await vscode.workspace.fs.stat(vscode.Uri.file(`/c468bf16-acfd-4591-825e-2bcebba508a3/71b1f274-91cb-4c19-af00-8495eaab4b73/4b60cb48-a6f2-40ea-9085-0936f4a8f59a.tx6`));
@@ -133,7 +136,7 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('throws FileSystemError', async function () {
+	test('throws FileSystemError (2)', async function () {
 
 		try {
 			await vscode.workspace.fs.stat(vscode.Uri.parse('foo:/bar'));
@@ -144,7 +147,7 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
+	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177 (1)', async function () {
 		const entries = await vscode.workspace.fs.readDirectory(root);
 		assert.ok(entries.length > 0);
 
@@ -158,7 +161,7 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
+	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177 (2)', async function () {
 		const entries = await vscode.workspace.fs.readDirectory(root);
 		assert.ok(entries.length > 0);
 
@@ -183,7 +186,6 @@ suite('vscode API - workspace-fs', () => {
 	});
 
 	test('vscode.workspace.fs error reporting is weird #132981', async function () {
-
 
 		const uri = await createRandomFile();
 
@@ -213,5 +215,49 @@ suite('vscode API - workspace-fs', () => {
 			assert.strictEqual(err.code, vscode.FileSystemError.FileNotFound().code);
 			assert.strictEqual(err.code, 'FileNotFound');
 		}
+	});
+
+	test('fs.createFolder creates recursively', async function () {
+
+		const folder = root.with({ path: posix.join(root.path, 'deeply', 'nested', 'folder') });
+		await vscode.workspace.fs.createDirectory(folder);
+
+		let stat = await vscode.workspace.fs.stat(folder);
+		assert.strictEqual(stat.type, vscode.FileType.Directory);
+
+		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
+
+		await vscode.workspace.fs.createDirectory(folder); // calling on existing folder is also ok!
+
+		const file = root.with({ path: posix.join(folder.path, 'file.txt') });
+		await vscode.workspace.fs.writeFile(file, Buffer.from('Hello World'));
+		const folder2 = root.with({ path: posix.join(file.path, 'invalid') });
+		let e;
+		try {
+			await vscode.workspace.fs.createDirectory(folder2); // cannot create folder on file path
+		} catch (error) {
+			e = error;
+		}
+		assert.ok(e);
+
+		const folder3 = root.with({ path: posix.join(root.path, 'DEEPLY', 'NESTED', 'FOLDER') });
+		await vscode.workspace.fs.createDirectory(folder3); // calling on different cased folder is ok!
+		stat = await vscode.workspace.fs.stat(folder3);
+		assert.strictEqual(stat.type, vscode.FileType.Directory);
+
+		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
+	});
+
+	test('fs.writeFile creates parents recursively', async function () {
+
+		const folder = root.with({ path: posix.join(root.path, 'other-deeply', 'nested', 'folder') });
+		const file = root.with({ path: posix.join(folder.path, 'file.txt') });
+
+		await vscode.workspace.fs.writeFile(file, Buffer.from('Hello World'));
+
+		const stat = await vscode.workspace.fs.stat(file);
+		assert.strictEqual(stat.type, vscode.FileType.File);
+
+		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
 	});
 });

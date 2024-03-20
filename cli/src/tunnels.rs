@@ -6,22 +6,23 @@
 pub mod code_server;
 pub mod dev_tunnels;
 pub mod legal;
+pub mod local_forwarding;
 pub mod paths;
+pub mod protocol;
 pub mod shutdown_signal;
+pub mod singleton_client;
+pub mod singleton_server;
 
+mod challenge;
 mod control_server;
-mod name_generator;
 mod nosleep;
+#[cfg(target_os = "linux")]
+mod nosleep_linux;
 #[cfg(target_os = "macos")]
 mod nosleep_macos;
 #[cfg(target_os = "windows")]
 mod nosleep_windows;
-#[cfg(target_os = "linux")]
-mod nosleep_linux;
 mod port_forwarder;
-mod protocol;
-#[cfg_attr(unix, path = "tunnels/server_bridge_unix.rs")]
-#[cfg_attr(windows, path = "tunnels/server_bridge_windows.rs")]
 mod server_bridge;
 mod server_multiplexer;
 mod service;
@@ -32,11 +33,10 @@ mod service_macos;
 #[cfg(target_os = "windows")]
 mod service_windows;
 mod socket_signal;
-mod wsl_server;
+mod wsl_detect;
 
-pub use control_server::serve;
+pub use control_server::{serve, serve_stream, AuthRequired, Next, ServeStreamParams};
 pub use nosleep::SleepInhibitor;
 pub use service::{
 	create_service_manager, ServiceContainer, ServiceManager, SERVICE_LOG_FILE_NAME,
 };
-pub use wsl_server::serve_wsl;

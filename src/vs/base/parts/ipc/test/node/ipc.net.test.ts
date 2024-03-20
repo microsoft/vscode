@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EventEmitter } from 'events';
-import { createServer, Socket } from 'net';
+import { AddressInfo, connect, createServer, Server, Socket } from 'net';
 import { tmpdir } from 'os';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -571,6 +571,8 @@ flakySuite('IPC, create handle', () => {
 
 suite('WebSocketNodeSocket', () => {
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	function toUint8Array(data: number[]): Uint8Array {
 		const result = new Uint8Array(data.length);
 		for (let i = 0; i < data.length; i++) {
@@ -603,11 +605,17 @@ suite('WebSocketNodeSocket', () => {
 		private readonly _onClose = new Emitter<SocketCloseEvent>();
 		public readonly onClose = this._onClose.event;
 
+		public writtenData: VSBuffer[] = [];
+
 		public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
 		}
 
 		constructor() {
 			super();
+		}
+
+		public write(data: VSBuffer): void {
+			this.writtenData.push(data);
 		}
 
 		public fireData(data: number[]): void {
@@ -706,4 +714,97 @@ suite('WebSocketNodeSocket', () => {
 			assert.deepStrictEqual(actual, 'Helloworld');
 		});
 	});
+
+	test('Large buffers are split and sent in chunks', async () => {
+
+		let receivingSideOnDataCallCount = 0;
+		let receivingSideTotalBytes = 0;
+		const receivingSideSocketClosedBarrier = new Barrier();
+
+		const server = await listenOnRandomPort((socket) => {
+			// stop the server when the first connection is received
+			server.close();
+
+			const webSocketNodeSocket = new WebSocketNodeSocket(new NodeSocket(socket), true, null, false);
+			ds.add(webSocketNodeSocket.onData((data) => {
+				receivingSideOnDataCallCount++;
+				receivingSideTotalBytes += data.byteLength;
+			}));
+
+			ds.add(webSocketNodeSocket.onClose(() => {
+				webSocketNodeSocket.dispose();
+				receivingSideSocketClosedBarrier.open();
+			}));
+		});
+
+		const socket = connect({
+			host: '127.0.0.1',
+			port: (<AddressInfo>server.address()).port
+		});
+
+		const buff = generateRandomBuffer(1 * 1024 * 1024);
+
+		const webSocketNodeSocket = new WebSocketNodeSocket(new NodeSocket(socket), true, null, false);
+		webSocketNodeSocket.write(buff);
+		await webSocketNodeSocket.drain();
+		webSocketNodeSocket.dispose();
+		await receivingSideSocketClosedBarrier.wait();
+
+		assert.strictEqual(receivingSideTotalBytes, buff.byteLength);
+		assert.strictEqual(receivingSideOnDataCallCount, 4);
+	});
+
+	test('issue #194284: ping/pong opcodes are supported', async () => {
+
+		const disposables = new DisposableStore();
+		const socket = new FakeNodeSocket();
+		const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, false, null, false));
+
+		let receivedData: string = '';
+		disposables.add(webSocket.onData((buff) => {
+			receivedData += fromCharCodeArray(fromUint8Array(buff.buffer));
+		}));
+
+		// A single-frame non-compressed text message that contains "Hello"
+		socket.fireData([0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+
+		// A ping message that contains "data"
+		socket.fireData([0x89, 0x04, 0x64, 0x61, 0x74, 0x61]);
+
+		// Another single-frame non-compressed text message that contains "Hello"
+		socket.fireData([0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+
+		assert.strictEqual(receivedData, 'HelloHello');
+		assert.deepStrictEqual(
+			socket.writtenData.map(x => fromUint8Array(x.buffer)),
+			[
+				// A pong message that contains "data"
+				[0x8A, 0x04, 0x64, 0x61, 0x74, 0x61]
+			]
+		);
+
+		disposables.dispose();
+
+		return receivedData;
+	});
+
+	function generateRandomBuffer(size: number): VSBuffer {
+		const buff = VSBuffer.alloc(size);
+		for (let i = 0; i < size; i++) {
+			buff.writeUInt8(Math.floor(256 * Math.random()), i);
+		}
+		return buff;
+	}
+
+	function listenOnRandomPort(handler: (socket: Socket) => void): Promise<Server> {
+		return new Promise((resolve, reject) => {
+			const server = createServer(handler).listen(0);
+			server.on('listening', () => {
+				resolve(server);
+			});
+			server.on('error', (err) => {
+				reject(err);
+			});
+		});
+	}
 });

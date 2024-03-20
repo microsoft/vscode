@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+export interface INativeCliOptions {
+	'cli-data-dir'?: string;
+	'disable-telemetry'?: boolean;
+	'telemetry-level'?: string;
+}
+
 /**
  * A list of command line arguments we support natively.
  */
 export interface NativeParsedArgs {
 	// subcommands
-	tunnel?: {
-		'cli-data-dir'?: string;
-		'disable-telemetry'?: boolean;
-		'telemetry-level'?: string;
+	tunnel?: INativeCliOptions & {
 		user: {
 			login: {
 				'access-token'?: string;
@@ -19,6 +22,7 @@ export interface NativeParsedArgs {
 			};
 		};
 	};
+	'serve-web'?: INativeCliOptions;
 	_: string[];
 	'folder-uri'?: string[]; // undefined or array of 1 or more
 	'file-uri'?: string[]; // undefined or array of 1 or more
@@ -67,6 +71,8 @@ export interface NativeParsedArgs {
 	'inspect-brk-search'?: string;
 	'inspect-ptyhost'?: string;
 	'inspect-brk-ptyhost'?: string;
+	'inspect-sharedprocess'?: string;
+	'inspect-brk-sharedprocess'?: string;
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string[]; // undefined or array of 1 or more
 	'list-extensions'?: boolean;
@@ -76,6 +82,7 @@ export interface NativeParsedArgs {
 	'pre-release'?: boolean;
 	'install-builtin-extension'?: string[]; // undefined or array of 1 or more
 	'uninstall-extension'?: string[]; // undefined or array of 1 or more
+	'update-extensions'?: boolean;
 	'locate-extension'?: string[]; // undefined or array of 1 or more
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
@@ -85,19 +92,20 @@ export interface NativeParsedArgs {
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: boolean;
-	'disable-keytar'?: boolean;
+	'use-inmemory-secretstorage'?: boolean;
+	'password-store'?: string;
 	'disable-workspace-trust'?: boolean;
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;
 	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'enable-smoke-test-driver'?: boolean;
 	'remote'?: string;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
+	'preserve-env'?: boolean;
 	'force-user-env'?: boolean;
 	'force-disable-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
@@ -108,6 +116,8 @@ export interface NativeParsedArgs {
 	'locate-shell-integration-path'?: string;
 	'profile'?: string;
 	'profile-temp'?: boolean;
+	'disable-chromium-sandbox'?: boolean;
+	sandbox?: boolean;
 
 	'enable-coi'?: boolean;
 
@@ -121,6 +131,7 @@ export interface NativeParsedArgs {
 	'inspect-brk'?: string;
 	'js-flags'?: string;
 	'disable-gpu'?: boolean;
+	'disable-gpu-sandbox'?: boolean;
 	'nolazy'?: boolean;
 	'force-device-scale-factor'?: string;
 	'force-renderer-accessibility'?: boolean;
@@ -129,7 +140,5 @@ export interface NativeParsedArgs {
 	'log-net-log'?: string;
 	'vmodule'?: string;
 	'disable-dev-shm-usage'?: boolean;
-
-	// MS Build command line arg
-	'ms-enable-electron-run-as-node'?: boolean;
+	'ozone-platform'?: string;
 }

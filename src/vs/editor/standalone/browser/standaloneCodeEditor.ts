@@ -7,8 +7,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
@@ -37,6 +36,11 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { mainWindow } from 'vs/base/browser/window';
+import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 /**
  * Description of an action contribution
@@ -118,7 +122,7 @@ export interface IGlobalEditorOptions {
 	 * Controls whether completions should be computed based on words in the document.
 	 * Defaults to true.
 	 */
-	wordBasedSuggestions?: boolean;
+	wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 	/**
 	 * Controls whether word based completions should be included from opened documents of the same language or any language.
 	 */
@@ -251,7 +255,7 @@ function createAriaDomNode(parent: HTMLElement | undefined) {
 		}
 		ariaDomNodeCreated = true;
 	}
-	aria.setARIAContainer(parent || document.body);
+	aria.setARIAContainer(parent || mainWindow.document.body);
 }
 
 /**
@@ -287,6 +291,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		}
 
 		createAriaDomNode(options.ariaContainerElement);
+
+		setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover, {}));
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
@@ -327,7 +333,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
+		const run = (_accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
 			return Promise.resolve(_descriptor.run(this, ...args));
 		};
 
@@ -366,8 +372,9 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			uniqueId,
 			label,
 			label,
+			undefined,
 			precondition,
-			run,
+			(...args: unknown[]) => Promise.resolve(_descriptor.run(this, ...args)),
 			this._contextKeyService
 		);
 
@@ -470,7 +477,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	override _postDetachModelCleanup(detachedModel: ITextModel): void {
+	protected override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();
@@ -479,7 +486,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	}
 }
 
-export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
+export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
@@ -495,7 +502,8 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
@@ -507,7 +515,16 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
-		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(
+			domElement,
+			options,
+			{},
+			contextKeyService,
+			instantiationService,
+			codeEditorService,
+			accessibilitySignalService,
+			editorProgressService,
+		);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;

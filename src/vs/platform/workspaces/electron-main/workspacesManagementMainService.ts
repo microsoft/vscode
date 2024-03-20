@@ -10,17 +10,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
 import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
@@ -75,8 +72,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		@ILogService private readonly logService: ILogService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@IProductService private readonly productService: IProductService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
 	}
@@ -88,7 +84,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 		// Resolve untitled workspaces
 		try {
-			const untitledWorkspacePaths = (await Promises.readdir(this.untitledWorkspacesHome.fsPath)).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
+			const untitledWorkspacePaths = (await Promises.readdir(this.untitledWorkspacesHome.with({ scheme: Schemas.file }).fsPath)).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 			for (const untitledWorkspacePath of untitledWorkspacePaths) {
 				const workspace = getWorkspaceIdentifier(untitledWorkspacePath);
 				const resolvedWorkspace = await this.resolveLocalWorkspace(untitledWorkspacePath);
@@ -231,7 +227,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 			await Promises.rm(dirname(configPath));
 
 			// Mark Workspace Storage to be deleted
-			const workspaceStoragePath = join(this.environmentMainService.workspaceStorageHome.fsPath, workspace.id);
+			const workspaceStoragePath = join(this.environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath, workspace.id);
 			if (await Promises.exists(workspaceStoragePath)) {
 				await Promises.writeFile(join(workspaceStoragePath, 'obsolete'), '');
 			}
@@ -279,12 +275,12 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (findWindowOnWorkspaceOrFolder(windows, workspacePath)) {
-			await this.dialogMainService.showMessageBox(massageMessageBoxOptions({
+			await this.dialogMainService.showMessageBox({
 				type: 'info',
 				buttons: [localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),
 				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
-			}, this.productService).options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			}, BrowserWindow.getFocusedWindow() ?? undefined);
 
 			return false;
 		}

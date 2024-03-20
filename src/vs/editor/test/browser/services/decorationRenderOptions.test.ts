@@ -6,11 +6,14 @@
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { TestCodeEditorService, TestGlobalStyleSheet } from 'vs/editor/test/browser/editorTestServices';
 import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('Decoration Render Options', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	const themeServiceMock = new TestThemeService();
 
 	const options: IDecorationRenderOptions = {
@@ -20,12 +23,12 @@ suite('Decoration Render Options', () => {
 		borderColor: 'yellow'
 	};
 	test('register and resolve decoration type', () => {
-		const s = new TestCodeEditorService(themeServiceMock);
-		s.registerDecorationType('test', 'example', options);
+		const s = store.add(new TestCodeEditorService(themeServiceMock));
+		store.add(s.registerDecorationType('test', 'example', options));
 		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 	});
 	test('remove decoration type', () => {
-		const s = new TestCodeEditorService(themeServiceMock);
+		const s = store.add(new TestCodeEditorService(themeServiceMock));
 		s.registerDecorationType('test', 'example', options);
 		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 		s.removeDecorationType('example');
@@ -37,9 +40,9 @@ suite('Decoration Render Options', () => {
 	}
 
 	test('css properties', () => {
-		const s = new TestCodeEditorService(themeServiceMock);
+		const s = store.add(new TestCodeEditorService(themeServiceMock));
 		const styleSheet = s.globalStyleSheet;
-		s.registerDecorationType('test', 'example', options);
+		store.add(s.registerDecorationType('test', 'example', options));
 		const sheet = readStyleSheet(styleSheet);
 		assert(sheet.indexOf(`{background:url('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png') center center no-repeat;background-size:contain;}`) >= 0);
 		assert(sheet.indexOf(`{background-color:red;border-color:yellow;box-sizing: border-box;}`) >= 0);
@@ -54,7 +57,7 @@ suite('Decoration Render Options', () => {
 		const themeService = new TestThemeService(new TestColorTheme({
 			editorBackground: '#FF0000'
 		}));
-		const s = new TestCodeEditorService(themeService);
+		const s = store.add(new TestCodeEditorService(themeService));
 		const styleSheet = s.globalStyleSheet;
 		s.registerDecorationType('test', 'example', options);
 		assert.strictEqual(readStyleSheet(styleSheet), '.monaco-editor .ced-example-0 {background-color:#ff0000;border-color:transparent;box-sizing: border-box;}');
@@ -87,7 +90,7 @@ suite('Decoration Render Options', () => {
 			editorBackground: '#FF0000',
 			infoForeground: '#444444'
 		}));
-		const s = new TestCodeEditorService(themeService);
+		const s = store.add(new TestCodeEditorService(themeService));
 		const styleSheet = s.globalStyleSheet;
 		s.registerDecorationType('test', 'example', options);
 		const expected = [
@@ -103,7 +106,7 @@ suite('Decoration Render Options', () => {
 	});
 
 	test('css properties, gutterIconPaths', () => {
-		const s = new TestCodeEditorService(themeServiceMock);
+		const s = store.add(new TestCodeEditorService(themeServiceMock));
 		const styleSheet = s.globalStyleSheet;
 
 		// URI, only minimal encoding

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, getLogLevel, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,8 +25,6 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IServerEnvironmentService, ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
@@ -49,6 +47,9 @@ import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { ServerUserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LogService } from 'vs/platform/log/common/logService';
+import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { localize } from 'vs/nls';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 
 class CliMain extends Disposable {
 
@@ -66,9 +67,20 @@ class CliMain extends Disposable {
 	async run(): Promise<void> {
 		const instantiationService = await this.initServices();
 		await instantiationService.invokeFunction(async accessor => {
+			const configurationService = accessor.get(IConfigurationService);
 			const logService = accessor.get(ILogService);
+
+			// On Windows, configure the UNC allow list based on settings
+			if (isWindows) {
+				if (configurationService.getValue('security.restrictUNCAccess') === false) {
+					disableUNCAccessRestrictions();
+				} else {
+					addUNCHostToAllowlist(configurationService.getValue('security.allowedUNCHosts'));
+				}
+			}
+
 			try {
-				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI));
+				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(logService.getLevel(), false)));
 			} catch (error) {
 				logService.error(error);
 				console.error(getErrorMessage(error));
@@ -85,11 +97,14 @@ class CliMain extends Disposable {
 
 		const environmentService = new ServerEnvironmentService(this.args, productService);
 		services.set(IServerEnvironmentService, environmentService);
-		const logService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
+
+		const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
+		services.set(ILoggerService, loggerService);
+
+		const logService = new LogService(this._register(loggerService.createLogger('remoteCLI', { name: localize('remotecli', "Remote CLI") })));
 		services.set(ILogService, logService);
 		logService.trace(`Remote configuration data at ${this.remoteDataFolder}`);
 		logService.trace('process arguments:', this.args);
-
 
 		// Files
 		const fileService = this._register(new FileService(logService));
@@ -105,8 +120,13 @@ class CliMain extends Disposable {
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
-		await configurationService.initialize();
 		services.set(IConfigurationService, configurationService);
+
+		// Initialize
+		await Promise.all([
+			configurationService.initialize(),
+			userDataProfilesService.init()
+		]);
 
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));
@@ -131,12 +151,17 @@ class CliMain extends Disposable {
 		// Install Extension
 		else if (this.args['install-extension'] || this.args['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!this.args['do-not-sync'], installPreReleaseVersion: !!this.args['pre-release'] };
-			return extensionManagementCLI.installExtensions(this.asExtensionIdOrVSIX(this.args['install-extension'] || []), this.args['install-builtin-extension'] || [], installOptions, !!this.args['force']);
+			return extensionManagementCLI.installExtensions(this.asExtensionIdOrVSIX(this.args['install-extension'] || []), this.asExtensionIdOrVSIX(this.args['install-builtin-extension'] || []), installOptions, !!this.args['force']);
 		}
 
 		// Uninstall Extension
 		else if (this.args['uninstall-extension']) {
 			return extensionManagementCLI.uninstallExtensions(this.asExtensionIdOrVSIX(this.args['uninstall-extension']), !!this.args['force']);
+		}
+
+		// Update the installed extensions
+		else if (this.args['update-extensions']) {
+			return extensionManagementCLI.updateExtensions();
 		}
 
 		// Locate Extension

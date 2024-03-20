@@ -6,8 +6,8 @@
 		"editor.background": "#1E1E1E",
 		"editor.foreground": "#D4D4D4",
 		"editor.inactiveSelectionBackground": "#3A3D41",
-		"editorIndentGuide.background": "#404040",
-		"editorIndentGuide.activeBackground": "#707070",
+		"editorIndentGuide.background1": "#404040",
+		"editorIndentGuide.activeBackground1": "#707070",
 		"editor.selectionHighlightBackground": "#ADD6FF26",
 		"list.dropBackground": "#383B3D",
 		"activityBarBadge.background": "#007ACC",
@@ -26,6 +26,7 @@
 		"list.activeSelectionIconForeground": "#FFF",
 		"terminal.inactiveSelectionBackground": "#3A3D41",
 		"widget.border": "#303031",
+		"actionBar.toggledBackground": "#383a49"
 	},
 	"tokenColors": [
 		{
@@ -33,6 +34,7 @@
 				"meta.embedded",
 				"source.groovy.embedded",
 				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#D4D4D4"
@@ -92,7 +94,10 @@
 			}
 		},
 		{
-			"scope": "entity.name.tag.css",
+			"scope": [
+				"entity.name.tag.css",
+				"entity.name.tag.less"
+			],
 			"settings": {
 				"foreground": "#d7ba7d"
 			}
@@ -106,10 +111,11 @@
 		{
 			"scope": [
 				"entity.other.attribute-name.class.css",
-				"entity.other.attribute-name.class.mixin.css",
+				"source.css entity.other.attribute-name.class",
 				"entity.other.attribute-name.id.css",
 				"entity.other.attribute-name.parent-selector.css",
-				"entity.other.attribute-name.pseudo-class.css",
+				"entity.other.attribute-name.parent.less",
+				"source.css entity.other.attribute-name.pseudo-class",
 				"entity.other.attribute-name.pseudo-element.css",
 				"source.css.less entity.other.attribute-name.id",
 				"entity.other.attribute-name.scss"
@@ -304,9 +310,7 @@
 			"scope": [
 				"support.type.vendored.property-name",
 				"support.type.property-name",
-				"variable.css",
-				"variable.scss",
-				"variable.other.less",
+				"source.css variable",
 				"source.coffee.embedded"
 			],
 			"settings": {

@@ -9,8 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffElementViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CellEditType, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -29,7 +28,6 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
@@ -41,6 +39,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { fixedDiffEditorOptions, fixedEditorOptions, fixedEditorPadding } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -52,7 +53,6 @@ export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOp
 			SuggestController.ID,
 			SnippetController2.ID,
 			TabCompletionController.ID,
-			AccessibilityHelpController.ID
 		])
 	};
 }
@@ -87,6 +87,7 @@ class PropertyHeader extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 	}
@@ -116,9 +117,9 @@ class PropertyHeader extends Disposable {
 
 		const cellToolbarContainer = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-toolbar'));
 		this._toolbar = new WorkbenchToolBar(cellToolbarContainer, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, { hoverDelegate: options.hoverDelegate }, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.accessibilityService);
 					return item;
 				}
 
@@ -512,8 +513,8 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			this._metadataEditorContainer?.classList.add('diff');
 
-			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.originalDocument.uri, this.cell.original!.handle, Schemas.vscodeNotebookCellMetadata));
-			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.modifiedDocument.uri, this.cell.modified!.handle, Schemas.vscodeNotebookCellMetadata));
+			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.originalDocument.uri, this.cell.original.handle, Schemas.vscodeNotebookCellMetadata));
+			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.modifiedDocument.uri, this.cell.modified.handle, Schemas.vscodeNotebookCellMetadata));
 			this._metadataEditor.setModel({
 				original: originalMetadataModel.object.textEditorModel,
 				modified: modifiedMetadataModel.object.textEditorModel
@@ -540,7 +541,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				respondingToContentChange = false;
 			}));
 
-			this._metadataEditorDisposeStore.add(this.cell.modified!.textModel.onDidChangeMetadata(() => {
+			this._metadataEditorDisposeStore.add(this.cell.modified.textModel.onDidChangeMetadata(() => {
 				if (respondingToContentChange) {
 					return;
 				}
@@ -614,7 +615,8 @@ abstract class AbstractElementRenderer extends Disposable {
 					dimension: {
 						height: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, this.cell.layoutInfo.rawOutputHeight || lineHeight * lineCount),
 						width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true)
-					}
+					},
+					accessibilityVerbose: this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.DiffEditor) ?? false
 				}, {
 					originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
 					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
@@ -969,7 +971,7 @@ export class DeletedElement extends SingleSideDiffElement {
 	}
 
 	layout(state: IDiffElementLayoutState) {
-		DOM.scheduleAtNextAnimationFrame(() => {
+		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
 			if (state.editorHeight || state.outerWidth) {
 				this._editor.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
@@ -1014,7 +1016,7 @@ export class DeletedElement extends SingleSideDiffElement {
 
 			this.cell.layoutChange();
 
-			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputViewContainer!);
+			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputViewContainer);
 			this._register(this._outputLeftView);
 			this._outputLeftView.render();
 
@@ -1136,7 +1138,7 @@ export class InsertElement extends SingleSideDiffElement {
 
 			this.cell.layoutChange();
 
-			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputViewContainer!);
+			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputViewContainer);
 			this._register(this._outputRightView);
 			this._outputRightView.render();
 
@@ -1172,7 +1174,7 @@ export class InsertElement extends SingleSideDiffElement {
 	}
 
 	layout(state: IDiffElementLayoutState) {
-		DOM.scheduleAtNextAnimationFrame(() => {
+		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
 			if (state.editorHeight || state.outerWidth) {
 				this._editor.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
@@ -1368,16 +1370,16 @@ export class ModifiedElement extends AbstractElementRenderer {
 				this._decorate();
 			}));
 
-			this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
-			this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
-			this._outputMetadataContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-metadata'));
+			this._outputLeftContainer = DOM.append(this._outputViewContainer, DOM.$('.output-view-container-left'));
+			this._outputRightContainer = DOM.append(this._outputViewContainer, DOM.$('.output-view-container-right'));
+			this._outputMetadataContainer = DOM.append(this._outputViewContainer, DOM.$('.output-view-container-metadata'));
 
 			const outputModified = this.cell.checkIfOutputsModified();
 			const outputMetadataChangeOnly = outputModified
 				&& outputModified.kind === OutputComparison.Metadata
-				&& this.cell.original!.outputs.length === 1
-				&& this.cell.modified!.outputs.length === 1
-				&& outputEqual(this.cell.original!.outputs[0], this.cell.modified!.outputs[0]) === OutputComparison.Metadata;
+				&& this.cell.original.outputs.length === 1
+				&& this.cell.modified.outputs.length === 1
+				&& outputEqual(this.cell.original.outputs[0], this.cell.modified.outputs[0]) === OutputComparison.Metadata;
 
 			if (outputModified && !outputMetadataChangeOnly) {
 				const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
@@ -1399,10 +1401,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 
 			// We should use the original text model here
-			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputLeftContainer!);
+			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original, DiffSide.Original, this._outputLeftContainer);
 			this._outputLeftView.render();
 			this._register(this._outputLeftView);
-			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputRightContainer!);
+			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified, DiffSide.Modified, this._outputRightContainer);
 			this._outputRightView.render();
 			this._register(this._outputRightView);
 
@@ -1414,7 +1416,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 				this._outputMetadataContainer.style.top = `${this.cell.layoutInfo.rawOutputHeight}px`;
 				// single output, metadata change, let's render a diff editor for metadata
-				this._outputMetadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputMetadataContainer!, {
+				this._outputMetadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputMetadataContainer, {
 					...fixedDiffEditorOptions,
 					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 					readOnly: true,
@@ -1429,8 +1431,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 				});
 				this._register(this._outputMetadataEditor);
-				const originalOutputMetadataSource = JSON.stringify(this.cell.original!.outputs[0].metadata ?? {}, undefined, '\t');
-				const modifiedOutputMetadataSource = JSON.stringify(this.cell.modified!.outputs[0].metadata ?? {}, undefined, '\t');
+				const originalOutputMetadataSource = JSON.stringify(this.cell.original.outputs[0].metadata ?? {}, undefined, '\t');
+				const modifiedOutputMetadataSource = JSON.stringify(this.cell.modified.outputs[0].metadata ?? {}, undefined, '\t');
 
 				const mode = this.languageService.createById('json');
 				const originalModel = this.modelService.createModel(originalOutputMetadataSource, mode, undefined, true);
@@ -1483,7 +1485,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	updateSourceEditor(): void {
-		const modifiedCell = this.cell.modified!;
+		const modifiedCell = this.cell.modified;
 		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
 
@@ -1501,10 +1503,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this._editorContainer.style.height = `${editorHeight}px`;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (this._editorLayoutInProgress) {
-				return;
-			}
-
 			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
 				this.cell.editorHeight = e.contentHeight;
 			}
@@ -1522,7 +1520,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 			cell: this.cell
 		};
 
-		if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
+		if (this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue()) {
 			this._inputToolbarContainer.style.display = 'block';
 			inputChanged.set(true);
 		} else {
@@ -1530,8 +1528,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 			inputChanged.set(false);
 		}
 
-		this._register(this.cell.modified!.textModel.onDidChangeContent(() => {
-			if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
+		this._register(this.cell.modified.textModel.onDidChangeContent(() => {
+			if (this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue()) {
 				this._inputToolbarContainer.style.display = 'block';
 				inputChanged.set(true);
 			} else {
@@ -1548,8 +1546,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	private async _initializeSourceDiffEditor() {
-		const originalCell = this.cell.original!;
-		const modifiedCell = this.cell.modified!;
+		const originalCell = this.cell.original;
+		const modifiedCell = this.cell.modified;
 
 		const originalRef = await this.textModelService.createModelReference(originalCell.uri);
 		const modifiedRef = await this.textModelService.createModelReference(modifiedCell.uri);
@@ -1592,11 +1590,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell.editorHeight = contentHeight;
 	}
 
-	private _editorLayoutInProgress = false;
-
 	layout(state: IDiffElementLayoutState) {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			this._editorLayoutInProgress = true;
+		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
 			if (state.editorHeight) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
 				this._editor!.layout({
@@ -1630,8 +1625,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 				}
 			}
 
-
-			this._editorLayoutInProgress = false;
 			this.layoutNotebookCell();
 		});
 	}

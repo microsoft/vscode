@@ -8,13 +8,33 @@ import { localize } from 'vs/nls';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ITasksResourceContent {
 	tasks: string | null;
+}
+
+export class TasksResourceInitializer implements IProfileResourceInitializer {
+
+	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+	) {
+	}
+
+	async initialize(content: string): Promise<void> {
+		const tasksContent: ITasksResourceContent = JSON.parse(content);
+		if (!tasksContent.tasks) {
+			this.logService.info(`Initializing Profile: No tasks to apply...`);
+			return;
+		}
+		await this.fileService.writeFile(this.userDataProfileService.currentProfile.tasksResource, VSBuffer.fromString(tasksContent.tasks));
+	}
 }
 
 export class TasksResource implements IProfileResource {
@@ -70,6 +90,7 @@ export class TasksResourceTreeItem implements IProfileResourceTreeItem {
 
 	constructor(
 		private readonly profile: IUserDataProfile,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
@@ -79,6 +100,9 @@ export class TasksResourceTreeItem implements IProfileResourceTreeItem {
 			resourceUri: this.profile.tasksResource,
 			collapsibleState: TreeItemCollapsibleState.None,
 			parent: this,
+			accessibilityInformation: {
+				label: this.uriIdentityService.extUri.basename(this.profile.settingsResource)
+			},
 			command: {
 				id: API_OPEN_EDITOR_COMMAND_ID,
 				title: '',
@@ -95,5 +119,10 @@ export class TasksResourceTreeItem implements IProfileResourceTreeItem {
 	async getContent(): Promise<string> {
 		return this.instantiationService.createInstance(TasksResource).getContent(this.profile);
 	}
+
+	isFromDefaultProfile(): boolean {
+		return !this.profile.isDefault && !!this.profile.useDefaultFlags?.tasks;
+	}
+
 
 }

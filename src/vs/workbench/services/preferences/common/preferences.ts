@@ -10,6 +10,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, EditPresentationTypes, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
@@ -31,12 +32,14 @@ export enum SettingValueType {
 	Boolean = 'boolean',
 	Array = 'array',
 	Exclude = 'exclude',
+	Include = 'include',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
 	Object = 'object',
 	BooleanObject = 'boolean-object',
-	LanguageTag = 'language-tag'
+	LanguageTag = 'language-tag',
+	ExtensionToggle = 'extension-toggle'
 }
 
 export interface ISettingsGroup {
@@ -90,8 +93,15 @@ export interface ISetting {
 	editPresentation?: EditPresentationTypes;
 	nonLanguageSpecificDefaultValueSource?: string | IExtensionInfo;
 	isLanguageTagSetting?: boolean;
-	categoryOrder?: number;
 	categoryLabel?: string;
+
+	// Internal properties
+	displayExtensionId?: string;
+	stableExtensionId?: string;
+	prereleaseExtensionId?: string;
+	title?: string;
+	extensionGroupTitle?: string;
+	internalOrder?: number;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -124,12 +134,13 @@ export interface IFilterResult {
 /**
  * The ways a setting could match a query,
  * sorted in increasing order of relevance.
- * For now, ignore description and value matches.
  */
 export enum SettingMatchType {
 	None = 0,
-	WholeWordMatch = 1 << 0,
-	KeyMatch = 1 << 1
+	LanguageTagSettingMatch = 1 << 0,
+	RemoteMatch = 1 << 1,
+	DescriptionOrValueMatch = 1 << 2,
+	KeyMatch = 1 << 3
 }
 
 export interface ISettingMatch {
@@ -189,6 +200,9 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 	target?: ConfigurationTarget;
 	folderUri?: URI;
 	query?: string;
+	/**
+	 * Only works when opening the json settings file. Use `query` for settings editor.
+	 */
 	revealSetting?: {
 		key: string;
 		edit?: boolean;
@@ -305,6 +319,11 @@ export interface IKeybindingsEditorPane extends IEditorPane {
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
+}
+
+export const DEFINE_KEYBINDING_EDITOR_CONTRIB_ID = 'editor.contrib.defineKeybinding';
+export interface IDefineKeybindingEditorContribution extends IEditorContribution {
+	showDefineKeybindingWidget(): void;
 }
 
 export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';

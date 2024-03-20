@@ -5,12 +5,11 @@
 
 use std::io;
 
-use const_format::concatcp;
 use core_foundation::base::TCFType;
 use core_foundation::string::{CFString, CFStringRef};
 use libc::c_int;
 
-use crate::constants::APPLICATION_NAME;
+use crate::constants::TUNNEL_ACTIVITY_NAME;
 
 extern "C" {
 	pub fn IOPMAssertionCreateWithName(
@@ -64,8 +63,7 @@ pub struct SleepInhibitor {
 impl SleepInhibitor {
 	pub async fn new() -> io::Result<Self> {
 		let mut assertions = Vec::with_capacity(NUM_ASSERTIONS);
-		let assertion_name =
-			CFString::from_static_string(concatcp!(APPLICATION_NAME, " running tunnel"));
+		let assertion_name = CFString::from_static_string(TUNNEL_ACTIVITY_NAME);
 		for typ in ASSERTIONS {
 			assertions.push(Assertion::make(
 				&CFString::from_static_string(typ),

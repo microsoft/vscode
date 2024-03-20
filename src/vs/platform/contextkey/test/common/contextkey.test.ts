@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ContextKeyExpr, ContextKeyExpression, implies } from 'vs/platform/contextkey/common/contextkey';
 
 function createContext(ctx: any) {
@@ -15,6 +16,9 @@ function createContext(ctx: any) {
 }
 
 suite('ContextKeyExpr', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('ContextKeyExpr.equals', () => {
 		const a = ContextKeyExpr.and(
 			ContextKeyExpr.has('a1'),
@@ -299,31 +303,31 @@ suite('ContextKeyExpr', () => {
 			assert.strictEqual(_expr.evaluate(createContext(ctx)), expected);
 		}
 
-		checkEvaluate('a>1', {}, false);
-		checkEvaluate('a>1', { a: 0 }, false);
-		checkEvaluate('a>1', { a: 1 }, false);
-		checkEvaluate('a>1', { a: 2 }, true);
-		checkEvaluate('a>1', { a: '0' }, false);
-		checkEvaluate('a>1', { a: '1' }, false);
-		checkEvaluate('a>1', { a: '2' }, true);
-		checkEvaluate('a>1', { a: 'a' }, false);
+		checkEvaluate('a > 1', {}, false);
+		checkEvaluate('a > 1', { a: 0 }, false);
+		checkEvaluate('a > 1', { a: 1 }, false);
+		checkEvaluate('a > 1', { a: 2 }, true);
+		checkEvaluate('a > 1', { a: '0' }, false);
+		checkEvaluate('a > 1', { a: '1' }, false);
+		checkEvaluate('a > 1', { a: '2' }, true);
+		checkEvaluate('a > 1', { a: 'a' }, false);
 
-		checkEvaluate('a>10', { a: 2 }, false);
-		checkEvaluate('a>10', { a: 11 }, true);
-		checkEvaluate('a>10', { a: '11' }, true);
-		checkEvaluate('a>10', { a: '2' }, false);
-		checkEvaluate('a>10', { a: '11' }, true);
+		checkEvaluate('a > 10', { a: 2 }, false);
+		checkEvaluate('a > 10', { a: 11 }, true);
+		checkEvaluate('a > 10', { a: '11' }, true);
+		checkEvaluate('a > 10', { a: '2' }, false);
+		checkEvaluate('a > 10', { a: '11' }, true);
 
-		checkEvaluate('a>1.1', { a: 1 }, false);
-		checkEvaluate('a>1.1', { a: 2 }, true);
-		checkEvaluate('a>1.1', { a: 11 }, true);
-		checkEvaluate('a>1.1', { a: '1.1' }, false);
-		checkEvaluate('a>1.1', { a: '2' }, true);
-		checkEvaluate('a>1.1', { a: '11' }, true);
+		checkEvaluate('a > 1.1', { a: 1 }, false);
+		checkEvaluate('a > 1.1', { a: 2 }, true);
+		checkEvaluate('a > 1.1', { a: 11 }, true);
+		checkEvaluate('a > 1.1', { a: '1.1' }, false);
+		checkEvaluate('a > 1.1', { a: '2' }, true);
+		checkEvaluate('a > 1.1', { a: '11' }, true);
 
-		checkEvaluate('a>b', { a: 'b' }, false);
-		checkEvaluate('a>b', { a: 'c' }, false);
-		checkEvaluate('a>b', { a: 1000 }, false);
+		checkEvaluate('a > b', { a: 'b' }, false);
+		checkEvaluate('a > b', { a: 'c' }, false);
+		checkEvaluate('a > b', { a: 1000 }, false);
 
 		checkEvaluate('a >= 2', { a: '1' }, false);
 		checkEvaluate('a >= 2', { a: '2' }, true);
@@ -345,21 +349,21 @@ suite('ContextKeyExpr', () => {
 			assert.strictEqual(b.serialize(), expected);
 		}
 
-		checkNegate('a>1', 'a <= 1');
-		checkNegate('a>1.1', 'a <= 1.1');
-		checkNegate('a>b', 'a <= b');
+		checkNegate('a > 1', 'a <= 1');
+		checkNegate('a > 1.1', 'a <= 1.1');
+		checkNegate('a > b', 'a <= b');
 
-		checkNegate('a>=1', 'a < 1');
-		checkNegate('a>=1.1', 'a < 1.1');
-		checkNegate('a>=b', 'a < b');
+		checkNegate('a >= 1', 'a < 1');
+		checkNegate('a >= 1.1', 'a < 1.1');
+		checkNegate('a >= b', 'a < b');
 
-		checkNegate('a<1', 'a >= 1');
-		checkNegate('a<1.1', 'a >= 1.1');
-		checkNegate('a<b', 'a >= b');
+		checkNegate('a < 1', 'a >= 1');
+		checkNegate('a < 1.1', 'a >= 1.1');
+		checkNegate('a < b', 'a >= b');
 
-		checkNegate('a<=1', 'a > 1');
-		checkNegate('a<=1.1', 'a > 1.1');
-		checkNegate('a<=b', 'a > b');
+		checkNegate('a <= 1', 'a > 1');
+		checkNegate('a <= 1.1', 'a > 1.1');
+		checkNegate('a <= b', 'a > b');
 	});
 
 	test('issue #111899: context keys can use `<` or `>` ', () => {

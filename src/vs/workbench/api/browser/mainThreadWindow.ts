@@ -10,6 +10,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -21,19 +22,24 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		extHostContext: IExtHostContext,
 		@IHostService private readonly hostService: IHostService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IUserActivityService private readonly userActivityService: IUserActivityService,
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
 		Event.latch(hostService.onDidChangeFocus)
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
+		userActivityService.onDidChangeIsActive(this.proxy.$onDidChangeWindowActive, this.proxy, this.disposables);
 	}
 
 	dispose(): void {
 		this.disposables.dispose();
 	}
 
-	$getWindowVisibility(): Promise<boolean> {
-		return Promise.resolve(this.hostService.hasFocus);
+	$getInitialState() {
+		return Promise.resolve({
+			isFocused: this.hostService.hasFocus,
+			isActive: this.userActivityService.isActive,
+		});
 	}
 
 	async $openUri(uriComponents: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean> {

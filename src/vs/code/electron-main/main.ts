@@ -13,10 +13,10 @@ import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { basename, join, resolve } from 'vs/base/common/path';
+import { basename, resolve } from 'vs/base/common/path';
 import { mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
@@ -56,8 +56,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { IStateReadService, IStateService } from 'vs/platform/state/node/state';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
@@ -70,6 +69,9 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { ILoggerMainService, LoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
+import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
 
 /**
  * The main VS Code entry point.
@@ -124,19 +126,20 @@ class CodeMain {
 				// instance of VS Code running and so we would quit.
 				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
 
-				// Write a lockfile to indicate an instance is running (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
+				// Write a lockfile to indicate an instance is running
+				// (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
 				FSPromises.writeFile(environmentMainService.mainLockfile, String(process.pid)).catch(err => {
-					logService.warn(`Error writing main lockfile: ${err.stack}`);
+					logService.warn(`app#startup(): Error writing main lockfile: ${err.stack}`);
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { id: 'mainLog', name: localize('mainLog', "Main") });
+				bufferLogService.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
 
 				// Lifecycle
-				once(lifecycleMainService.onWillShutdown)(evt => {
+				Event.once(lifecycleMainService.onWillShutdown)(evt => {
 					fileService.dispose();
 					configurationService.dispose();
-					evt.join(FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
+					evt.join('instanceLockfile', FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
@@ -146,7 +149,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogger, IProductService, UserDataProfilesMainService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateService, BufferLogger, IProductService, UserDataProfilesMainService] {
 		const services = new ServiceCollection();
 		const disposables = new DisposableStore();
 		process.once('exit', () => disposables.dispose());
@@ -161,7 +164,7 @@ class CodeMain {
 		services.set(IEnvironmentMainService, environmentMainService);
 
 		// Logger
-		const loggerService = new LoggerMainService(getLogLevel(environmentMainService));
+		const loggerService = new LoggerMainService(getLogLevel(environmentMainService), environmentMainService.logsHome);
 		services.set(ILoggerMainService, loggerService);
 
 		// Log: We need to buffer the spdlog logs until we are sure
@@ -182,12 +185,17 @@ class CodeMain {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// State
-		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
-		services.set(IStateMainService, stateMainService);
+		const stateService = new StateService(SaveStrategy.DELAYED, environmentMainService, logService, fileService);
+		services.set(IStateReadService, stateService);
+		services.set(IStateService, stateService);
 
 		// User Data Profiles
-		const userDataProfilesMainService = new UserDataProfilesMainService(stateMainService, uriIdentityService, environmentMainService, fileService, logService);
+		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService);
 		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
+
+		// Use FileUserDataProvider for user data to
+		// enable atomic read / write operations.
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, userDataProfilesMainService, uriIdentityService, logService));
 
 		// Policy
 		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(logService, productService.win32RegValueName))
@@ -217,7 +225,7 @@ class CodeMain {
 		// Protocol (instantiated early and not using sync descriptor for security reasons)
 		services.set(IProtocolMainService, new ProtocolMainService(environmentMainService, userDataProfilesMainService, logService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateService, bufferLogger, productService, userDataProfilesMainService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -237,22 +245,22 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService, productService: IProductService): Promise<void> {
+	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateService: StateService, productService: IProductService): Promise<void> {
 		await Promises.settled<unknown>([
 
 			// Environment service (paths)
 			Promise.all<string | undefined>([
-				environmentMainService.extensionsPath,
-				environmentMainService.codeCachePath,
-				environmentMainService.logsPath,
-				userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath,
-				environmentMainService.workspaceStorageHome.fsPath,
-				environmentMainService.localHistoryHome.fsPath,
+				this.allowWindowsUNCPath(environmentMainService.extensionsPath), // enable extension paths on UNC drives...
+				environmentMainService.codeCachePath,							 // ...other user-data-derived paths should already be enlisted from `main.js`
+				environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+				userDataProfilesMainService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath,
+				environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath,
+				environmentMainService.localHistoryHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
 			// State service
-			stateMainService.init(),
+			stateService.init(),
 
 			// Configuration service
 			configurationService.initialize()
@@ -260,6 +268,17 @@ class CodeMain {
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesMainService.init();
+	}
+
+	private allowWindowsUNCPath(path: string): string {
+		if (isWindows) {
+			const host = getUNCHost(path);
+			if (host) {
+				addUNCHostToAllowlist(host);
+			}
+		}
+
+		return path;
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
@@ -272,7 +291,7 @@ class CodeMain {
 			mark('code/willStartMainServer');
 			mainProcessNodeIpcServer = await nodeIPCServe(environmentMainService.mainIPCHandle);
 			mark('code/didStartMainServer');
-			once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
+			Event.once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
@@ -380,7 +399,7 @@ class CodeMain {
 
 		// Print --status usage info
 		if (environmentMainService.args.status) {
-			logService.warn(`Warning: The --status argument can only be used if ${productService.nameShort} is already running. Please run it again after {0} has started.`);
+			console.log(localize('statusWarning', "Warning: The --status argument can only be used if {0} is already running. Please run it again after {0} has started.", productService.nameShort));
 
 			throw new ExpectedError('Terminating...');
 		}
