@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
@@ -143,7 +143,7 @@ export interface IChatAgentService {
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
 
-export class ChatAgentService extends Disposable implements IChatAgentService {
+export class ChatAgentService implements IChatAgentService {
 
 	public static readonly AGENT_LEADER = '@';
 
@@ -151,14 +151,12 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private _agents: IChatAgentEntry[] = [];
 
-	private readonly _onDidChangeAgents = this._register(new Emitter<IChatAgent | undefined>());
+	private readonly _onDidChangeAgents = new Emitter<IChatAgent | undefined>();
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
-	) {
-		super();
-	}
+	) { }
 
 	registerAgent(id: string, data: IChatAgentData): IDisposable {
 		const existingAgent = this.getAgent(id);

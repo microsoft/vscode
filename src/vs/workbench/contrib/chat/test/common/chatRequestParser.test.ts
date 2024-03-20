@@ -31,7 +31,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IChatService, new MockChatService());
-		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 
 		varService = mockObject<IChatVariablesService>()({});
 		varService.getDynamicVariables.returns([]);
