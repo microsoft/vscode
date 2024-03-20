@@ -235,6 +235,7 @@ const enum ShouldRenderValue {
 export class DecorationsOverviewRuler extends ViewPart {
 
 	private _actualShouldRender: ShouldRenderValue = ShouldRenderValue.NotNeeded;
+
 	private readonly _tokensColorTrackerListener: IDisposable;
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
 	private _settings!: Settings;
@@ -470,34 +471,35 @@ export class DecorationsOverviewRuler extends ViewPart {
 			let prevColor: string | null = null;
 			for (let i = 0, len = this._cursorPositions.length; i < len; i++) {
 				const color = this._cursorPositions[i].color;
-				if (color) {
-					const cursor = this._cursorPositions[i].position;
-
-					let yCenter = (viewLayout.getVerticalOffsetForLineNumber(cursor.lineNumber) * heightRatio) | 0;
-					if (yCenter < halfCursorHeight) {
-						yCenter = halfCursorHeight;
-					} else if (yCenter + halfCursorHeight > canvasHeight) {
-						yCenter = canvasHeight - halfCursorHeight;
-					}
-					const y1 = yCenter - halfCursorHeight;
-					const y2 = y1 + cursorHeight;
-
-					if (y1 > prevY2 + 1 || color !== prevColor) {
-						// flush prev
-						if (i !== 0 && prevColor) {
-							canvasCtx.fillRect(cursorX, prevY1, cursorW, prevY2 - prevY1);
-						}
-						prevY1 = y1;
-						prevY2 = y2;
-					} else {
-						// merge into prev
-						if (y2 > prevY2) {
-							prevY2 = y2;
-						}
-					}
-					prevColor = color;
-					canvasCtx.fillStyle = color;
+				if (!color) {
+					continue;
 				}
+				const cursor = this._cursorPositions[i].position;
+
+				let yCenter = (viewLayout.getVerticalOffsetForLineNumber(cursor.lineNumber) * heightRatio) | 0;
+				if (yCenter < halfCursorHeight) {
+					yCenter = halfCursorHeight;
+				} else if (yCenter + halfCursorHeight > canvasHeight) {
+					yCenter = canvasHeight - halfCursorHeight;
+				}
+				const y1 = yCenter - halfCursorHeight;
+				const y2 = y1 + cursorHeight;
+
+				if (y1 > prevY2 + 1 || color !== prevColor) {
+					// flush prev
+					if (i !== 0 && prevColor) {
+						canvasCtx.fillRect(cursorX, prevY1, cursorW, prevY2 - prevY1);
+					}
+					prevY1 = y1;
+					prevY2 = y2;
+				} else {
+					// merge into prev
+					if (y2 > prevY2) {
+						prevY2 = y2;
+					}
+				}
+				prevColor = color;
+				canvasCtx.fillStyle = color;
 			}
 			if (prevColor) {
 				canvasCtx.fillRect(cursorX, prevY1, cursorW, prevY2 - prevY1);
