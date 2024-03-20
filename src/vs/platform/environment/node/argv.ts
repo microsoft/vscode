@@ -204,6 +204,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'_urls': { type: 'string[]' },
 	'disable-dev-shm-usage': { type: 'boolean' },
 	'profile-temp': { type: 'boolean' },
+	'ozone-platform': { type: 'string' },
 
 	_: { type: 'string[]' } // main arguments
 };
