@@ -346,7 +346,15 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		}
 	}
 
-	getInput(where: IRange, currentName: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean> {
+	getInput(
+		where: IRange,
+		currentName: string,
+		selectionStart: number,
+		selectionEnd: number,
+		supportPreview: boolean,
+		candidates: ProviderResult<NewSymbolName[]>[],
+		cts: CancellationTokenSource
+	): Promise<RenameInputFieldResult | boolean> {
 
 		this._isEditingRenameCandidate = false;
 
