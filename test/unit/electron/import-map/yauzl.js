@@ -1,3 +1,5 @@
 import { yauzl } from './testGlobals.js';
 
-export default yauzl
+const { open } = yauzl
+
+export { open }
