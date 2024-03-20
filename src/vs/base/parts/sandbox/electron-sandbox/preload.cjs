@@ -345,6 +345,9 @@ if (isTest) {
 	const util = require('util')
 	const url = require('url')
 	const fs = require('fs')
+	const net = require('net')
+	const crypto = require('crypto')
+	const zlib = require('zlib')
 
 	let runCallback
 	let args
@@ -374,7 +377,10 @@ if (isTest) {
 		util,
 		fs,
 		setRun,
-		url
+		url,
+		net,
+		crypto,
+		zlib
 	}
 	// @ts-ignore
 	window.testGlobals = testGlobals
