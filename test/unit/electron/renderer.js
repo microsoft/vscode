@@ -141,7 +141,6 @@ const doImportUrl = async url => {
 async function loadModules(modules) {
 	for (const file of modules) {
 		const importUrl = url.pathToFileURL(path.join(_out, file)).toString()
-		console.log({ importUrl })
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
 		const m = await doImportUrl(importUrl)
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
