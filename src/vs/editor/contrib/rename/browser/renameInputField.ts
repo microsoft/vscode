@@ -89,7 +89,7 @@ interface IRenameInputField {
 		where: IRange,
 		currentName: string,
 		supportPreview: boolean,
-		candidates: ProviderResult<NewSymbolName[]>[],
+		requestRenameSuggestions: (cts: CancellationToken) => ProviderResult<NewSymbolName[]>[],
 		cts: CancellationTokenSource
 	): Promise<RenameInputFieldResult | boolean>;
 
@@ -132,6 +132,8 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 	 * @remarks must be set once per session
 	 */
 	private _timeBeforeFirstInputFieldEdit: number | undefined;
+
+	private _renameCandidateProvidersCts: CancellationTokenSource | undefined;
 
 	private readonly _visibleContextKey: IContextKey<boolean>;
 	private readonly _disposables = new DisposableStore();
@@ -200,6 +202,9 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 						this._isEditingRenameCandidate = true;
 					}
 					this._timeBeforeFirstInputFieldEdit ??= this._beforeFirstInputFieldEditSW.elapsed();
+					if (this._renameCandidateProvidersCts?.token.isCancellationRequested === false) {
+						this._renameCandidateProvidersCts.cancel();
+					}
 					this._renameCandidateListView?.clearFocus();
 				})
 			);
@@ -356,11 +361,15 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 		where: IRange,
 		currentName: string,
 		supportPreview: boolean,
-		candidates: ProviderResult<NewSymbolName[]>[],
+		requestRenameSuggestions: (cts: CancellationToken) => ProviderResult<NewSymbolName[]>[],
 		cts: CancellationTokenSource
 	): Promise<RenameInputFieldResult | boolean> {
 
 		const { start: selectionStart, end: selectionEnd } = this._getSelection(where, currentName);
+
+		this._renameCandidateProvidersCts = new CancellationTokenSource();
+		const candidates = requestRenameSuggestions(this._renameCandidateProvidersCts.token);
+		this._updateRenameCandidates(candidates, currentName, cts.token);
 
 		this._isEditingRenameCandidate = false;
 
@@ -379,8 +388,12 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 		const disposeOnDone = new DisposableStore();
 
 		disposeOnDone.add(toDisposable(() => cts.dispose(true))); // @ulugbekna: this may result in `this.cancelInput` being called twice, but it should be safe since we set it to undefined after 1st call
-
-		this._updateRenameCandidates(candidates, currentName, cts.token);
+		disposeOnDone.add(toDisposable(() => {
+			if (this._renameCandidateProvidersCts !== undefined) {
+				this._renameCandidateProvidersCts.dispose(true);
+				this._renameCandidateProvidersCts = undefined;
+			}
+		}));
 
 		const inputResult = new DeferredPromise<RenameInputFieldResult | boolean>();
 

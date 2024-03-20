@@ -229,10 +229,9 @@ class RenameController implements IEditorContribution {
 
 		const model = this.editor.getModel(); // @ulugbekna: assumes editor still has a model, otherwise, cts1 should've been cancelled
 
-		const renameCandidatesCts = new CancellationTokenSource(cts2.token);
 		const newSymbolNamesProviders = this._languageFeaturesService.newSymbolNamesProvider.all(model);
-		const newSymbolNameProvidersResults = newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, renameCandidatesCts.token));
-		trace(`requested new symbol names from ${newSymbolNamesProviders.length} providers`);
+
+		const requestRenameSuggestions = (cts: CancellationToken) => newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, cts));
 
 		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
@@ -240,8 +239,8 @@ class RenameController implements IEditorContribution {
 			loc.range,
 			loc.text,
 			supportPreview,
-			newSymbolNameProvidersResults,
-			renameCandidatesCts
+			requestRenameSuggestions,
+			cts2
 		);
 		trace('received response from rename input field');
 
