@@ -13,6 +13,10 @@ const {
 	zlib,
 	sinon,
 	os,
+	electron,
+	minimist,
+	gracefulFs,
+	childProcess
 } = globalThis.testGlobals
 
 
@@ -31,4 +35,8 @@ export {
 	zlib,
 	os,
 	sinon,
+	electron,
+	minimist,
+	gracefulFs,
+	childProcess
 }

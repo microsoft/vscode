@@ -1,5 +1,5 @@
 import { path } from './testGlobals.js';
 
-path
+const { join, resolve } = path
 
-export { }
+export { join, resolve }

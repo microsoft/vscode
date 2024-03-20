@@ -342,14 +342,18 @@ if (isTest) {
 	const assert = require('assert')
 	const path = require('path')
 	const glob = require('glob')
+	const minimist = require('minimist')
 	const util = require('util')
 	const events = require('events')
 	const os = require('os')
 	const url = require('url')
 	const sinon = require('sinon')
+	const childProcess = require('child_process')
 	const fs = require('fs')
 	const net = require('net')
+	const gracefulFs = require('graceful-fs')
 	const stream = require('stream')
+	const electron = require('electron')
 	const crypto = require('crypto')
 	const zlib = require('zlib')
 
@@ -387,8 +391,12 @@ if (isTest) {
 		url,
 		net,
 		crypto,
+		electron,
 		stream,
-		zlib
+		zlib,
+		minimist,
+		gracefulFs,
+		childProcess
 	}
 	// @ts-ignore
 	window.testGlobals = testGlobals

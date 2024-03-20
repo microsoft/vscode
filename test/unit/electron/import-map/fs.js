@@ -1,5 +1,5 @@
 import { fs } from './testGlobals.js'
 
-const { createWriteStream } = fs
+const { createWriteStream, existsSync, readFileSync, readdirSync, rmSync, writeFileSync, unwatchFile, watchFile, watch } = fs
 
-export { createWriteStream }
+export { createWriteStream, existsSync, readFileSync, readdirSync, rmSync, writeFileSync, unwatchFile, watchFile, watch }
