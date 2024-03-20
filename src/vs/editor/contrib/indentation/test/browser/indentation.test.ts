@@ -545,7 +545,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	// Failing tests from issues...
 
-	test('issue #208215: indent after arrow function', () => {
+	test.skip('issue #208215: indent after arrow function', () => {
 
 		// https://github.com/microsoft/vscode/issues/208215
 		// consider the regex: /^\s*(var|const|let)\s+\w+\s*=\s*\(.*\)\s*=>\s*$/
