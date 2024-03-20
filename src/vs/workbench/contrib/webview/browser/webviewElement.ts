@@ -840,6 +840,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 
+			// It is possible for the webview to be contained in another window
+			// that does not have focus. As such, also focus the body of the
+			// webview's window to ensure it is properly receiving keyboard focus.
+			this.window?.document.body?.focus();
+
 			this._send('focus', undefined);
 		});
 	}

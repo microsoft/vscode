@@ -480,6 +480,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				name: result.variable.name,
 				value: result.variable.value,
 				type: result.variable.type,
+				interfaces: result.variable.interfaces,
 				language: result.variable.language,
 				expression: result.variable.expression,
 				hasNamedChildren: result.hasNamedChildren,

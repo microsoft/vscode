@@ -45,7 +45,6 @@
     "terminalDataWriteEvent",
     "terminalDimensions",
     "tunnels",
-    "testCoverage",
     "testObserver",
     "textSearchProvider",
     "timeline",
