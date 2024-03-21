@@ -519,7 +519,7 @@ export class InlineChatController implements IEditorContribution {
 				if (agent.locations.includes(ChatAgentLocation.Panel)) {
 					const commands = agent.slashCommands;
 					if (commands.find((command) => withoutSubCommandLeader.startsWith(command.name))) {
-						massagedInput = `${chatAgentLeader}${agent.id} ${slashCommandLike.text}`;
+						massagedInput = `${chatAgentLeader}${agent.name} ${slashCommandLike.text}`;
 						break;
 					}
 				}
@@ -1120,7 +1120,7 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 	}
 
 	const chatWidgetService = accessor.get(IChatWidgetService);
-	const widget = await chatWidgetService.revealViewForProvider(agent.id);
+	const widget = await chatWidgetService.revealViewForProvider(agent.name);
 	if (widget && widget.viewModel) {
 		chatService.addCompleteRequest(widget.viewModel.sessionId, query, undefined, { message: response });
 		widget.focusLastMessage();
@@ -1134,7 +1134,7 @@ async function sendRequest(accessor: ServicesAccessor, query: string) {
 	if (!agent) {
 		return;
 	}
-	const widget = await widgetService.revealViewForProvider(agent.id);
+	const widget = await widgetService.revealViewForProvider(agent.name);
 	if (!widget) {
 		return;
 	}
