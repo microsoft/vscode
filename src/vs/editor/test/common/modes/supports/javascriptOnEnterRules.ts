@@ -40,4 +40,22 @@ export const javascriptOnEnterRules = [
 		beforeText: /^\s+([^{i\s]|i(?!f\b))/,
 		action: { indentAction: IndentAction.Outdent }
 	},
+	// Indent when pressing enter from inside ()
+	{
+		beforeText: /^.*\([^\)]*$/,
+		afterText: /^[^\(]*\).*$/,
+		action: { indentAction: IndentAction.Outdent, appendText: '\t' }
+	},
+	// Indent when pressing enter from inside {}
+	{
+		beforeText: /^.*\{[^\}]*$/,
+		afterText: /^[^\{]*\}.*$/,
+		action: { indentAction: IndentAction.Outdent, appendText: '\t' }
+	},
+	// Indent when pressing enter from inside []
+	{
+		beforeText: /^.*\[[^\]]*$/,
+		afterText: /^[^\[]*\].*$/,
+		action: { indentAction: IndentAction.Outdent, appendText: '\t' }
+	},
 ];
