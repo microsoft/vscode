@@ -166,6 +166,7 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	// TODO @justschen: After migration to Aux Window, switch to dedicated css.
 	private applyStyles(styles: IssueReporterStyles) {
 		const styleTag = document.createElement('style');
 		const content: string[] = [];
