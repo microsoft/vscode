@@ -364,7 +364,9 @@ if (isTest) {
 	const crypto = require('crypto')
 	const xterm = require('@xterm/xterm')
 	const zlib = require('zlib')
+	const xtermHeadless = require('@xterm/headless')
 	const vscodeSqlite3 = require('@vscode/sqlite3')
+	const xtermAddonCanvas = require('@xterm/addon-canvas')
 
 	let runCallback
 	let args
@@ -411,10 +413,12 @@ if (isTest) {
 		minimist,
 		gracefulFs,
 		childProcess,
+		xtermAddonCanvas,
 		vscodeRipgrep,
 		vscodeSqlite3,
 		sinonTest,
-		parcelWatcher
+		parcelWatcher,
+		xtermHeadless
 	}
 	// @ts-ignore
 	window.testGlobals = testGlobals

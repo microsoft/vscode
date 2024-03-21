@@ -25,7 +25,9 @@ const {
 	gracefulFs,
 	sinonTest,
 	childProcess,
-	yauzl
+	yauzl,
+	xtermHeadless,
+	xtermAddonCanvas
 } = globalThis.testGlobals
 
 
@@ -56,5 +58,7 @@ export {
 	sinonTest,
 	minimist,
 	gracefulFs,
-	childProcess
+	childProcess,
+	xtermAddonCanvas,
+	xtermHeadless
 }
