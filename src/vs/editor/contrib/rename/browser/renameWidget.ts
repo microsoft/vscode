@@ -560,12 +560,6 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 
 class RenameCandidateListView {
 
-	private readonly _onDidFocusChange = new Emitter<NewSymbolName>();
-	readonly onDidFocusChange = this._onDidFocusChange.event;
-
-	private readonly _onDidSelectionChange = new Emitter<void>();
-	readonly onDidSelectionChange = this._onDidSelectionChange.event;
-
 	/** Parent node of the list widget; needed to control # of list elements visible */
 	private readonly _listContainer: HTMLDivElement;
 	private readonly _listWidget: List<NewSymbolName>;
