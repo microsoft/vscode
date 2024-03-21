@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IActiveNotebookEditor, ICellViewModel, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { OutlineEntry } from './OutlineEntry';
@@ -70,10 +70,10 @@ export class NotebookCellOutlineProvider {
 		);
 
 		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.outline.showMarkdownHeadersOnly') ||
-				e.affectsConfiguration('notebook.outline.showCodeCells') ||
-				e.affectsConfiguration('notebook.outline.showCodeCellSymbols') ||
-				e.affectsConfiguration('notebook.breadcrumbs.showCodeCells')
+			if (e.affectsConfiguration(NotebookSetting.outlineShowMarkdownHeadersOnly) ||
+				e.affectsConfiguration(NotebookSetting.outlineShowCodeCells) ||
+				e.affectsConfiguration(NotebookSetting.outlineShowCodeCellSymbols) ||
+				e.affectsConfiguration(NotebookSetting.breadcrumbsShowCodeCells)
 			) {
 				this._recomputeState();
 			}

@@ -419,9 +419,9 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	}
 
 	*getChildren(parent: OutlineEntry | NotebookCellOutline, configurationService: IConfigurationService): Iterable<OutlineEntry> {
-		const showCodeCells = configurationService.getValue<boolean>('notebook.outline.showCodeCells');
-		const showCodeCellSymbols = configurationService.getValue<boolean>('notebook.outline.showCodeCellSymbols');
-		const showMarkdownHeadersOnly = configurationService.getValue<boolean>('notebook.outline.showMarkdownHeadersOnly');
+		const showCodeCells = configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
+		const showCodeCellSymbols = configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
+		const showMarkdownHeadersOnly = configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
 
 		for (const entry of parent instanceof NotebookCellOutline ? (this._outlineProvider?.entries ?? []) : parent.children) {
 			if (entry.cell.cellKind === CellKind.Markup) {
@@ -554,7 +554,7 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
 
 		const showAllGotoSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
-		const showAllOutlineSymbols = this._configurationService.getValue<boolean>('notebook.outline.showCodeCellSymbols');
+		const showAllOutlineSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
 		if (target === OutlineTarget.QuickPick && showAllGotoSymbols) {
 			await outline.setFullSymbols(cancelToken);
 		} else if (target === OutlineTarget.OutlinePane && showAllOutlineSymbols) {
@@ -580,22 +580,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	order: 100,
 	type: 'object',
 	'properties': {
-		'notebook.outline.showMarkdownHeadersOnly': {
+		[NotebookSetting.outlineShowMarkdownHeadersOnly]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('outline.showMarkdownHeadersOnly', "When enabled, notebook outline will show only markdown cells containing a header.")
 		},
-		'notebook.outline.showCodeCells': {
+		[NotebookSetting.outlineShowCodeCells]: {
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('outline.showCodeCells', "When enabled, notebook outline shows code cells.")
 		},
-		'notebook.outline.showCodeCellSymbols': {
+		[NotebookSetting.outlineShowCodeCellSymbols]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('outline.showCodeCellSymbols', "When enabled, notebook outline shows code cell symbols. Relies on `notebook.outline.showCodeCells` being enabled.")
 		},
-		'notebook.breadcrumbs.showCodeCells': {
+		[NotebookSetting.breadcrumbsShowCodeCells]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('breadcrumbs.showCodeCells', "When enabled, notebook breadcrumbs contain code cells.")
@@ -635,8 +635,8 @@ registerAction2(class ToggleShowMarkdownHeadersOnly extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const configurationService = accessor.get(IConfigurationService);
-		const showMarkdownHeadersOnly = configurationService.getValue<boolean>('notebook.outline.showMarkdownHeadersOnly');
-		configurationService.updateValue('notebook.outline.showMarkdownHeadersOnly', !showMarkdownHeadersOnly);
+		const showMarkdownHeadersOnly = configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
+		configurationService.updateValue(NotebookSetting.outlineShowMarkdownHeadersOnly, !showMarkdownHeadersOnly);
 	}
 });
 
@@ -660,8 +660,8 @@ registerAction2(class ToggleCodeCellEntries extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const configurationService = accessor.get(IConfigurationService);
-		const showCodeCells = configurationService.getValue<boolean>('notebook.outline.showCodeCells');
-		configurationService.updateValue('notebook.outline.showCodeCells', !showCodeCells);
+		const showCodeCells = configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
+		configurationService.updateValue(NotebookSetting.outlineShowCodeCells, !showCodeCells);
 	}
 });
 
@@ -684,7 +684,7 @@ registerAction2(class ToggleCodeCellSymbolEntries extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const configurationService = accessor.get(IConfigurationService);
-		const showCodeCellSymbols = configurationService.getValue<boolean>('notebook.outline.showCodeCellSymbols');
-		configurationService.updateValue('notebook.outline.showCodeCellSymbols', !showCodeCellSymbols);
+		const showCodeCellSymbols = configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
+		configurationService.updateValue(NotebookSetting.outlineShowCodeCellSymbols, !showCodeCellSymbols);
 	}
 });
