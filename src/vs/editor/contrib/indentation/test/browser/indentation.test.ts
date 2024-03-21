@@ -738,7 +738,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 	test.skip('issue #43244: indent after equal sign is detected', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
-		// issue: Indent after an equal sign is detected followed by whitespace.
+		// issue: Should indent after an equal sign is detected followed by whitespace characters.
 		// This should be outdented when a semi-colon is detected indicating the end of the assignment.
 
 		const model = createTextModel([
@@ -783,7 +783,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 	test.skip('issue #43244: indent after dot detected on a subsequent line after object/array signifying a method call', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
-		// issue: when a dot is written, we should detect that this is a method call and indent accordingly
+		// issue: When a dot is written, we should detect that this is a method call and indent accordingly
 
 		const model = createTextModel([
 			'const array = [1, 2, 3]',
@@ -821,6 +821,51 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 				'const array = [1, 2, 3]',
 				'    .filter(() => true)',
 				'    '
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #43244: outdent when a semi-color is detected indicating the end of the assignment', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+
+		const model = createTextModel([
+			'const array = [1, 2, 3]',
+			'    .filter(() => true);'
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 25, 2, 25));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'const array = [1, 2, 3]',
+				'    .filter(() => true);',
+				''
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+
+		const model = createTextModel([
+			'const array = [1, 2, 3, 4, 5];',
+			'array.map(v =>)'
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 15, 2, 15));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'const array = [1, 2, 3, 4, 5];',
+				'array.map(v =>',
+				'    ',
+				')'
 			].join('\n'));
 		});
 	});

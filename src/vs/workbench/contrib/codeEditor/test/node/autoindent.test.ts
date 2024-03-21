@@ -309,4 +309,20 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});
+
+	test.skip('Issue 43244: incorrect indentation when signature of function call spans several lines', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/43244
+
+		const fileContents = [
+			'function callSomeOtherFunction(one: number, two: number) { }',
+			'function someFunction() {',
+			'    callSomeOtherFunction(4,',
+			'        5)',
+			'}',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 0);
+	});
 });
