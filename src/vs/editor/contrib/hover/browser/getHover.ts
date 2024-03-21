@@ -46,7 +46,7 @@ export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>
 registerModelAndPositionCommand('_executeHoverProvider', async (accessor, model, position, context) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, position, context, CancellationToken.None);
-	const result = hovers.map(h => cloneHover(h));
+	const result = hovers.map(cloneHover);
 	hovers.forEach(hover => hover.dispose());
 	return result;
 });
