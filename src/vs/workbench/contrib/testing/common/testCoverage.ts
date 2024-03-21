@@ -10,7 +10,7 @@ import { ITransaction, observableSignal } from 'vs/base/common/observable';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { CoverageDetails, ICoveredCount, IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, ICoverageCount, IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ICoverageAccessor {
 	getCoverageDetails: (id: string, token: CancellationToken) => Promise<CoverageDetails[]>;
@@ -56,7 +56,7 @@ export class TestCoverage {
 		this.tree.insert(this.treePathForUri(coverage.uri, /* canonical = */ false), coverage, node => {
 			chain.push(node);
 
-			if (chain.length === canonical.length - 1) {
+			if (chain.length === canonical.length) {
 				node.value = coverage;
 			} else if (!node.value) {
 				// clone because later intersertions can modify the counts:
@@ -113,7 +113,7 @@ export class TestCoverage {
 	}
 }
 
-export const getTotalCoveragePercent = (statement: ICoveredCount, branch: ICoveredCount | undefined, function_: ICoveredCount | undefined) => {
+export const getTotalCoveragePercent = (statement: ICoverageCount, branch: ICoverageCount | undefined, function_: ICoverageCount | undefined) => {
 	let numerator = statement.covered;
 	let denominator = statement.total;
 
@@ -133,9 +133,9 @@ export const getTotalCoveragePercent = (statement: ICoveredCount, branch: ICover
 export abstract class AbstractFileCoverage {
 	public readonly id: string;
 	public readonly uri: URI;
-	public statement: ICoveredCount;
-	public branch?: ICoveredCount;
-	public declaration?: ICoveredCount;
+	public statement: ICoverageCount;
+	public branch?: ICoverageCount;
+	public declaration?: ICoverageCount;
 	public readonly didChange = observableSignal(this);
 
 	/**

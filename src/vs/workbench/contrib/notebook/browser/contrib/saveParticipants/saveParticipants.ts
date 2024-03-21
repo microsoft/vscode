@@ -110,12 +110,14 @@ class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant
 	) { }
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
-		if (this.configurationService.getValue<boolean>('files.trimTrailingWhitespace')) {
-			await this.doTrimTrailingWhitespace(workingCopy, context.reason === SaveReason.AUTO, progress);
+		const trimTrailingWhitespaceOption = this.configurationService.getValue<boolean>('files.trimTrailingWhitespace');
+		const trimInRegexAndStrings = this.configurationService.getValue<boolean>('files.trimTrailingWhitespaceInRegexAndStrings');
+		if (trimTrailingWhitespaceOption) {
+			await this.doTrimTrailingWhitespace(workingCopy, context.reason === SaveReason.AUTO, trimInRegexAndStrings, progress);
 		}
 	}
 
-	private async doTrimTrailingWhitespace(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, isAutoSaved: boolean, progress: IProgress<IProgressStep>) {
+	private async doTrimTrailingWhitespace(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, isAutoSaved: boolean, trimInRegexesAndStrings: boolean, progress: IProgress<IProgressStep>) {
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
 			return;
 		}
@@ -150,7 +152,7 @@ class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant
 					}
 				}
 
-				const ops = trimTrailingWhitespace(model, cursors);
+				const ops = trimTrailingWhitespace(model, cursors, trimInRegexesAndStrings);
 				if (!ops.length) {
 					return []; // Nothing to do
 				}

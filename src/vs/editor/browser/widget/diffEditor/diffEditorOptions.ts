@@ -32,12 +32,15 @@ export class DiffEditorOptions {
 	);
 	public readonly readOnly = derived(this, reader => this._options.read(reader).readOnly);
 
-	public readonly shouldRenderRevertArrows = derived(this, reader => {
+	public readonly shouldRenderOldRevertArrows = derived(this, reader => {
 		if (!this._options.read(reader).renderMarginRevertIcon) { return false; }
 		if (!this.renderSideBySide.read(reader)) { return false; }
 		if (this.readOnly.read(reader)) { return false; }
+		if (this.shouldRenderGutterMenu.read(reader)) { return false; }
 		return true;
 	});
+
+	public readonly shouldRenderGutterMenu = derived(this, reader => this._options.read(reader).renderGutterMenu);
 	public readonly renderIndicators = derived(this, reader => this._options.read(reader).renderIndicators);
 	public readonly enableSplitViewResizing = derived(this, reader => this._options.read(reader).enableSplitViewResizing);
 	public readonly splitViewDefaultRatio = derived(this, reader => this._options.read(reader).splitViewDefaultRatio);
@@ -99,5 +102,6 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		onlyShowAccessibleDiffViewer: validateBooleanOption(options.onlyShowAccessibleDiffViewer, defaults.onlyShowAccessibleDiffViewer),
 		renderSideBySideInlineBreakpoint: clampedInt(options.renderSideBySideInlineBreakpoint, defaults.renderSideBySideInlineBreakpoint, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 		useInlineViewWhenSpaceIsLimited: validateBooleanOption(options.useInlineViewWhenSpaceIsLimited, defaults.useInlineViewWhenSpaceIsLimited),
+		renderGutterMenu: validateBooleanOption(options.renderGutterMenu, defaults.renderGutterMenu),
 	};
 }

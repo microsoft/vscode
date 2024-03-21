@@ -591,7 +591,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
-						revive<ISerializableChatAgentData>(raw.agent) : undefined;
+						this.reviveSerializedAgent(raw.agent) : undefined;
 
 					// Port entries from old format
 					const result = 'responseErrorDetails' in raw ?
@@ -611,6 +611,16 @@ export class ChatModel extends Disposable implements IChatModel {
 			this.logService.error('Failed to parse chat data', error);
 			return [];
 		}
+	}
+
+	private reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
+		const agent = 'name' in raw ?
+			raw :
+			{
+				...(raw as any),
+				name: (raw as any).id,
+			};
+		return revive(agent);
 	}
 
 	private getParsedRequestFromString(message: string): IParsedChatRequest {
@@ -703,7 +713,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'agentDetection') {
-			const agent = this.chatAgentService.getAgent(progress.agentName);
+			const agent = this.chatAgentService.getAgent(progress.agentId);
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
 			}
@@ -802,7 +812,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					vote: r.response?.vote,
 					agent: r.response?.agent ?
 						// May actually be the full IChatAgent instance, just take the data props. slashCommands don't matter here.
-						{ id: r.response.agent.id, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
+						{ id: r.response.agent.id, name: r.response.agent.name, description: r.response.agent.description, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
 						: undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,

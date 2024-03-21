@@ -45,7 +45,6 @@
     "terminalDataWriteEvent",
     "terminalDimensions",
     "tunnels",
-    "testCoverage",
     "testObserver",
     "textSearchProvider",
     "timeline",
@@ -66,6 +65,7 @@
   "contributes": {
     "chatParticipants": [
       {
+        "id": "api-test.participant",
         "name": "participant",
         "description": "test",
         "isDefault": true,

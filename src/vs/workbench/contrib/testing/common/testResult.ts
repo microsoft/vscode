@@ -11,7 +11,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, observableValue } from 'vs/base/common/observable';
 import { language } from 'vs/base/common/platform';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
@@ -365,7 +364,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		const { offset, length } = task.output.append(output, marker);
 		const message: ITestOutputMessage = {
 			location,
-			message: removeAnsiEscapeCodes(preview),
+			message: preview,
 			offset,
 			length,
 			marker,

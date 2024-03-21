@@ -33,7 +33,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultCheckboxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { asCssVariableWithDefault, checkboxBorder, inputBackground } from 'vs/platform/theme/common/colorRegistry';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ChatSubmitEditorAction, ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
@@ -421,10 +421,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorBorder = 2;
 		const editorPadding = 12;
 		const executeToolbarWidth = this.cachedToolbarWidth = this.toolbar.getItemsWidth();
+		const toolbarPadding = 4;
 		const sideToolbarWidth = this.options.renderStyle === 'compact' ? 20 : 0;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newDimension = { width: width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth - sideToolbarWidth, height: inputEditorHeight };
+		const newEditorWidth = width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth - sideToolbarWidth - toolbarPadding;
+		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
 			// to be invoked, and we have a lot of these on this editor. Only doing a layout this when the editor size has actually changed makes it much easier to follow.
