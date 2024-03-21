@@ -883,23 +883,23 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test.skip('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
+	test('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
 
 		const model = createTextModel([
 			'const array = [1, 2, 3, 4, 5];',
-			'array.map(v =>)'
+			'array.map(_)'
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(2, 15, 2, 15));
+			editor.setSelection(new Selection(2, 12, 2, 12));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
 				'const array = [1, 2, 3, 4, 5];',
-				'array.map(v =>',
+				'array.map(_',
 				'    ',
 				')'
 			].join('\n'));
