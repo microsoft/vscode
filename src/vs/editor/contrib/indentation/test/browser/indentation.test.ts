@@ -538,14 +538,9 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// Test added so there is at least one non-ignored test in this suite
-	test('temporary test', () => {
-		assert.ok(true);
-	});
-
 	// Failing tests from issues...
 
-	test.skip('issue #208215: indent after arrow function', () => {
+	test('issue #208215: indent after arrow function', () => {
 
 		// https://github.com/microsoft/vscode/issues/208215
 		// consider the regex: /^\s*(var|const|let)\s+\w+\s*=\s*\(.*\)\s*=>\s*$/
@@ -566,7 +561,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test.skip('issue #208215: outdented after semicolon detected after arrow function', () => {
+	test('issue #208215: outdented after semicolon detected after arrow function', () => {
 
 		// Notes: we want to outdent after having detected a semi-colon which marks the end of the line, but only when we have detected an arrow function
 		// We could use one outdent pattern corresponding per indent pattern, and not a generic outdent and indent pattern
