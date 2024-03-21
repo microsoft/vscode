@@ -19,6 +19,9 @@ import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecuti
 import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -331,5 +334,71 @@ class TimerCellStatusBarItem extends Disposable {
 
 		this._deferredUpdate?.dispose();
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
+	}
+}
+
+export class DiagnosticCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
+	static id: string = 'workbench.notebook.statusBar.diagtnostic';
+
+	constructor(
+		notebookEditor: INotebookEditor,
+		@IInstantiationService instantiationService: IInstantiationService) {
+		super();
+		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => instantiationService.createInstance(DiagnosticCellStatusBarItem, vm, cell)));
+	}
+}
+registerNotebookContribution(DiagnosticCellStatusBarContrib.id, DiagnosticCellStatusBarContrib);
+
+
+class DiagnosticCellStatusBarItem extends Disposable {
+	private static UPDATE_INTERVAL = 100;
+	private _currentItemIds: string[] = [];
+
+	private _deferredUpdate: IDisposable | undefined;
+
+	private readonly cell!: CodeCellViewModel;
+
+	constructor(
+		private readonly _notebookViewModel: INotebookViewModel,
+		cellViewModel: ICellViewModel,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		super();
+
+		if (cellViewModel instanceof CodeCellViewModel) {
+			this.cell = cellViewModel;
+			this._register(new RunOnceScheduler(() => this._update(), DiagnosticCellStatusBarItem.UPDATE_INTERVAL));
+			this._update();
+			this._register(this.cell.cellDiagnostics.onDidDiagnosticsChange(() => this._update()));
+		}
+	}
+
+	private async _update() {
+		let item: INotebookCellStatusBarItem | undefined;
+
+		if (!!this.cell?.cellDiagnostics.ErrorDetails) {
+			item = {
+				text: `$(sparkle)`,
+				tooltip: localize('notebook.cell.status.diagnostic', "Quick Actions (ctrl+.)"),
+				alignment: CellStatusbarAlignment.Left,
+				command: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
+				priority: 1
+			};
+		}
+
+		const items = item ? [item] : [];
+
+		if (!items.length && !!this.cell?.cellDiagnostics.ErrorDetails) {
+			if (!this._deferredUpdate) {
+				this._deferredUpdate = disposableTimeout(() => {
+					this._deferredUpdate = undefined;
+					this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items }]);
+				}, UPDATE_TIMER_GRACE_PERIOD);
+			}
+		} else {
+			this._deferredUpdate?.dispose();
+			this._deferredUpdate = undefined;
+			this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items }]);
+		}
 	}
 }
