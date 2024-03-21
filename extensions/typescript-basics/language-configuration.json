@@ -218,6 +218,33 @@
 			"action": {
 				"indent": "outdent"
 			}
-		}
+		},
+		// Indent when pressing enter from inside ()
+		{
+			"beforeText": "^.*\\([^\\)]*$",
+			"afterText": "^[^\\(]*\\).*$",
+			"action": {
+				"indent": "indentOutdent",
+				"appendText": "\t",
+			}
+		},
+		// Indent when pressing enter from inside {}
+		{
+			"beforeText": "^.*\\{[^\\}]*$",
+			"afterText": "^[^\\{]*\\}.*$",
+			"action": {
+				"indent": "indentOutdent",
+				"appendText": "\t",
+			}
+		},
+		// Indent when pressing enter from inside []
+		{
+			"beforeText": "^.*\\[[^\\]]*$",
+			"afterText": "^[^\\[]*\\].*$",
+			"action": {
+				"indent": "indentOutdent",
+				"appendText": "\t",
+			}
+		},
 	]
 }
