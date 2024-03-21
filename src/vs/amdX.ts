@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isESM } from 'vs/base/common/amd';
-import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
+import { nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { URI } from 'vs/base/common/uri';
@@ -26,9 +26,6 @@ class AMDModuleImporter {
 
 	private readonly _defineCalls: DefineCall[] = [];
 	private _initialized = false;
-	private _amdPolicy: Pick<TrustedTypePolicy<{
-		createScriptURL(value: string): string;
-	}>, 'name' | 'createScriptURL'> | undefined;
 
 	constructor() { }
 

@@ -242,7 +242,7 @@ class FileAccessImpl {
 	 *
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
-	asBrowserUri(resourcePath: AppResourcePath | ''|string): URI {
+	asBrowserUri(resourcePath: AppResourcePath | '' | string): URI {
 		const uri = this.toUri(resourcePath);
 		return this.uriToBrowserUri(uri);
 	}
@@ -289,7 +289,7 @@ class FileAccessImpl {
 	 * Returns the `file` URI to use in contexts where node.js
 	 * is responsible for loading.
 	 */
-	asFileUri(resourcePath: AppResourcePath | ''): URI {
+	asFileUri(resourcePath: AppResourcePath | '' | string): URI {
 		const uri = this.toUri(resourcePath,);
 		return this.uriToFileUri(uri);
 	}
