@@ -12,6 +12,9 @@ const RE_FROM_END = /\} from ('|")(.*)('|")/
 const commonJs: string[] = []
 
 const fixEsmImportLine = (relative: string, line: string) => {
+	if (line.trim() === 'import * as assert from \'assert\'') {
+		return 'import assert from \'assert\''
+	}
 	const importMatch = line.match(RE_IMPORT)
 	if (!importMatch) {
 		throw new Error(`multiline import not supported: ${line}`)
