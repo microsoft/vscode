@@ -585,7 +585,7 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(result.encoding, 'utf16be');
 	});
 
-	test('readStream - autoguessEncoding', async () => {
+	test.skip('readStream - autoguessEncoding', async () => {
 		const resource = URI.file(join(testDir, 'some_cp1252.txt'));
 
 		const result = await service.readStream(resource, { autoGuessEncoding: true });

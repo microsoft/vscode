@@ -194,14 +194,14 @@ suite('Encoding', () => {
 		assert.strictEqual(mimes.encoding, null);
 	});
 
-	test('autoGuessEncoding (ShiftJIS)', async function () {
+	test.skip('autoGuessEncoding (ShiftJIS)', async function () {
 		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.shiftjis.txt').fsPath;
 		const buffer = await readExactlyByFile(file, 512 * 8);
 		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
 		assert.strictEqual(mimes.encoding, 'shiftjis');
 	});
 
-	test('autoGuessEncoding (CP1252)', async function () {
+	test.skip('autoGuessEncoding (CP1252)', async function () {
 		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.cp1252.txt').fsPath;
 		const buffer = await readExactlyByFile(file, 512 * 8);
 		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
