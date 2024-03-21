@@ -51,7 +51,6 @@ if (process.env['VSCODE_PARENT_PID']) {
 require('./bootstrap-amd.cjs')
 
 const entryPath = './' + process.env.VSCODE_AMD_ENTRYPOINT + '.js'
-console.log({ entryPath })
 import(entryPath);
 
 

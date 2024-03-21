@@ -363,6 +363,8 @@ if (isTest) {
 	const jschardet = require('jschardet')
 	const vscodeRegexpp = require('vscode-regexpp')
 	const crypto = require('crypto')
+	const kerberos = require('kerberos')
+	const nativeIsElevated = require('native-is-elevated')
 	const xterm = require('@xterm/xterm')
 	const zlib = require('zlib')
 	const xtermHeadless = require('@xterm/headless')
@@ -399,11 +401,13 @@ if (isTest) {
 		yauzl,
 		events,
 		fs,
+		kerberos,
 		os,
 		stringDecoder,
 		setRun,
 		cookie,
 		url,
+		nativeIsElevated,
 		xterm,
 		net,
 		crypto,
