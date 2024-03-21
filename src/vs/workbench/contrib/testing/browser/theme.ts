@@ -191,45 +191,45 @@ export const testStatesToIconColors: { [K in TestResultState]?: string } = {
 };
 
 export const testingRetiredColorIconErrored = registerColor('testing.iconErrored.retired', {
-	dark: transparent('#f14c4c', 0.7),
-	light: transparent('#f14c4c', 0.7),
-	hcDark: transparent('#f14c4c', 0.7),
-	hcLight: transparent('#B5200D', 0.7)
+	dark: transparent(testingColorIconErrored, 0.7),
+	light: transparent(testingColorIconErrored, 0.7),
+	hcDark: transparent(testingColorIconErrored, 0.7),
+	hcLight: transparent(testingColorIconErrored, 0.7)
 }, localize('testing.iconErrored.retired', "Retired color for the 'Errored' icon in the test explorer."));
 
 export const testingRetiredColorIconFailed = registerColor('testing.iconFailed.retired', {
-	dark: transparent('#f14c4c', 0.7),
-	light: transparent('#f14c4c', 0.7),
-	hcDark: transparent('#f14c4c', 0.7),
-	hcLight: transparent('#B5200D', 0.7)
+	dark: transparent(testingColorIconFailed, 0.7),
+	light: transparent(testingColorIconFailed, 0.7),
+	hcDark: transparent(testingColorIconFailed, 0.7),
+	hcLight: transparent(testingColorIconFailed, 0.7)
 }, localize('testing.iconFailed.retired', "Retired color for the 'failed' icon in the test explorer."));
 
 export const testingRetiredColorIconPassed = registerColor('testing.iconPassed.retired', {
-	dark: transparent('#73c991', 0.7),
-	light: transparent('#73c991', 0.7),
-	hcDark: transparent('#73c991', 0.7),
-	hcLight: transparent('#007100', 0.7)
+	dark: transparent(testingColorIconPassed, 0.7),
+	light: transparent(testingColorIconPassed, 0.7),
+	hcDark: transparent(testingColorIconPassed, 0.7),
+	hcLight: transparent(testingColorIconPassed, 0.7)
 }, localize('testing.iconPassed.retired', "Retired color for the 'passed' icon in the test explorer."));
 
 export const testingRetiredColorIconQueued = registerColor('testing.iconQueued.retired', {
-	dark: transparent('#cca700', 0.7),
-	light: transparent('#cca700', 0.7),
-	hcDark: transparent('#cca700', 0.7),
-	hcLight: transparent('#cca700', 0.7)
+	dark: transparent(testingColorIconQueued, 0.7),
+	light: transparent(testingColorIconQueued, 0.7),
+	hcDark: transparent(testingColorIconQueued, 0.7),
+	hcLight: transparent(testingColorIconQueued, 0.7)
 }, localize('testing.iconQueued.retired', "Retired color for the 'Queued' icon in the test explorer."));
 
 export const testingRetiredColorIconUnset = registerColor('testing.iconUnset.retired', {
-	dark: transparent('#848484', 0.7),
-	light: transparent('#848484', 0.7),
-	hcDark: transparent('#848484', 0.7),
-	hcLight: transparent('#848484', 0.7)
+	dark: transparent(testingColorIconUnset, 0.7),
+	light: transparent(testingColorIconUnset, 0.7),
+	hcDark: transparent(testingColorIconUnset, 0.7),
+	hcLight: transparent(testingColorIconUnset, 0.7)
 }, localize('testing.iconUnset.retired', "Retired color for the 'Unset' icon in the test explorer."));
 
 export const testingRetiredColorIconSkipped = registerColor('testing.iconSkipped.retired', {
-	dark: transparent('#848484', 0.7),
-	light: transparent('#848484', 0.7),
-	hcDark: transparent('#848484', 0.7),
-	hcLight: transparent('#848484', 0.7)
+	dark: transparent(testingColorIconSkipped, 0.7),
+	light: transparent(testingColorIconSkipped, 0.7),
+	hcDark: transparent(testingColorIconSkipped, 0.7),
+	hcLight: transparent(testingColorIconSkipped, 0.7)
 }, localize('testing.iconSkipped.retired', "Retired color for the 'Skipped' icon in the test explorer."));
 
 export const testStatesToRetiredIconColors: { [K in TestResultState]?: string } = {
