@@ -169,6 +169,7 @@ export class InlineChatContentWidget implements IContentWidget {
 
 	setSession(session: Session): void {
 		this._widget.setModel(session.chatModel, {});
+		this._widget.setInputPlaceholder(session.session.placeholder ?? '');
 		this._updateMessage(session.session.message ?? '');
 	}
 
