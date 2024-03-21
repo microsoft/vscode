@@ -53,8 +53,8 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatCodeBlockContentProvider, CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -131,6 +131,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	constructor(
 		editorOptions: ChatEditorOptions,
+		private readonly location: ChatAgentLocation,
 		private readonly rendererOptions: IChatListItemRendererOptions,
 		private readonly delegate: IChatRendererDelegate,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
@@ -290,6 +291,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		CONTEXT_RESPONSE.bindTo(templateData.contextKeyService).set(isResponseVM(element));
 		CONTEXT_REQUEST.bindTo(templateData.contextKeyService).set(isRequestVM(element));
+		CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
 		if (isResponseVM(element)) {
 			CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
 			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set(element.vote === InteractiveSessionVoteDirection.Up ? 'up' : element.vote === InteractiveSessionVoteDirection.Down ? 'down' : '');
@@ -368,6 +370,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				progressMsg = localize('usedAgent', "used {0}", usingMsg);
 			} else {
 				progressMsg = localize('usingAgent', "using {0}", usingMsg);
+			}
+		} else if (element.agentOrSlashCommandDetected) {
+			const usingMsg: string[] = [];
+			if (element.agent && !element.agent.isDefault) {
+				usingMsg.push(chatAgentLeader + element.agent.name);
+			}
+			if (element.slashCommand) {
+				usingMsg.push(chatSubcommandLeader + element.slashCommand.name);
+			}
+			if (usingMsg.length) {
+				if (element.isComplete) {
+					progressMsg = localize('usedAgent', "used {0}", usingMsg.join(' '));
+				} else {
+					progressMsg = localize('usingAgent', "using {0}", usingMsg.join(' '));
+				}
 			}
 		} else if (!element.isComplete) {
 			progressMsg = GeneratingPhrase;
@@ -466,6 +483,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			errorDetails.appendChild($('span', undefined, renderedError.element));
 		}
 
+		if (isResponseVM(element) && element.isComplete && element.response.value.length === 0) {
+			let madeChanges = false;
+			for (const item of element.edits.values()) {
+				if (item.length > 0) {
+					madeChanges = true;
+					break;
+				}
+			}
+			if (madeChanges) {
+				dom.append(templateData.value, $('.interactive-edits-summary', undefined, localize('editsSummary', "Made text edits")));
+			}
+		}
+
 		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
@@ -489,6 +519,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						ChatFollowups,
 						templateData.value,
 						item,
+						this.location,
 						undefined,
 						followup => this._onDidClickFollowup.fire(followup)));
 			} else {

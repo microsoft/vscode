@@ -17,7 +17,7 @@ import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -623,15 +623,9 @@ export class StartVoiceChatAction extends Action2 {
 				group: 'navigation',
 				order: -1
 			}, {
-				id: MENU_INLINE_CHAT_INPUT,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
-				group: 'main',
-				order: -1
-			},
-			{
 				id: MenuId.for('terminalChatInput'),
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS.negate()),
-				group: 'main',
+				group: 'navigation',
 				order: -1
 			}]
 		});
@@ -675,14 +669,9 @@ export class InstallVoiceChatAction extends Action2 {
 				group: 'navigation',
 				order: -1
 			}, {
-				id: MENU_INLINE_CHAT_INPUT,
-				when: HasSpeechProvider.negate(),
-				group: 'main',
-				order: -1
-			}, {
 				id: MenuId.for('terminalChatInput'),
 				when: HasSpeechProvider.negate(),
-				group: 'main',
+				group: 'navigation',
 				order: -1
 			}]
 		});
@@ -768,15 +757,6 @@ export class StopListeningInQuickChatAction extends BaseStopListeningAction {
 
 	constructor() {
 		super({ id: StopListeningInQuickChatAction.ID, icon: spinningLoading }, 'quick', CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS, MenuId.ChatExecute);
-	}
-}
-
-export class StopListeningInInlineChatAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListeningInInlineChat';
-
-	constructor() {
-		super({ id: StopListeningInInlineChatAction.ID, icon: spinningLoading }, 'inline', CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS, MENU_INLINE_CHAT_INPUT, 'main');
 	}
 }
 

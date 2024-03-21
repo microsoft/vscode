@@ -247,8 +247,6 @@ class RenameController implements IEditorContribution {
 		if (newSymbolNamesProviders.length > 0) { // @ulugbekna: we're interested only in telemetry for rename suggestions currently
 			this._reportTelemetry(newSymbolNamesProviders.length, model.getLanguageId(), inputFieldResult);
 		}
-		// TODO@ulugbekna: remove before stable release
-		this._reportTelemetry(newSymbolNamesProviders.length, model.getLanguageId(), inputFieldResult, 'inDebugMode');
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
@@ -336,7 +334,7 @@ class RenameController implements IEditorContribution {
 		this._renameWidget.focusPreviousRenameSuggestion();
 	}
 
-	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameWidgetResult, inDebugMode?: 'inDebugMode') {
+	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameWidgetResult) {
 		type RenameInvokedEvent =
 			{
 				kind: 'accepted' | 'cancelled';
@@ -385,11 +383,7 @@ class RenameController implements IEditorContribution {
 					wantsPreview: inputFieldResult.wantsPreview,
 				};
 
-		if (inDebugMode) {
-			this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEventDebug', value);
-		} else {
-			this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);
-		}
+		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);
 	}
 }
 
@@ -472,7 +466,7 @@ registerEditorCommand(new RenameCommand({
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
 		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
-		primary: KeyMod.Shift + KeyCode.Enter
+		primary: KeyMod.CtrlCmd + KeyCode.Enter
 	}
 }));
 
