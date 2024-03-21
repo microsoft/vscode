@@ -360,6 +360,7 @@ if (isTest) {
 	const parcelWatcher = require('@parcel/watcher')
 	const electron = require('electron')
 	const cookie = require('cookie')
+	const jschardet = require('jschardet')
 	const vscodeRegexpp = require('vscode-regexpp')
 	const crypto = require('crypto')
 	const xterm = require('@xterm/xterm')
