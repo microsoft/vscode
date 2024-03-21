@@ -106,8 +106,8 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, cwd);
 	}
 
-	public $acceptTerminalShellExecutionEnd(instanceId: number, exitCode: number | undefined): void {
-		this._activeShellIntegrations.get(instanceId)?.endShellExecution(exitCode);
+	public $acceptTerminalShellExecutionEnd(instanceId: number, commandLine: string | undefined, exitCode: number | undefined): void {
+		this._activeShellIntegrations.get(instanceId)?.endShellExecution(commandLine, exitCode);
 	}
 
 	public $acceptTerminalShellExecutionData(instanceId: number, data: string): void {
@@ -166,7 +166,7 @@ class InternalTerminalShellIntegration extends Disposable {
 			this._ignoreNextExecution = false;
 		} else {
 			if (this._currentExecution) {
-				this._currentExecution.endExecution(undefined);
+				this._currentExecution.endExecution(undefined, undefined);
 				this._onDidRequestEndExecution.fire(this._currentExecution);
 			}
 			this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
@@ -179,9 +179,9 @@ class InternalTerminalShellIntegration extends Disposable {
 		this.currentExecution?.emitData(data);
 	}
 
-	endShellExecution(exitCode: number | undefined): void {
+	endShellExecution(commandLine: string | undefined, exitCode: number | undefined): void {
 		if (this._currentExecution) {
-			this._currentExecution.endExecution(exitCode);
+			this._currentExecution.endExecution(commandLine, exitCode);
 			this._onDidRequestEndExecution.fire(this._currentExecution);
 			this._currentExecution = undefined;
 		}
@@ -213,7 +213,7 @@ class InternalTerminalShellExecution {
 
 	constructor(
 		readonly terminal: vscode.Terminal,
-		readonly commandLine: string,
+		private _commandLine: string | undefined,
 		readonly cwd: URI | string | undefined,
 	) {
 		this._exitCode = new Promise<number | undefined>(resolve => {
@@ -225,8 +225,8 @@ class InternalTerminalShellExecution {
 			get terminal(): vscode.Terminal {
 				return terminal;
 			},
-			get commandLine(): string {
-				return commandLine;
+			get commandLine(): string | undefined {
+				return that._commandLine;
 			},
 			get cwd(): URI | string | undefined {
 				return cwd;
@@ -254,7 +254,10 @@ class InternalTerminalShellExecution {
 		this._dataStream?.emitData(data);
 	}
 
-	endExecution(exitCode: number | undefined): void {
+	endExecution(commandLine: string | undefined, exitCode: number | undefined): void {
+		if (commandLine) {
+			this._commandLine = commandLine;
+		}
 		this._dataStream?.endExecution();
 		this._dataStream = undefined;
 		this._exitCodeResolve?.(exitCode);

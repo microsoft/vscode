@@ -16,6 +16,14 @@ declare module 'vscode' {
 
 		/**
 		 * The full command line that was executed, including both the command and arguments.
+		 * The accuracy of this value depends on the shell integration implementation:
+		 *
+		 * - It may be undefined or the empty string until {@link onDidEndTerminalShellExecution} is
+		 *   fired.
+		 * - It may be inaccurate initially if the command line is pulled from the buffer directly
+		 *   via the [`OSC 633/133 ; A`, `B` and `C` sequences](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st).
+		 * - It may be inaccurate if the shell integration does not support command line reporting
+		 *   via the [`OSC 633 ; E` sequence](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st).
 		 */
 		commandLine: string | undefined;
 

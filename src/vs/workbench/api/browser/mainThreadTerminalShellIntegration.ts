@@ -21,7 +21,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		super();
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalShellIntegration);
-		// TODO: Ensure events are passed properly on reload, there's a race condition
 
 		// onDidChangeTerminalShellIntegration
 		const onDidAddCommandDetection = this._terminalService.createOnInstanceEvent(instance => {
@@ -38,24 +37,15 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted));
-		this._store.add(commandDetectionStartEvent.event(e => {
-			const command = e.data;
-			this._proxy.$acceptTerminalShellExecutionStart(e.instance.instanceId, command.command, command.cwd);
-		}));
+		this._store.add(commandDetectionStartEvent.event(e => this._proxy.$acceptTerminalShellExecutionStart(e.instance.instanceId, e.data.command, e.data.cwd)));
 
 		// onDidEndTerminalShellExecution
 		const commandDetectionEndEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished));
-		this._store.add(commandDetectionEndEvent.event(e => {
-			console.log('$acceptTerminalShellExecutionEnd');
-			this._proxy.$acceptTerminalShellExecutionEnd(e.instance.instanceId, e.data.exitCode);
-		}));
+		this._store.add(commandDetectionEndEvent.event(e => this._proxy.$acceptTerminalShellExecutionEnd(e.instance.instanceId, e.data.command, e.data.exitCode)));
 
 		// onDidChangeTerminalShellIntegration via cwd
 		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
-		this._store.add(cwdChangeEvent.event(e => {
-			console.log('$acceptTerminalCwdChange', e.data);
-			this._proxy.$acceptTerminalCwdChange(e.instance.instanceId, e.data);
-		}));
+		this._store.add(cwdChangeEvent.event(e => this._proxy.$acceptTerminalCwdChange(e.instance.instanceId, e.data)));
 
 		// Clean up after dispose
 		this._store.add(this._terminalService.onDidDisposeInstance(e => this._proxy.$acceptCloseTerminal(e.instanceId)));
@@ -67,7 +57,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 	}
 
 	$executeCommand(terminalId: number, commandLine: string): void {
-		const instance = this._terminalService.getInstanceFromId(terminalId);
-		instance?.runCommand(commandLine, true);
+		this._terminalService.getInstanceFromId(terminalId)?.runCommand(commandLine, true);
 	}
 }
