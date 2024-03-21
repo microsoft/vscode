@@ -481,7 +481,7 @@ function getRealType(type) {
 }
 async function processArtifact(artifact, artifactFilePath) {
     const log = (...args) => console.log(`[${artifact.name}]`, ...args);
-    const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
+    const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
     if (!match) {
         throw new Error(`Invalid artifact name: ${artifact.name}`);
     }
