@@ -8,6 +8,7 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/145234
 
 	export interface TerminalShellExecution {
+		// TODO: This is circular, is that fine? Should we add a `TerminalShellExecutionEvent`?
 		/**
 		 * The {@link Terminal} the command was executed in.
 		 */

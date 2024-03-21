@@ -21,6 +21,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		super();
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalShellIntegration);
+		// TODO: Ensure events are passed properly on reload, there's a race condition
 
 		// onDidChangeTerminalShellIntegration
 		const onDidAddCommandDetection = this._terminalService.createOnInstanceEvent(instance => {
@@ -36,21 +37,23 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		}));
 
 		// onDidStartTerminalShellExecution
-		const commandDetectionStartEvent = this._store.add(
-			this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted)
-		);
+		const commandDetectionStartEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted));
 		this._store.add(commandDetectionStartEvent.event(e => {
 			const command = e.data;
 			this._proxy.$acceptTerminalShellExecutionStart(e.instance.instanceId, command.command, command.cwd);
 		}));
 
 		// onDidEndTerminalShellExecution
-		const commandDetectionEndEvent = this._store.add(
-			this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished)
-		);
+		const commandDetectionEndEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished));
 		this._store.add(commandDetectionEndEvent.event(e => {
 			console.log('$acceptTerminalShellExecutionEnd');
 			this._proxy.$acceptTerminalShellExecutionEnd(e.instance.instanceId, e.data.exitCode);
+		}));
+
+		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
+		this._store.add(cwdChangeEvent.event(e => {
+			console.log('$acceptTerminalCwdChange', e.data);
+			this._proxy.$acceptTerminalCwdChange(e.instance.instanceId, e.data);
 		}));
 
 		// TODO: Only do this if there is a consumer

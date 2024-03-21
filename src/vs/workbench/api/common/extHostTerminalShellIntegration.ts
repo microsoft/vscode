@@ -10,7 +10,7 @@ import { MainContext, type ExtHostTerminalShellIntegrationShape, type MainThread
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { Emitter, type Event } from 'vs/base/common/event';
-import type { URI } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from 'vs/base/common/async';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
@@ -83,13 +83,14 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		let shellIntegration = this._activeShellIntegrations.get(id);
 		if (!shellIntegration) {
 			shellIntegration = new InternalTerminalShellIntegration(terminal.value, this._onDidStartTerminalShellExecution);
+			this._activeShellIntegrations.set(id, shellIntegration);
 			// TODO: These should be registered against the InternalTerminalShellIntegration instance, not ExtHostTerminalShellIntegration
 			this._register(terminal.onWillDispose(() => this._activeShellIntegrations.get(id)?.dispose()));
-			this._activeShellIntegrations.set(id, shellIntegration);
-			this._register(shellIntegration.onDidRequestShellExecution(commandLine => {
-				this._proxy.$executeCommand(id, commandLine);
-			}));
+			this._register(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(id, commandLine)));
 			this._register(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e.value)));
+			this._register(shellIntegration.onDidRequestChangeShellIntegration(e => this._onDidChangeTerminalShellIntegration.fire(e)));
+
+			// TODO: Can this be protected by a proposed API check?
 			terminal.shellIntegration = shellIntegration.value;
 		}
 		this._onDidChangeTerminalShellIntegration.fire({
@@ -114,6 +115,10 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	public $acceptTerminalShellExecutionData(id: number, data: string): void {
 		this._activeShellIntegrations.get(id)?.emitData(data);
 	}
+
+	public $acceptTerminalCwdChange(id: number, cwd: string): void {
+		this._activeShellIntegrations.get(id)?.setCwd(cwd);
+	}
 }
 
 class InternalTerminalShellIntegration extends Disposable {
@@ -121,9 +126,12 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
+	private _cwd: URI | string | undefined;
 
 	readonly value: vscode.TerminalShellIntegration;
 
+	protected readonly _onDidRequestChangeShellIntegration = this._register(new Emitter<vscode.TerminalShellIntegrationChangeEvent>());
+	readonly onDidRequestChangeShellIntegration = this._onDidRequestChangeShellIntegration.event;
 	protected readonly _onDidRequestShellExecution = this._register(new Emitter<string>());
 	readonly onDidRequestShellExecution = this._onDidRequestShellExecution.event;
 	protected readonly _onDidRequestEndExecution = this._register(new Emitter<InternalTerminalShellExecution>());
@@ -137,15 +145,14 @@ class InternalTerminalShellIntegration extends Disposable {
 
 		const that = this;
 		this.value = {
-			// TODO: Fill in cwd
-			cwd: undefined,
+			get cwd(): URI | string | undefined {
+				return that._cwd;
+			},
 			executeCommand(commandLine): vscode.TerminalShellExecution {
-				// TODO: Fill in cwd
 				that._onDidRequestShellExecution.fire(commandLine);
-				const execution = that.startShellExecution(commandLine, undefined).value;
+				const execution = that.startShellExecution(commandLine, that._cwd).value;
 				that._ignoreNextExecution = true;
 				return execution;
-				// TODO: Consume next shell execution so this one remains valid
 			}
 		};
 	}
@@ -173,6 +180,21 @@ class InternalTerminalShellIntegration extends Disposable {
 			this._currentExecution.endExecution(exitCode);
 			this._onDidRequestEndExecution.fire(this._currentExecution);
 			this._currentExecution = undefined;
+		}
+	}
+
+	setCwd(cwd: URI | string): void {
+		let wasChanged = false;
+		if (URI.isUri(this._cwd)) {
+			if (this._cwd.toString() !== cwd.toString()) {
+				wasChanged = true;
+			}
+		} else if (this._cwd !== cwd) {
+			wasChanged = true;
+		}
+		if (wasChanged) {
+			this._cwd = cwd;
+			this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
 		}
 	}
 }

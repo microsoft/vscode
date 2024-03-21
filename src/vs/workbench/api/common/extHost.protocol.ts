@@ -2268,9 +2268,10 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostTerminalShellIntegrationShape {
 	$acceptDidChangeShellIntegration(id: number): void;
-	$acceptTerminalShellExecutionStart(id: number, commandLine: string, cwd: URI | string | undefined): void;
+	$acceptTerminalShellExecutionStart(id: number, commandLine: string, cwd: UriComponents | string | undefined): void;
 	$acceptTerminalShellExecutionEnd(id: number, exitCode: number | undefined): void;
 	$acceptTerminalShellExecutionData(id: number, data: string): void;
+	$acceptTerminalCwdChange(id: number, cwd: UriComponents | string): void;
 }
 
 export interface ExtHostSCMShape {
