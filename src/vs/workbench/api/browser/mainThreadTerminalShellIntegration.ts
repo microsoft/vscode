@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -16,7 +17,8 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IProductService productService: IProductService
 	) {
 		super();
 
@@ -47,10 +49,13 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		// Clean up after dispose
 		this._store.add(this._terminalService.onDidDisposeInstance(e => this._proxy.$closeTerminal(e.instanceId)));
 
-		// TODO: Only do this if there is a consumer
-		// TODO: This needs to go via the server on remote for performance reasons
-		// TerminalShellExecution.dataStream
-		this._store.add(this._terminalService.onAnyInstanceData(e => this._proxy.$shellExecutionData(e.instance.instanceId, e.data)));
+		// TerminalShellExecution.createDataStream
+		// HACK: While proposed, this will only work in Insiders so as to not hurt performance in
+		// stable
+		if (productService.quality === 'insiders') {
+			// TODO: This should to go via the server on remote
+			this._store.add(this._terminalService.onAnyInstanceData(e => this._proxy.$shellExecutionData(e.instance.instanceId, e.data)));
+		}
 	}
 
 	$executeCommand(terminalId: number, commandLine: string): void {
