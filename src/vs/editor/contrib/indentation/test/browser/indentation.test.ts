@@ -741,6 +741,8 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		// issue: Should indent after an equal sign is detected followed by whitespace characters.
 		// This should be outdented when a semi-colon is detected indicating the end of the assignment.
 
+		// TODO: requires exploring indent/outdent pairs instead
+
 		const model = createTextModel([
 			'const array ='
 		].join('\n'), languageId, {});
@@ -761,6 +763,8 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
 		// issue: When a dot is written, we should detect that this is a method call and indent accordingly
+
+		// TODO: requires exploring indent/outdent pairs instead
 
 		const model = createTextModel([
 			'const array = [1, 2, 3];',
@@ -785,6 +789,8 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		// https://github.com/microsoft/vscode/issues/43244
 		// issue: When a dot is written, we should detect that this is a method call and indent accordingly
 
+		// TODO: requires exploring indent/outdent pairs instead
+
 		const model = createTextModel([
 			'const array = [1, 2, 3]',
 		].join('\n'), languageId, {});
@@ -807,6 +813,8 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		// https://github.com/microsoft/vscode/issues/43244
 		// Currently passes, but should pass with all the tests above too
 
+		// TODO: requires exploring indent/outdent pairs instead
+
 		const model = createTextModel([
 			'const array = [1, 2, 3]',
 			'    .filter(() => true)'
@@ -825,9 +833,37 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test.skip('issue #43244: keep indentation when chained methods called on object/array', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+		// When the call chain is not finished yet, and we type a dot, we do not want to change the indentation
+
+		// TODO: requires exploring indent/outdent pairs instead
+
+		const model = createTextModel([
+			'const array = [1, 2, 3]',
+			'    .filter(() => true)',
+			'    '
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(3, 5, 3, 5));
+			viewModel.type(".");
+			assert.strictEqual(model.getValue(), [
+				'const array = [1, 2, 3]',
+				'    .filter(() => true)',
+				'    .' // here we don't want to increase the indentation because we have chained methods
+			].join('\n'));
+		});
+	});
+
 	test.skip('issue #43244: outdent when a semi-color is detected indicating the end of the assignment', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
+
+		// TODO: requires exploring indent/outdent pairs instead
 
 		const model = createTextModel([
 			'const array = [1, 2, 3]',

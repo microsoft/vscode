@@ -282,10 +282,8 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		// related: https://github.com/microsoft/vscode/issues/43244
 		// explanation: When you have an arrow function, you don't have { or }, but you would expect indentation to still be done in that way
 
-		/*
-		Notes: Currently the reindent edit operations does not call the onEnter rules
-		The reindent should also call the onEnter rules to get the correct indentation
-		*/
+		// TODO: requires exploring indent/outdent pairs instead
+
 		const fileContents = [
 			'const add1 = (n) =>',
 			'	n + 1;',
