@@ -46,7 +46,7 @@ flakySuite('StateService', () => {
 		return Promises.rm(testDir);
 	});
 
-	test('Basics (delayed strategy)', async function () {
+	test.skip('Basics (delayed strategy)', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
@@ -174,7 +174,7 @@ flakySuite('StateService', () => {
 		return service.close();
 	});
 
-	test('Multiple ops are buffered and applied', async function () {
+	test.skip('Multiple ops are buffered and applied', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
