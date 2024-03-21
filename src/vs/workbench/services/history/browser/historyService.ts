@@ -819,35 +819,43 @@ export class HistoryService extends Disposable implements IHistoryService {
 			this.editorHelper.clearOnEditorDispose(this.history.pop()!, this.editorHistoryListeners);
 		}
 
-		// React to editor input disposing if this is a typed editor
-		if (isEditorInput(historyInput)) {
-			this.editorHelper.onEditorDispose(historyInput, () => this.updateHistoryOnEditorDispose(historyInput), this.editorHistoryListeners);
+		// React to editor input disposing
+		if (isEditorInput(editor)) {
+			this.editorHelper.onEditorDispose(editor, () => this.updateHistoryOnEditorDispose(historyInput), this.editorHistoryListeners);
 		}
 	}
 
-	private updateHistoryOnEditorDispose(editor: EditorInput): void {
+	private updateHistoryOnEditorDispose(editor: EditorInput | IResourceEditorInput): void {
+		if (isEditorInput(editor)) {
 
-		// Any non side-by-side editor input gets removed directly on dispose
-		if (!isSideBySideEditorInput(editor)) {
-			this.removeFromHistory(editor);
-		}
-
-		// Side-by-side editors get special treatment: we try to distill the
-		// possibly untyped resource inputs from both sides to be able to
-		// offer these entries from the history to the user still.
-		else {
-			const resourceInputs: IResourceEditorInput[] = [];
-			const sideInputs = editor.primary.matches(editor.secondary) ? [editor.primary] : [editor.primary, editor.secondary];
-			for (const sideInput of sideInputs) {
-				const candidateResourceInput = this.editorHelper.preferResourceEditorInput(sideInput);
-				if (isResourceEditorInput(candidateResourceInput)) {
-					resourceInputs.push(candidateResourceInput);
-				}
+			// Any non side-by-side editor input gets removed directly on dispose
+			if (!isSideBySideEditorInput(editor)) {
+				this.removeFromHistory(editor);
 			}
 
-			// Insert the untyped resource inputs where our disposed
-			// side-by-side editor input is in the history stack
-			this.replaceInHistory(editor, ...resourceInputs);
+			// Side-by-side editors get special treatment: we try to distill the
+			// possibly untyped resource inputs from both sides to be able to
+			// offer these entries from the history to the user still.
+			else {
+				const resourceInputs: IResourceEditorInput[] = [];
+				const sideInputs = editor.primary.matches(editor.secondary) ? [editor.primary] : [editor.primary, editor.secondary];
+				for (const sideInput of sideInputs) {
+					const candidateResourceInput = this.editorHelper.preferResourceEditorInput(sideInput);
+					if (isResourceEditorInput(candidateResourceInput)) {
+						resourceInputs.push(candidateResourceInput);
+					}
+				}
+
+				// Insert the untyped resource inputs where our disposed
+				// side-by-side editor input is in the history stack
+				this.replaceInHistory(editor, ...resourceInputs);
+			}
+		} else {
+
+			// Remove any editor that should not be included in history
+			if (!this.includeInHistory(editor)) {
+				this.removeFromHistory(editor);
+			}
 		}
 	}
 
@@ -1019,7 +1027,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// We check on resource and `editorId` (from `override`)
 		// to figure out if the editor has been already added.
 		for (const editor of storedEditorHistory) {
-			if (!handledEditors.has(`${editor.resource.toString()}/${editor.options?.override}`)) {
+			if (
+				!handledEditors.has(`${editor.resource.toString()}/${editor.options?.override}`) &&
+				this.includeInHistory(editor)
+			) {
 				this.addToHistory(editor, false /* at the end */);
 			}
 		}
@@ -1161,6 +1172,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 			for (const [, stack] of editors) {
 				stack.disposable.dispose();
 			}
+		}
+
+		for (const [, listener] of this.editorHistoryListeners) {
+			listener.dispose();
 		}
 	}
 }

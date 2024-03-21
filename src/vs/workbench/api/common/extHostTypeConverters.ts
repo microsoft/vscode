@@ -20,7 +20,6 @@ import { isDefined, isEmptyObject, isNumber, isString, isUndefinedOrNull } from 
 import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IOffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -38,7 +37,8 @@ import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { IViewBadge } from 'vs/workbench/common/views';
-import { IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTreeData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
@@ -48,7 +48,7 @@ import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon'
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -2015,7 +2015,7 @@ export namespace TestResults {
 }
 
 export namespace TestCoverage {
-	function fromCoveredCount(count: vscode.CoveredCount): ICoveredCount {
+	function fromCoverageCount(count: vscode.TestCoverageCount): ICoverageCount {
 		return { covered: count.covered, total: count.total };
 	}
 
@@ -2023,7 +2023,7 @@ export namespace TestCoverage {
 		return 'line' in location ? Position.from(location) : Range.from(location);
 	}
 
-	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails.Serialized {
+	export function fromDetails(coverage: vscode.FileCoverageDetail): CoverageDetails.Serialized {
 		if ('branches' in coverage) {
 			return {
 				count: coverage.executed,
@@ -2043,13 +2043,13 @@ export namespace TestCoverage {
 		}
 	}
 
-	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage.Serialized {
+	export function fromFile(id: string, coverage: vscode.FileCoverage): IFileCoverage.Serialized {
 		return {
+			id,
 			uri: coverage.uri,
-			statement: fromCoveredCount(coverage.statementCoverage),
-			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
-			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
-			details: coverage.detailedCoverage?.map(fromDetailed),
+			statement: fromCoverageCount(coverage.statementCoverage),
+			branch: coverage.branchCoverage && fromCoverageCount(coverage.branchCoverage),
+			declaration: coverage.declarationCoverage && fromCoverageCount(coverage.declarationCoverage),
 		};
 	}
 }
@@ -2454,7 +2454,7 @@ export namespace ChatResponseReferencePart {
 
 export namespace ChatResponsePart {
 
-	export function to(part: vscode.ChatResponsePart): extHostProtocol.IChatProgressDto {
+	export function to(part: vscode.ChatResponsePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.to(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2465,6 +2465,8 @@ export namespace ChatResponsePart {
 			return ChatResponseProgressPart.to(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.to(part);
+		} else if (part instanceof types.ChatResponseCommandButtonPart) {
+			return ChatResponseCommandButtonPart.to(part, commandsConverter, commandDisposables);
 		}
 		return {
 			kind: 'content',
@@ -2546,7 +2548,7 @@ export namespace ChatResponseProgress {
 			};
 		} else if ('participant' in progress) {
 			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-			return { agentName: progress.participant, command: progress.command, kind: 'agentDetection' };
+			return { agentId: progress.participant, command: progress.command, kind: 'agentDetection' };
 		} else if ('message' in progress) {
 			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {
@@ -2614,16 +2616,27 @@ export namespace ChatAgentRequest {
 		return {
 			prompt: request.message,
 			command: request.command,
-			variables: request.variables.variables.map(ChatAgentResolvedVariable.to)
+			variables: request.variables.variables.map(ChatAgentResolvedVariable.to),
+			location: ChatLocation.to(request.location),
 		};
 	}
 }
 
+export namespace ChatLocation {
+	export function to(loc: ChatAgentLocation): types.ChatLocation {
+		switch (loc) {
+			case ChatAgentLocation.Notebook: return types.ChatLocation.Notebook;
+			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
+			case ChatAgentLocation.Panel: return types.ChatLocation.Panel;
+		}
+	}
+}
+
 export namespace ChatAgentResolvedVariable {
-	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatResolvedVariable {
+	export function to(request: IChatRequestVariableEntry): vscode.ChatResolvedVariable {
 		return {
 			name: request.name,
-			range: [request.range.start, request.range.endExclusive],
+			range: request.range && [request.range.start, request.range.endExclusive],
 			values: request.values.map(ChatVariable.to)
 		};
 	}

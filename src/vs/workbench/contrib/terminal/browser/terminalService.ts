@@ -190,19 +190,19 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
-		this.onDidCreateInstance(() => this._terminalProfileService.refreshAvailableProfiles());
+		this._register(this.onDidCreateInstance(() => this._terminalProfileService.refreshAvailableProfiles()));
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
-		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
-		this._terminalInstanceService.onDidCreateInstance(instance => {
+		this._register(this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup));
+		this._register(this._terminalInstanceService.onDidCreateInstance(instance => {
 			this._initInstanceListeners(instance);
 			this._onDidCreateInstance.fire(instance);
-		});
+		}));
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
 		// down. When shutting down the panel is locked in place so that it is restored upon next
 		// launch.
-		this._terminalGroupService.onDidChangeActiveInstance(instance => {
+		this._register(this._terminalGroupService.onDidChangeActiveInstance(instance => {
 			if (!instance && !this._isShuttingDown) {
 				this._terminalGroupService.hidePanel();
 			}
@@ -211,7 +211,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			} else if (!instance) {
 				this._terminalShellTypeContextKey.reset();
 			}
-		});
+		}));
 
 		this._handleInstanceContextKeys();
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
@@ -228,7 +228,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
-		this.initializePrimaryBackend();
+		this._initializePrimaryBackend();
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._register(this._instantiationService.createInstance(TerminalEditorStyle, mainWindow.document.head)));
@@ -273,7 +273,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return undefined;
 	}
 
-	async initializePrimaryBackend() {
+	private async _initializePrimaryBackend() {
 		mark('code/terminal/willGetTerminalBackend');
 		this._primaryBackend = await this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
 		mark('code/terminal/didGetTerminalBackend');
@@ -520,14 +520,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	private _attachProcessLayoutListeners(): void {
-		this.onDidChangeActiveGroup(() => this._saveState());
-		this.onDidChangeActiveInstance(() => this._saveState());
-		this.onDidChangeInstances(() => this._saveState());
+		this._register(this.onDidChangeActiveGroup(() => this._saveState()));
+		this._register(this.onDidChangeActiveInstance(() => this._saveState()));
+		this._register(this.onDidChangeInstances(() => this._saveState()));
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
-		this.onAnyInstanceProcessIdReady(() => this._saveState());
-		this.onAnyInstanceTitleChange(instance => this._updateTitle(instance));
-		this.onAnyInstanceIconChange(e => this._updateIcon(e.instance, e.userInitiated));
+		this._register(this.onAnyInstanceProcessIdReady(() => this._saveState()));
+		this._register(this.onAnyInstanceTitleChange(instance => this._updateTitle(instance)));
+		this._register(this.onAnyInstanceIconChange(e => this._updateIcon(e.instance, e.userInitiated)));
 	}
 
 	private _handleInstanceContextKeys(): void {

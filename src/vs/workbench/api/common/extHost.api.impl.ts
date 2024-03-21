@@ -1427,10 +1427,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
-			createChatParticipant(name: string, handler: vscode.ChatExtendedRequestHandler) {
+			createChatParticipant(id: string, handler: vscode.ChatExtendedRequestHandler) {
 				checkProposedApiEnabled(extension, 'chatParticipant');
-				return extHostChatAgents2.createChatAgent(extension, name, handler);
+				return extHostChatAgents2.createChatAgent(extension, id, handler);
 			},
+			createDynamicChatParticipant(id: string, name: string, description: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
+				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+				return extHostChatAgents2.createDynamicChatAgent(extension, id, name, description, handler);
+			}
 		};
 
 		// namespace: lm
@@ -1503,6 +1507,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CommentState: extHostTypes.CommentState,
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CommentThreadState: extHostTypes.CommentThreadState,
+			CommentThreadApplicability: extHostTypes.CommentThreadApplicability,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionItemTag: extHostTypes.CompletionItemTag,
@@ -1652,7 +1657,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
 			DataTransfer: extHostTypes.DataTransfer,
 			DataTransferItem: extHostTypes.DataTransferItem,
-			CoveredCount: extHostTypes.CoveredCount,
+			TestCoverageCount: extHostTypes.TestCoverageCount,
 			FileCoverage: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,
 			BranchCoverage: extHostTypes.BranchCoverage,
@@ -1672,6 +1677,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputTerminal: extHostTypes.TerminalEditorTabInput,
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
 			TabInputChat: extHostTypes.ChatEditorTabInput,
+			TabInputTextMultiDiff: extHostTypes.TextMultiDiffTabInput,
 			TelemetryTrustedValue: TelemetryTrustedValue,
 			LogLevel: LogLevel,
 			EditSessionIdentityMatch: EditSessionIdentityMatch,
@@ -1692,6 +1698,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
+			ChatLocation: extHostTypes.ChatLocation,
 			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
 			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,
 			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,

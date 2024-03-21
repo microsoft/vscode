@@ -33,7 +33,7 @@ suite('ChatVariables', function () {
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IChatVariablesService, service);
 		instantiationService.stub(IChatService, new MockChatService());
-		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 	});
 
 	test('ChatVariables - resolveVariables', async function () {

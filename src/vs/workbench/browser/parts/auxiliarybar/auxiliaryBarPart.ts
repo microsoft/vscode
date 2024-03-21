@@ -149,6 +149,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
+		const $this = this;
 		return {
 			partContainerClass: 'auxiliarybar',
 			pinnedViewContainersKey: AuxiliaryBarPart.pinnedPanelsKey,
@@ -163,7 +164,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
 			iconSize: 16,
-			overflowActionSize: 44,
+			// Add 10px spacing if the overflow action is visible to no confuse the user with ... between the toolbars
+			get overflowActionSize() { return $this.getCompositeBarPosition() === CompositeBarPosition.TITLE ? 40 : 30; },
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
 				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),

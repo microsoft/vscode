@@ -182,6 +182,12 @@ export interface IStatusbarEntry {
 	 * The kind of status bar entry. This applies different colors to the entry.
 	 */
 	readonly kind?: StatusbarEntryKind;
+
+	/**
+	 * Enables the status bar entry to appear in all opened windows. Automatically will add
+	 * the entry to new auxiliary windows opening.
+	 */
+	readonly showInAllWindows?: boolean;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

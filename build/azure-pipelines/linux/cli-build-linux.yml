@@ -22,7 +22,7 @@ steps:
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../cli/cli-apply-patches.yml
+    - template: ../cli/cli-apply-patches.yml@self
 
   - task: Npm@1
     displayName: Download openssl prebuilt
@@ -79,7 +79,7 @@ steps:
       mkdir -p $(Build.SourcesDirectory)/.build
     displayName: Create .build folder for misc dependencies
 
-  - template: ../cli/install-rust-posix.yml
+  - template: ../cli/install-rust-posix.yml@self
     parameters:
       targets:
         - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
@@ -90,7 +90,7 @@ steps:
           - armv7-unknown-linux-gnueabihf
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
-    - template: ../cli/cli-compile.yml
+    - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_TARGET: aarch64-unknown-linux-gnu
@@ -102,7 +102,7 @@ steps:
           SYSROOT_ARCH: arm64
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-    - template: ../cli/cli-compile.yml
+    - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_TARGET: x86_64-unknown-linux-gnu
@@ -114,7 +114,7 @@ steps:
           SYSROOT_ARCH: amd64
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-    - template: ../cli/cli-compile.yml
+    - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_TARGET: armv7-unknown-linux-gnueabihf
@@ -125,20 +125,33 @@ steps:
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/include
           SYSROOT_ARCH: armhf
 
-  - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-    - template: ../cli/cli-publish.yml
-      parameters:
-        VSCODE_CLI_ARTIFACT: vscode_cli_linux_armhf_cli
-        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+  - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+    - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_linux_armhf_cli.tar.gz
+          artifactName: vscode_cli_linux_armhf_cli
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
+          sbomPackageName: "VS Code Linux armhf CLI"
+          sbomPackageVersion: $(Build.SourceVersion)
+        displayName: Publish vscode_cli_linux_armhf_cli artifact
 
-  - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-    - template: ../cli/cli-publish.yml
-      parameters:
-        VSCODE_CLI_ARTIFACT: vscode_cli_linux_x64_cli
-        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+    - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_linux_x64_cli.tar.gz
+          artifactName: vscode_cli_linux_x64_cli
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
+          sbomPackageName: "VS Code Linux x64 CLI"
+          sbomPackageVersion: $(Build.SourceVersion)
+        displayName: Publish vscode_cli_linux_x64_cli artifact
 
-  - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
-    - template: ../cli/cli-publish.yml
-      parameters:
-        VSCODE_CLI_ARTIFACT: vscode_cli_linux_arm64_cli
-        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+    - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_linux_arm64_cli.tar.gz
+          artifactName: vscode_cli_linux_arm64_cli
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
+          sbomPackageName: "VS Code Linux arm64 CLI"
+          sbomPackageVersion: $(Build.SourceVersion)
+        displayName: Publish vscode_cli_linux_arm64_cli artifact

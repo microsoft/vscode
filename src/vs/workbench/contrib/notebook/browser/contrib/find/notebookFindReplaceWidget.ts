@@ -186,6 +186,14 @@ export class NotebookFindInputFilterButton extends Disposable {
 		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
+	enable(): void {
+		this.container.setAttribute('aria-disabled', String(false));
+	}
+
+	disable(): void {
+		this.container.setAttribute('aria-disabled', String(true));
+	}
+
 	applyStyles(filterChecked: boolean): void {
 		const toggleStyles = this._toggleStyles;
 

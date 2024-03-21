@@ -201,12 +201,18 @@ pub struct ServeWebArgs {
 	/// A secret that must be included with all requests.
 	#[clap(long)]
 	pub connection_token: Option<String>,
+	/// A file containing a secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token_file: Option<String>,
 	/// Run without a connection token. Only use this if the connection is secured by other means.
 	#[clap(long)]
 	pub without_connection_token: bool,
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+	/// Specifies the path under which the web UI and the code server is provided.
+	#[clap(long)]
+	pub server_base_path: Option<String>,
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
@@ -652,6 +658,33 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Requests that extensions be preloaded and installed on connecting servers.
+	#[clap(long)]
+	pub install_extension: Vec<String>,
+
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
+
+	/// Set the root path for extensions.
+	#[clap(long)]
+	pub extensions_dir: Option<String>,
+}
+
+impl TunnelServeArgs {
+	pub fn apply_to_server_args(&self, csa: &mut CodeServerArgs) {
+		csa.install_extensions
+			.extend_from_slice(&self.install_extension);
+
+		if let Some(d) = &self.server_data_dir {
+			csa.server_data_dir = Some(d.clone());
+		}
+
+		if let Some(d) = &self.extensions_dir {
+			csa.extensions_dir = Some(d.clone());
+		}
+	}
 }
 
 #[derive(Args, Debug, Clone)]

@@ -12,7 +12,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers';
 
-export const unsupportedSchemas = new Set([Schemas.inMemory, Schemas.vscodeSourceControl, Schemas.walkThrough, Schemas.walkThroughSnippet]);
+export const unsupportedSchemas = new Set([Schemas.inMemory, Schemas.vscodeSourceControl, Schemas.walkThrough, Schemas.walkThroughSnippet, Schemas.vscodeChatCodeBlock]);
 
 class DoubleResourceMap<V> {
 

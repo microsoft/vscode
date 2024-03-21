@@ -2219,12 +2219,15 @@ export class ModelDecorationGlyphMarginOptions {
 
 export class ModelDecorationMinimapOptions extends DecorationOptions {
 	readonly position: model.MinimapPosition;
+	readonly sectionHeaderStyle: model.MinimapSectionHeaderStyle | null;
+	readonly sectionHeaderText: string | null;
 	private _resolvedColor: Color | undefined;
-
 
 	constructor(options: model.IModelDecorationMinimapOptions) {
 		super(options);
 		this.position = options.position;
+		this.sectionHeaderStyle = options.sectionHeaderStyle ?? null;
+		this.sectionHeaderText = options.sectionHeaderText ?? null;
 	}
 
 	public getColor(theme: IColorTheme): Color | undefined {

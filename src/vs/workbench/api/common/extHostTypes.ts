@@ -3272,6 +3272,11 @@ export enum CommentThreadState {
 	Resolved = 1
 }
 
+export enum CommentThreadApplicability {
+	Current = 0,
+	Outdated = 1
+}
+
 //#endregion
 
 //#region Semantic Coloring
@@ -4020,22 +4025,22 @@ export class TestTag implements vscode.TestTag {
 //#endregion
 
 //#region Test Coverage
-export class CoveredCount implements vscode.CoveredCount {
+export class TestCoverageCount implements vscode.TestCoverageCount {
 	constructor(public covered: number, public total: number) {
 	}
 }
 
-const validateCC = (cc?: vscode.CoveredCount) => {
+const validateCC = (cc?: vscode.TestCoverageCount) => {
 	if (cc && cc.covered > cc.total) {
 		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
 	}
 };
 
 export class FileCoverage implements vscode.FileCoverage {
-	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
-		const statements = new CoveredCount(0, 0);
-		const branches = new CoveredCount(0, 0);
-		const decl = new CoveredCount(0, 0);
+	public static fromDetails(uri: vscode.Uri, details: vscode.FileCoverageDetail[]): vscode.FileCoverage {
+		const statements = new TestCoverageCount(0, 0);
+		const branches = new TestCoverageCount(0, 0);
+		const decl = new TestCoverageCount(0, 0);
 
 		for (const detail of details) {
 			if ('branches' in detail) {
@@ -4064,13 +4069,13 @@ export class FileCoverage implements vscode.FileCoverage {
 		return coverage;
 	}
 
-	detailedCoverage?: vscode.DetailedCoverage[];
+	detailedCoverage?: vscode.FileCoverageDetail[];
 
 	constructor(
 		public readonly uri: vscode.Uri,
-		public statementCoverage: vscode.CoveredCount,
-		public branchCoverage?: vscode.CoveredCount,
-		public declarationCoverage?: vscode.CoveredCount,
+		public statementCoverage: vscode.TestCoverageCount,
+		public branchCoverage?: vscode.TestCoverageCount,
+		public declarationCoverage?: vscode.TestCoverageCount,
 	) {
 		validateCC(statementCoverage);
 		validateCC(branchCoverage);
@@ -4199,6 +4204,10 @@ export class InteractiveWindowInput {
 export class ChatEditorTabInput {
 	constructor(readonly providerId: string) { }
 }
+
+export class TextMultiDiffTabInput {
+	constructor(readonly textDiffs: TextDiffTabInput[]) { }
+}
 //#endregion
 
 //#region Chat
@@ -4301,7 +4310,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 		readonly prompt: string,
 		readonly command: string | undefined,
 		readonly variables: vscode.ChatResolvedVariable[],
-		readonly participant: { extensionId: string; name: string },
+		readonly participant: string,
 	) { }
 }
 
@@ -4310,9 +4319,15 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 	constructor(
 		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
 		readonly result: vscode.ChatResult,
-		readonly participant: { extensionId: string; name: string },
+		readonly participant: string,
 		readonly command?: string
 	) { }
+}
+
+export enum ChatLocation {
+	Panel = 1,
+	Terminal = 2,
+	Notebook = 3
 }
 
 export class LanguageModelChatSystemMessage {

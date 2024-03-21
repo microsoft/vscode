@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Dimension, addDisposableListener, getTotalWidth, h } from 'vs/base/browser/dom';
+import { Dimension, addDisposableListener, getTotalWidth, h, isAncestor } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -15,7 +15,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
@@ -37,7 +37,7 @@ import { localize } from 'vs/nls';
 export class InlineChatInputWidget {
 
 	private readonly _elements = h(
-		'div.content@content',
+		'div.inline-chat-input@content',
 		[
 			h('div.input@input', [
 				h('div.editor-placeholder@placeholder'),
@@ -55,7 +55,6 @@ export class InlineChatInputWidget {
 	private readonly _ctxInnerCursorStart: IContextKey<boolean>;
 	private readonly _ctxInnerCursorEnd: IContextKey<boolean>;
 	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
-	// private readonly _ctxResponseFocused: IContextKey<boolean>;
 
 	private readonly _inputEditor: IActiveCodeEditor;
 	private readonly _inputModel: ITextModel;
@@ -137,6 +136,7 @@ export class InlineChatInputWidget {
 			this._ctxInnerCursorEnd.set(fullRange.getEndPosition().equals(selection.getEndPosition()));
 		};
 		this._store.add(this._inputEditor.onDidChangeCursorPosition(updateInnerCursorFirstLast));
+		this._store.add(this._inputEditor.onDidChangeModelContent(updateInnerCursorFirstLast));
 		updateInnerCursorFirstLast();
 
 		// (2) input editor focused or not
@@ -183,6 +183,12 @@ export class InlineChatInputWidget {
 		return this._elements.content;
 	}
 
+	moveTo(parent: HTMLElement) {
+		if (!isAncestor(this.domNode, parent)) {
+			parent.insertBefore(this.domNode, parent.firstChild);
+		}
+	}
+
 	layout(dim: Dimension) {
 		const toolbarWidth = getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */;
 		const editorWidth = dim.width - toolbarWidth;
@@ -190,8 +196,14 @@ export class InlineChatInputWidget {
 		this._elements.placeholder.style.width = `${editorWidth}px`;
 	}
 
-	getPreferredHeight(): number {
-		return this._inputEditor.getContentHeight();
+	getPreferredSize(): Dimension {
+		const width = this._inputEditor.getContentWidth() + getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */;
+		const height = this._inputEditor.getContentHeight();
+		return new Dimension(width, height);
+	}
+
+	getLineHeight(): number {
+		return this._inputEditor.getOption(EditorOption.lineHeight);
 	}
 
 	reset() {
@@ -201,7 +213,8 @@ export class InlineChatInputWidget {
 		this._ctxInnerCursorStart.reset();
 		this._ctxInnerCursorEnd.reset();
 		this._ctxInputEditorFocused.reset();
-		this.value = '';
+
+		this.value = ''; // update/re-inits some context keys again
 	}
 
 	focus() {
@@ -295,7 +308,7 @@ export class InlineChatInputWidget {
 
 			const newDecorations: IModelDeltaDecoration[] = [];
 			for (const command of commands) {
-				const withSlash = `/${command.command}`;
+				const withSlash = `/${command.command} `;
 				const firstLine = this._inputModel.getLineContent(1);
 				if (firstLine.startsWith(withSlash)) {
 					newDecorations.push({

@@ -219,7 +219,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				return accessor.get(IPreferencesService).openSettings(opts);
 			}
 		}));
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openSettings2',
@@ -232,9 +232,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				args = sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openSettings({ jsonEditor: false, ...args });
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openSettingsJson',
@@ -247,10 +247,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				args = sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openSettings({ jsonEditor: true, ...args });
 			}
-		});
+		}));
 
 		const that = this;
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openApplicationSettingsJson',
@@ -266,10 +266,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				args = sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openApplicationSettings({ jsonEditor: true, ...args });
 			}
-		});
+		}));
 
 		// Opens the User tab of the Settings editor
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openGlobalSettings',
@@ -282,8 +282,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				args = sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openUserSettings(args);
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openRawDefaultSettings',
@@ -295,9 +295,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor) {
 				return accessor.get(IPreferencesService).openRawDefaultSettings();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: ConfigureLanguageBasedSettingsAction.ID,
@@ -309,8 +309,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor) {
 				return accessor.get(IInstantiationService).createInstance(ConfigureLanguageBasedSettingsAction, ConfigureLanguageBasedSettingsAction.ID, ConfigureLanguageBasedSettingsAction.LABEL.value).run();
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openWorkspaceSettings',
@@ -327,9 +327,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				args = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openWorkspaceSettings(args);
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openAccessibilitySettings',
@@ -344,8 +344,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			async run(accessor: ServicesAccessor) {
 				await accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:accessibility' });
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openWorkspaceSettingsFile',
@@ -361,8 +361,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				args = sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: true, ...args });
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openFolderSettings',
@@ -383,8 +383,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, ...args });
 				}
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openFolderSettingsFile',
@@ -405,8 +405,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, jsonEditor: true, ...args });
 				}
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: '_workbench.action.openFolderSettings',
@@ -423,8 +423,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor, resource: URI) {
 				return accessor.get(IPreferencesService).openFolderSettings({ folderUri: resource });
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
@@ -444,9 +444,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:usesOnlineServices' });
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED,
@@ -456,9 +456,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor) {
 				accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: false, query: `@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}` });
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_COMMAND_FILTER_TELEMETRY,
@@ -473,7 +473,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:telemetry' });
 				}
 			}
-		});
+		}));
 
 		this.registerSettingsEditorActions();
 
@@ -481,7 +481,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			.then(() => {
 				const remoteAuthority = this.environmentService.remoteAuthority;
 				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) || remoteAuthority;
-				registerAction2(class extends Action2 {
+				this._register(registerAction2(class extends Action2 {
 					constructor() {
 						super({
 							id: 'workbench.action.openRemoteSettings',
@@ -497,8 +497,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						args = sanitizeOpenSettingsArgs(args);
 						return accessor.get(IPreferencesService).openRemoteSettings(args);
 					}
-				});
-				registerAction2(class extends Action2 {
+				}));
+				this._register(registerAction2(class extends Action2 {
 					constructor() {
 						super({
 							id: 'workbench.action.openRemoteSettingsFile',
@@ -514,7 +514,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						args = sanitizeOpenSettingsArgs(args);
 						return accessor.get(IPreferencesService).openRemoteSettings({ jsonEditor: true, ...args });
 					}
-				});
+				}));
 			});
 	}
 
@@ -532,7 +532,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			preferencesEditor?.focusSearch();
 		}
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SEARCH,
@@ -549,9 +549,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 
 			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
@@ -571,9 +571,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				const preferencesEditor = getPreferencesEditor(accessor);
 				preferencesEditor?.clearSearchResults();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
@@ -591,9 +591,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				const preferencesEditor = getPreferencesEditor(accessor);
 				preferencesEditor?.focusSettings();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH,
@@ -611,9 +611,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				const preferencesEditor = getPreferencesEditor(accessor);
 				preferencesEditor?.focusSettings();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST,
@@ -633,9 +633,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					preferencesEditor.focusSettings();
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC,
@@ -660,9 +660,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 				preferencesEditor.focusTOC();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL,
@@ -686,9 +686,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					preferencesEditor.focusSettings(true);
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU,
@@ -710,9 +710,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					preferencesEditor.showContextMenu();
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_UP,
@@ -742,7 +742,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					preferencesEditor.focusSearch();
 				}
 			}
-		});
+		}));
 	}
 
 	private registerKeybindingsActions() {
@@ -791,7 +791,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			group: '2_configuration',
 			order: 4
 		}));
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openDefaultKeybindingsFile',
@@ -803,8 +803,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor) {
 				return accessor.get(IPreferencesService).openDefaultKeybindingsFile();
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openGlobalKeybindingsFile',
@@ -824,8 +824,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor) {
 				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(true);
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
@@ -845,8 +845,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					editorPane.search('@source:system');
 				}
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS,
@@ -866,8 +866,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					editorPane.search('@source:extension');
 				}
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
@@ -887,8 +887,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					editorPane.search('@source:user');
 				}
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
@@ -906,9 +906,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					editorPane.clearSearchResults();
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY,
@@ -928,7 +928,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					editorPane.clearKeyboardShortcutSearchHistory();
 				}
 			}
-		});
+		}));
 
 		this.registerKeybindingEditorActions();
 	}
@@ -1261,7 +1261,7 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 		}));
 
 		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated());
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
@@ -1282,7 +1282,7 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 				}
 				return null;
 			}
-		});
+		}));
 	}
 }
 

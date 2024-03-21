@@ -237,7 +237,7 @@ export class Checkbox extends Widget {
 	constructor(private title: string, private isChecked: boolean, styles: ICheckboxStyles) {
 		super();
 
-		this.checkbox = new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-checkbox', ...unthemedToggleStyles });
+		this.checkbox = this._register(new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-checkbox', ...unthemedToggleStyles }));
 
 		this.domNode = this.checkbox.domNode;
 

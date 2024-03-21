@@ -67,7 +67,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -371,6 +371,9 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 				this.editorSelections.set(input, selections);
 			}
 		}));
+
+		// Reset widget height so it's recalculated
+		templateData.inputWidgetHeight = InputRenderer.DEFAULT_HEIGHT;
 
 		// Rerender the element whenever the editor content height changes
 		const onDidChangeContentHeight = () => {

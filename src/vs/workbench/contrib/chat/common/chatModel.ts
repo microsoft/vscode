@@ -16,13 +16,23 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export interface IChatRequestVariableData {
+export interface IChatPromptVariableData {
 	variables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[];
+}
+
+export interface IChatRequestVariableEntry {
+	name: string;
+	range?: IOffsetRange;
+	values: IChatRequestVariableValue[];
+}
+
+export interface IChatRequestVariableData {
+	variables: IChatRequestVariableEntry[];
 }
 
 export interface IChatRequestModel {
@@ -581,7 +591,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
-						revive<ISerializableChatAgentData>(raw.agent) : undefined;
+						this.reviveSerializedAgent(raw.agent) : undefined;
 
 					// Port entries from old format
 					const result = 'responseErrorDetails' in raw ?
@@ -601,6 +611,16 @@ export class ChatModel extends Disposable implements IChatModel {
 			this.logService.error('Failed to parse chat data', error);
 			return [];
 		}
+	}
+
+	private reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
+		const agent = 'name' in raw ?
+			raw :
+			{
+				...(raw as any),
+				name: (raw as any).id,
+			};
+		return revive(agent);
 	}
 
 	private getParsedRequestFromString(message: string): IParsedChatRequest {
@@ -693,7 +713,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'agentDetection') {
-			const agent = this.chatAgentService.getAgent(progress.agentName);
+			const agent = this.chatAgentService.getAgent(progress.agentId);
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
 			}
@@ -792,7 +812,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					vote: r.response?.vote,
 					agent: r.response?.agent ?
 						// May actually be the full IChatAgent instance, just take the data props. slashCommands don't matter here.
-						{ id: r.response.agent.id, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], isDefault: r.response.agent.isDefault }
+						{ id: r.response.agent.id, name: r.response.agent.name, description: r.response.agent.description, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
 						: undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
@@ -871,7 +891,8 @@ export function getHistoryEntriesFromModel(model: IChatModel): IChatAgentHistory
 			agentId: request.response.agent?.id ?? '',
 			message: promptTextResult.message,
 			command: request.response.slashCommand?.name,
-			variables: updateRanges(request.variableData, promptTextResult.diff) // TODO bit of a hack
+			variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
+			location: ChatAgentLocation.Panel
 		};
 		history.push({ request: historyRequest, response: request.response.response.value, result: request.response.result ?? {} });
 	}
@@ -883,7 +904,7 @@ export function updateRanges(variableData: IChatRequestVariableData, diff: numbe
 	return {
 		variables: variableData.variables.map(v => ({
 			...v,
-			range: {
+			range: v.range && {
 				start: v.range.start - diff,
 				endExclusive: v.range.endExclusive - diff
 			}

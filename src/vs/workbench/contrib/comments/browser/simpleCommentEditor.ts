@@ -123,7 +123,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 export function calculateEditorHeight(parentEditor: LayoutableEditor, editor: ICodeEditor, currentHeight: number): number {
 	const layoutInfo = editor.getLayoutInfo();
 	const lineHeight = editor.getOption(EditorOption.lineHeight);
-	const contentHeight = (editor.getModel()?.getLineCount()! * lineHeight) ?? editor.getContentHeight(); // Can't just call getContentHeight() because it returns an incorrect, large, value when the editor is first created.
+	const contentHeight = (editor._getViewModel()?.getLineCount()! * lineHeight) ?? editor.getContentHeight(); // Can't just call getContentHeight() because it returns an incorrect, large, value when the editor is first created.
 	if ((contentHeight > layoutInfo.height) ||
 		(contentHeight < layoutInfo.height && currentHeight > MIN_EDITOR_HEIGHT)) {
 		const linesToAdd = Math.ceil((contentHeight - layoutInfo.height) / lineHeight);
