@@ -98,7 +98,7 @@ export class DiffEditorGutter extends Disposable {
 		}));
 
 		this._register(addDisposableListener(this.elements.gutter, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
-			if (!this._editors.modified.getOption(EditorOption.scrollbar).handleMouseWheel) {
+			if (this._editors.modified.getOption(EditorOption.scrollbar).handleMouseWheel) {
 				this._editors.modified.delegateScrollFromMouseWheelEvent(e);
 			}
 		}, { passive: false }));
