@@ -204,7 +204,7 @@ export class CellContextKeyManager extends Disposable {
 		}
 
 		if (this.element instanceof CodeCellViewModel) {
-			this.cellHasErrorDiagnostics.set(!!this.element.cellErrorDetails);
+			this.cellHasErrorDiagnostics.set(!!this.element.cellDiagnostics.ErrorDetails);
 		}
 	}
 

@@ -956,7 +956,7 @@ export const NotebookSetting = {
 	cellChat: 'notebook.experimental.cellChat',
 	notebookVariablesView: 'notebook.experimental.variablesView',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
-	cellFailureDiagnostics: 'notebook.experimental.cellFailureDiagnostics',
+	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 } as const;
 
 export const enum CellStatusbarAlignment {
