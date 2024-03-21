@@ -112,7 +112,7 @@ suite('ChatRequestParser', () => {
 	});
 
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
-		return <IChatAgentData>{ id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, locations: [], metadata: { description: '' }, slashCommands, locations: [ChatAgentLocation.Panel] };
+		return <IChatAgentData>{ id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, metadata: { description: '' }, slashCommands, locations: [ChatAgentLocation.Panel] };
 	};
 
 	test('agent with subcommand after text', async () => {

@@ -91,7 +91,7 @@ class BridgeAgent implements IChatAgentImplementation {
 			// }
 			if (data.slashCommand) {
 				const command = this._data.slashCommands.find(c => c.name === data.slashCommand);
-				progress({ kind: 'agentDetection', detected: true, agentName: this._data.id, command });
+				progress({ kind: 'agentDetection', detected: true, agentId: this._data.id, command });
 			}
 			if (data.markdownFragment) {
 				progress({ kind: 'markdownContent', content: new MarkdownString(data.markdownFragment) });
@@ -227,6 +227,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const that = this;
 		const agentData: IChatAgentData = {
 			id: 'editor',
+			name: 'editor',
 			extensionId: nullExtensionDescription.identifier,
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],

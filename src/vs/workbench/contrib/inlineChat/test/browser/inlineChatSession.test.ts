@@ -128,8 +128,7 @@ suite('InlineChatSession', function () {
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
-			[IChatContributionService, new MockChatContributionService(
-				[{ extensionId: nullExtensionDescription.identifier, name: 'testAgent', isDefault: true }])],
+			[IChatContributionService, new MockChatContributionService()],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IContextKeyService, contextKeyService],
@@ -174,6 +173,7 @@ suite('InlineChatSession', function () {
 		instaService.get(IChatAgentService).registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
 			id: 'testAgent',
+			name: 'testAgent',
 			isDefault: true,
 			locations: [ChatAgentLocation.Panel],
 			metadata: {},
