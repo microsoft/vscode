@@ -15,6 +15,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChat {
@@ -85,7 +86,7 @@ export interface IChatContentInlineReference {
 }
 
 export interface IChatAgentDetection {
-	agentName: string;
+	agentId: string;
 	command?: IChatAgentCommand;
 	kind: 'agentDetection';
 }
@@ -283,7 +284,7 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string, implicitVariablesEnabled?: boolean): Promise<IChatSendRequestData | undefined>;
+	sendRequest(sessionId: string, message: string, implicitVariablesEnabled?: boolean, parserContext?: IChatParserContext): Promise<IChatSendRequestData | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;

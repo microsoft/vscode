@@ -52,6 +52,8 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Mutable } from 'vs/base/common/types';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -74,6 +76,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(IProductService, {});
 

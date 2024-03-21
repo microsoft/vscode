@@ -48,7 +48,7 @@ import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon'
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -2015,7 +2015,7 @@ export namespace TestResults {
 }
 
 export namespace TestCoverage {
-	function fromCoveredCount(count: vscode.CoveredCount): ICoveredCount {
+	function fromCoverageCount(count: vscode.TestCoverageCount): ICoverageCount {
 		return { covered: count.covered, total: count.total };
 	}
 
@@ -2047,9 +2047,9 @@ export namespace TestCoverage {
 		return {
 			id,
 			uri: coverage.uri,
-			statement: fromCoveredCount(coverage.statementCoverage),
-			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
-			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
+			statement: fromCoverageCount(coverage.statementCoverage),
+			branch: coverage.branchCoverage && fromCoverageCount(coverage.branchCoverage),
+			declaration: coverage.declarationCoverage && fromCoverageCount(coverage.declarationCoverage),
 		};
 	}
 }
@@ -2454,7 +2454,7 @@ export namespace ChatResponseReferencePart {
 
 export namespace ChatResponsePart {
 
-	export function to(part: vscode.ChatResponsePart): extHostProtocol.IChatProgressDto {
+	export function to(part: vscode.ChatResponsePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.to(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2465,6 +2465,8 @@ export namespace ChatResponsePart {
 			return ChatResponseProgressPart.to(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.to(part);
+		} else if (part instanceof types.ChatResponseCommandButtonPart) {
+			return ChatResponseCommandButtonPart.to(part, commandsConverter, commandDisposables);
 		}
 		return {
 			kind: 'content',
@@ -2546,7 +2548,7 @@ export namespace ChatResponseProgress {
 			};
 		} else if ('participant' in progress) {
 			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-			return { agentName: progress.participant, command: progress.command, kind: 'agentDetection' };
+			return { agentId: progress.participant, command: progress.command, kind: 'agentDetection' };
 		} else if ('message' in progress) {
 			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {

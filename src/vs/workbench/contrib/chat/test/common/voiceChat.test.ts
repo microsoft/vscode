@@ -28,7 +28,10 @@ suite('VoiceChat', () => {
 
 		extensionId: ExtensionIdentifier = nullExtensionDescription.identifier;
 		locations: ChatAgentLocation[] = [ChatAgentLocation.Panel];
-		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) { }
+		public readonly name: string;
+		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) {
+			this.name = id;
+		}
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> { throw new Error('Method not implemented.'); }
 		metadata = {};
@@ -47,17 +50,18 @@ suite('VoiceChat', () => {
 	class TestChatAgentService implements IChatAgentService {
 		_serviceBrand: undefined;
 		readonly onDidChangeAgents = Event.None;
-		registerAgent(name: string, agent: IChatAgentImplementation): IDisposable { throw new Error(); }
+		registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable { throw new Error(); }
 		registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable { throw new Error('Method not implemented.'); }
 		invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error(); }
 		getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
-		getRegisteredAgents(): Array<IChatAgent> { return agents; }
 		getActivatedAgents(): IChatAgent[] { return agents; }
 		getAgents(): IChatAgent[] { return agents; }
-		getAgent(id: string): IChatAgent | undefined { throw new Error(); }
 		getDefaultAgent(): IChatAgent | undefined { throw new Error(); }
 		getSecondaryAgent(): IChatAgent | undefined { throw new Error(); }
-		updateAgent(id: string, updateMetadata: IChatAgentMetadata): void { throw new Error(); }
+		registerAgent(id: string, data: IChatAgentData): IDisposable { throw new Error('Method not implemented.'); }
+		getAgent(id: string): IChatAgentData | undefined { throw new Error('Method not implemented.'); }
+		getAgentsByName(name: string): IChatAgentData[] { throw new Error('Method not implemented.'); }
+		updateAgent(id: string, updateMetadata: IChatAgentMetadata): void { throw new Error('Method not implemented.'); }
 	}
 
 	class TestSpeechService implements ISpeechService {

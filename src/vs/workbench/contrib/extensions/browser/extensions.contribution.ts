@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService, extensionsConfigurationNodeBase } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -122,13 +122,9 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 		alwaysUseContainerInfo: true,
 	}, ViewContainerLocation.Sidebar);
 
-
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		id: 'extensions',
-		order: 30,
-		title: localize('extensionsConfigurationTitle', "Extensions"),
-		type: 'object',
+		...extensionsConfigurationNodeBase,
 		properties: {
 			'extensions.autoUpdate': {
 				enum: [true, 'onlyEnabledExtensions', 'onlySelectedExtensions', false,],

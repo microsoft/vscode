@@ -66,6 +66,8 @@ export interface IViewPaneOptions extends IPaneOptions {
 	readonly showActions?: ViewPaneShowActions;
 	readonly titleMenuId?: MenuId;
 	readonly donotForwardArgs?: boolean;
+	// The title of the container pane when it is merged with the view container
+	readonly singleViewPaneContainerTitle?: string;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -333,6 +335,11 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
+	private _singleViewPaneContainerTitle: string | undefined;
+	public get singleViewPaneContainerTitle(): string | undefined {
+		return this._singleViewPaneContainerTitle;
+	}
+
 	readonly menuActions: CompositeMenuActions;
 
 	private progressBar!: ProgressBar;
@@ -369,6 +376,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.id = options.id;
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
+		this._singleViewPaneContainerTitle = options.singleViewPaneContainerTitle;
 		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
 
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));

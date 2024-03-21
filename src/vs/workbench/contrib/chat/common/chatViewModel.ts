@@ -8,9 +8,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EndOfLinePreference } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -188,7 +185,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		private readonly _model: IChatModel,
 		public readonly codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
@@ -266,31 +262,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		renderer.code = (value, languageId) => {
 			languageId ??= '';
 			const newText = this.fixCodeText(value, languageId);
-			const textModel = this.codeBlockModelCollection.getOrCreate(this._model.sessionId, model, codeBlockIndex++);
-			textModel.then(ref => {
-				const model = ref.object.textEditorModel;
-				if (languageId) {
-					const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
-					if (vscodeLanguageId && vscodeLanguageId !== ref.object.textEditorModel.getLanguageId()) {
-						ref.object.textEditorModel.setLanguage(vscodeLanguageId);
-					}
-				}
-
-				const currentText = ref.object.textEditorModel.getValue(EndOfLinePreference.LF);
-				if (newText === currentText) {
-					return;
-				}
-
-				if (newText.startsWith(currentText)) {
-					const text = newText.slice(currentText.length);
-					const lastLine = model.getLineCount();
-					const lastCol = model.getLineMaxColumn(lastLine);
-					model.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
-				} else {
-					// console.log(`Failed to optimize setText`);
-					model.setValue(newText);
-				}
-			});
+			this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text: newText, languageId });
 			return '';
 		};
 

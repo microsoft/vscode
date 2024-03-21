@@ -1099,6 +1099,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
 			type: 'boolean',
 			default: false
-		}
+		},
+		[NotebookSetting.cellFailureDiagnostics]: {
+			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Enable experimental diagnostics for cell failures."),
+			type: 'boolean',
+			default: false
+		},
 	}
 });
