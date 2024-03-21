@@ -366,6 +366,7 @@ if (isTest) {
 	const kerberos = require('kerberos')
 	const nativeIsElevated = require('native-is-elevated')
 	const xterm = require('@xterm/xterm')
+	const nativeWatchdog = require('native-watchdog')
 	const zlib = require('zlib')
 	const xtermHeadless = require('@xterm/headless')
 	const vscodeSqlite3 = require('@vscode/sqlite3')
@@ -397,6 +398,7 @@ if (isTest) {
 		path,
 		glob,
 		sinon,
+		nativeWatchdog,
 		util,
 		yauzl,
 		events,
