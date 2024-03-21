@@ -538,6 +538,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 }
 
 export interface MainThreadTerminalShellIntegrationShape extends IDisposable {
+	$executeCommand(terminalId: number, commandLine: string): void;
 }
 
 export type TransferQuickPickItemOrSeparator = TransferQuickPickItem | quickInput.IQuickPickSeparator;

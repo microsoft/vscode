@@ -16,14 +16,14 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalShellIntegration);
 
 		// onDidChangeTerminalShellIntegration
-		const onDidAddCommandDetection = terminalService.createOnInstanceEvent(instance => {
+		const onDidAddCommandDetection = this._terminalService.createOnInstanceEvent(instance => {
 			return Event.map(
 				Event.filter(instance.capabilities.onDidAddCapabilityType, e => {
 					return e === TerminalCapability.CommandDetection;
@@ -34,7 +34,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(
-			terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandStarted)
+			this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandStarted)
 		);
 		this._store.add(commandDetectionStartEvent.event(e => {
 			const command = e.data;
@@ -43,7 +43,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// onDidEndTerminalShellExecution
 		const commandDetectionEndEvent = this._store.add(
-			terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished)
+			this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished)
 		);
 		this._store.add(commandDetectionEndEvent.event(e => {
 			this._proxy.$acceptTerminalShellExecutionEnd(e.instance.instanceId, e.data.exitCode);
@@ -52,6 +52,11 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		// TODO: Only do this if there is a consumer
 		// TODO: This needs to go via the server on remote for performance reasons
 		// TerminalShellExecution.dataStream
-		this._store.add(terminalService.onAnyInstanceData(e => this._proxy.$acceptTerminalShellExecutionData(e.instance.instanceId, e.data)));
+		this._store.add(this._terminalService.onAnyInstanceData(e => this._proxy.$acceptTerminalShellExecutionData(e.instance.instanceId, e.data)));
+	}
+
+	$executeCommand(terminalId: number, commandLine: string): void {
+		const instance = this._terminalService.getInstanceFromId(terminalId);
+		instance?.runCommand(commandLine, true);
 	}
 }

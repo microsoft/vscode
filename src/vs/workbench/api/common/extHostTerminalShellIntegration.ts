@@ -65,6 +65,9 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this.onDidEndTerminalShellExecution(e => {
 			console.log('*** onDidEndTerminalShellExecution', e);
 		});
+		setTimeout(() => {
+			Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
+		}, 4000);
 	}
 
 	public $acceptDidChangeShellIntegration(id: number): void {
@@ -78,6 +81,10 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		if (!shellIntegration) {
 			shellIntegration = new InternalTerminalShellIntegration(terminal.value, this._onDidStartTerminalShellExecution);
 			this._activeShellIntegrations.set(id, shellIntegration);
+			this._register(shellIntegration.onDidRequestShellExecution(commandLine => {
+				this._proxy.$executeCommand(id, commandLine);
+			}));
+			this._register(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e.value)));
 			terminal.shellIntegration = shellIntegration.value;
 		}
 		this._onDidChangeTerminalShellIntegration.fire({
@@ -103,30 +110,47 @@ class InternalTerminalShellIntegration {
 	private _currentExecution: InternalTerminalShellExecution | undefined;
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
+	private _ignoreNextExecution: boolean = false;
+
 	readonly value: vscode.TerminalShellIntegration;
+
+	protected readonly _onDidRequestShellExecution = new Emitter<string>();
+	readonly onDidRequestShellExecution = this._onDidRequestShellExecution.event;
+	protected readonly _onDidRequestEndExecution = new Emitter<InternalTerminalShellExecution>();
+	readonly onDidRequestEndExecution = this._onDidRequestEndExecution.event;
 
 	constructor(
 		private readonly _terminal: vscode.Terminal,
 		private readonly _onDidStartTerminalShellExecution: Emitter<vscode.TerminalShellExecution>
 	) {
 		// TODO: impl
+		const that = this;
 		this.value = {
+			// TODO: Fill in cwd
 			cwd: undefined,
-			executeCommand() {
-				return null!;
+			executeCommand(commandLine): vscode.TerminalShellExecution {
+				// TODO: Fill in cwd
+				that._onDidRequestShellExecution.fire(commandLine);
+				const execution = that.startShellExecution(commandLine, undefined).value;
+				that._ignoreNextExecution = true;
+				return execution;
+				// TODO: Consume next shell execution so this one remains valid
 			}
 		};
 	}
 
-	// TODO: shellIntegration should own shellExecution
-	// executeCommand(commandLine: string): void {
-
-	// }
-
-	startShellExecution(commandLine: string, cwd: URI | string | undefined): void {
-		this._currentExecution?.endExecution(undefined);
-		this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
-		this._onDidStartTerminalShellExecution.fire(this._currentExecution.value);
+	startShellExecution(commandLine: string, cwd: URI | string | undefined): InternalTerminalShellExecution {
+		if (this._ignoreNextExecution && this._currentExecution) {
+			this._ignoreNextExecution = false;
+		} else {
+			if (this._currentExecution) {
+				this._currentExecution.endExecution(undefined);
+				this._onDidRequestEndExecution.fire(this._currentExecution);
+			}
+			this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
+			this._onDidStartTerminalShellExecution.fire(this._currentExecution.value);
+		}
+		return this._currentExecution;
 	}
 
 	emitData(data: string): void {
