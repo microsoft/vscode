@@ -137,6 +137,9 @@
 		// e.g.  * ...| or */| or *-----*/|
 		"unIndentedLinePattern": {
 			"pattern": "^(\\t|[ ])*[ ]\\*[^/]*\\*/\\s*$|^(\\t|[ ])*[ ]\\*/\\s*$|^(\\t|[ ])*\\*([ ]([^\\*]|\\*(?!/))*)?$"
+		},
+		"indentNextLinePattern": {
+			"pattern": "^.*=>\\s*$"
 		}
 	},
 	"onEnterRules": [
