@@ -24,7 +24,7 @@ import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/br
 // --- browser
 
 registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
-registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
+registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Eager); // EAGER because this registers an agent which we need swiftly
 registerSingleton(IInlineChatSavingService, InlineChatSavingServiceImpl, InstantiationType.Delayed);
 
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
@@ -34,9 +34,8 @@ registerAction2(InlineChatActions.StartSessionAction);
 registerAction2(InlineChatActions.CloseAction);
 registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
-registerAction2(InlineChatActions.MakeRequestAction);
-registerAction2(InlineChatActions.StopRequestAction);
 registerAction2(InlineChatActions.ReRunRequestAction);
+registerAction2(InlineChatActions.ReRunRequestWithIntentDetectionAction);
 registerAction2(InlineChatActions.DiscardHunkAction);
 registerAction2(InlineChatActions.DiscardAction);
 registerAction2(InlineChatActions.DiscardToClipboardAction);
@@ -48,13 +47,9 @@ registerAction2(InlineChatActions.MoveToPreviousHunk);
 registerAction2(InlineChatActions.ArrowOutUpAction);
 registerAction2(InlineChatActions.ArrowOutDownAction);
 registerAction2(InlineChatActions.FocusInlineChat);
-registerAction2(InlineChatActions.PreviousFromHistory);
-registerAction2(InlineChatActions.NextFromHistory);
 registerAction2(InlineChatActions.ViewInChatAction);
 
 registerAction2(InlineChatActions.ToggleDiffForChange);
-registerAction2(InlineChatActions.FeebackHelpfulCommand);
-registerAction2(InlineChatActions.FeebackUnhelpfulCommand);
 registerAction2(InlineChatActions.ReportIssueForBugCommand);
 registerAction2(InlineChatActions.AcceptChanges);
 

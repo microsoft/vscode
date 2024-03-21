@@ -20,72 +20,16 @@
 	background: var(--vscode-inlineChat-background);
 }
 
-/* body */
-
-.monaco-workbench .inline-chat .body {
-	display: flex;
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
+	margin-bottom: 1px;
 }
 
-.monaco-workbench .inline-chat-input {
-	display: flex;
-	box-sizing: border-box;
-	outline: 1px solid var(--vscode-inlineChatInput-border);
-	outline-offset: -1px;
-	border-radius: 2px;
-	background-color: var(--vscode-inlineChatInput-background);
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-input-and-execute-toolbar {
+	width: 100%;
 }
 
-.monaco-workbench .inline-chat-input.synthetic-focus {
-	outline: 1px solid var(--vscode-inlineChatInput-focusBorder);
-}
-
-.monaco-workbench .inline-chat-input .input {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 2px 2px 2px 6px;
-	background-color: var(--vscode-inlineChatInput-background);
-	cursor: text;
-}
-
-.monaco-workbench .inline-chat-input .input .monaco-editor-background {
-	background-color: var(--vscode-inlineChatInput-background);
-}
-
-.monaco-workbench .inline-chat-input .input .editor-placeholder {
-	position: absolute;
-	z-index: 1;
-	color: var(--vscode-inlineChatInput-placeholderForeground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.monaco-workbench .inline-chat-input .input .editor-placeholder.hidden {
-	display: none;
-}
-
-.monaco-workbench .inline-chat-input .input .editor-container {
-	vertical-align: middle;
-}
-
-.monaco-workbench .inline-chat-input .toolbar {
-	display: flex;
-	flex-direction: column;
-	align-self: flex-start;
-	padding-top: 4px;
-	padding-right: 4px;
-}
-
-.monaco-workbench .inline-chat-input .toolbar .actions-container {
-	display: flex;
-	flex-direction: row;
-	gap: 4px;
-}
-
-.monaco-workbench .inline-chat .body > .widget-toolbar {
-	padding-left: 4px;
-	align-self: flex-start;
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
+	padding: 4px
 }
 
 /* progress bit */

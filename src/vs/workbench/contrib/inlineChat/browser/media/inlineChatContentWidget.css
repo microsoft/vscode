@@ -14,6 +14,14 @@
 	display: none;
 }
 
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-input-part .interactive-execute-toolbar {
+	margin-bottom: 1px;
+}
+
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-input-part.compact {
+	padding: 0;
+}
+
 .monaco-workbench .inline-chat-content-widget .message {
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);

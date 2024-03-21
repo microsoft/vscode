@@ -2628,6 +2628,7 @@ export namespace ChatLocation {
 			case ChatAgentLocation.Notebook: return types.ChatLocation.Notebook;
 			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
 			case ChatAgentLocation.Panel: return types.ChatLocation.Panel;
+			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
 		}
 	}
 }
