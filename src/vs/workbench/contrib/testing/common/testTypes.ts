@@ -542,14 +542,14 @@ export interface ITestCoverage {
 	files: IFileCoverage[];
 }
 
-export interface ICoveredCount {
+export interface ICoverageCount {
 	covered: number;
 	total: number;
 }
 
-export namespace ICoveredCount {
-	export const empty = (): ICoveredCount => ({ covered: 0, total: 0 });
-	export const sum = (target: ICoveredCount, src: Readonly<ICoveredCount>) => {
+export namespace ICoverageCount {
+	export const empty = (): ICoverageCount => ({ covered: 0, total: 0 });
+	export const sum = (target: ICoverageCount, src: Readonly<ICoverageCount>) => {
 		target.covered += src.covered;
 		target.total += src.total;
 	};
@@ -558,18 +558,18 @@ export namespace ICoveredCount {
 export interface IFileCoverage {
 	id: string;
 	uri: URI;
-	statement: ICoveredCount;
-	branch?: ICoveredCount;
-	declaration?: ICoveredCount;
+	statement: ICoverageCount;
+	branch?: ICoverageCount;
+	declaration?: ICoverageCount;
 }
 
 export namespace IFileCoverage {
 	export interface Serialized {
 		id: string;
 		uri: UriComponents;
-		statement: ICoveredCount;
-		branch?: ICoveredCount;
-		declaration?: ICoveredCount;
+		statement: ICoverageCount;
+		branch?: ICoverageCount;
+		declaration?: ICoverageCount;
 	}
 
 	export const serialize = (original: Readonly<IFileCoverage>): Serialized => ({

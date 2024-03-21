@@ -183,6 +183,7 @@ export class MenuId {
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
+	static readonly NotebookOutlineFilter = new MenuId('NotebookOutlineFilter');
 	static readonly NotebookOutlineActionMenu = new MenuId('NotebookOutlineActionMenu');
 	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
 	static readonly NotebookKernelSource = new MenuId('NotebookKernelSource');
@@ -220,6 +221,9 @@ export class MenuId {
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
+	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
+	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
+
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier

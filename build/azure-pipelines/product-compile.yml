@@ -10,7 +10,7 @@ steps:
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ./distro/download-distro.yml
+    - template: ./distro/download-distro.yml@self
 
     - task: AzureKeyVault@1
       displayName: "Azure Key Vault: Get Secrets"
@@ -98,7 +98,7 @@ steps:
     - script: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
-  - template: common/install-builtin-extensions.yml
+  - template: common/install-builtin-extensions.yml@self
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
@@ -146,10 +146,11 @@ steps:
     - script: tar -cz --ignore-failed-read --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
       displayName: Compress compilation artifact
 
-    - task: PublishPipelineArtifact@1
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
         artifactName: Compilation
+        sbomEnabled: false
       displayName: Publish compilation artifact
 
     - script: yarn download-builtin-extensions-cg

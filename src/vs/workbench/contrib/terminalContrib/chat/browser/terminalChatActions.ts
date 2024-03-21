@@ -164,7 +164,6 @@ registerActiveXtermAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	},
 	menu: {
-		// TODO: Allow action to be made primary, the action list is hardcoded within InlineChatWidget
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 0,

@@ -118,9 +118,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			pathNotFound = currentPathNotFound;
 
 			// Watch path created: resume watching request
-			if ((previousPathNotFound && !currentPathNotFound) || 					// file was created
-				(oldPathNotFound && !currentPathNotFound && !previousPathNotFound) 	// file was created from a rename
-			) {
+			if (!currentPathNotFound && (previousPathNotFound || oldPathNotFound)) {
 				this.trace(`fs.watchFile() detected ${request.path} exists again, resuming watcher (correlationId: ${request.correlationId})`);
 
 				// Emit as event

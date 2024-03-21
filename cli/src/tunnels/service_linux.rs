@@ -90,6 +90,10 @@ impl ServiceManager for SystemdService {
 
 		info!(self.log, "Successfully registered service...");
 
+		if let Err(e) = proxy.reload().await {
+			warning!(self.log, "Error issuing reload(): {}", e);
+		}
+
 		// note: enablement is implicit in recent systemd version, but required for older systems
 		// https://github.com/microsoft/vscode/issues/167489#issuecomment-1331222826
 		proxy
@@ -257,4 +261,7 @@ trait SystemdManagerDbus {
 
 	#[dbus_proxy(name = "StopUnit")]
 	fn stop_unit(&self, name: String, mode: String) -> zbus::Result<zvariant::OwnedObjectPath>;
+
+	#[dbus_proxy(name = "Reload")]
+	fn reload(&self) -> zbus::Result<()>;
 }

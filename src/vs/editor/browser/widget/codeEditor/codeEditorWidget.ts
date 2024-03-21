@@ -418,7 +418,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return null;
 		}
-		return WordOperations.getWordAtPosition(this._modelData.model, this._configuration.options.get(EditorOption.wordSeparators), position);
+		return WordOperations.getWordAtPosition(this._modelData.model, this._configuration.options.get(EditorOption.wordSeparators), this._configuration.options.get(EditorOption.wordSegmenterLocales), position);
 	}
 
 	public getValue(options: { preserveBOM: boolean; lineEnding: string } | null = null): string {
@@ -1042,8 +1042,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				return;
 			}
 			case editorCommon.Handler.Paste: {
-				const args = <Partial<editorCommon.PastePayload>>payload;
-				this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null);
+				const args = <Partial<editorBrowser.PastePayload>>payload;
+				this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null, args.clipboardEvent);
 				return;
 			}
 			case editorCommon.Handler.Cut:
@@ -1108,8 +1108,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
 	}
 
-	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
-		if (!this._modelData || text.length === 0) {
+	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, clipboardEvent?: ClipboardEvent): void {
+		if (!this._modelData) {
 			return;
 		}
 		const viewModel = this._modelData.viewModel;
@@ -1118,6 +1118,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
+				clipboardEvent,
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
 				languageId: mode
 			});
@@ -1765,7 +1766,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		} else {
 			commandDelegate = {
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					const payload: editorCommon.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
+					const payload: editorBrowser.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
 					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
 				},
 				type: (text: string) => {

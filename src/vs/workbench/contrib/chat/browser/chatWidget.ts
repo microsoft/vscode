@@ -145,7 +145,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private parsedChatRequest: IParsedChatRequest | undefined;
 	get parsedInput() {
 		if (this.parsedChatRequest === undefined) {
-			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput());
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), { selectedAgent: this._lastSelectedAgent });
 		}
 
 		return this.parsedChatRequest;
@@ -210,6 +210,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			return null;
 		}));
+	}
+
+	private _lastSelectedAgent: IChatAgentData | undefined;
+	set lastSelectedAgent(agent: IChatAgentData | undefined) {
+		this._lastSelectedAgent = agent;
+	}
+
+	get lastSelectedAgent(): IChatAgentData | undefined {
+		return this._lastSelectedAgent;
 	}
 
 	get supportsFileReferences(): boolean {
@@ -277,6 +286,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void {
+		if (!isResponseVM(item)) {
+			return;
+		}
 		const items = this.viewModel?.getItems();
 		if (!items) {
 			return;
@@ -522,7 +534,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._register(this.inputPart.onDidChangeHeight(() => this.bodyDimension && this.layout(this.bodyDimension.height, this.bodyDimension.width)));
 		this._register(this.inputEditor.onDidChangeModelContent(() => this.updateImplicitContextKinds()));
-		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateImplicitContextKinds()));
+		this._register(this.chatAgentService.onDidChangeAgents(() => {
+			if (this.viewModel) {
+				this.updateImplicitContextKinds();
+			}
+		}));
 	}
 
 	private onDidStyleChange(): void {
@@ -648,7 +664,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, this.inputPart.implicitContextEnabled);
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, this.inputPart.implicitContextEnabled, { selectedAgent: this._lastSelectedAgent });
 
 			if (result) {
 				const inputState = this.collectInputState();

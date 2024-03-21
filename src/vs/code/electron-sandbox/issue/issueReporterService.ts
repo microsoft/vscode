@@ -127,7 +127,7 @@ export class IssueReporter extends Disposable {
 		codiconStyleSheet.id = 'codiconStyles';
 
 		// TODO: Is there a way to use the IThemeService here instead
-		const iconsStyleSheet = getIconsStyleSheet(undefined);
+		const iconsStyleSheet = this._register(getIconsStyleSheet(undefined));
 		function updateAll() {
 			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}

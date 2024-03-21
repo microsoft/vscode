@@ -18,7 +18,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { IResolvedNotebookEditorModel, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICompositeNotebookEditorInput, INotebookEditorInputFactory, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class InteractiveEditorInput extends EditorInput implements ICompositeNotebookEditorInput {
@@ -96,11 +96,11 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
+		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, 'interactive', {});
 		super();
 		this.isScratchpad = configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
-		const input = instantiationService.invokeFunction(accessor => accessor.get(INotebookEditorInputFactory).getOrCreate(resource, undefined, 'interactive', {}));
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
 		this.name = title ?? InteractiveEditorInput.windowNames[resource.path] ?? paths.basename(resource.path, paths.extname(resource.path));

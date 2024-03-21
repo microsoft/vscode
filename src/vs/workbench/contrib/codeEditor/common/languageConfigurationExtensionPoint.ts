@@ -47,7 +47,7 @@ interface IOnEnterRule {
 /**
  * Serialized form of a language configuration
  */
-interface ILanguageConfiguration {
+export interface ILanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
 	autoClosingPairs?: Array<CharacterPair | IAutoClosingPairConditional>;
@@ -149,7 +149,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		}
 	}
 
-	private _extractValidCommentRule(languageId: string, configuration: ILanguageConfiguration): CommentRule | undefined {
+	private static _extractValidCommentRule(languageId: string, configuration: ILanguageConfiguration): CommentRule | undefined {
 		const source = configuration.comments;
 		if (typeof source === 'undefined') {
 			return undefined;
@@ -179,7 +179,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		return result;
 	}
 
-	private _extractValidBrackets(languageId: string, configuration: ILanguageConfiguration): CharacterPair[] | undefined {
+	private static _extractValidBrackets(languageId: string, configuration: ILanguageConfiguration): CharacterPair[] | undefined {
 		const source = configuration.brackets;
 		if (typeof source === 'undefined') {
 			return undefined;
@@ -203,7 +203,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		return result;
 	}
 
-	private _extractValidAutoClosingPairs(languageId: string, configuration: ILanguageConfiguration): IAutoClosingPairConditional[] | undefined {
+	private static _extractValidAutoClosingPairs(languageId: string, configuration: ILanguageConfiguration): IAutoClosingPairConditional[] | undefined {
 		const source = configuration.autoClosingPairs;
 		if (typeof source === 'undefined') {
 			return undefined;
@@ -249,7 +249,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		return result;
 	}
 
-	private _extractValidSurroundingPairs(languageId: string, configuration: ILanguageConfiguration): IAutoClosingPair[] | undefined {
+	private static _extractValidSurroundingPairs(languageId: string, configuration: ILanguageConfiguration): IAutoClosingPair[] | undefined {
 		const source = configuration.surroundingPairs;
 		if (typeof source === 'undefined') {
 			return undefined;
@@ -289,7 +289,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		return result;
 	}
 
-	private _extractValidColorizedBracketPairs(languageId: string, configuration: ILanguageConfiguration): CharacterPair[] | undefined {
+	private static _extractValidColorizedBracketPairs(languageId: string, configuration: ILanguageConfiguration): CharacterPair[] | undefined {
 		const source = configuration.colorizedBracketPairs;
 		if (typeof source === 'undefined') {
 			return undefined;
@@ -312,7 +312,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		return result;
 	}
 
-	private _extractValidOnEnterRules(languageId: string, configuration: ILanguageConfiguration): OnEnterRule[] | undefined {
+	private static _extractValidOnEnterRules(languageId: string, configuration: ILanguageConfiguration): OnEnterRule[] | undefined {
 		const source = configuration.onEnterRules;
 		if (typeof source === 'undefined') {
 			return undefined;
@@ -385,7 +385,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		return result;
 	}
 
-	private _handleConfig(languageId: string, configuration: ILanguageConfiguration): void {
+	public static extractValidConfig(languageId: string, configuration: ILanguageConfiguration): ExplicitLanguageConfiguration {
 
 		const comments = this._extractValidCommentRule(languageId, configuration);
 		const brackets = this._extractValidBrackets(languageId, configuration);
@@ -421,11 +421,15 @@ export class LanguageConfigurationFileHandler extends Disposable {
 			folding,
 			__electricCharacterSupport: undefined,
 		};
+		return richEditConfig;
+	}
 
+	private _handleConfig(languageId: string, configuration: ILanguageConfiguration): void {
+		const richEditConfig = LanguageConfigurationFileHandler.extractValidConfig(languageId, configuration);
 		this._languageConfigurationService.register(languageId, richEditConfig, 50);
 	}
 
-	private _parseRegex(languageId: string, confPath: string, value: string | IRegExp): RegExp | undefined {
+	private static _parseRegex(languageId: string, confPath: string, value: string | IRegExp): RegExp | undefined {
 		if (typeof value === 'string') {
 			try {
 				return new RegExp(value, '');
@@ -454,7 +458,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		return undefined;
 	}
 
-	private _mapIndentationRules(languageId: string, indentationRules: IIndentationRules): IndentationRule | undefined {
+	private static _mapIndentationRules(languageId: string, indentationRules: IIndentationRules): IndentationRule | undefined {
 		const increaseIndentPattern = this._parseRegex(languageId, `indentationRules.increaseIndentPattern`, indentationRules.increaseIndentPattern);
 		if (!increaseIndentPattern) {
 			return undefined;

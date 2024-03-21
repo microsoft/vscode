@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -11,20 +11,20 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorPane, IEditorPaneScrollPosition } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorPaneScrollPosition, isEditorPaneWithScrolling } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 export class SyncScroll extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.syncScrolling';
 
-	private readonly editorsInitialScrollTop = new Map<IEditorPane, IEditorPaneScrollPosition | undefined>();
+	private readonly paneInitialScrollTop = new Map<IEditorPane, IEditorPaneScrollPosition | undefined>();
 
 	private readonly syncScrollDispoasbles = this._register(new DisposableStore());
 	private readonly paneDisposables = new DisposableStore();
 
-	private statusBarDisposable: IDisposable | undefined;
+	private statusBarEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private isActive: boolean = false;
 
@@ -38,13 +38,13 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerActiveListeners(): void {
-		this.syncScrollDispoasbles.add(this.editorService.onDidVisibleEditorsChange(() => this.trackVisibleTextEditors()));
+		this.syncScrollDispoasbles.add(this.editorService.onDidVisibleEditorsChange(() => this.trackVisiblePanes()));
 	}
 
 	private activate(): void {
 		this.registerActiveListeners();
 
-		this.trackVisibleTextEditors();
+		this.trackVisiblePanes();
 	}
 
 	toggle(): void {
@@ -59,29 +59,33 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 		this.toggleStatusbarItem(this.isActive);
 	}
 
-	private trackVisibleTextEditors(): void {
+	private trackVisiblePanes(): void {
 		this.paneDisposables.clear();
-		this.editorsInitialScrollTop.clear();
+		this.paneInitialScrollTop.clear();
 
 		for (const pane of this.getAllVisiblePanes()) {
 
-			if (!pane.getScrollPosition || !pane.onDidChangeScroll) {
+			if (!isEditorPaneWithScrolling(pane)) {
 				continue;
 			}
 
-			this.editorsInitialScrollTop.set(pane, pane.getScrollPosition());
+			this.paneInitialScrollTop.set(pane, pane.getScrollPosition());
 			this.paneDisposables.add(pane.onDidChangeScroll(() => this.onDidEditorPaneScroll(pane)));
 		}
 	}
 
 	private onDidEditorPaneScroll(scrolledPane: IEditorPane) {
 
-		const scrolledPaneInitialOffset = this.editorsInitialScrollTop.get(scrolledPane);
+		const scrolledPaneInitialOffset = this.paneInitialScrollTop.get(scrolledPane);
 		if (scrolledPaneInitialOffset === undefined) {
 			throw new Error('Scrolled pane not tracked');
 		}
 
-		const scrolledPaneCurrentPosition = scrolledPane.getScrollPosition!()!;
+		if (!isEditorPaneWithScrolling(scrolledPane)) {
+			throw new Error('Scrolled pane does not support scrolling');
+		}
+
+		const scrolledPaneCurrentPosition = scrolledPane.getScrollPosition();
 		const scrolledFromInitial = {
 			scrollTop: scrolledPaneCurrentPosition.scrollTop - scrolledPaneInitialOffset.scrollTop,
 			scrollLeft: scrolledPaneCurrentPosition.scrollLeft !== undefined && scrolledPaneInitialOffset.scrollLeft !== undefined ? scrolledPaneCurrentPosition.scrollLeft - scrolledPaneInitialOffset.scrollLeft : undefined,
@@ -92,11 +96,11 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 				continue;
 			}
 
-			if (!pane.setScrollPosition) {
+			if (!isEditorPaneWithScrolling(pane)) {
 				return;
 			}
 
-			const initialOffset = this.editorsInitialScrollTop.get(pane);
+			const initialOffset = this.paneInitialScrollTop.get(pane);
 			if (initialOffset === undefined) {
 				throw new Error('Could not find initial offset for pane');
 			}
@@ -134,26 +138,31 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 	private deactivate(): void {
 		this.paneDisposables.clear();
 		this.syncScrollDispoasbles.clear();
-		this.editorsInitialScrollTop.clear();
+		this.paneInitialScrollTop.clear();
 	}
 
 	// Actions & Commands
 
 	private toggleStatusbarItem(active: boolean): void {
 		if (active) {
-			this.statusBarDisposable = this.statusbarService.addEntry({
-				name: 'Scrolling Locked',
-				text: 'Scrolling Locked',
-				tooltip: 'Lock Scrolling enabled',
-				ariaLabel: 'Scrolling Locked',
-				command: {
-					id: 'workbench.action.toggleLockedScrolling',
-					title: ''
-				},
-				kind: 'prominent'
-			}, 'status.snyScrollEnabled', StatusbarAlignment.RIGHT, 102);
+			if (!this.statusBarEntry.value) {
+				const text = localize('mouseScrolllingLocked', 'Scrolling Locked');
+				const tooltip = localize('mouseLockScrollingEnabled', 'Lock Scrolling Enabled');
+				this.statusBarEntry.value = this.statusbarService.addEntry({
+					name: text,
+					text,
+					tooltip,
+					ariaLabel: text,
+					command: {
+						id: 'workbench.action.toggleLockedScrolling',
+						title: ''
+					},
+					kind: 'prominent',
+					showInAllWindows: true
+				}, 'status.scrollLockingEnabled', StatusbarAlignment.RIGHT, 102);
+			}
 		} else {
-			this.statusBarDisposable?.dispose();
+			this.statusBarEntry.clear();
 		}
 	}
 

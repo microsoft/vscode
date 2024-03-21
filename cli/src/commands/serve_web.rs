@@ -124,6 +124,12 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
 		let mut listening = format!("Web UI available at http://{}", addr);
+		if let Some(base) = args.server_base_path {
+			if !base.starts_with('/') {
+				listening.push('/');
+			}
+			listening.push_str(&base);
+		}
 		if let Some(ct) = args.connection_token {
 			listening.push_str(&format!("?tkn={}", ct));
 		}
@@ -690,6 +696,10 @@ impl ConnectionManager {
 		// License agreement already checked by the `server_web` function.
 		cmd.args(["--accept-server-license-terms"]);
 
+		if let Some(a) = &args.args.server_base_path {
+			cmd.arg("--server-base-path");
+			cmd.arg(a);
+		}
 		if let Some(a) = &args.args.server_data_dir {
 			cmd.arg("--server-data-dir");
 			cmd.arg(a);
