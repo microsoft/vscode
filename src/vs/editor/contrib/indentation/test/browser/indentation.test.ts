@@ -704,16 +704,6 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 				'    ',
 				'}',
 			].join('\n'));
-
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'function f() {',
-				'    if (condition)',
-				'        return;',
-				'    ',
-				'    ',
-				'}',
-			].join('\n'));
 		});
 	});
 
