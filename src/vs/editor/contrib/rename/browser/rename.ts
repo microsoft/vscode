@@ -466,7 +466,7 @@ registerEditorCommand(new RenameCommand({
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
 		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
-		primary: KeyMod.Shift + KeyCode.Enter
+		primary: KeyMod.CtrlCmd + KeyCode.Enter
 	}
 }));
 
