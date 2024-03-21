@@ -6,7 +6,7 @@
 import { Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -44,13 +44,14 @@ import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatMode
 import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
-import { CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { inputEditorOptions, codeEditorWidgetOptions, defaultAriaLabel } from './inlineChatInputWidget';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { isNonEmptyArray, tail } from 'vs/base/common/arrays';
 
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
@@ -93,6 +94,14 @@ export interface IInlineChatWidgetConstructionOptions {
 	 * The men that rendered in the lower right corner, use for feedback
 	 */
 	feedbackMenuId: MenuId;
+
+	/**
+	 * @deprecated
+	 * TODO@meganrogge,jrieken
+	 * We need a way to make this configurable per editor/resource and not
+	 * globally.
+	 */
+	editableCodeBlocks?: boolean;
 }
 
 export interface IInlineChatMessage {
@@ -130,27 +139,23 @@ export class InlineChatWidget {
 
 	protected readonly _store = new DisposableStore();
 
+	private readonly _defaultChatModel: ChatModel;
+	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
 	private readonly _ctxResponseFocused: IContextKey<boolean>;
 
 	private readonly _progressBar: ProgressBar;
-
 	private readonly _chatWidget: ChatWidget;
 
-	// protected readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
 	protected readonly _onDidChangeHeight = this._store.add(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
-	private readonly _onDidChangeLayout = this._store.add(new MicrotaskEmitter<void>());
 	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
 	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
 
-	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
-
 
 	private _followUpDisposables = this._store.add(new DisposableStore());
 
-	private _chatMessage: MarkdownString | undefined;
 
 	constructor(
 		location: ChatAgentLocation,
@@ -173,12 +178,6 @@ export class InlineChatWidget {
 			}
 		}));
 
-		// context keys
-		this._ctxResponseFocused = CTX_INLINE_CHAT_RESPONSE_FOCUSED.bindTo(this._contextKeyService);
-		const tracker = this._store.add(trackFocus(this.domNode));
-		this._store.add(tracker.onDidBlur(() => this._ctxResponseFocused.set(false)));
-		this._store.add(tracker.onDidFocus(() => this._ctxResponseFocused.set(true)));
-
 		// toolbars
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
@@ -193,7 +192,10 @@ export class InlineChatWidget {
 				renderStyle: 'compact',
 				renderInputOnTop: true,
 				supportsFileReferences: true,
+				editableCodeBlocks: options.editableCodeBlocks,
 				menus: {
+					executeToolbar: options.inputMenuId,
+					inputSideToolbar: options.widgetMenuId,
 					telemetrySource: options.telemetrySource
 				},
 				filter: item => {
@@ -251,12 +253,21 @@ export class InlineChatWidget {
 			viewModelStore.clear();
 			const viewModel = this._chatWidget.viewModel;
 			if (viewModel) {
-				viewModelStore.add(viewModel.onDidChange(e => {
-					this._onDidChangeHeight.fire();
-				}));
+				viewModelStore.add(viewModel.onDidChange(() => this._onDidChangeHeight.fire()));
 			}
 			this._onDidChangeHeight.fire();
 		}));
+
+
+		// context keys
+		this._ctxResponseFocused = CTX_INLINE_CHAT_RESPONSE_FOCUSED.bindTo(this._contextKeyService);
+		const tracker = this._store.add(trackFocus(this.domNode));
+		this._store.add(tracker.onDidBlur(() => this._ctxResponseFocused.set(false)));
+		this._store.add(tracker.onDidFocus(() => this._ctxResponseFocused.set(true)));
+
+		this._ctxInputEditorFocused = CTX_INLINE_CHAT_FOCUSED.bindTo(_contextKeyService);
+		this._chatWidget.inputEditor.onDidFocusEditorWidget(() => this._ctxInputEditorFocused.set(true));
+		this._chatWidget.inputEditor.onDidBlurEditorWidget(() => this._ctxInputEditorFocused.set(false));
 
 		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
@@ -291,6 +302,13 @@ export class InlineChatWidget {
 				this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 			}
 		}));
+
+		// LEGACY - default chat model
+		// this is only here for as long as we offer updateChatMessage
+		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, `inlineChatDefaultModel/${location}`, undefined));
+		this._defaultChatModel.startInitialize();
+		this._defaultChatModel.initialize({ id: 1 }, undefined);
+		this.setChatModel(this._defaultChatModel);
 	}
 
 	private _updateAriaLabel(): void {
@@ -325,22 +343,19 @@ export class InlineChatWidget {
 	layout(widgetDim: Dimension) {
 		this._isLayouting = true;
 		try {
-			if (!this._lastDim || !Dimension.equals(this._lastDim, widgetDim)) {
-				this._lastDim = widgetDim;
-				this._doLayout(widgetDim);
-			}
+			this._doLayout(widgetDim);
 		} finally {
-			this._onDidChangeLayout.fire();
 			this._isLayouting = false;
 		}
 	}
 
 	protected _doLayout(dimension: Dimension): void {
-		// console.log('InlineChat#layout', dimension);
 		const extraHeight = this._getExtraHeight();
 		const progressHeight = getTotalHeight(this._elements.progress);
 		const followUpsHeight = getTotalHeight(this._elements.followUps);
 		const statusHeight = getTotalHeight(this._elements.status);
+
+		// console.log('ZONE#Widget#layout', { height: dimension.height, extraHeight, progressHeight, followUpsHeight, statusHeight, LIST: dimension.height - progressHeight - followUpsHeight - statusHeight - extraHeight });
 
 		this._elements.root.style.height = `${dimension.height - extraHeight}px`;
 		this._elements.root.style.width = `${dimension.width}px`;
@@ -352,17 +367,19 @@ export class InlineChatWidget {
 		);
 	}
 
-	getContentHeight(): number {
-
-		const followUpsHeight = getTotalHeight(this._elements.followUps);
-		const chatWidgetHeight = this._chatWidget.contentHeight;
-		const progressHeight = getTotalHeight(this._elements.progress);
-		const statusHeight = getTotalHeight(this._elements.status);
-		const extraHeight = this._getExtraHeight();
-
-		const result = progressHeight + chatWidgetHeight + followUpsHeight + statusHeight + extraHeight;
-
-		// console.log(`InlineChat#contentHeight ${result}, (chat ${chatWidgetHeight})`);
+	/**
+	 * The content height of this widget is the size that would require no scrolling
+	 */
+	get contentHeight(): number {
+		const data = {
+			followUpsHeight: getTotalHeight(this._elements.followUps),
+			chatWidgetHeight: this._chatWidget.contentHeight,
+			progressHeight: getTotalHeight(this._elements.progress),
+			statusHeight: getTotalHeight(this._elements.status),
+			extraHeight: this._getExtraHeight()
+		};
+		const result = data.progressHeight + data.chatWidgetHeight + data.followUpsHeight + data.statusHeight + data.extraHeight;
+		// console.log(`InlineChat#contentHeight ${result}`, data);
 		return result;
 	}
 
@@ -419,7 +436,11 @@ export class InlineChatWidget {
 	}
 
 	get responseContent(): string | undefined {
-		return this._chatMessage?.value;
+		const requests = this._chatWidget.viewModel?.model.getRequests();
+		if (!isNonEmptyArray(requests)) {
+			return undefined;
+		}
+		return tail(requests).response?.response.asString();
 	}
 
 	setChatModel(chatModel: IChatModel) {
@@ -427,17 +448,36 @@ export class InlineChatWidget {
 	}
 
 
+	/**
+	 * @deprecated use `setChatModel` instead
+	 */
+	addToHistory(input: string) {
+		if (this._chatWidget.viewModel?.model === this._defaultChatModel) {
+			this._chatWidget.input.acceptInput(input);
+		}
+	}
+
+	/**
+	 * @deprecated use `setChatModel` instead
+	 */
 	updateChatMessage(message: IInlineChatMessage, isIncomplete: true): IInlineChatMessageAppender;
 	updateChatMessage(message: IInlineChatMessage | undefined): void;
 	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined;
 	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined {
-		if (!this._chatWidget.viewModel) {
+
+		if (!this._chatWidget.viewModel || this._chatWidget.viewModel.model !== this._defaultChatModel) {
+			// this can only be used with the default chat model
 			return;
 		}
+
+		const model = this._defaultChatModel;
 		if (!message?.message.value) {
+			for (const request of model.getRequests()) {
+				model.removeRequest(request.id);
+			}
 			return;
 		}
-		const model = this._chatWidget.viewModel.model as ChatModel;
+
 		const chatRequest = model.addRequest({ parts: [], text: '' }, { variables: [] });
 		model.acceptResponseProgress(chatRequest, {
 			kind: 'markdownContent',
@@ -445,6 +485,7 @@ export class InlineChatWidget {
 		});
 
 		if (!isIncomplete) {
+			model.completeResponse(chatRequest);
 			return;
 		}
 		return {
@@ -507,7 +548,6 @@ export class InlineChatWidget {
 
 	reset() {
 		this._chatWidget.saveState();
-		// this._chatWidget.setInput(undefined);
 		this.updateChatMessage(undefined);
 		this.updateFollowUps(undefined);
 
@@ -568,8 +608,8 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 	// --- layout
 
-	override getContentHeight(): number {
-		const result = super.getContentHeight();
+	override get contentHeight(): number {
+		const result = super.contentHeight;
 		const previewDiffHeight = this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.hasValue && this._previewCreateEditor.value.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())) : 0;

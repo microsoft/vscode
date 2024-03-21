@@ -14,8 +14,9 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -41,7 +42,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, this.editor, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
-			inputMenuId: MENU_INLINE_CHAT_INPUT,
+			inputMenuId: MenuId.ChatExecute,
 			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
 			feedbackMenuId: MENU_INLINE_CHAT_WIDGET_FEEDBACK,
 			statusMenuId: {
@@ -110,15 +111,12 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	private _computeHeightInLines(): number {
-		const chatContentHeight = this.widget.getContentHeight();
+		const chatContentHeight = this.widget.contentHeight;
 		const editorHeight = this.editor.getLayoutInfo().height;
 
 		const contentHeight = Math.min(chatContentHeight, editorHeight * 0.42);
-		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-		const heightInLines = contentHeight / lineHeight;
-
-		// console.log('ZONE#lineheight', chatContentHeight, editorHeight, contentHeight, heightInLines);
-
+		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
+		// console.log('ZONE#_computeHeightInLines', { chatContentHeight, editorHeight, contentHeight, heightInLines });
 		return heightInLines;
 	}
 

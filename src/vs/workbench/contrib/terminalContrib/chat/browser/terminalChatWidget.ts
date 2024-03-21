@@ -66,7 +66,8 @@ export class TerminalChatWidget extends Disposable {
 					}
 				},
 				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-				telemetrySource: 'terminal-inline-chat'
+				telemetrySource: 'terminal-inline-chat',
+				editableCodeBlocks: true
 			}
 		);
 		this._register(Event.any(
@@ -89,7 +90,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private _relayout() {
 		if (this._dimension) {
-			this._doLayout(this._inlineChatWidget.getContentHeight());
+			this._doLayout(this._inlineChatWidget.contentHeight);
 		}
 	}
 
@@ -110,7 +111,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	reveal(): void {
-		this._doLayout(this._inlineChatWidget.getContentHeight());
+		this._doLayout(this._inlineChatWidget.contentHeight);
 		this._container.classList.remove('hide');
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
@@ -128,7 +129,7 @@ export class TerminalChatWidget extends Disposable {
 		const cursorY = (this._instance.xterm?.raw.buffer.active.cursorY ?? 0) + 1;
 		const top = topPadding + cursorY * cellHeight;
 		this._container.style.top = `${top}px`;
-		const widgetHeight = this._inlineChatWidget.getContentHeight();
+		const widgetHeight = this._inlineChatWidget.contentHeight;
 		if (!terminalWrapperHeight) {
 			return;
 		}
@@ -148,6 +149,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.updateFollowUps(undefined);
 		this._inlineChatWidget.updateProgress(false);
 		this._inlineChatWidget.updateToolbar(false);
+		this._inlineChatWidget.reset();
 		this._focusedContextKey.set(false);
 		this._visibleContextKey.set(false);
 		this._inlineChatWidget.value = '';
@@ -167,6 +169,10 @@ export class TerminalChatWidget extends Disposable {
 	}
 	input(): string {
 		return this._inlineChatWidget.value;
+	}
+	addToHistory(input: string): void {
+		this._inlineChatWidget.addToHistory(input);
+		this._inlineChatWidget.saveState();
 	}
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';

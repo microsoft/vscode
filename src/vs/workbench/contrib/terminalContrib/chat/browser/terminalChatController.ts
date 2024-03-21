@@ -274,6 +274,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 		await model.waitForInitialization();
 		this._history.update(this._lastInput);
+		this._chatWidget?.value.addToHistory(this._lastInput);
 		const request: IParsedChatRequest = {
 			text: this._lastInput,
 			parts: []

@@ -92,6 +92,7 @@ export interface IChatWidgetViewOptions {
 	renderStyle?: 'default' | 'compact';
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
+	editableCodeBlocks?: boolean;
 	menus?: {
 		executeToolbar?: MenuId;
 		inputSideToolbar?: MenuId;

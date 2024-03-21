@@ -74,6 +74,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHeight = 0;
 	private container!: HTMLElement;
 
+	private inputSideToolbarContainer?: HTMLElement;
+
 	private followupsContainer!: HTMLElement;
 	private followupsDisposables = this._register(new DisposableStore());
 
@@ -372,6 +374,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					shouldForwardArgs: true
 				}
 			}));
+			this.inputSideToolbarContainer = toolbarSide.getElement();
 			toolbarSide.getElement().classList.add('chat-side-toolbar');
 			toolbarSide.context = { widget } satisfies IChatExecuteActionContext;
 		}
@@ -427,8 +430,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const followupsHeight = this.followupsContainer.offsetHeight;
 
 		const inputPartBorder = 1;
-		const inputPartHorizontalPadding = 40;
-		const inputPartVerticalPadding = 24;
+		const inputPartHorizontalPadding = this.options.renderStyle === 'compact' ? 0 : 40;
+		const inputPartVerticalPadding = this.options.renderStyle === 'compact' ? 12 : 24;
 		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartHorizontalPadding - inputPartBorder, INPUT_EDITOR_MAX_HEIGHT);
 		const implicitContextHeight = this.implicitContextContainer.offsetHeight;
 
@@ -439,7 +442,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorPadding = 12;
 		const executeToolbarWidth = this.cachedToolbarWidth = this.toolbar.getItemsWidth();
 		const toolbarPadding = 4;
-		const sideToolbarWidth = this.options.renderStyle === 'compact' ? 20 : 0;
+		const sideToolbarWidth = this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth - sideToolbarWidth - toolbarPadding;

@@ -31,12 +31,12 @@ registerAction2(class extends NotebookAction {
 				icon: Codicon.send,
 				keybinding: {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED.negate()),
-					weight: KeybindingWeight.EditorCore + 7,
+					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyCode.Enter
 				},
 				menu: {
 					id: MENU_CELL_CHAT_INPUT,
-					group: 'main',
+					group: 'navigation',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.negate()
 				}
@@ -183,7 +183,7 @@ registerAction2(class extends NotebookAction {
 				icon: Codicon.debugStop,
 				menu: {
 					id: MENU_CELL_CHAT_INPUT,
-					group: 'main',
+					group: 'navigation',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST
 				}
@@ -204,7 +204,7 @@ registerAction2(class extends NotebookAction {
 				icon: Codicon.close,
 				menu: {
 					id: MENU_CELL_CHAT_WIDGET,
-					group: 'main',
+					group: 'navigation',
 					order: 2
 				}
 			});

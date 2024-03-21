@@ -55,7 +55,7 @@ registerActiveXtermAction({
 	icon: Codicon.close,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET,
-		group: 'main',
+		group: 'navigation',
 		order: 2
 	},
 	f1: true,
@@ -227,7 +227,7 @@ registerActiveXtermAction({
 	},
 	{
 		id: MENU_TERMINAL_CHAT_WIDGET,
-		group: 'main',
+		group: 'navigation',
 		order: 1,
 		when: ContextKeyExpr.and(CTX_INLINE_CHAT_EMPTY.negate(), TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate()),
 	}],
@@ -258,7 +258,7 @@ registerActiveXtermAction({
 	},
 	menu: {
 		id: MENU_TERMINAL_CHAT_INPUT,
-		group: 'main',
+		group: 'navigation',
 		order: 1,
 		when: TerminalChatContextKeys.requestActive.negate(),
 	},
@@ -282,7 +282,7 @@ registerActiveXtermAction({
 	icon: Codicon.debugStop,
 	menu: {
 		id: MENU_TERMINAL_CHAT_INPUT,
-		group: 'main',
+		group: 'navigation',
 		when: TerminalChatContextKeys.requestActive,
 	},
 	run: (_xterm, _accessor, activeInstance) => {

@@ -221,6 +221,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.viewModel?.providerId || '';
 	}
 
+	get input(): ChatInputPart {
+		return this.inputPart;
+	}
+
 	get inputEditor(): ICodeEditor {
 		return this.inputPart.inputEditor;
 	}
@@ -248,7 +252,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups: true, renderStyle });
 		}
 
-		this.createList(this.listContainer, { renderStyle });
+		this.createList(this.listContainer, { renderStyle, editableCodeBlock: this.viewOptions.editableCodeBlocks });
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
 		this.onDidStyleChange();
@@ -720,8 +724,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.bodyDimension = new dom.Dimension(width, height);
 
 		this.inputPart.layout(height, width);
-		// const inputPartHeight = this.inputPart.inputPartHeight;
-		const inputPartHeight = dom.getTotalHeight(this.inputPart.element);
+		const inputPartHeight = this.inputPart.inputPartHeight;
+		// const inputPartHeight = dom.getTotalHeight(this.inputPart.element);
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 
 		const listHeight = height - inputPartHeight;
