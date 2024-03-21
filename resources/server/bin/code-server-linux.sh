@@ -21,7 +21,7 @@ if [ -f "/tmp/vscode-skip-server-requirements-check" ]; then
 fi
 
 # Check platform requirements
-if [ "$(echo "$@" | grep -c -- "--skip-requirements-check")" -eq 0 ] && [ $skip_check -eq 0 ] && [ -f $ROOT/bin/helpers/check-requirements.sh ]; then
+if [ "$(echo "$@" | grep -c -- "--skip-requirements-check")" -eq 0 ] && [ $skip_check -eq 0 ]; then
 	$ROOT/bin/helpers/check-requirements.sh
 	exit_code=$?
 	if [ $exit_code -ne 0 ]; then
