@@ -34,7 +34,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(
-			this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandStarted)
+			this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted)
 		);
 		this._store.add(commandDetectionStartEvent.event(e => {
 			const command = e.data;
@@ -46,6 +46,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished)
 		);
 		this._store.add(commandDetectionEndEvent.event(e => {
+			console.log('$acceptTerminalShellExecutionEnd');
 			this._proxy.$acceptTerminalShellExecutionEnd(e.instance.instanceId, e.data.exitCode);
 		}));
 

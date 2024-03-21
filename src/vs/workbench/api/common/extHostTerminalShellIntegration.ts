@@ -45,6 +45,8 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalShellIntegration);
 
+		// TODO: Dispose shell integration when terminal is disposed
+
 		// TODO: Remove test code
 		this.onDidChangeTerminalShellIntegration(e => {
 			console.log('*** onDidChangeTerminalShellIntegration', e);
@@ -65,6 +67,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this.onDidEndTerminalShellExecution(e => {
 			console.log('*** onDidEndTerminalShellExecution', e);
 		});
+
 		setTimeout(() => {
 			Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
 		}, 4000);
@@ -98,7 +101,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	}
 
 	public $acceptTerminalShellExecutionEnd(id: number, exitCode: number | undefined): void {
-		this._activeShellIntegrations.get(id)?.currentExecution?.endExecution(exitCode);
+		this._activeShellIntegrations.get(id)?.endShellExecution(exitCode);
 	}
 
 	public $acceptTerminalShellExecutionData(id: number, data: string): void {
@@ -106,7 +109,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	}
 }
 
-class InternalTerminalShellIntegration {
+class InternalTerminalShellIntegration extends Disposable {
 	private _currentExecution: InternalTerminalShellExecution | undefined;
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
@@ -114,16 +117,17 @@ class InternalTerminalShellIntegration {
 
 	readonly value: vscode.TerminalShellIntegration;
 
-	protected readonly _onDidRequestShellExecution = new Emitter<string>();
+	protected readonly _onDidRequestShellExecution = this._register(new Emitter<string>());
 	readonly onDidRequestShellExecution = this._onDidRequestShellExecution.event;
-	protected readonly _onDidRequestEndExecution = new Emitter<InternalTerminalShellExecution>();
+	protected readonly _onDidRequestEndExecution = this._register(new Emitter<InternalTerminalShellExecution>());
 	readonly onDidRequestEndExecution = this._onDidRequestEndExecution.event;
 
 	constructor(
 		private readonly _terminal: vscode.Terminal,
 		private readonly _onDidStartTerminalShellExecution: Emitter<vscode.TerminalShellExecution>
 	) {
-		// TODO: impl
+		super();
+
 		const that = this;
 		this.value = {
 			// TODO: Fill in cwd
@@ -158,8 +162,11 @@ class InternalTerminalShellIntegration {
 	}
 
 	endShellExecution(exitCode: number | undefined): void {
-		this._currentExecution?.endExecution(exitCode);
-		this._currentExecution = undefined;
+		if (this._currentExecution) {
+			this._currentExecution.endExecution(exitCode);
+			this._onDidRequestEndExecution.fire(this._currentExecution);
+			this._currentExecution = undefined;
+		}
 	}
 }
 
