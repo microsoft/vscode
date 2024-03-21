@@ -96,53 +96,26 @@ class AMDModuleImporter {
 		}
 	}
 
-	private _rendererLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
-		return new Promise<DefineCall | undefined>((resolve, reject) => {
-			const scriptElement = document.createElement('script');
-			scriptElement.setAttribute('async', 'async');
-			scriptElement.setAttribute('type', 'text/javascript');
 
-			const unbind = () => {
-				scriptElement.removeEventListener('load', loadEventListener);
-				scriptElement.removeEventListener('error', errorEventListener);
-			};
-
-			const loadEventListener = (e: any) => {
-				unbind();
-				resolve(this._defineCalls.pop());
-			};
-
-			const errorEventListener = (e: any) => {
-				unbind();
-				reject(e);
-			};
-
-			scriptElement.addEventListener('load', loadEventListener);
-			scriptElement.addEventListener('error', errorEventListener);
-			if (this._amdPolicy) {
-				scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
-			}
-			scriptElement.setAttribute('src', scriptSrc);
-			// eslint-disable-next-line no-restricted-globals
-			window.document.getElementsByTagName('head')[0].appendChild(scriptElement);
-		});
+	private async _import(scriptSrc: string): Promise<DefineCall | undefined> {
+		try {
+			await import(scriptSrc)
+			return this._defineCalls.pop()
+		} catch (error) {
+			throw new Error(`Failed to import ${scriptSrc}: ${error}`)
+		}
 	}
 
-	private _workerLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
-		return new Promise<DefineCall | undefined>((resolve, reject) => {
-			try {
-				if (this._amdPolicy) {
-					scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
-				}
-				importScripts(scriptSrc);
-				resolve(this._defineCalls.pop());
-			} catch (err) {
-				reject(err);
-			}
-		});
+	private async _rendererLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
+		return this._import(scriptSrc)
+	}
+
+	private async _workerLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
+		return this._import(scriptSrc)
 	}
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
+		// TODO investigate if can just use import here
 		try {
 			const fs = <typeof import('fs')>globalThis._VSCODE_NODE_MODULES['fs'];
 			const vm = <typeof import('vm')>globalThis._VSCODE_NODE_MODULES['vm'];
