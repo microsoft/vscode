@@ -350,7 +350,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!code) {
 			return;
 		}
-		this._chatWidget?.value.acceptCommand(code.object.textEditorModel.getValue(), shouldExecute);
+		this._chatWidget?.value.acceptCommand(code.textEditorModel.getValue(), shouldExecute);
 	}
 
 	reveal(): void {

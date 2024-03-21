@@ -1947,6 +1947,7 @@ class OutputPeekTree extends Disposable {
 				result = Iterable.concat(
 					Iterable.single<ICompressedTreeElement<TreeElement>>({
 						element: new CoverageElement(results, task, coverageService),
+						incompressible: true,
 					}),
 					result,
 				);

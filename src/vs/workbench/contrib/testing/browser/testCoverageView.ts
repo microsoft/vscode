@@ -46,7 +46,7 @@ import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/cons
 import { onObservableChange } from 'vs/workbench/contrib/testing/common/observableUtils';
 import { ComputedFileCoverage, FileCoverage, TestCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { CoverageDetails, DetailType, ICoveredCount, IDeclarationCoverage, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, DetailType, ICoverageCount, IDeclarationCoverage, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 const enum CoverageSortOrder {
@@ -153,8 +153,8 @@ class DeclarationCoverageNode {
 			return;
 		}
 
-		const statement: ICoveredCount = { covered: 0, total: 0 };
-		const branch: ICoveredCount = { covered: 0, total: 0 };
+		const statement: ICoverageCount = { covered: 0, total: 0 };
+		const branch: ICoverageCount = { covered: 0, total: 0 };
 		for (const detail of this.containedDetails) {
 			if (detail.type !== DetailType.Statement) {
 				continue;

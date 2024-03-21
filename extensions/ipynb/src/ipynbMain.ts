@@ -125,6 +125,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 	return {
+		get dropCustomMetadata() {
+			return !useCustomPropertyInMetadata();
+		},
 		exportNotebook: (notebook: vscode.NotebookData): string => {
 			return exportNotebook(notebook, serializer);
 		},

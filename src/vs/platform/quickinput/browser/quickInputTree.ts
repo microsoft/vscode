@@ -65,8 +65,6 @@ interface IQuickPickElement extends IQuickInputItemLazyParts {
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
 	readonly saneTooltip?: string | IMarkdownString | HTMLElement;
-	readonly onChecked: Event<boolean>;
-	checked: boolean;
 	hidden: boolean;
 	element?: HTMLElement;
 	labelHighlights?: IMatch[];
@@ -92,17 +90,11 @@ interface IQuickInputItemTemplateData {
 class BaseQuickPickItemElement implements IQuickPickElement {
 	private readonly _init: Lazy<IQuickInputItemLazyParts>;
 
-	readonly onChecked: Event<boolean>;
-
 	constructor(
 		readonly index: number,
 		readonly hasCheckbox: boolean,
-		private _onChecked: Emitter<{ element: IQuickPickElement; checked: boolean }>,
 		mainItem: QuickPickItem
 	) {
-		this.onChecked = hasCheckbox
-			? Event.map(Event.filter<{ element: IQuickPickElement; checked: boolean }>(this._onChecked.event, e => e.element === this), e => e.checked)
-			: Event.None;
 		this._init = new Lazy(() => {
 			const saneLabel = mainItem.label ?? '';
 			const saneSortLabel = parseLabelWithIcons(saneLabel).text.trim();
@@ -118,6 +110,8 @@ class BaseQuickPickItemElement implements IQuickPickElement {
 				saneAriaLabel
 			};
 		});
+		this._saneDescription = mainItem.description;
+		this._saneTooltip = mainItem.tooltip;
 	}
 
 	// #region Lazy Getters
@@ -144,7 +138,7 @@ class BaseQuickPickItemElement implements IQuickPickElement {
 		this._element = value;
 	}
 
-	private _hidden: boolean = false;
+	private _hidden = false;
 	get hidden() {
 		return this._hidden;
 	}
@@ -152,18 +146,7 @@ class BaseQuickPickItemElement implements IQuickPickElement {
 		this._hidden = value;
 	}
 
-	private _checked: boolean = false;
-	get checked() {
-		return this._checked;
-	}
-	set checked(value: boolean) {
-		if (value !== this._checked) {
-			this._checked = value;
-			this._onChecked.fire({ element: this, checked: value });
-		}
-	}
-
-	protected _saneDescription?: string;
+	private _saneDescription?: string;
 	get saneDescription() {
 		return this._saneDescription;
 	}
@@ -179,7 +162,7 @@ class BaseQuickPickItemElement implements IQuickPickElement {
 		this._saneDetail = value;
 	}
 
-	protected _saneTooltip?: string | IMarkdownString | HTMLElement;
+	private _saneTooltip?: string | IMarkdownString | HTMLElement;
 	get saneTooltip() {
 		return this._saneTooltip;
 	}
@@ -213,18 +196,23 @@ class BaseQuickPickItemElement implements IQuickPickElement {
 }
 
 class QuickPickItemElement extends BaseQuickPickItemElement {
+	readonly onChecked: Event<boolean>;
+
 	constructor(
 		index: number,
 		hasCheckbox: boolean,
 		readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void,
-		onCheckedEmitter: Emitter<{ element: IQuickPickElement; checked: boolean }>,
+		private _onChecked: Emitter<{ element: IQuickPickElement; checked: boolean }>,
 		readonly item: IQuickPickItem,
 		private _separator: IQuickPickSeparator | undefined,
 	) {
-		super(index, hasCheckbox, onCheckedEmitter, item);
-		this._saneDescription = item.description;
+		super(index, hasCheckbox, item);
+
+		this.onChecked = hasCheckbox
+			? Event.map(Event.filter<{ element: IQuickPickElement; checked: boolean }>(this._onChecked.event, e => e.element === this), e => e.checked)
+			: Event.None;
+
 		this._saneDetail = item.detail;
-		this._saneTooltip = this.item.tooltip;
 		this._labelHighlights = item.highlights?.label;
 		this._descriptionHighlights = item.highlights?.description;
 		this._detailHighlights = item.highlights?.detail;
@@ -235,6 +223,21 @@ class QuickPickItemElement extends BaseQuickPickItemElement {
 	}
 	set separator(value: IQuickPickSeparator | undefined) {
 		this._separator = value;
+	}
+
+	private _checked = false;
+	get checked() {
+		return this._checked;
+	}
+	set checked(value: boolean) {
+		if (value !== this._checked) {
+			this._checked = value;
+			this._onChecked.fire({ element: this, checked: value });
+		}
+	}
+
+	get checkboxDisabled() {
+		return !!this.item.disabled;
 	}
 }
 
@@ -265,11 +268,9 @@ class QuickPickSeparatorElement extends BaseQuickPickItemElement {
 	constructor(
 		index: number,
 		readonly fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void,
-		// TODO: remove this
-		onCheckedEmitter: Emitter<{ element: IQuickPickElement; checked: boolean }>,
 		readonly separator: IQuickPickSeparator,
 	) {
-		super(index, false, onCheckedEmitter, separator);
+		super(index, false, separator);
 	}
 }
 
@@ -313,7 +314,7 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 	}
 
 	isChecked(element: IQuickPickElement) {
-		if (!element.hasCheckbox) {
+		if (!element.hasCheckbox || !(element instanceof QuickPickItemElement)) {
 			return undefined;
 		}
 
@@ -347,9 +348,6 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 		}));
 		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-list-checkbox'));
 		data.checkbox.type = 'checkbox';
-		data.toDisposeTemplate.add(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
-			data.element.checked = data.checkbox.checked;
-		}));
 
 		// Rows
 		const rows = dom.append(label, $('.quick-input-list-rows'));
@@ -413,6 +411,16 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		return QuickPickItemElementRenderer.ID;
 	}
 
+	override renderTemplate(container: HTMLElement): IQuickInputItemTemplateData {
+		const data = super.renderTemplate(container);
+
+		data.toDisposeTemplate.add(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
+			(data.element as QuickPickItemElement).checked = data.checkbox.checked;
+		}));
+
+		return data;
+	}
+
 	renderElement(node: ITreeNode<QuickPickItemElement, void>, index: number, data: IQuickInputItemTemplateData): void {
 		const element = node.element;
 		data.element = element;
@@ -421,9 +429,11 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 
 		data.checkbox.checked = element.checked;
 		data.toDisposeElement.add(element.onChecked(checked => data.checkbox.checked = checked));
+		data.checkbox.disabled = element.checkboxDisabled;
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
+		// Icon
 		if (mainItem.iconPath) {
 			const icon = isDark(this.themeService.getColorTheme().type) ? mainItem.iconPath.dark : (mainItem.iconPath.light ?? mainItem.iconPath.dark);
 			const iconUrl = URI.revive(icon);
@@ -561,6 +571,10 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		const mainItem: IQuickPickSeparator = element.separator;
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
+
+		// Icon
+		data.icon.style.backgroundImage = '';
+		data.icon.className = '';
 
 		// Label
 		let descriptionTitle: ITooltipMarkdownString | undefined;
@@ -1044,7 +1058,7 @@ export class QuickInputTree extends Disposable {
 
 	setAllVisibleChecked(checked: boolean) {
 		this._itemElements.forEach(element => {
-			if (!element.hidden) {
+			if (!element.hidden && !element.checkboxDisabled) {
 				element.checked = checked;
 			}
 		});
@@ -1067,7 +1081,6 @@ export class QuickInputTree extends Disposable {
 				currentSeparatorElement = new QuickPickSeparatorElement(
 					index,
 					(event: IQuickPickSeparatorButtonEvent) => this.fireSeparatorButtonTriggered(event),
-					this._elementChecked,
 					item
 				);
 				element = currentSeparatorElement;
@@ -1486,10 +1499,12 @@ export class QuickInputTree extends Disposable {
 	}
 
 	toggleCheckbox() {
-		const elements = this._tree.getFocus().filter((e): e is IQuickPickElement => !!e);
+		const elements = this._tree.getFocus().filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement);
 		const allChecked = this._allVisibleChecked(elements);
 		for (const element of elements) {
-			element.checked = !allChecked;
+			if (!element.checkboxDisabled) {
+				element.checked = !allChecked;
+			}
 		}
 		this._fireCheckedEvents();
 	}
@@ -1536,7 +1551,7 @@ export class QuickInputTree extends Disposable {
 
 	//#region private methods
 
-	private _allVisibleChecked(elements: IQuickPickElement[], whenNoneVisible = true) {
+	private _allVisibleChecked(elements: QuickPickItemElement[], whenNoneVisible = true) {
 		for (let i = 0, n = elements.length; i < n; i++) {
 			const element = elements[i];
 			if (!element.hidden) {

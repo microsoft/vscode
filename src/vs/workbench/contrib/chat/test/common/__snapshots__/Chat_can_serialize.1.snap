@@ -22,7 +22,11 @@
             },
             agent: {
               id: "ChatProviderWithUsedContext",
-              metadata: { description: undefined }
+              metadata: {
+                description: undefined,
+                requester: { name: "test" },
+                fullName: "test"
+              }
             }
           },
           {
@@ -54,7 +58,11 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
-        metadata: { description: undefined },
+        metadata: {
+          description: undefined,
+          requester: { name: "test" },
+          fullName: "test"
+        },
         slashCommands: [  ],
         locations: [ 1 ],
         isDefault: undefined
