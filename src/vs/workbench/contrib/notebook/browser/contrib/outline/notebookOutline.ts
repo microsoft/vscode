@@ -419,19 +419,24 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	}
 
 	*getChildren(parent: OutlineEntry | NotebookCellOutline, configurationService: IConfigurationService): Iterable<OutlineEntry> {
-		for (const entry of parent instanceof NotebookCellOutline ? (this._outlineProvider?.entries ?? []) : parent.children) {
-			const showOutlineCodeCells = configurationService.getValue<boolean>('notebook.outline.showCodeCells');
-			const showMarkdownHeadersOnly = configurationService.getValue<boolean>('notebook.outline.showMarkdownHeadersOnly');
+		const showCodeCells = configurationService.getValue<boolean>('notebook.outline.showCodeCells');
+		const showCodeCellSymbols = configurationService.getValue<boolean>('notebook.outline.showCodeCellSymbols');
+		const showMarkdownHeadersOnly = configurationService.getValue<boolean>('notebook.outline.showMarkdownHeadersOnly');
 
+		for (const entry of parent instanceof NotebookCellOutline ? (this._outlineProvider?.entries ?? []) : parent.children) {
 			if (entry.cell.cellKind === CellKind.Markup) {
 				if (!showMarkdownHeadersOnly) {
 					yield entry;
 				} else if (entry.level < 7) {
 					yield entry;
 				}
-			}
-			if (showOutlineCodeCells && entry.cell.cellKind === CellKind.Code) {
-				yield entry;
+
+			} else if (showCodeCells && entry.cell.cellKind === CellKind.Code) {
+				if (showCodeCellSymbols) {
+					yield entry;
+				} else if (entry.level === 7) {
+					yield entry;
+				}
 			}
 		}
 	}
