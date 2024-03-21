@@ -78,9 +78,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}));
 
 		// When extensions have registered we no longer need the cache
-		this.extensionService.onDidRegisterExtensions(() => {
+		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			this.cache = undefined;
-		});
+		}));
 	}
 
 	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> | [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
