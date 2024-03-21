@@ -44,6 +44,7 @@ export class ShiftCommand implements ICommand {
 		// Determine the visible column where the content starts
 		const contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
 
+		// adding small change
 		if (insertSpaces) {
 			// repeat the space indentSize times?
 			const indent = cachedStringRepeat(' ', indentSize);
