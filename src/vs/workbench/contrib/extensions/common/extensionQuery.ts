@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 
 export class Query {
@@ -26,7 +25,7 @@ export class Query {
 		const hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
 		const hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
 
-		return flatten(
+		return (
 			commands.map(command => {
 				if (hasSort && command === 'sort' || hasCategory && command === 'category') {
 					return [];
@@ -38,7 +37,7 @@ export class Query {
 				else {
 					return queryContains(`@${command}`) ? [] : [`@${command} `];
 				}
-			}));
+			})).flat();
 	}
 
 	static parse(value: string): Query {
