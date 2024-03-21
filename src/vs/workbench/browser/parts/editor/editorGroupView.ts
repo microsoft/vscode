@@ -679,7 +679,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const descriptor = editor.getTelemetryDescriptor();
 
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
-		if (resource instanceof URI) {
+		if (URI.isUri(resource)) {
 			descriptor['resource'] = this.toResourceTelemetryDescriptor(resource);
 
 			/* __GDPR__FRAGMENT__
