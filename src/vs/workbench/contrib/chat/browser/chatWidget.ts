@@ -404,6 +404,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderer = this._register(scopedInstantiationService.createInstance(
 			ChatListItemRenderer,
 			this.editorOptions,
+			this.location,
 			options,
 			rendererDelegate,
 			this._codeBlockModelCollection,
@@ -495,11 +496,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'default' | 'compact' }): void {
-		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart, {
-			renderFollowups: options?.renderFollowups ?? true,
-			renderStyle: options?.renderStyle,
-			menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus }
-		}));
+		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
+			this.location,
+			{
+				renderFollowups: options?.renderFollowups ?? true,
+				renderStyle: options?.renderStyle,
+				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus }
+			}
+		));
 		this.inputPart.render(container, '', this);
 
 		this._register(this.inputPart.onDidLoadInputState(state => {
@@ -516,7 +520,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			let msg = '';
-			if (e.followup.agentId !== this.chatAgentService.getDefaultAgent()?.id) {
+			if (e.followup.agentId !== this.chatAgentService.getDefaultAgent(this.location)?.id) {
 				msg = `${chatAgentLeader}${e.followup.agentId} `;
 				if (e.followup.subCommand) {
 					msg += `${chatSubcommandLeader}${e.followup.subCommand} `;
@@ -564,7 +568,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.parsedChatRequest = undefined;
 		const agentAndSubcommand = extractAgentAndCommand(this.parsedInput);
-		const currentAgent = agentAndSubcommand.agentPart?.agent ?? this.chatAgentService.getDefaultAgent();
+		const currentAgent = agentAndSubcommand.agentPart?.agent ?? this.chatAgentService.getDefaultAgent(this.location);
 		const implicitVariables = agentAndSubcommand.commandPart ?
 			agentAndSubcommand.commandPart.command.defaultImplicitVariables :
 			currentAgent?.defaultImplicitVariables;
@@ -734,7 +738,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.inputPart.layout(height, width);
 		const inputPartHeight = this.inputPart.inputPartHeight;
-		// const inputPartHeight = dom.getTotalHeight(this.inputPart.element);
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 
 		const listHeight = height - inputPartHeight;

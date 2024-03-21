@@ -502,7 +502,7 @@ export class InlineChatWidget {
 		reset(this._elements.followUps);
 		if (items && items.length > 0 && onFollowup) {
 			this._followUpDisposables.add(
-				this._instantiationService.createInstance(ChatFollowups, this._elements.followUps, items, undefined, onFollowup));
+				this._instantiationService.createInstance(ChatFollowups, this._elements.followUps, items, ChatAgentLocation.Editor, undefined, onFollowup));
 		}
 		this._onDidChangeHeight.fire();
 	}

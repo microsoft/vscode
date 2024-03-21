@@ -58,6 +58,10 @@ class BridgeAgent implements IChatAgentImplementation {
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 
+		if (token.isCancellationRequested) {
+			return {};
+		}
+
 		const data = this._findSessionDataByRequest(request);
 
 		if (!data) {
@@ -91,7 +95,7 @@ class BridgeAgent implements IChatAgentImplementation {
 			// }
 			if (data.slashCommand) {
 				const command = this._data.slashCommands.find(c => c.name === data.slashCommand);
-				progress({ kind: 'agentDetection', detected: true, agentId: this._data.id, command });
+				progress({ kind: 'agentDetection', agentId: this._data.id, command });
 			}
 			if (data.markdownFragment) {
 				progress({ kind: 'markdownContent', content: new MarkdownString(data.markdownFragment) });

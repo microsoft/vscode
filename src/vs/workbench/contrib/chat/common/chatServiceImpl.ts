@@ -383,7 +383,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			this.trace('startSession', `Provider returned session`);
 
-			const defaultAgent = this.chatAgentService.getDefaultAgent();
+			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			if (!defaultAgent) {
 				throw new ErrorNoTelemetry('No default agent');
 			}
@@ -458,10 +458,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		let defaultAgent = this.chatAgentService.getDefaultAgent()!;
-		if (location && !defaultAgent?.locations.includes(location)) {
-			defaultAgent = this.chatAgentService.getActivatedAgents().find(a => a.locations.includes(location)) ?? defaultAgent;
-		}
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
 
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, location, parserContext);
 		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
@@ -534,7 +531,6 @@ export class ChatService extends Disposable implements IChatService {
 				let rawResult: IChatAgentResult | null | undefined;
 				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
 
-				// const defaultAgent = this.chatAgentService.getDefaultAgent();
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const agent = (agentPart?.agent ?? defaultAgent)!;
 					await this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);

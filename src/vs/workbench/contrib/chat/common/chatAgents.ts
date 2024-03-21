@@ -138,7 +138,7 @@ export interface IChatAgentService {
 	getAgents(): IChatAgentData[];
 	getActivatedAgents(): Array<IChatAgent>;
 	getAgentsByName(name: string): IChatAgentData[];
-	getDefaultAgent(): IChatAgent | undefined;
+	getDefaultAgent(location: ChatAgentLocation): IChatAgent | undefined;
 	getSecondaryAgent(): IChatAgentData | undefined;
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
@@ -219,9 +219,8 @@ export class ChatAgentService implements IChatAgentService {
 		this._onDidChangeAgents.fire(new MergedChatAgent(agent.data, agent.impl));
 	}
 
-	getDefaultAgent(): IChatAgent | undefined {
-		// TODO@jrieken pass location!
-		return this.getActivatedAgents().find(a => !!a.isDefault && a.locations.includes(ChatAgentLocation.Panel));
+	getDefaultAgent(location: ChatAgentLocation): IChatAgent | undefined {
+		return this.getActivatedAgents().find(a => !!a.isDefault && a.locations.includes(location));
 	}
 
 	getSecondaryAgent(): IChatAgentData | undefined {

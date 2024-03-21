@@ -18,14 +18,14 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        locations: [ "panel" ],
         metadata: { description: "" },
         slashCommands: [
           {
             name: "subCommand",
             description: ""
           }
-        ],
-        locations: [ "panel" ]
+        ]
       },
       kind: "agent"
     },

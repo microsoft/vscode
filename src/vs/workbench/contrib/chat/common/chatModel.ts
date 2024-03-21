@@ -347,10 +347,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		}
 	}
 
-	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand, detected?: boolean) {
+	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
-		this._agentOrSlashCommandDetected = detected;
+		this._agentOrSlashCommandDetected = true;
 		this._onDidChange.fire();
 	}
 
@@ -531,7 +531,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	private get _defaultAgent() {
-		return this.chatAgentService.getDefaultAgent();
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 	}
 
 	get requesterUsername(): string {
@@ -741,7 +741,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'agentDetection') {
 			const agent = this.chatAgentService.getAgent(progress.agentId);
 			if (agent) {
-				request.response.setAgent(agent, progress.command, progress.detected);
+				request.response.setAgent(agent, progress.command);
 			}
 		} else if (progress.kind === 'textEdit') {
 			request.response.updateTextEdits(progress.uri, progress.edits);
@@ -897,11 +897,11 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 
 	public get username(): string {
-		return this.chatAgentService.getDefaultAgent()?.metadata.fullName ?? '';
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.fullName ?? '';
 	}
 
 	public get avatarIcon(): ThemeIcon | undefined {
-		return this.chatAgentService.getDefaultAgent()?.metadata.themeIcon;
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.themeIcon;
 	}
 }
 

@@ -88,7 +88,6 @@ export interface IChatContentInlineReference {
 export interface IChatAgentDetection {
 	agentId: string;
 	command?: IChatAgentCommand;
-	detected?: boolean;
 	kind: 'agentDetection';
 }
 
