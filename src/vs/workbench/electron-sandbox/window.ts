@@ -676,7 +676,7 @@ export class NativeWindow extends BaseWindow {
 	private async handleWarnings(): Promise<void> {
 
 		// Check for cyclic dependencies
-		if (typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
+		if (typeof require !== 'undefined' && typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
 			if (isCI) {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog

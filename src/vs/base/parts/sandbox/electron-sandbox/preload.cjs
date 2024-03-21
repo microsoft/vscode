@@ -335,7 +335,8 @@
 }());
 
 
-const isTest = true
+const isTest = !process.contextIsolated
+console.log({ isTest })
 
 if (isTest) {
 	const { ipcRenderer, contextBridge } = require('electron');
