@@ -340,6 +340,9 @@ export class InlineChatController implements IEditorContribution {
 				break;
 		}
 
+		if (session.session.input) {
+			options.message = session.session.input;
+		}
 		this._session = session;
 		return State.INIT_UI;
 	}
@@ -371,10 +374,6 @@ export class InlineChatController implements IEditorContribution {
 
 
 		this._zone.value.widget.updateInfo(message);
-		this._zone.value.widget.value = this._session.session.input ?? this._session.lastInput?.value ?? this._zone.value.widget.value;
-		if (this._session.session.input) {
-			this._zone.value.widget.selectAll();
-		}
 
 		this._showWidget(!this._session.lastExchange);
 
@@ -451,6 +450,7 @@ export class InlineChatController implements IEditorContribution {
 			this.updateInput(options.message);
 			aria.alert(options.message);
 			delete options.message;
+			this._showWidget(false);
 		}
 
 		let message = Message.NONE;
