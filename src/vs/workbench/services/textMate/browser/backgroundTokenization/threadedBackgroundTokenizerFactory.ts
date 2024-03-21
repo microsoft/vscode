@@ -127,17 +127,17 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	}
 
 	private async _createWorkerProxy(): Promise<TextMateTokenizationWorker | null> {
-		const textmateModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-textmate`;
-		const textmateModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-textmate`;
-		const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
-		const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
+		const textmateModuleLocation: string = `${nodeModulesPath}/vscode-textmate`;
+		const textmateModuleLocationAsar: string = `${nodeModulesAsarPath}/vscode-textmate`;
+		const onigurumaModuleLocation: string = `${nodeModulesPath}/vscode-oniguruma`;
+		const onigurumaModuleLocationAsar: string = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
 		const useAsar = this._environmentService.isBuilt && !isWeb;
-		const textmateLocation: AppResourcePath = useAsar ? textmateModuleLocationAsar : textmateModuleLocation;
-		const onigurumaLocation: AppResourcePath = useAsar ? onigurumaModuleLocationAsar : onigurumaModuleLocation;
-		const textmateMain: AppResourcePath = `${textmateLocation}/release/main.js`;
-		const onigurumaMain: AppResourcePath = `${onigurumaLocation}/release/main.js`;
-		const onigurumaWASM: AppResourcePath = `${onigurumaLocation}/release/onig.wasm`;
+		const textmateLocation: string = useAsar ? textmateModuleLocationAsar : textmateModuleLocation;
+		const onigurumaLocation: string = useAsar ? onigurumaModuleLocationAsar : onigurumaModuleLocation;
+		const textmateMain: string = `${textmateLocation}/release/main.js`;
+		const onigurumaMain: string = `${onigurumaLocation}/release/main.js`;
+		const onigurumaWASM: string = `${onigurumaLocation}/release/onig.wasm`;
 		const uri = FileAccess.asBrowserUri(textmateMain).toString(true);
 
 		const createData: ICreateData = {

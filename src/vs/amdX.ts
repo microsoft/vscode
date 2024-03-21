@@ -172,8 +172,8 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 		} else {
 			const useASAR = (isBuilt && !platform.isWeb);
 			const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
-			const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
-			scriptSrc = FileAccess.asBrowserUri(resourcePath).toString(true);
+			const resourcePath: string = `${actualNodeModulesPath}/${nodeModulePath}`;
+			scriptSrc = resourcePath
 		}
 		const result = AMDModuleImporter.INSTANCE.load<T>(scriptSrc);
 		cache.set(nodeModulePath, result);

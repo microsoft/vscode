@@ -27,10 +27,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 const TOP_LANG_COUNTS = 12;
 
-const regexpModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-regexp-languagedetection`;
-const regexpModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-regexp-languagedetection`;
-const moduleLocation: AppResourcePath = `${nodeModulesPath}/@vscode/vscode-languagedetection`;
-const moduleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/@vscode/vscode-languagedetection`;
+const regexpModuleLocation: string = `${nodeModulesPath}/vscode-regexp-languagedetection`;
+const regexpModuleLocationAsar: string = `${nodeModulesAsarPath}/vscode-regexp-languagedetection`;
+const moduleLocation: string = `${nodeModulesPath}/@vscode/vscode-languagedetection`;
+const moduleLocationAsar: string = `${nodeModulesAsarPath}/@vscode/vscode-languagedetection`;
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
