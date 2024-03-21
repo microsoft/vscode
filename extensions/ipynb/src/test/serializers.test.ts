@@ -64,7 +64,7 @@ function deepStripProperties(obj: any, props: string[]) {
 
 			const expectedCodeCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'print(1)', 'python');
 			expectedCodeCell.outputs = [];
-			expectedCodeCell.metadata = useCustomPropertyInMetadata ? { custom: { metadata: {} } } : { metadata: {} };
+			expectedCodeCell.metadata = useCustomPropertyInMetadata ? { custom: { execution_count: 10, metadata: {} } } : { execution_count: 10, metadata: {} };
 			expectedCodeCell.executionSummary = { executionOrder: 10 };
 
 			const expectedMarkdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# HEAD', 'markdown');

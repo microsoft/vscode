@@ -61,7 +61,6 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell:
 		let newMetadata: any = {};
 		if (useCustomPropertyInMetadata()) {
 			newMetadata = { ...(cell.metadata), custom: metadata };
-			edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, newMetadata)]);
 		} else {
 			newMetadata = { ...cell.metadata, ...metadata };
 			if (!metadata.execution_count && newMetadata.execution_count) {
@@ -113,10 +112,13 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 
 		if (e.cell.document.languageId !== preferredCellLanguage && e.cell.document.languageId !== languageIdInMetadata) {
 			setVSCodeCellLanguageId(metadata, e.cell.document.languageId);
+			metadataUpdated = true;
 		} else if (e.cell.document.languageId === preferredCellLanguage && languageIdInMetadata) {
 			removeVSCodeCellLanguageId(metadata);
+			metadataUpdated = true;
 		} else if (e.cell.document.languageId === preferredCellLanguage && e.cell.document.languageId === languageIdInMetadata) {
 			removeVSCodeCellLanguageId(metadata);
+			metadataUpdated = true;
 		}
 
 		if (metadataUpdated) {
