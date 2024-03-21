@@ -50,11 +50,15 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			this._proxy.$acceptTerminalShellExecutionEnd(e.instance.instanceId, e.data.exitCode);
 		}));
 
+		// onDidChangeTerminalShellIntegration via cwd
 		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
 		this._store.add(cwdChangeEvent.event(e => {
 			console.log('$acceptTerminalCwdChange', e.data);
 			this._proxy.$acceptTerminalCwdChange(e.instance.instanceId, e.data);
 		}));
+
+		// Clean up after dispose
+		this._store.add(this._terminalService.onDidDisposeInstance(e => this._proxy.$acceptCloseTerminal(e.instanceId)));
 
 		// TODO: Only do this if there is a consumer
 		// TODO: This needs to go via the server on remote for performance reasons

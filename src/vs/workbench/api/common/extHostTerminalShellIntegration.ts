@@ -28,7 +28,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 
 	protected _proxy: MainThreadTerminalShellIntegrationShape;
 
-	private _activeShellIntegrations: Map<number, InternalTerminalShellIntegration> = new Map();
+	private _activeShellIntegrations: Map</*instanceId*/number, InternalTerminalShellIntegration> = new Map();
 
 	protected readonly _onDidChangeTerminalShellIntegration = new Emitter<vscode.TerminalShellIntegrationChangeEvent>();
 	readonly onDidChangeTerminalShellIntegration = this._onDidChangeTerminalShellIntegration.event;
@@ -44,8 +44,6 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		super();
 
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalShellIntegration);
-
-		// TODO: Dispose shell integration when terminal is disposed
 
 		// TODO: Remove test code
 		this.onDidChangeTerminalShellIntegration(e => {
@@ -73,20 +71,20 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		}, 4000);
 	}
 
-	public $acceptDidChangeShellIntegration(id: number): void {
-		const terminal = this._extHostTerminalService.getTerminalById(id);
+	public $acceptDidChangeShellIntegration(instanceId: number): void {
+		const terminal = this._extHostTerminalService.getTerminalById(instanceId);
 		if (!terminal) {
 			return;
 		}
 
 		const apiTerminal = terminal.value;
-		let shellIntegration = this._activeShellIntegrations.get(id);
+		let shellIntegration = this._activeShellIntegrations.get(instanceId);
 		if (!shellIntegration) {
 			shellIntegration = new InternalTerminalShellIntegration(terminal.value, this._onDidStartTerminalShellExecution);
-			this._activeShellIntegrations.set(id, shellIntegration);
+			this._activeShellIntegrations.set(instanceId, shellIntegration);
 			// TODO: These should be registered against the InternalTerminalShellIntegration instance, not ExtHostTerminalShellIntegration
-			this._register(terminal.onWillDispose(() => this._activeShellIntegrations.get(id)?.dispose()));
-			this._register(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(id, commandLine)));
+			this._register(terminal.onWillDispose(() => this._activeShellIntegrations.get(instanceId)?.dispose()));
+			this._register(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(instanceId, commandLine)));
 			this._register(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e.value)));
 			this._register(shellIntegration.onDidRequestChangeShellIntegration(e => this._onDidChangeTerminalShellIntegration.fire(e)));
 
@@ -99,25 +97,31 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $acceptTerminalShellExecutionStart(id: number, commandLine: string, cwd: URI | string | undefined): void {
+	public $acceptTerminalShellExecutionStart(instanceId: number, commandLine: string, cwd: URI | string | undefined): void {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
-		if (!this._activeShellIntegrations.has(id)) {
-			this.$acceptDidChangeShellIntegration(id);
+		if (!this._activeShellIntegrations.has(instanceId)) {
+			this.$acceptDidChangeShellIntegration(instanceId);
 		}
-		this._activeShellIntegrations.get(id)?.startShellExecution(commandLine, cwd);
+		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, cwd);
 	}
 
-	public $acceptTerminalShellExecutionEnd(id: number, exitCode: number | undefined): void {
-		this._activeShellIntegrations.get(id)?.endShellExecution(exitCode);
+	public $acceptTerminalShellExecutionEnd(instanceId: number, exitCode: number | undefined): void {
+		this._activeShellIntegrations.get(instanceId)?.endShellExecution(exitCode);
 	}
 
-	public $acceptTerminalShellExecutionData(id: number, data: string): void {
-		this._activeShellIntegrations.get(id)?.emitData(data);
+	public $acceptTerminalShellExecutionData(instanceId: number, data: string): void {
+		this._activeShellIntegrations.get(instanceId)?.emitData(data);
 	}
 
-	public $acceptTerminalCwdChange(id: number, cwd: string): void {
-		this._activeShellIntegrations.get(id)?.setCwd(cwd);
+	public $acceptTerminalCwdChange(instanceId: number, cwd: string): void {
+		this._activeShellIntegrations.get(instanceId)?.setCwd(cwd);
+	}
+
+	public $acceptCloseTerminal(instanceId: number): void {
+		this._activeShellIntegrations.get(instanceId)?.dispose();
+		this._activeShellIntegrations.delete(instanceId);
+
 	}
 }
 
