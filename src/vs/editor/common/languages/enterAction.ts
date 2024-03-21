@@ -15,6 +15,7 @@ export function getEnterAction(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ): CompleteEnterAction | null {
+	console.log('getEnterAction');
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 	// Finding if we have rich text edit support
 	const richEditSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId);

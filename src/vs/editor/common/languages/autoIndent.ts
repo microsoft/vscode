@@ -384,7 +384,9 @@ export function getIndentForEnter(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): { beforeEnter: string; afterEnter: string } | null {
+	console.log('getIndentForEnter');
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
+		console.log('return 1');
 		return null;
 	}
 	model.tokenization.forceTokenization(range.startLineNumber);
@@ -417,6 +419,7 @@ export function getIndentForEnter(
 
 	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId).indentRulesSupport;
 	if (!indentRulesSupport) {
+		console.log('return 2');
 		return null;
 	}
 
@@ -448,8 +451,10 @@ export function getIndentForEnter(
 	// virtual model is the model after the enter has been made
 	// Getting inherited indent for the next start line number
 	const afterEnterAction = getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService);
+	console.log('afterEnterAction : ', JSON.stringify(afterEnterAction));
 	if (!afterEnterAction) {
 		const beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
+		console.log('return 3');
 		return {
 			beforeEnter: beforeEnter,
 			afterEnter: beforeEnter
@@ -463,10 +468,16 @@ export function getIndentForEnter(
 		afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
 	}
 
+	console.log('afterEnterText : ', afterEnterText);
 	if (indentRulesSupport.shouldDecrease(afterEnterText)) {
 		afterEnterIndent = indentConverter.unshiftIndent(afterEnterIndent);
 	}
 
+	console.log('return 4');
+	console.log('embeddedLanguage : ', embeddedLanguage);
+	console.log('currentLineIndent : ', currentLineIndent.length);
+	console.log('beforeEnterIndent : ', beforeEnterIndent.length);
+	console.log('afterEnterIndent : ', afterEnterIndent.length);
 	return {
 		beforeEnter: embeddedLanguage ? currentLineIndent : beforeEnterIndent,
 		afterEnter: afterEnterIndent

@@ -318,26 +318,32 @@ export class TypeOperations {
 
 	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
 		// suppose we have no auto indent, we then add the \n and do no auto indentation
+		console.log('_enter');
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
+			console.log('return 1');
 			return TypeOperations._typeCommand(range, '\n', keepPosition);
 		}
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {
 			const lineText = model.getLineContent(range.startLineNumber);
 			// Take the whitespaces in front of the line text and find the indentaiton before the range start column
 			const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
+			console.log('return 2');
 			// we add a new line and normalize the indentation
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
 
 		// We find the enter action
 		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
+		console.log('r : ', JSON.stringify(r));
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special
+				console.log('return 3');
 				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
 
 			} else if (r.indentAction === IndentAction.Indent) {
 				// Indent once
+				console.log('return 4');
 				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
 
 			} else if (r.indentAction === IndentAction.IndentOutdent) {
@@ -350,12 +356,15 @@ export class TypeOperations {
 				const typeText = '\n' + increasedIndent + '\n' + normalIndent;
 
 				if (keepPosition) {
+					console.log('return 5');
 					return new ReplaceCommandWithoutChangingPosition(range, typeText, true);
 				} else {
+					console.log('return 6');
 					return new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length, true);
 				}
 			} else if (r.indentAction === IndentAction.Outdent) {
 				const actualIndentation = TypeOperations.unshiftIndent(config, r.indentation);
+				console.log('return 7');
 				// we can unshift the indentation and also add some append text
 				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + r.appendText), keepPosition);
 			}
@@ -390,6 +399,7 @@ export class TypeOperations {
 				}
 
 				if (keepPosition) {
+					console.log('return 8');
 					return new ReplaceCommandWithoutChangingPosition(range, '\n' + config.normalizeIndentation(ir.afterEnter), true);
 				} else {
 					let offset = 0;
@@ -399,11 +409,13 @@ export class TypeOperations {
 						}
 						offset = Math.min(oldEndViewColumn + 1 - config.normalizeIndentation(ir.afterEnter).length - 1, 0);
 					}
+					console.log('return 9');
 					return new ReplaceCommandWithOffsetCursorState(range, '\n' + config.normalizeIndentation(ir.afterEnter), 0, offset, true);
 				}
 			}
 		}
 
+		console.log('return 10');
 		return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 	}
 
