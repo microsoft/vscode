@@ -38,7 +38,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_RENAME_INPUT_VISIBLE, NewNameSource, RenameInputFieldResult, RenameWidget } from './renameInputField';
+import { CONTEXT_RENAME_INPUT_VISIBLE, NewNameSource, RenameWidget, RenameWidgetResult } from './renameWidget';
 
 class RenameSkeleton {
 
@@ -138,7 +138,7 @@ class RenameController implements IEditorContribution {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
-	private readonly _renameInputField: RenameWidget;
+	private readonly _renameWidget: RenameWidget;
 	private readonly _disposableStore = new DisposableStore();
 	private _cts: CancellationTokenSource = new CancellationTokenSource();
 
@@ -153,7 +153,7 @@ class RenameController implements IEditorContribution {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
-		this._renameInputField = this._disposableStore.add(this._instaService.createInstance(RenameWidget, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
+		this._renameWidget = this._disposableStore.add(this._instaService.createInstance(RenameWidget, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
 	}
 
 	dispose(): void {
@@ -235,7 +235,7 @@ class RenameController implements IEditorContribution {
 
 		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		const inputFieldResult = await this._renameInputField.getInput(
+		const inputFieldResult = await this._renameWidget.getInput(
 			loc.range,
 			loc.text,
 			supportPreview,
@@ -321,22 +321,22 @@ class RenameController implements IEditorContribution {
 	}
 
 	acceptRenameInput(wantsPreview: boolean): void {
-		this._renameInputField.acceptInput(wantsPreview);
+		this._renameWidget.acceptInput(wantsPreview);
 	}
 
 	cancelRenameInput(): void {
-		this._renameInputField.cancelInput(true, 'cancelRenameInput command');
+		this._renameWidget.cancelInput(true, 'cancelRenameInput command');
 	}
 
 	focusNextRenameSuggestion(): void {
-		this._renameInputField.focusNextRenameSuggestion();
+		this._renameWidget.focusNextRenameSuggestion();
 	}
 
 	focusPreviousRenameSuggestion(): void {
-		this._renameInputField.focusPreviousRenameSuggestion();
+		this._renameWidget.focusPreviousRenameSuggestion();
 	}
 
-	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameInputFieldResult, inDebugMode?: 'inDebugMode') {
+	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameWidgetResult, inDebugMode?: 'inDebugMode') {
 		type RenameInvokedEvent =
 			{
 				kind: 'accepted' | 'cancelled';
@@ -367,22 +367,23 @@ class RenameController implements IEditorContribution {
 			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.'; isMeasurement: true };
 		};
 
-		const value: RenameInvokedEvent = typeof inputFieldResult === 'boolean'
-			? {
-				kind: 'cancelled',
-				languageId,
-				nRenameSuggestionProviders,
-			}
-			: {
-				kind: 'accepted',
-				languageId,
-				nRenameSuggestionProviders,
+		const value: RenameInvokedEvent =
+			typeof inputFieldResult === 'boolean'
+				? {
+					kind: 'cancelled',
+					languageId,
+					nRenameSuggestionProviders,
+				}
+				: {
+					kind: 'accepted',
+					languageId,
+					nRenameSuggestionProviders,
 
-				source: inputFieldResult.stats.source.k,
-				nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
-				timeBeforeFirstInputFieldEdit: inputFieldResult.stats.timeBeforeFirstInputFieldEdit,
-				wantsPreview: inputFieldResult.wantsPreview,
-			};
+					source: inputFieldResult.stats.source.k,
+					nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
+					timeBeforeFirstInputFieldEdit: inputFieldResult.stats.timeBeforeFirstInputFieldEdit,
+					wantsPreview: inputFieldResult.wantsPreview,
+				};
 
 		if (inDebugMode) {
 			this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEventDebug', value);
