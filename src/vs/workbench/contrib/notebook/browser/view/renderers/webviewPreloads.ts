@@ -539,7 +539,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		if (node.hasAttribute('recentlyScrolled')) {
 			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 300) {
 				// it has been a while since we actually scrolled
-				// if scroll velocity increases, we should not swallow it
+				// if scroll velocity increases, it's likely a new scroll event
 				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 2) {
 					clearTimeout(scrollTimeout);
 					scrolledElement?.removeAttribute('recentlyScrolled');
@@ -550,6 +550,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 					return false;
 				}
 
+				// the tail end of a smooth scrolling event (from a trackpad) can go on for a while
+				// so keep swallowing it, but we can shorten the timeout since the events occur rapidly
 				clearTimeout(scrollTimeout);
 				scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 50);
 			} else {
