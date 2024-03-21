@@ -12,8 +12,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Hover, HoverContext, HoverProvider } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Range } from 'vs/editor/common/core/range';
-import { cloneIMarkdownString } from 'vs/base/common/htmlContent';
 
 export class HoverProviderResult {
 	constructor(
@@ -62,8 +60,8 @@ function isValid(result: Hover) {
 function cloneHover(h: Hover): Hover {
 	return {
 		id: h.id,
-		contents: h.contents.map(c => cloneIMarkdownString(c)),
-		range: h.range ? Range.cloneIRange(h.range) : undefined,
+		contents: h.contents,
+		range: h.range,
 		canIncreaseVerbosity: h.canIncreaseVerbosity,
 		canDecreaseVerbosity: h.canDecreaseVerbosity,
 		dispose: () => { }

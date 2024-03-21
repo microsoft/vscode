@@ -397,18 +397,6 @@ export class Range {
 	}
 
 	/**
-	 * Clone the IRange, return an IRange
-	 */
-	public static cloneIRange(range: IRange): IRange {
-		return {
-			startLineNumber: range.startLineNumber,
-			startColumn: range.startColumn,
-			endLineNumber: range.endLineNumber,
-			endColumn: range.endColumn
-		};
-	}
-
-	/**
 	 * Test if the two ranges are touching in any way.
 	 */
 	public static areIntersectingOrTouching(a: IRange, b: IRange): boolean {

@@ -120,16 +120,6 @@ export function isMarkdownString(thing: any): thing is IMarkdownString {
 	return false;
 }
 
-export function cloneIMarkdownString(string: IMarkdownString): IMarkdownString {
-	return {
-		value: string.value,
-		isTrusted: string.isTrusted,
-		supportThemeIcons: string.supportThemeIcons,
-		supportHtml: string.supportHtml,
-		baseUri: string.baseUri,
-	};
-}
-
 export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	if (a === b) {
 		return true;
