@@ -105,7 +105,7 @@ function deepStripProperties(obj: any, props: string[]) {
 				}
 			};
 
-			const cellMetadata = getCellMetadata(markdownCell);
+			const cellMetadata = getCellMetadata({ cell: markdownCell });
 			assert.deepStrictEqual(cellMetadata, {
 				id: '123',
 				metadata: {
