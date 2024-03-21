@@ -1209,7 +1209,7 @@ export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
 }
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
-	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata, allowDynamic: boolean): void;
+	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: { name: string; description: string } | undefined): void;
 	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;

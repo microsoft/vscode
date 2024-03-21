@@ -110,6 +110,8 @@ class BaseQuickPickItemElement implements IQuickPickElement {
 				saneAriaLabel
 			};
 		});
+		this._saneDescription = mainItem.description;
+		this._saneTooltip = mainItem.tooltip;
 	}
 
 	// #region Lazy Getters
@@ -144,7 +146,7 @@ class BaseQuickPickItemElement implements IQuickPickElement {
 		this._hidden = value;
 	}
 
-	protected _saneDescription?: string;
+	private _saneDescription?: string;
 	get saneDescription() {
 		return this._saneDescription;
 	}
@@ -160,7 +162,7 @@ class BaseQuickPickItemElement implements IQuickPickElement {
 		this._saneDetail = value;
 	}
 
-	protected _saneTooltip?: string | IMarkdownString | HTMLElement;
+	private _saneTooltip?: string | IMarkdownString | HTMLElement;
 	get saneTooltip() {
 		return this._saneTooltip;
 	}
@@ -210,9 +212,7 @@ class QuickPickItemElement extends BaseQuickPickItemElement {
 			? Event.map(Event.filter<{ element: IQuickPickElement; checked: boolean }>(this._onChecked.event, e => e.element === this), e => e.checked)
 			: Event.None;
 
-		this._saneDescription = item.description;
 		this._saneDetail = item.detail;
-		this._saneTooltip = this.item.tooltip;
 		this._labelHighlights = item.highlights?.label;
 		this._descriptionHighlights = item.highlights?.description;
 		this._detailHighlights = item.highlights?.detail;
@@ -277,9 +277,8 @@ class QuickPickSeparatorElement extends BaseQuickPickItemElement {
 class QuickInputItemDelegate implements IListVirtualDelegate<IQuickPickElement> {
 	getHeight(element: IQuickPickElement): number {
 
-		if (!element.item) {
-			// must be a separator
-			return 24;
+		if (element instanceof QuickPickSeparatorElement) {
+			return 30;
 		}
 		return element.saneDetail ? 44 : 22;
 	}
