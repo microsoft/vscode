@@ -135,7 +135,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		// This is glue/debt that's needed while ChatModel isn't yet adopted. The chat model uses
 		// a default chat model (unless configured) and feedback is reported against that one. This
 		// code forwards the feedback to an actual registered provider
-		this._chatService.onDidPerformUserAction(e => {
+		this._register(this._chatService.onDidPerformUserAction(e => {
 			if (e.providerId === this._chatWidget?.rawValue?.inlineChatWidget.getChatModel().providerId) {
 				if (e.action.kind === 'bug') {
 					this.acceptFeedback(undefined);
@@ -143,7 +143,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					this.acceptFeedback(e.action.direction === InteractiveSessionVoteDirection.Up);
 				}
 			}
-		});
+		}));
 	}
 
 	private initTerminalAgent(): boolean {
