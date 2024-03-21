@@ -30,7 +30,10 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 				}, this._store), () => instance
 			);
 		});
-		this._store.add(onDidAddCommandDetection(e => this._proxy.$acceptDidChangeShellIntegration(e.instanceId)));
+		this._store.add(onDidAddCommandDetection(e => {
+			this._proxy.$acceptDidChangeShellIntegration(e.instanceId);
+			console.log('main thread acceptDidChangeShellIntegration');
+		}));
 
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(

@@ -53,13 +53,13 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 		this.onDidStartTerminalShellExecution(async e => {
 			console.log('*** onDidStartTerminalShellExecution', e);
-			new Promise<void>(r => {
-				(async () => {
-					for await (const d of e.createDataStream()) {
-						console.log('data2', d);
-					}
-				})();
-			});
+			// new Promise<void>(r => {
+			// 	(async () => {
+			// 		for await (const d of e.createDataStream()) {
+			// 			console.log('data2', d);
+			// 		}
+			// 	})();
+			// });
 			for await (const d of e.createDataStream()) {
 				console.log('data', d);
 			}
@@ -83,6 +83,8 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		let shellIntegration = this._activeShellIntegrations.get(id);
 		if (!shellIntegration) {
 			shellIntegration = new InternalTerminalShellIntegration(terminal.value, this._onDidStartTerminalShellExecution);
+			// TODO: These should be registered against the InternalTerminalShellIntegration instance, not ExtHostTerminalShellIntegration
+			this._register(terminal.onWillDispose(() => this._activeShellIntegrations.get(id)?.dispose()));
 			this._activeShellIntegrations.set(id, shellIntegration);
 			this._register(shellIntegration.onDidRequestShellExecution(commandLine => {
 				this._proxy.$executeCommand(id, commandLine);
@@ -97,6 +99,11 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	}
 
 	public $acceptTerminalShellExecutionStart(id: number, commandLine: string, cwd: URI | string | undefined): void {
+		// Force shellIntegration creation if it hasn't been created yet, this could when events
+		// don't come through on startup
+		if (!this._activeShellIntegrations.has(id)) {
+			this.$acceptDidChangeShellIntegration(id);
+		}
 		this._activeShellIntegrations.get(id)?.startShellExecution(commandLine, cwd);
 	}
 

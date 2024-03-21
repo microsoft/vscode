@@ -76,7 +76,7 @@ export interface ITerminalInternalOptions {
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
 
-export class ExtHostTerminal {
+export class ExtHostTerminal extends Disposable {
 	private _disposed: boolean = false;
 	private _pidPromise: Promise<number | undefined>;
 	private _cols: number | undefined;
@@ -92,12 +92,17 @@ export class ExtHostTerminal {
 
 	readonly value: vscode.Terminal;
 
+	protected readonly _onWillDispose = new Emitter<void>();
+	readonly onWillDispose = this._onWillDispose.event;
+
 	constructor(
 		private _proxy: MainThreadTerminalServiceShape,
 		public _id: ExtHostTerminalIdentifier,
 		private readonly _creationOptions: vscode.TerminalOptions | vscode.ExtensionTerminalOptions,
 		private _name?: string,
 	) {
+		super();
+
 		this._creationOptions = Object.freeze(this._creationOptions);
 		this._pidPromise = new Promise<number | undefined>(c => this._pidPromiseComplete = c);
 
@@ -152,6 +157,11 @@ export class ExtHostTerminal {
 				};
 			}
 		};
+	}
+
+	override dispose(): void {
+		this._onWillDispose.fire();
+		super.dispose();
 	}
 
 	public async create(
