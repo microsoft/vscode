@@ -93,7 +93,7 @@ export class ExtHostTerminal extends Disposable {
 
 	readonly value: vscode.Terminal;
 
-	protected readonly _onWillDispose = new Emitter<void>();
+	protected readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
 	constructor(

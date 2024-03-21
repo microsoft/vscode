@@ -93,8 +93,6 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 			shellIntegration.store.add(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(instanceId, commandLine)));
 			shellIntegration.store.add(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e.value)));
 			shellIntegration.store.add(shellIntegration.onDidRequestChangeShellIntegration(e => this._onDidChangeTerminalShellIntegration.fire(e)));
-
-			// TODO: Can this be protected by a proposed API check?
 			terminal.shellIntegration = shellIntegration.value;
 		}
 		this._onDidChangeTerminalShellIntegration.fire({
