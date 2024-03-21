@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -45,6 +45,14 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalShellIntegration);
 
+		// Clean up listeners
+		this._register(toDisposable(() => {
+			for (const [_, integration] of this._activeShellIntegrations) {
+				integration.dispose();
+			}
+			this._activeShellIntegrations.clear();
+		}));
+
 		// TODO: Remove test code
 		this.onDidChangeTerminalShellIntegration(e => {
 			console.log('*** onDidChangeTerminalShellIntegration', e);
@@ -82,11 +90,10 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		if (!shellIntegration) {
 			shellIntegration = new InternalTerminalShellIntegration(terminal.value, this._onDidStartTerminalShellExecution);
 			this._activeShellIntegrations.set(instanceId, shellIntegration);
-			// TODO: These should be registered against the InternalTerminalShellIntegration instance, not ExtHostTerminalShellIntegration
-			this._register(terminal.onWillDispose(() => this._activeShellIntegrations.get(instanceId)?.dispose()));
-			this._register(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(instanceId, commandLine)));
-			this._register(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e.value)));
-			this._register(shellIntegration.onDidRequestChangeShellIntegration(e => this._onDidChangeTerminalShellIntegration.fire(e)));
+			shellIntegration.store.add(terminal.onWillDispose(() => this._activeShellIntegrations.get(instanceId)?.dispose()));
+			shellIntegration.store.add(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(instanceId, commandLine)));
+			shellIntegration.store.add(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e.value)));
+			shellIntegration.store.add(shellIntegration.onDidRequestChangeShellIntegration(e => this._onDidChangeTerminalShellIntegration.fire(e)));
 
 			// TODO: Can this be protected by a proposed API check?
 			terminal.shellIntegration = shellIntegration.value;
@@ -131,6 +138,8 @@ class InternalTerminalShellIntegration extends Disposable {
 
 	private _ignoreNextExecution: boolean = false;
 	private _cwd: URI | string | undefined;
+
+	readonly store: DisposableStore = this._register(new DisposableStore());
 
 	readonly value: vscode.TerminalShellIntegration;
 
