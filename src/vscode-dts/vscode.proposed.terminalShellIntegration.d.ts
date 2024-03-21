@@ -43,7 +43,7 @@ declare module 'vscode' {
 		 *   console.log(data);
 		 * }
 		 */
-		dataStream: AsyncIterator<string>;
+		dataStream: AsyncIterable<string>;
 	}
 
 	export interface Terminal {

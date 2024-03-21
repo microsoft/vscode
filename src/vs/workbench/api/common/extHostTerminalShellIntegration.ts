@@ -50,8 +50,11 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this.onDidChangeTerminalShellIntegration(e => {
 			console.log('*** onDidChangeTerminalShellIntegration', e);
 		});
-		this.onDidStartTerminalShellExecution(e => {
+		this.onDidStartTerminalShellExecution(async e => {
 			console.log('*** onDidStartTerminalShellExecution', e);
+			for await (const d of e.dataStream) {
+				console.log('data', d);
+			}
 		});
 		this.onDidEndTerminalShellExecution(e => {
 			console.log('*** onDidEndTerminalShellExecution', e);
@@ -89,6 +92,10 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	public async $acceptTerminalShellExecutionEnd(id: number, exitCode: number | undefined): Promise<void> {
 		this._activeShellExecutions.get(id)?.endExecution(exitCode);
 		this._activeShellExecutions.delete(id);
+	}
+
+	public async $acceptTerminalShellExecutionData(id: number, data: string): Promise<void> {
+		this._activeShellExecutions.get(id)?.emitData(data);
 	}
 }
 
@@ -138,21 +145,24 @@ class InternalTerminalShellExecution {
 			get exitCode(): Promise<number | undefined> {
 				return that._exitCode;
 			},
-			get dataStream(): AsyncIterator<string> {
+			get dataStream(): AsyncIterable<string> {
 				return that._createDataStream();
 			}
 		};
 	}
 
-	private _createDataStream(): AsyncIterator<string> {
+	private _createDataStream(): AsyncIterable<string> {
 		// TODO: This must work correctly across multiple extensions
 		const barrier = this._dataStreamBarrier = new Barrier();
 		const iterable = new AsyncIterableObject<string>(async emitter => {
 			this._dataStreamEmitter = emitter;
 			await barrier.wait();
 		});
+		return iterable;
+	}
 
-		return iterable[Symbol.asyncIterator]();
+	emitData(data: string): void {
+		this._dataStreamEmitter?.emitOne(data);
 	}
 
 	endExecution(exitCode: number | undefined): void {
