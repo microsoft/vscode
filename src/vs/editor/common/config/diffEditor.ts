@@ -10,6 +10,7 @@ export const diffEditorDefaultOptions = {
 	splitViewDefaultRatio: 0.5,
 	renderSideBySide: true,
 	renderMarginRevertIcon: true,
+	renderGutterMenu: true,
 	maxComputationTime: 5000,
 	maxFileSize: 50,
 	ignoreTrimWhitespace: true,

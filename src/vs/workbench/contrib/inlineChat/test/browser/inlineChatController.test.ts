@@ -7,16 +7,20 @@ import * as assert from 'assert';
 import { equals } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { mock } from 'vs/base/test/common/mock';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestDiffProviderFactoryService } from 'vs/editor/test/browser/diff/testDiffProviderFactoryService';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
+import { TestDiffProviderFactoryService } from 'vs/editor/test/browser/diff/testDiffProviderFactoryService';
 import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -30,20 +34,17 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { IInlineChatSavingService } from '../../browser/inlineChatSavingService';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
-import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
 import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatEditResponse, IInlineChatRequest, IInlineChatService, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { IInlineChatSavingService } from '../../browser/inlineChatSavingService';
+import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
+import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
 import { TestWorkerService } from './testWorkerService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { Schemas } from 'vs/base/common/network';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 
 suite('InteractiveChatController', function () {
 	class TestController extends InlineChatController {
@@ -113,6 +114,7 @@ suite('InteractiveChatController', function () {
 		const serviceCollection = new ServiceCollection(
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IContextKeyService, contextKeyService],
+			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IInlineChatService, inlineChatService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
@@ -145,7 +147,7 @@ suite('InteractiveChatController', function () {
 			}]
 		);
 
-		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
+		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
 		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));

@@ -11,8 +11,7 @@ import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/cou
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { equals } from 'vs/base/common/arrays';
@@ -21,17 +20,17 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
+import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
-import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { QuickInputListFocus, QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -41,13 +40,6 @@ export interface IQuickInputOptions {
 	setContextKey(id?: string): void;
 	linkOpenerDelegate(content: string): void;
 	returnFocus(): void;
-	createList<T>(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
-		options: IListOptions<T>,
-	): List<T>;
 	/**
 	 * @todo With IHover in vs/editor, can we depend on the service directly
 	 * instead of passing it through a hover delegate?
@@ -108,7 +100,7 @@ export interface QuickInputUI {
 	customButtonContainer: HTMLElement;
 	customButton: Button;
 	progressBar: ProgressBar;
-	list: QuickInputList;
+	list: QuickInputTree;
 	onDidAccept: Event<void>;
 	onDidCustom: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;
@@ -731,7 +723,15 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		return this.ui.keyMods;
 	}
 
-	set valueSelection(valueSelection: Readonly<[number, number]>) {
+	get valueSelection() {
+		const selection = this.ui.inputBox.getSelection();
+		if (!selection) {
+			return undefined;
+		}
+		return [selection.start, selection.end];
+	}
+
+	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();
@@ -826,20 +826,25 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				this.ui.inputBox.onDidChange(value => {
 					this.doSetValue(value, true /* skip update since this originates from the UI */);
 				}));
+			// Keybindings for the input box or list if there is no input box
 			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
-						this.ui.list.focus(QuickInputListFocus.Next);
+						if (isMacintosh ? event.metaKey : event.altKey) {
+							this.ui.list.focus(QuickInputListFocus.NextSeparator);
+						} else {
+							this.ui.list.focus(QuickInputListFocus.Next);
+						}
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
 						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.UpArrow:
-						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus(QuickInputListFocus.Previous);
+						if (isMacintosh ? event.metaKey : event.altKey) {
+							this.ui.list.focus(QuickInputListFocus.PreviousSeparator);
 						} else {
-							this.ui.list.focus(QuickInputListFocus.Last);
+							this.ui.list.focus(QuickInputListFocus.Previous);
 						}
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
@@ -1072,6 +1077,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		this.ui.list.sortByLabel = this.sortByLabel;
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
+			const currentActiveItems = this._activeItems;
 			this.ui.list.setElements(this.items);
 			this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
@@ -1079,6 +1085,15 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
 			switch (this._itemActivation) {
 				case ItemActivation.NONE:
+					// Handle the case where we had active items (i.e. someone chose an item)
+					// but the initial item activation is set to none. Calling clearFocus will
+					// not trigger the onDidFocus event because when the tree receives new elements,
+					// it sets the focus to no elements. So we need to set & fire the active items
+					// accordingly to reflect the state change after setting the items.
+					if (currentActiveItems.length > 0) {
+						this._activeItems = [];
+						this.onDidChangeActiveEmitter.fire(this._activeItems);
+					}
 					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
 					break;
 				case ItemActivation.SECOND:
@@ -1160,7 +1175,15 @@ export class InputBox extends QuickInput implements IInputBox {
 		this.update();
 	}
 
-	set valueSelection(valueSelection: Readonly<[number, number]>) {
+	get valueSelection() {
+		const selection = this.ui.inputBox.getSelection();
+		if (!selection) {
+			return undefined;
+		}
+		return [selection.start, selection.end];
+	}
+
+	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();

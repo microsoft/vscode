@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault, focusWindow } from 'vs/base/browser/dom';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -66,6 +66,8 @@ export interface IViewPaneOptions extends IPaneOptions {
 	readonly showActions?: ViewPaneShowActions;
 	readonly titleMenuId?: MenuId;
 	readonly donotForwardArgs?: boolean;
+	// The title of the container pane when it is merged with the view container
+	readonly singleViewPaneContainerTitle?: string;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -333,6 +335,11 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
+	private _singleViewPaneContainerTitle: string | undefined;
+	public get singleViewPaneContainerTitle(): string | undefined {
+		return this._singleViewPaneContainerTitle;
+	}
+
 	readonly menuActions: CompositeMenuActions;
 
 	private progressBar!: ProgressBar;
@@ -369,6 +376,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.id = options.id;
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
+		this._singleViewPaneContainerTitle = options.singleViewPaneContainerTitle;
 		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
 
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
@@ -603,12 +611,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (this.progressIndicator === undefined) {
 			const that = this;
-			this.progressIndicator = new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
+			this.progressIndicator = this._register(new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
 				constructor() {
 					super(that.id, that.isBodyVisible());
 					this._register(that.onDidChangeBodyVisibility(isVisible => isVisible ? this.onScopeOpened(that.id) : this.onScopeClosed(that.id)));
 				}
-			}());
+			}()));
 		}
 		return this.progressIndicator;
 	}
@@ -630,8 +638,6 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	focus(): void {
-		focusWindow(this.element);
-
 		if (this.viewWelcomeController.enabled) {
 			this.viewWelcomeController.focus();
 		} else if (this.element) {

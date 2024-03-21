@@ -191,20 +191,19 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		const resizeListener = this._register(new MutableDisposable());
 
-		this._register(this.layoutService.onDidChangeActiveContainer(() => {
+		this._register(this.layoutService.onDidChangeActiveContainer(async () => {
 			this._yRange = undefined;
 
-			// note: we intentionally don't read the activeContainer before the
-			// `then` clause to avoid any races due to quickly switching windows.
-			this.layoutService.whenActiveContainerStylesLoaded.then(() => {
-				if (this.isBuilt) {
-					this.doShowInActiveContainer();
-					this.setCoordinates();
-				}
+			// note: we intentionally don't keep the activeContainer before the
+			// `await` clause to avoid any races due to quickly switching windows.
+			await this.layoutService.whenContainerStylesLoaded(dom.getWindow(this.layoutService.activeContainer));
+			if (this.isBuilt) {
+				this.doShowInActiveContainer();
+				this.setCoordinates();
+			}
 
-				resizeListener.value = this._register(dom.addDisposableListener(
-					dom.getWindow(this.layoutService.activeContainer), dom.EventType.RESIZE, () => this.setYCoordinate()));
-			});
+			resizeListener.value = this._register(dom.addDisposableListener(
+				dom.getWindow(this.layoutService.activeContainer), dom.EventType.RESIZE, () => this.setYCoordinate()));
 		}));
 	}
 

@@ -65,6 +65,8 @@ import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/conf
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { mainWindow } from 'vs/base/browser/window';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
+import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -197,7 +199,7 @@ export function setupInstantiationService(disposables: DisposableStore) {
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(INotebookCellStatusBarService, disposables.add(new NotebookCellStatusBarService()));
 	instantiationService.stub(ICodeEditorService, disposables.add(new TestCodeEditorService(testThemeService)));
-
+	instantiationService.stub(IInlineChatService, instantiationService.createInstance(InlineChatServiceImpl));
 	return instantiationService;
 }
 

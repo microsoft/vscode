@@ -369,6 +369,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				this.splice(targetIndex, false, newEditor);
 			}
 
+			// Handle transient
+			if (makeTransient) {
+				this.doSetTransient(newEditor, targetIndex, true);
+			}
+
 			// Handle preview
 			if (!makePinned) {
 
@@ -383,11 +388,6 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				}
 
 				this.preview = newEditor;
-			}
-
-			// Handle transient
-			if (makeTransient) {
-				this.doSetTransient(newEditor, targetIndex, true);
 			}
 
 			// Listeners
@@ -416,13 +416,13 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		else {
 			const [existingEditor, existingEditorIndex] = existingEditorAndIndex;
 
+			// Update transient (existing editors do not turn transient if they were not before)
+			this.doSetTransient(existingEditor, existingEditorIndex, makeTransient === false ? false : this.isTransient(existingEditor));
+
 			// Pin it
 			if (makePinned) {
 				this.doPin(existingEditor, existingEditorIndex);
 			}
-
-			// Update transient
-			this.doSetTransient(existingEditor, existingEditorIndex, makeTransient);
 
 			// Activate it
 			if (makeActive) {
@@ -725,6 +725,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		if (this.isPinned(editor)) {
 			return; // can only pin a preview editor
 		}
+
+		// Clear Transient
+		this.setTransient(editor, false);
 
 		// Convert the preview editor to be a pinned editor
 		this.preview = null;

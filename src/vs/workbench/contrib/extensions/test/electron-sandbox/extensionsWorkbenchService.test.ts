@@ -51,6 +51,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Mutable } from 'vs/base/common/types';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -73,6 +76,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(IProductService, {});
 
@@ -94,6 +98,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
+			async getInstalledWorkspaceExtensions() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
 				local.identifier.uuid = metadata.id;
@@ -131,6 +136,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 	});
 
 	test('test gallery extension', async () => {

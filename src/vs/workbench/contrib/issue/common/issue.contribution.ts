@@ -12,6 +12,8 @@ import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 const OpenIssueReporterApiId = 'vscode.openIssueReporter';
@@ -57,15 +59,18 @@ interface OpenIssueReporterArgs {
 	readonly extensionData?: string;
 }
 
-export class BaseIssueContribution implements IWorkbenchContribution {
+export class BaseIssueContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
+		super();
+
 		if (!productService.reportIssueUrl) {
 			return;
 		}
 
-		CommandsRegistry.registerCommand({
+		this._register(CommandsRegistry.registerCommand({
 			id: OpenIssueReporterActionId,
 			handler: function (accessor, args?: string | [string] | OpenIssueReporterArgs) {
 				const data: Partial<IssueReporterData> =
@@ -78,9 +83,9 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 				return accessor.get(IWorkbenchIssueService).openReporter(data);
 			},
 			metadata: OpenIssueReporterCommandMetadata
-		});
+		}));
 
-		CommandsRegistry.registerCommand({
+		this._register(CommandsRegistry.registerCommand({
 			id: OpenIssueReporterApiId,
 			handler: function (accessor, args?: string | [string] | OpenIssueReporterArgs) {
 				const data: Partial<IssueReporterData> =
@@ -93,7 +98,7 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 				return accessor.get(IWorkbenchIssueService).openReporter(data);
 			},
 			metadata: OpenIssueReporterCommandMetadata
-		});
+		}));
 
 		const reportIssue: ICommandAction = {
 			id: OpenIssueReporterActionId,
@@ -101,15 +106,15 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 			category: Categories.Help
 		};
 
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: reportIssue });
+		this._register(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: reportIssue }));
 
-		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 			group: '3_feedback',
 			command: {
 				id: OpenIssueReporterActionId,
 				title: localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
 			},
 			order: 3
-		});
+		}));
 	}
 }

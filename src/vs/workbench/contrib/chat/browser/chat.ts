@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
+import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
-export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
-export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 
 export interface IChatWidgetService {
 
@@ -36,6 +37,7 @@ export interface IChatWidgetService {
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 }
 
+export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
 export interface IQuickChatService {
 	readonly _serviceBrand: undefined;
 	readonly onDidClose: Event<void>;
@@ -63,6 +65,7 @@ export interface IQuickChatOpenOptions {
 	selection?: Selection;
 }
 
+export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(): number;
@@ -109,6 +112,7 @@ export interface IChatWidget {
 	readonly providerId: string;
 	readonly supportsFileReferences: boolean;
 	readonly parsedInput: IParsedChatRequest;
+	lastSelectedAgent: IChatAgentData | undefined;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
@@ -134,3 +138,17 @@ export interface IChatWidget {
 export interface IChatViewPane {
 	clear(): void;
 }
+
+
+export interface ICodeBlockActionContextProvider {
+	getCodeBlockContext(editor?: ICodeEditor): ICodeBlockActionContext | undefined;
+}
+
+export const IChatCodeBlockContextProviderService = createDecorator<IChatCodeBlockContextProviderService>('chatCodeBlockContextProviderService');
+export interface IChatCodeBlockContextProviderService {
+	readonly _serviceBrand: undefined;
+	readonly providers: ICodeBlockActionContextProvider[];
+	registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable;
+}
+
+export const GeneratingPhrase = localize('generating', "Generating");

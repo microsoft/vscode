@@ -15,7 +15,8 @@ use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
 use crate::util::command::{
-	capture_command, capture_command_and_check_status, kill_tree, new_script_command,
+	capture_command, capture_command_and_check_status, check_output_status, kill_tree,
+	new_script_command,
 };
 use crate::util::errors::{wrap, AnyError, CodeError, ExtensionInstallFailed, WrappedError};
 use crate::util::http::{self, BoxedHttp};
@@ -56,6 +57,8 @@ pub struct CodeServerArgs {
 	pub log: Option<log::Level>,
 	pub accept_server_license_terms: bool,
 	pub verbose: bool,
+	pub server_data_dir: Option<String>,
+	pub extensions_dir: Option<String>,
 	// extension management
 	pub install_extensions: Vec<String>,
 	pub uninstall_extensions: Vec<String>,
@@ -142,6 +145,12 @@ impl CodeServerArgs {
 			if let Some(i) = &self.category {
 				args.push(format!("--category={}", i));
 			}
+		}
+		if let Some(d) = &self.server_data_dir {
+			args.push(format!("--server-data-dir={}", d));
+		}
+		if let Some(d) = &self.extensions_dir {
+			args.push(format!("--extensions-dir={}", d));
 		}
 		if self.start_server {
 			args.push(String::from("--start-server"));
@@ -486,6 +495,28 @@ impl<'a> ServerBuilder<'a> {
 			port,
 			origin: Arc::new(origin),
 		})
+	}
+
+	/// Runs the command that just installs extensions and exits.
+	pub async fn install_extensions(&self) -> Result<(), AnyError> {
+		// cmd already has --install-extensions from base
+		let mut cmd = self.get_base_command();
+		let cmd_str = || {
+			self.server_params
+				.code_server_args
+				.command_arguments()
+				.join(" ")
+		};
+
+		let r = cmd.output().await.map_err(|e| CodeError::CommandFailed {
+			command: cmd_str(),
+			code: -1,
+			output: e.to_string(),
+		})?;
+
+		check_output_status(r, cmd_str)?;
+
+		Ok(())
 	}
 
 	pub async fn listen_on_default_socket(&self) -> Result<SocketCodeServer, AnyError> {

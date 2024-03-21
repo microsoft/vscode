@@ -303,25 +303,26 @@ export enum EditorOption {
 	useShadowDOM = 127,
 	useTabStops = 128,
 	wordBreak = 129,
-	wordSeparators = 130,
-	wordWrap = 131,
-	wordWrapBreakAfterCharacters = 132,
-	wordWrapBreakBeforeCharacters = 133,
-	wordWrapColumn = 134,
-	wordWrapOverride1 = 135,
-	wordWrapOverride2 = 136,
-	wrappingIndent = 137,
-	wrappingStrategy = 138,
-	showDeprecated = 139,
-	inlayHints = 140,
-	editorClassName = 141,
-	pixelRatio = 142,
-	tabFocusMode = 143,
-	layoutInfo = 144,
-	wrappingInfo = 145,
-	defaultColorDecorators = 146,
-	colorDecoratorsActivatedOn = 147,
-	inlineCompletionsAccessibilityVerbose = 148
+	wordSegmenterLocales = 130,
+	wordSeparators = 131,
+	wordWrap = 132,
+	wordWrapBreakAfterCharacters = 133,
+	wordWrapBreakBeforeCharacters = 134,
+	wordWrapColumn = 135,
+	wordWrapOverride1 = 136,
+	wordWrapOverride2 = 137,
+	wrappingIndent = 138,
+	wrappingStrategy = 139,
+	showDeprecated = 140,
+	inlayHints = 141,
+	editorClassName = 142,
+	pixelRatio = 143,
+	tabFocusMode = 144,
+	layoutInfo = 145,
+	wrappingInfo = 146,
+	defaultColorDecorators = 147,
+	colorDecoratorsActivatedOn = 148,
+	inlineCompletionsAccessibilityVerbose = 149
 }
 
 /**
@@ -647,6 +648,14 @@ export enum MinimapPosition {
 }
 
 /**
+ * Section header style.
+ */
+export enum MinimapSectionHeaderStyle {
+	Normal = 1,
+	Underlined = 2
+}
+
+/**
  * Type of hit element with the mouse in the editor.
  */
 export enum MouseTargetType {
@@ -738,6 +747,15 @@ export enum OverviewRulerLane {
 	Center = 2,
 	Right = 4,
 	Full = 7
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2
 }
 
 export enum PositionAffinity {

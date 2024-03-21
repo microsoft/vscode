@@ -11,6 +11,8 @@ import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IAction } from 'vs/base/common/actions';
@@ -111,6 +113,7 @@ export class InputBox extends Widget {
 	private cachedContentHeight: number | undefined;
 	private maxHeight: number = Number.POSITIVE_INFINITY;
 	private scrollableElement: ScrollableElement | undefined;
+	private hover: ICustomHover | undefined;
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -230,7 +233,11 @@ export class InputBox extends Widget {
 
 	public setTooltip(tooltip: string): void {
 		this.tooltip = tooltip;
-		this.input.title = tooltip;
+		if (!this.hover) {
+			this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.input, tooltip));
+		} else {
+			this.hover.update(tooltip);
+		}
 	}
 
 	public setAriaLabel(label: string): void {
@@ -303,6 +310,18 @@ export class InputBox extends Widget {
 
 	public isSelectionAtEnd(): boolean {
 		return this.input.selectionEnd === this.input.value.length && this.input.selectionStart === this.input.selectionEnd;
+	}
+
+	public getSelection(): IRange | null {
+		const selectionStart = this.input.selectionStart;
+		if (selectionStart === null) {
+			return null;
+		}
+		const selectionEnd = this.input.selectionEnd ?? selectionStart;
+		return {
+			start: selectionStart,
+			end: selectionEnd,
+		};
 	}
 
 	public enable(): void {

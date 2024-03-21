@@ -291,6 +291,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribCommentPeekContext'
 	},
 	{
+		key: 'commentsView/commentThread/context',
+		id: MenuId.CommentsViewThreadActions,
+		description: localize('commentsView.threadActions', "The contributed comment thread context menu in the comments view"),
+		proposed: 'contribCommentsViewThreadMenus'
+	},
+	{
 		key: 'notebook/toolbar',
 		id: MenuId.NotebookToolbar,
 		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
@@ -336,6 +342,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'testing/item/gutter',
 		id: MenuId.TestItemGutter,
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
+	},
+	{
+		key: 'testing/item/result',
+		id: MenuId.TestPeekElement,
+		description: localize('testing.item.result.title', "The menu for an item in the Test Results view or peek."),
 	},
 	{
 		key: 'testing/message/context',
@@ -430,6 +441,18 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.MultiDiffEditorFileToolbar,
 		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
 		proposed: 'contribMultiDiffEditorMenus'
+	},
+	{
+		key: 'diffEditor/gutter/hunk',
+		id: MenuId.DiffEditorHunkToolbar,
+		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
+		proposed: 'contribDiffEditorGutterToolBarMenus'
+	},
+	{
+		key: 'diffEditor/gutter/selection',
+		id: MenuId.DiffEditorSelectionToolbar,
+		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
+		proposed: 'contribDiffEditorGutterToolBarMenus'
 	}
 ];
 

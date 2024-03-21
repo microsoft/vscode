@@ -109,8 +109,13 @@ class ChatVariableResolverResponseStream {
 				},
 				push(part) {
 					throwIfDone(this.push);
-					const dto = typeConvert.ChatResponsePart.to(part);
-					_report(dto as IChatVariableResolverProgressDto);
+
+					if (part instanceof extHostTypes.ChatResponseReferencePart) {
+						_report(typeConvert.ChatResponseReferencePart.to(part));
+					} else if (part instanceof extHostTypes.ChatResponseProgressPart) {
+						_report(typeConvert.ChatResponseProgressPart.to(part));
+					}
+
 					return this;
 				}
 			};

@@ -24,7 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, createTooLargeFileError, isEditorOpenError } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling, createEditorOpenError, createTooLargeFileError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -51,7 +51,7 @@ import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewI
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
-export class NotebookEditor extends EditorPane implements INotebookEditorPane {
+export class NotebookEditor extends EditorPane implements INotebookEditorPane, IEditorPaneWithScrolling {
 	static readonly ID: string = NOTEBOOK_EDITOR_ID;
 
 	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -74,6 +74,9 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 	private readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+
+	protected readonly _onDidChangeScroll = this._register(new Emitter<void>());
+	readonly onDidChangeScroll = this._onDidChangeScroll.event;
 
 	constructor(
 		group: IEditorGroup,
@@ -320,6 +323,8 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 				containsGroup: (group) => this.group.id === group.id
 			}));
 
+			this._widgetDisposableStore.add(this._widget.value.onDidScroll(() => { this._onDidChangeScroll.fire(); }));
+
 			perf.mark('editorLoaded');
 
 			fileOpenMonitor.cancel();
@@ -508,6 +513,26 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		return undefined;
 	}
 
+	getScrollPosition(): IEditorPaneScrollPosition {
+		const widget = this.getControl();
+		if (!widget) {
+			throw new Error('Notebook widget has not yet been initialized');
+		}
+
+		return {
+			scrollTop: widget.scrollTop,
+			scrollLeft: 0,
+		};
+	}
+
+	setScrollPosition(scrollPosition: IEditorPaneScrollPosition): void {
+		const editor = this.getControl();
+		if (!editor) {
+			throw new Error('Control has not yet been initialized');
+		}
+
+		editor.setScrollTop(scrollPosition.scrollTop);
+	}
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
 		if (this._widget.value && input instanceof NotebookEditorInput) {

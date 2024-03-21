@@ -648,7 +648,7 @@ export class TypeOperations {
 
 			// Do not auto-close ' or " after a word character
 			if (pair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
-				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
+				const wordSeparators = getMapForWordSeparators(config.wordSeparators, []);
 				if (lineBefore.length > 0) {
 					const characterBefore = lineBefore.charCodeAt(lineBefore.length - 1);
 					if (wordSeparators.get(characterBefore) === WordCharacterClass.Regular) {
