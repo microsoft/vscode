@@ -54,6 +54,7 @@ export class OnEnterSupport {
 	}
 
 	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
+		console.log('onEnter of OnEnterSupport');
 		// (1): `regExpRules`
 		// Here advanced and full are covered by the following code, but not the brackets strategy and the strategies below it
 		if (autoIndent >= EditorAutoIndentStrategy.Advanced) {
@@ -82,6 +83,7 @@ export class OnEnterSupport {
 				// Suppose that all the corresponding regexes are validated
 				// In that case, need to return the corresponding action
 				if (regResult) {
+					console.log('return 1');
 					return rule.action;
 				}
 			}
@@ -96,6 +98,7 @@ export class OnEnterSupport {
 					// If before the cursor position, the bracket open regexp matches the beforeEnterText, and the closRegExp matches the afterEnterText
 					// Then we insert an indented line, followed by a line at the same indentation level (or outdented with respect to previous indented line).
 					if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
+						console.log('return 2');
 						return { indentAction: IndentAction.IndentOutdent };
 					}
 				}
@@ -117,6 +120,7 @@ export class OnEnterSupport {
 			}
 		}
 
+		console.log('return 3');
 		return null;
 	}
 
