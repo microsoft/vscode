@@ -46,26 +46,16 @@ import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineC
 import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { inputEditorOptions, codeEditorWidgetOptions, defaultAriaLabel } from './inlineChatInputWidget';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { isNonEmptyArray, tail } from 'vs/base/common/arrays';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 
-
-const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
-	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
-	renderMarginRevertIcon: false,
-	diffCodeLens: false,
-	scrollBeyondLastLine: false,
-	stickyScroll: { enabled: false },
-	originalAriaLabel: localize('original', 'Original'),
-	modifiedAriaLabel: localize('modified', 'Modified'),
-	diffAlgorithm: 'advanced',
-	readOnly: true,
-	isInEmbeddedEditor: true
-};
 
 export interface InlineChatWidgetViewState {
 	editorViewState: ICodeEditorViewState;
@@ -320,7 +310,6 @@ export class InlineChatWidget {
 			const kbLabel = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 			label = kbLabel ? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel) : localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
 		}
-		inputEditorOptions.ariaLabel = label;
 		this._chatWidget.inputEditor.updateOptions({ ariaLabel: label });
 	}
 
@@ -570,6 +559,30 @@ export class InlineChatWidget {
 	}
 
 }
+
+const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
+
+const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+	isSimpleWidget: true,
+	contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+		SnippetController2.ID,
+		SuggestController.ID
+	])
+};
+
+const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
+	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
+	renderMarginRevertIcon: false,
+	diffCodeLens: false,
+	scrollBeyondLastLine: false,
+	stickyScroll: { enabled: false },
+	originalAriaLabel: localize('original', 'Original'),
+	modifiedAriaLabel: localize('modified', 'Modified'),
+	diffAlgorithm: 'advanced',
+	readOnly: true,
+	isInEmbeddedEditor: true
+};
+
 
 export class EditorBasedInlineChatWidget extends InlineChatWidget {
 

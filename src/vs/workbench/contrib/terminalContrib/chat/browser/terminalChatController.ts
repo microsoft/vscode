@@ -23,7 +23,6 @@ import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/br
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { InlineChatHistory } from 'vs/workbench/contrib/inlineChat/browser/inlineChatHistory';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 const enum Message {
@@ -71,7 +70,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private _currentRequest: ChatRequestModel | undefined;
 
-	private readonly _history: InlineChatHistory;
 	private _lastInput: string | undefined;
 	private _lastResponseContent: string | undefined;
 	get lastResponseContent(): string | undefined {
@@ -107,8 +105,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
-
-		this._history = this._instantiationService.createInstance(InlineChatHistory, 'terminal-chat-history');
 
 		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
 			return;
@@ -279,7 +275,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		};
 
 		await model.waitForInitialization();
-		this._history.update(this._lastInput);
 		this._chatWidget?.value.addToHistory(this._lastInput);
 		const request: IParsedChatRequest = {
 			text: this._lastInput,
@@ -362,7 +357,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	reveal(): void {
 		this._chatWidget?.value.reveal();
-		this._history.clearCandidate();
 	}
 
 	async viewInChat(): Promise<void> {
@@ -391,13 +385,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				widget.focusInput();
 			}
 			this._chatWidget?.value.hide();
-		}
-	}
-
-	populateHistory(up: boolean) {
-		const entry = this._history.populateHistory(this.getInput(), up);
-		if (entry) {
-			this.updateInput(entry, true);
 		}
 	}
 
