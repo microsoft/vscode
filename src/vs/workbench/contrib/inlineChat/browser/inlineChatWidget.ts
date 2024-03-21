@@ -55,6 +55,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 
 export interface InlineChatWidgetViewState {
@@ -145,8 +146,6 @@ export class InlineChatWidget {
 	private _isLayouting: boolean = false;
 
 	private _followUpDisposables = this._store.add(new DisposableStore());
-
-
 	constructor(
 		location: ChatAgentLocation,
 		options: IInlineChatWidgetConstructionOptions,
@@ -157,6 +156,7 @@ export class InlineChatWidget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		// Share hover delegates between toolbars to support instant hover between both
 		// TODO@jrieken move into chat widget
@@ -165,6 +165,9 @@ export class InlineChatWidget {
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
 				this._updateAriaLabel();
+				// TODO@jrieken	FIX THIS
+				// this._chatWidget.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+				this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 			}
 		}));
 
@@ -285,11 +288,9 @@ export class InlineChatWidget {
 
 		this._elements.statusLabel.tabIndex = 0;
 
-		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
-				// TODO@jrieken	FIX THIS
-				// this._chatWidget.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
-				this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+		this._store.add(this._chatService.onDidPerformUserAction(e => {
+			if (e.sessionId === this._chatWidget.viewModel?.model.sessionId && e.action.kind === 'vote') {
+				this.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 			}
 		}));
 
@@ -430,6 +431,10 @@ export class InlineChatWidget {
 			return undefined;
 		}
 		return tail(requests).response?.response.asString();
+	}
+
+	getChatModel(): IChatModel {
+		return this._chatWidget.viewModel?.model ?? this._defaultChatModel;
 	}
 
 	setChatModel(chatModel: IChatModel) {
@@ -605,8 +610,9 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ITextModelService textModelResolverService: ITextModelService,
+		@IChatService chatService: IChatService,
 	) {
-		super(ChatAgentLocation.Editor, options, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService);
+		super(ChatAgentLocation.Editor, options, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService);
 
 		// preview editors
 		this._previewDiffEditor = new Lazy(() => this._store.add(instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {

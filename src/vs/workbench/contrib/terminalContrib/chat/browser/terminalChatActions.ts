@@ -295,54 +295,6 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalChatCommandId.FeedbackHelpful,
-	title: localize2('feedbackHelpful', 'Helpful'),
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined)
-	),
-	icon: Codicon.thumbsup,
-	toggled: TerminalChatContextKeys.sessionResponseVote.isEqualTo('up'),
-	menu: {
-		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-		group: 'inline',
-		order: 1,
-		when: TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined),
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.acceptFeedback(true);
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.FeedbackUnhelpful,
-	title: localize2('feedbackUnhelpful', 'Unhelpful'),
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined),
-	),
-	toggled: TerminalChatContextKeys.sessionResponseVote.isEqualTo('down'),
-	icon: Codicon.thumbsdown,
-	menu: {
-		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-		group: 'inline',
-		order: 2,
-		when: TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined),
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.acceptFeedback(false);
-	}
-});
-
-registerActiveXtermAction({
 	id: TerminalChatCommandId.FeedbackReportIssue,
 	title: localize2('reportIssue', 'Report Issue'),
 	precondition: ContextKeyExpr.and(
