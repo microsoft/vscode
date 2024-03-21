@@ -20,7 +20,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { TextEdit } from 'vs/editor/common/languages';
+import { CompletionItemKind, CompletionList, TextEdit } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
@@ -47,6 +47,9 @@ import { MessageController } from 'vs/editor/contrib/message/browser/messageCont
 import { tail } from 'vs/base/common/arrays';
 import { IChatRequestModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -144,6 +147,8 @@ export class InlineChatController implements IEditorContribution {
 		@IChatService private readonly _chatService: IChatService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
@@ -427,6 +432,35 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
+		// TODO@jrieken
+		// REMOVE when agents are adopted
+		this._sessionStore.add(this._languageFeatureService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'inline chat commands',
+			triggerCharacters: ['/'],
+			provideCompletionItems: (model, position, context, token) => {
+
+				if (!this._session || !this._session.session.slashCommands) {
+					return undefined;
+				}
+				const widget = this._chatWidgetService.getWidgetByInputUri(model.uri);
+				if (widget !== this._zone.value.widget.chatWidget && widget !== this._input.value.chatWidget) {
+					return undefined;
+				}
+
+				const result: CompletionList = { suggestions: [], incomplete: false };
+				for (const command of this._session.session.slashCommands) {
+					const withSlash = `/${command.command}`;
+					result.suggestions.push({
+						label: { label: withSlash, description: command.detail ?? '' },
+						kind: CompletionItemKind.Text,
+						insertText: withSlash,
+						range: Range.fromPositions(new Position(1, 1), position),
+					});
+				}
+
+				return result;
+			}
+		}));
 		// Update context key
 		this._ctxSupportIssueReporting.set(this._session.provider.supportIssueReporting ?? false);
 
@@ -504,9 +538,20 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.value = input;
 
 		// slash command referring
-		const slashCommandLike = request.message.parts.find(part => part instanceof ChatRequestAgentSubcommandPart || part instanceof ChatRequestSlashCommandPart);
-		const refer = slashCommandLike && this._session.session.slashCommands?.some(value => value.refer && slashCommandLike.text === `/${value.command}`);
-		if (refer) {
+		let slashCommandLike = request.message.parts.find(part => part instanceof ChatRequestAgentSubcommandPart || part instanceof ChatRequestSlashCommandPart);
+		const refer = this._session.session.slashCommands?.some(value => {
+			if (value.refer) {
+				if (slashCommandLike?.text === `/${value.command}`) {
+					return true;
+				}
+				if (request?.message.text.startsWith(`/${value.command}`)) {
+					slashCommandLike = new ChatRequestSlashCommandPart(new OffsetRange(0, 1), new Range(1, 1, 1, 1), { command: value.command, detail: value.detail ?? '' });
+					return true;
+				}
+			}
+			return false;
+		});
+		if (refer && slashCommandLike) {
 			this._log('[IE] seeing refer command, continuing outside editor', this._session.provider.extensionId);
 
 			// cancel this request

@@ -276,7 +276,7 @@ class SlashCommandCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel) {
+				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -331,7 +331,7 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['@'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel) {
+				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -376,7 +376,7 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel) {
+				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return;
 				}
 
@@ -428,7 +428,7 @@ class AgentCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
-				if (!widget || !viewModel) {
+				if (!widget || !viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return;
 				}
 
@@ -523,7 +523,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.supportsFileReferences) {
+				if (!widget || !widget.supportsFileReferences || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -589,7 +589,7 @@ class VariableCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
+				if (!widget || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
