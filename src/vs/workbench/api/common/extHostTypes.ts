@@ -4351,9 +4351,11 @@ export class LanguageModelChatUserMessage {
 
 export class LanguageModelChatAssistantMessage {
 	content: string;
+	name?: string;
 
-	constructor(content: string) {
+	constructor(content: string, name?: string) {
 		this.content = content;
+		this.name = name;
 	}
 }
 
