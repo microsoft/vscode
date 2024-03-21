@@ -524,7 +524,7 @@ extends:
                   NPM_ARCH: x64
                   DISPLAY: ":10"
                 steps:
-                  - template: linux/product-build-linux-legacy-server.yml
+                  - template: build/azure-pipelines/linux/product-build-linux-legacy-server.yml@self
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
@@ -536,7 +536,7 @@ extends:
                   VSCODE_ARCH: armhf
                   NPM_ARCH: arm
                 steps:
-                  - template: linux/product-build-linux-legacy-server.yml
+                  - template: build/azure-pipelines/linux/product-build-linux-legacy-server.yml@self
                     parameters:
                       VSCODE_ARCH: armhf
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
@@ -548,7 +548,7 @@ extends:
                   VSCODE_ARCH: arm64
                   NPM_ARCH: arm64
                 steps:
-                  - template: linux/product-build-linux-legacy-server.yml
+                  - template: build/azure-pipelines/linux/product-build-linux-legacy-server.yml@self
                     parameters:
                       VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
