@@ -171,7 +171,7 @@ steps:
       export VSCODE_NODE_GLIBC="-glibc-2.17"
       yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
-      ARCHIVE_PATH=".build/linux/server/legacy-vscode-server-linux-$(VSCODE_ARCH).tar.gz"
+      ARCHIVE_PATH=".build/linux/server/vscode-server-linux-legacy-$(VSCODE_ARCH).tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)
       echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
@@ -184,7 +184,7 @@ steps:
       export VSCODE_NODE_GLIBC="-glibc-2.17"
       yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
-      ARCHIVE_PATH=".build/linux/web/legacy-vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"
+      ARCHIVE_PATH=".build/linux/web/vscode-server-linux-legacy-$(VSCODE_ARCH)-web.tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)-web
       echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
@@ -202,22 +202,22 @@ steps:
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
-    - task: 1ES.PublishPipelineArtifact@1
-      inputs:
-        targetPath: $(SERVER_PATH)
-        artifactName: $(ARTIFACT_PREFIX)vscode_legacy_server_linux_$(VSCODE_ARCH)_archive-unsigned
-        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
-        sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Legacy Server"
-        sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
-      displayName: Publish server archive
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(SERVER_PATH)
+      artifactName: $(ARTIFACT_PREFIX)vscode_server_linux_legacy_$(VSCODE_ARCH)_archive-unsigned
+      sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
+      sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Legacy Server"
+      sbomPackageVersion: $(Build.SourceVersion)
+    condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+    displayName: Publish server archive
 
-    - task: 1ES.PublishPipelineArtifact@1
-      inputs:
-        targetPath: $(WEB_PATH)
-        artifactName: $(ARTIFACT_PREFIX)vscode_legacy_web_linux_$(VSCODE_ARCH)_archive-unsigned
-        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-        sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Legacy Web"
-        sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
-      displayName: Publish web server archive
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(WEB_PATH)
+      artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_legacy_$(VSCODE_ARCH)_archive-unsigned
+      sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+      sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Legacy Web"
+      sbomPackageVersion: $(Build.SourceVersion)
+    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+    displayName: Publish web server archive
