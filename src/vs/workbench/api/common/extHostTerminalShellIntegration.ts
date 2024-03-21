@@ -52,7 +52,14 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 		this.onDidStartTerminalShellExecution(async e => {
 			console.log('*** onDidStartTerminalShellExecution', e);
-			for await (const d of e.dataStream) {
+			new Promise<void>(r => {
+				(async () => {
+					for await (const d of e.createDataStream()) {
+						console.log('data2', d);
+					}
+				})();
+			});
+			for await (const d of e.createDataStream()) {
 				console.log('data', d);
 			}
 		});
@@ -114,8 +121,7 @@ class InternalTerminalShellIntegration {
 }
 
 class InternalTerminalShellExecution {
-	private _dataStreamBarrier: Barrier | undefined;
-	private _dataStreamEmitter: AsyncIterableEmitter<string> | undefined;
+	private _dataStream: ShellExecutionDataStream | undefined;
 
 	private readonly _exitCode: Promise<number | undefined>;
 	private _exitCodeResolve: ((exitCode: number | undefined) => void) | undefined;
@@ -145,7 +151,7 @@ class InternalTerminalShellExecution {
 			get exitCode(): Promise<number | undefined> {
 				return that._exitCode;
 			},
-			get dataStream(): AsyncIterable<string> {
+			createDataStream(): AsyncIterable<string> {
 				return that._createDataStream();
 			}
 		};
@@ -153,21 +159,45 @@ class InternalTerminalShellExecution {
 
 	private _createDataStream(): AsyncIterable<string> {
 		// TODO: This must work correctly across multiple extensions
-		const barrier = this._dataStreamBarrier = new Barrier();
+		if (!this._dataStream) {
+			this._dataStream = new ShellExecutionDataStream();
+		}
+		return this._dataStream.createIterable();
+	}
+
+	emitData(data: string): void {
+		this._dataStream?.emitData(data);
+	}
+
+	endExecution(exitCode: number | undefined): void {
+		this._dataStream?.endExecution();
+		this._dataStream = undefined;
+		this._exitCodeResolve?.(exitCode);
+		this._exitCodeResolve = undefined;
+	}
+}
+
+class ShellExecutionDataStream extends Disposable {
+	private _barrier: Barrier | undefined;
+	private _emitters: AsyncIterableEmitter<string>[] = [];
+
+	createIterable(): AsyncIterable<string> {
+		const barrier = this._barrier = new Barrier();
 		const iterable = new AsyncIterableObject<string>(async emitter => {
-			this._dataStreamEmitter = emitter;
+			this._emitters.push(emitter);
 			await barrier.wait();
 		});
 		return iterable;
 	}
 
 	emitData(data: string): void {
-		this._dataStreamEmitter?.emitOne(data);
+		for (const emitter of this._emitters) {
+			emitter.emitOne(data);
+		}
 	}
 
-	endExecution(exitCode: number | undefined): void {
-		this._dataStreamBarrier?.open();
-		this._exitCodeResolve?.(exitCode);
-		this._exitCodeResolve = undefined;
+	endExecution(): void {
+		this._barrier?.open();
+		this._barrier = undefined;
 	}
 }

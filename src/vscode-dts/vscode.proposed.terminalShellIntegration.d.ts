@@ -31,7 +31,7 @@ declare module 'vscode' {
 		exitCode: Thenable<number | undefined>;
 
 		/**
-		 * A per-extension stream of raw data (including escape sequences) that is written to the
+		 * Creates a stream of raw data (including escape sequences) that is written to the
 		 * terminal. This will only include data that was written after `stream` was called for the
 		 * first time, ie. you must call `dataStream` immediately after the command is executed via
 		 * {@link executeCommand} or {@link onDidStartTerminalShellExecution} to not miss any data.
@@ -39,11 +39,12 @@ declare module 'vscode' {
 		 * @example
 		 * // Log all data written to the terminal for a command
 		 * const command = term.shellIntegration.executeCommand({ commandLine: 'echo "Hello world"' });
-		 * for await (const data of command.dataStream) {
+		 * const stream = command.createDataStream();
+		 * for await (const data of stream) {
 		 *   console.log(data);
 		 * }
 		 */
-		dataStream: AsyncIterable<string>;
+		createDataStream(): AsyncIterable<string>;
 	}
 
 	export interface Terminal {
