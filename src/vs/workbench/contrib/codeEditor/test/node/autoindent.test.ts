@@ -190,7 +190,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		// explanation: if (, [, {, is followed by a forward slash then assume we are in a regex pattern, and do not indent
 
 		// increaseIndentPattern: /^((?!\/\/).)*(\{([^}"'`]*|(\t|[ ])*\/\/.*)|\([^)"'`]*|\[[^\]"'`]*)$/ -> /^((?!\/\/).)*(\{([^}"'`/]*|(\t|[ ])*\/\/.*)|\([^)"'`/]*|\[[^\]"'`/]*)$/
-		// -> Final current increase indent pattern
+		// -> Final current increase indent pattern at of writing
 
 		const fileContents = [
 			'const r = /{/;',
@@ -214,7 +214,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		// fix: https://github.com/microsoft/vscode/commit/7910b3d7bab8a721aae98dc05af0b5e1ea9d9782
 
 		// decreaseIndentPattern: /^(.*\*\/)?\s*[\}\]\)].*$/ -> /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/
-		// -> Final current decrease indent pattern
+		// -> Final current decrease indent pattern at the time of writing
 
 		// explanation: Positive lookahead: (?= «pattern») matches if pattern matches what comes after the current location in the input string.
 		// Negative lookahead: (?! «pattern») matches if pattern does not match what comes after the current location in the input string
