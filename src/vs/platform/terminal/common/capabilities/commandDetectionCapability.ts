@@ -74,7 +74,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandFinished = this._onCommandFinished.event;
-	private readonly _onCommandExecuted = this._register(new Emitter<void>());
+	private readonly _onCommandExecuted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandExecuted = this._onCommandExecuted.event;
 	private readonly _onCommandInvalidated = this._register(new Emitter<ITerminalCommand[]>());
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
@@ -408,7 +408,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 interface ICommandDetectionHeuristicsHooks {
 	readonly onCurrentCommandInvalidatedEmitter: Emitter<ICommandInvalidationRequest>;
 	readonly onCommandStartedEmitter: Emitter<ITerminalCommand>;
-	readonly onCommandExecutedEmitter: Emitter<void>;
+	readonly onCommandExecutedEmitter: Emitter<ITerminalCommand>;
 	readonly dimensions: ITerminalDimensions;
 	readonly isCommandStorageDisabled: boolean;
 
@@ -495,7 +495,7 @@ class UnixPtyHeuristics extends Disposable {
 		if (y === commandExecutedLine) {
 			currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, currentCommand.commandExecutedX) || '';
 		}
-		this._hooks.onCommandExecutedEmitter.fire();
+		this._hooks.onCommandExecutedEmitter.fire(currentCommand as ITerminalCommand);
 	}
 }
 
@@ -733,7 +733,7 @@ class WindowsPtyHeuristics extends Disposable {
 		this._onCursorMoveListener.clear();
 		this._evaluateCommandMarkers();
 		this._capability.currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
-		this._hooks.onCommandExecutedEmitter.fire();
+		this._hooks.onCommandExecutedEmitter.fire(this._capability.currentCommand as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._capability.currentCommand.commandExecutedX, this._capability.currentCommand.commandExecutedMarker?.line);
 	}
 
@@ -827,7 +827,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 		this._capability.currentCommand.commandExecutedMarker = this._hooks.commandMarkers[this._hooks.commandMarkers.length - 1];
 		// Fire this now to prevent issues like #197409
-		this._hooks.onCommandExecutedEmitter.fire();
+		this._hooks.onCommandExecutedEmitter.fire(this._capability.currentCommand as ITerminalCommand);
 	}
 
 	private _cursorOnNextLine(): boolean {
