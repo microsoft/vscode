@@ -51,6 +51,9 @@ export interface IParcelWatcherInstance {
 	 */
 	readonly worker: RunOnceWorker<IFileChange>;
 
+	readonly includes: ParsedPattern[] | undefined;
+	readonly excludes: ParsedPattern[] | undefined;
+
 	/**
 	 * Stops and disposes the watcher. This operation is async to await
 	 * unsubscribe call in Parcel.
@@ -73,7 +76,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 	private readonly _onDidError = this._register(new Emitter<string>());
 	readonly onDidError = this._onDidError.event;
 
-	protected readonly watchers = new Set<IParcelWatcherInstance>();
+	readonly watchers = new Set<IParcelWatcherInstance>();
 
 	// A delay for collecting file changes from Parcel
 	// before collecting them for coalescing and emitting.
@@ -186,6 +189,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// Remember as watcher instance
 		const watcher: IParcelWatcherInstance = {
 			request,
+			includes: request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined,
+			excludes: request.excludes ? parseWatcherPatterns(request.path, request.excludes) : undefined,
 			ready: instance.p,
 			restarts,
 			token: cts.token,
@@ -204,9 +209,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
-
-		// Warm up include patterns for usage
-		const includePatterns = request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined;
 
 		this.trace(`Started watching: '${realPath}' with polling interval '${pollingInterval}'`);
 
@@ -228,7 +230,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 				}
 
 				// Handle & emit events
-				this.onParcelEvents(parcelEvents, watcher, includePatterns, realPathDiffers, realPathLength);
+				this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
 			}
 
 			// Store a snapshot of files to the snapshot file
@@ -257,6 +259,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// Remember as watcher instance
 		const watcher: IParcelWatcherInstance = {
 			request,
+			includes: request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined,
+			excludes: request.excludes ? parseWatcherPatterns(request.path, request.excludes) : undefined,
 			ready: instance.p,
 			restarts,
 			token: cts.token,
@@ -276,9 +280,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
-		// Warm up include patterns for usage
-		const includePatterns = request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined;
-
 		parcelWatcher.subscribe(realPath, (error, parcelEvents) => {
 			if (watcher.token.isCancellationRequested) {
 				return; // return early when disposed
@@ -293,7 +294,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 			}
 
 			// Handle & emit events
-			this.onParcelEvents(parcelEvents, watcher, includePatterns, realPathDiffers, realPathLength);
+			this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
 		}, {
 			backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
 			ignore: watcher.request.excludes
@@ -310,7 +311,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		});
 	}
 
-	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: IParcelWatcherInstance, includes: ParsedPattern[] | undefined, realPathDiffers: boolean, realPathLength: number): void {
+	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: IParcelWatcherInstance, realPathDiffers: boolean, realPathLength: number): void {
 		if (parcelEvents.length === 0) {
 			return;
 		}
@@ -321,7 +322,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
 
 		// Check for includes
-		const includedEvents = this.handleIncludes(watcher, parcelEvents, includes);
+		const includedEvents = this.handleIncludes(watcher, parcelEvents);
 
 		// Add to event aggregator for later processing
 		for (const includedEvent of includedEvents) {
@@ -329,7 +330,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		}
 	}
 
-	private handleIncludes(watcher: IParcelWatcherInstance, parcelEvents: parcelWatcher.Event[], includes: ParsedPattern[] | undefined): IFileChange[] {
+	private handleIncludes(watcher: IParcelWatcherInstance, parcelEvents: parcelWatcher.Event[]): IFileChange[] {
 		const events: IFileChange[] = [];
 
 		for (const { path, type: parcelEventType } of parcelEvents) {
@@ -339,7 +340,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 			}
 
 			// Apply include filter if any
-			if (includes && includes.length > 0 && !includes.some(include => include(path))) {
+			if (watcher.includes && watcher.includes.length > 0 && !watcher.includes.some(include => include(path))) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored (not included) ${path}`);
 				}

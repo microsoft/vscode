@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUniversalWatcher, IUniversalWatchRequest } from 'vs/platform/files/common/watcher';
+import { INonRecursiveWatchRequest, IRecursiveWatchRequest, IUniversalWatcher, IUniversalWatchRequest, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 import { Event } from 'vs/base/common/event';
-import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
+import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { Promises } from 'vs/base/common/async';
+import { Promises as FSPromises } from 'vs/base/node/pfs';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import { isLinux } from 'vs/base/common/platform';
 
 export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
@@ -20,10 +23,50 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 	readonly onDidError = Event.any(this.recursiveWatcher.onDidError, this.nonRecursiveWatcher.onDidError);
 
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
-		await Promises.settled([
-			this.recursiveWatcher.watch(requests.filter(request => request.recursive)),
-			this.nonRecursiveWatcher.watch(requests.filter(request => !request.recursive))
-		]);
+
+		// Recursive first
+		await this.recursiveWatcher.watch(requests.filter(request => request.recursive));
+
+		const recursiveWatchers = TernarySearchTree.forPaths<IParcelWatcherInstance>(!isLinux);
+		for (const watcher of this.recursiveWatcher.watchers) {
+			recursiveWatchers.set(watcher.request.path, watcher);
+		}
+
+		// Non-recursive second
+		const nonRecursiveWatchers = new Set(requests.filter(request => !request.recursive));
+		for (const nonRecursiveWatcher of nonRecursiveWatchers) {
+			try {
+				const stat = await FSPromises.stat(nonRecursiveWatcher.path);
+				if (!stat.isFile()) {
+					continue;
+				}
+
+				const existingWatcher = recursiveWatchers.findSubstr(nonRecursiveWatcher.path);
+				if (!existingWatcher) {
+					continue;
+				}
+
+				if (existingWatcher.excludes?.some(exclude => exclude(nonRecursiveWatcher.path))) {
+					continue;
+				}
+
+				if (existingWatcher.includes && !existingWatcher.includes.some(include => include(nonRecursiveWatcher.path))) {
+					continue;
+				}
+
+				nonRecursiveWatchers.delete(nonRecursiveWatcher);
+
+				if (typeof nonRecursiveWatcher.correlationId === 'number') {
+					this.recursiveWatcher.onDidChangeFile(e => {
+
+					});
+				}
+			} catch (error) {
+				// ignore
+			}
+		}
+
+		await this.recursiveWatcher.watch(Array.from(nonRecursiveWatchers));
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {
