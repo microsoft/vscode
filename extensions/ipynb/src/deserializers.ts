@@ -159,6 +159,11 @@ function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
 		// We put this only for VSC to display in diff view.
 		// Else we don't use this.
 		const custom: CellMetadata = {};
+
+		if (cell.cell_type === 'code' && typeof cell['execution_count'] === 'number') {
+			custom.execution_count = cell['execution_count'];
+		}
+
 		if (cell['metadata']) {
 			custom['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
 		}
@@ -177,6 +182,10 @@ function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
 		// We put this only for VSC to display in diff view.
 		// Else we don't use this.
 		const cellMetadata: CellMetadata = {};
+		if (cell.cell_type === 'code' && typeof cell['execution_count'] === 'number') {
+			cellMetadata.execution_count = cell['execution_count'];
+		}
+
 		if (cell['metadata']) {
 			cellMetadata['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
 		}
