@@ -222,7 +222,7 @@
 		// Indent when pressing enter from inside ()
 		{
 			"beforeText": "^.*\\([^\\)]*$",
-			"afterText": "^[^\\(]*\\).*$",
+			"afterText": "^\\s*\\).*$",
 			"action": {
 				"indent": "indentOutdent",
 				"appendText": "\t",
@@ -231,7 +231,7 @@
 		// Indent when pressing enter from inside {}
 		{
 			"beforeText": "^.*\\{[^\\}]*$",
-			"afterText": "^[^\\{]*\\}.*$",
+			"afterText": "^\\s*\\}.*$",
 			"action": {
 				"indent": "indentOutdent",
 				"appendText": "\t",
@@ -240,7 +240,7 @@
 		// Indent when pressing enter from inside []
 		{
 			"beforeText": "^.*\\[[^\\]]*$",
-			"afterText": "^[^\\[]*\\].*$",
+			"afterText": "^\\s*\\].*$",
 			"action": {
 				"indent": "indentOutdent",
 				"appendText": "\t",
