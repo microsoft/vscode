@@ -53,33 +53,32 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 			this._activeShellIntegrations.clear();
 		}));
 
-		// TODO: Remove test code
-		this.onDidChangeTerminalShellIntegration(e => {
-			console.log('*** onDidChangeTerminalShellIntegration', e);
-		});
-		this.onDidStartTerminalShellExecution(async e => {
-			console.log('*** onDidStartTerminalShellExecution', e);
-			// new Promise<void>(r => {
-			// 	(async () => {
-			// 		for await (const d of e.createDataStream()) {
-			// 			console.log('data2', d);
-			// 		}
-			// 	})();
-			// });
-			for await (const d of e.createDataStream()) {
-				console.log('data', d);
-			}
-		});
-		this.onDidEndTerminalShellExecution(e => {
-			console.log('*** onDidEndTerminalShellExecution', e);
-		});
-
-		setTimeout(() => {
-			Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
-		}, 4000);
+		// Convenient test code:
+		// this.onDidChangeTerminalShellIntegration(e => {
+		// 	console.log('*** onDidChangeTerminalShellIntegration', e);
+		// });
+		// this.onDidStartTerminalShellExecution(async e => {
+		// 	console.log('*** onDidStartTerminalShellExecution', e);
+		// 	// new Promise<void>(r => {
+		// 	// 	(async () => {
+		// 	// 		for await (const d of e.createDataStream()) {
+		// 	// 			console.log('data2', d);
+		// 	// 		}
+		// 	// 	})();
+		// 	// });
+		// 	for await (const d of e.createDataStream()) {
+		// 		console.log('data', d);
+		// 	}
+		// });
+		// this.onDidEndTerminalShellExecution(e => {
+		// 	console.log('*** onDidEndTerminalShellExecution', e);
+		// });
+		// setTimeout(() => {
+		// 	Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
+		// }, 4000);
 	}
 
-	public $acceptDidChangeShellIntegration(instanceId: number): void {
+	public $shellIntegrationChange(instanceId: number): void {
 		const terminal = this._extHostTerminalService.getTerminalById(instanceId);
 		if (!terminal) {
 			return;
@@ -104,28 +103,28 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $acceptTerminalShellExecutionStart(instanceId: number, commandLine: string, cwd: URI | string | undefined): void {
+	public $shellExecutionStart(instanceId: number, commandLine: string, cwd: URI | string | undefined): void {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
-			this.$acceptDidChangeShellIntegration(instanceId);
+			this.$shellIntegrationChange(instanceId);
 		}
 		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, cwd);
 	}
 
-	public $acceptTerminalShellExecutionEnd(instanceId: number, commandLine: string | undefined, exitCode: number | undefined): void {
+	public $shellExecutionEnd(instanceId: number, commandLine: string | undefined, exitCode: number | undefined): void {
 		this._activeShellIntegrations.get(instanceId)?.endShellExecution(commandLine, exitCode);
 	}
 
-	public $acceptTerminalShellExecutionData(instanceId: number, data: string): void {
+	public $shellExecutionData(instanceId: number, data: string): void {
 		this._activeShellIntegrations.get(instanceId)?.emitData(data);
 	}
 
-	public $acceptTerminalCwdChange(instanceId: number, cwd: string): void {
+	public $cwdChange(instanceId: number, cwd: string): void {
 		this._activeShellIntegrations.get(instanceId)?.setCwd(cwd);
 	}
 
-	public $acceptCloseTerminal(instanceId: number): void {
+	public $closeTerminal(instanceId: number): void {
 		this._activeShellIntegrations.get(instanceId)?.dispose();
 		this._activeShellIntegrations.delete(instanceId);
 

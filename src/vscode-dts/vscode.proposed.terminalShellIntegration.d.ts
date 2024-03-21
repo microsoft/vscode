@@ -31,7 +31,9 @@ declare module 'vscode' {
 		/**
 		 * The working directory that was reported by the shell when this command executed. This
 		 * will be a {@link Uri} if the string reported by the shell can reliably be mapped to the
-		 * connected machine.
+		 * connected machine. This requires the shell integration to support working directory
+		 * reporting via the [`OSC 633 ; P`](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st)
+		 * or `OSC 1337 ; CurrentDir=<Cwd> ST` sequences.
 		 */
 		cwd: Uri | string | undefined;
 
@@ -69,7 +71,6 @@ declare module 'vscode' {
 
 	export interface TerminalShellIntegration {
 		// TODO: Is this fine to share the TerminalShellIntegrationChangeEvent event?
-		// TODO: Should we have TerminalShellExecution.cwd if this exists?
 		/**
 		 * The current working directory of the terminal. This will be a {@link Uri} if the string
 		 * reported by the shell can reliably be mapped to the connected machine.

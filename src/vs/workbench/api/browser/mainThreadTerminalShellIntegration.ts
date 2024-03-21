@@ -30,27 +30,27 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 				}, this._store), () => instance
 			);
 		});
-		this._store.add(onDidAddCommandDetection(e => this._proxy.$acceptDidChangeShellIntegration(e.instanceId)));
+		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
 
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted));
-		this._store.add(commandDetectionStartEvent.event(e => this._proxy.$acceptTerminalShellExecutionStart(e.instance.instanceId, e.data.command, e.data.cwd)));
+		this._store.add(commandDetectionStartEvent.event(e => this._proxy.$shellExecutionStart(e.instance.instanceId, e.data.command, e.data.cwd)));
 
 		// onDidEndTerminalShellExecution
 		const commandDetectionEndEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished));
-		this._store.add(commandDetectionEndEvent.event(e => this._proxy.$acceptTerminalShellExecutionEnd(e.instance.instanceId, e.data.command, e.data.exitCode)));
+		this._store.add(commandDetectionEndEvent.event(e => this._proxy.$shellExecutionEnd(e.instance.instanceId, e.data.command, e.data.exitCode)));
 
 		// onDidChangeTerminalShellIntegration via cwd
 		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
-		this._store.add(cwdChangeEvent.event(e => this._proxy.$acceptTerminalCwdChange(e.instance.instanceId, e.data)));
+		this._store.add(cwdChangeEvent.event(e => this._proxy.$cwdChange(e.instance.instanceId, e.data)));
 
 		// Clean up after dispose
-		this._store.add(this._terminalService.onDidDisposeInstance(e => this._proxy.$acceptCloseTerminal(e.instanceId)));
+		this._store.add(this._terminalService.onDidDisposeInstance(e => this._proxy.$closeTerminal(e.instanceId)));
 
 		// TODO: Only do this if there is a consumer
 		// TODO: This needs to go via the server on remote for performance reasons
 		// TerminalShellExecution.dataStream
-		this._store.add(this._terminalService.onAnyInstanceData(e => this._proxy.$acceptTerminalShellExecutionData(e.instance.instanceId, e.data)));
+		this._store.add(this._terminalService.onAnyInstanceData(e => this._proxy.$shellExecutionData(e.instance.instanceId, e.data)));
 	}
 
 	$executeCommand(terminalId: number, commandLine: string): void {

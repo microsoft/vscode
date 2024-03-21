@@ -2267,12 +2267,12 @@ export interface ExtHostTerminalServiceShape {
 }
 
 export interface ExtHostTerminalShellIntegrationShape {
-	$acceptDidChangeShellIntegration(instanceId: number): void;
-	$acceptTerminalShellExecutionStart(instanceId: number, commandLine: string | undefined, cwd: UriComponents | string | undefined): void;
-	$acceptTerminalShellExecutionEnd(instanceId: number, commandLine: string | undefined, exitCode: number | undefined): void;
-	$acceptTerminalShellExecutionData(instanceId: number, data: string): void;
-	$acceptTerminalCwdChange(instanceId: number, cwd: UriComponents | string): void;
-	$acceptCloseTerminal(instanceId: number): void;
+	$shellIntegrationChange(instanceId: number): void;
+	$shellExecutionStart(instanceId: number, commandLine: string | undefined, cwd: UriComponents | string | undefined): void;
+	$shellExecutionEnd(instanceId: number, commandLine: string | undefined, exitCode: number | undefined): void;
+	$shellExecutionData(instanceId: number, data: string): void;
+	$cwdChange(instanceId: number, cwd: UriComponents | string): void;
+	$closeTerminal(instanceId: number): void;
 }
 
 export interface ExtHostSCMShape {
