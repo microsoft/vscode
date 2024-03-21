@@ -19,6 +19,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import './registrations.contribution';
 import { DiffEditorSelectionHunkToolbarContext } from 'vs/editor/browser/widget/diffEditor/features/gutterFeature';
+import { URI } from 'vs/base/common/uri';
 
 export class ToggleCollapseUnchangedRegions extends Action2 {
 	constructor() {
@@ -166,19 +167,18 @@ export class ShowAllUnchangedRegions extends EditorAction2 {
 	}
 }
 
-export class RevertHunkOrSelection extends EditorAction2 {
+export class RevertHunkOrSelection extends Action2 {
 	constructor() {
 		super({
 			id: 'diffEditor.revert',
 			title: localize2('revert', 'Revert'),
-			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			f1: false,
 			category: diffEditorCategory,
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg: DiffEditorSelectionHunkToolbarContext): unknown {
-		const diffEditor = findFocusedDiffEditor(accessor);
+	run(accessor: ServicesAccessor, arg: DiffEditorSelectionHunkToolbarContext): unknown {
+		const diffEditor = findDiffEditor(accessor, arg.originalUri, arg.modifiedUri);
 		if (diffEditor instanceof DiffEditorWidget) {
 			diffEditor.revertRangeMappings(arg.mapping.innerChanges ?? []);
 		}
@@ -232,6 +232,19 @@ export class AccessibleDiffViewerPrev extends Action2 {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		diffEditor?.accessibleDiffViewerPrev();
 	}
+}
+
+export function findDiffEditor(accessor: ServicesAccessor, originalUri: URI, modifiedUri: URI): IDiffEditor | null {
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const diffEditors = codeEditorService.listDiffEditors();
+
+	return diffEditors.find(diffEditor => {
+		const modified = diffEditor.getModifiedEditor();
+		const original = diffEditor.getOriginalEditor();
+
+		return modified && modified.getModel()?.uri.toString() === modifiedUri.toString()
+			&& original && original.getModel()?.uri.toString() === originalUri.toString();
+	}) || null;
 }
 
 export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor | null {

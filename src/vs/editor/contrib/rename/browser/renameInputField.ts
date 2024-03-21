@@ -23,7 +23,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { NewSymbolName, NewSymbolNameTag, ProviderResult } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
@@ -85,7 +85,13 @@ interface IRenameInputField {
 	/**
 	 * @returns a `boolean` standing for `shouldFocusEditor`, if user didn't pick a new name, or a {@link RenameInputFieldResult}
 	 */
-	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean>;
+	getInput(
+		where: IRange,
+		currentName: string,
+		supportPreview: boolean,
+		requestRenameSuggestions: (cts: CancellationToken) => ProviderResult<NewSymbolName[]>[],
+		cts: CancellationTokenSource
+	): Promise<RenameInputFieldResult | boolean>;
 
 	acceptInput(wantsPreview: boolean): void;
 	cancelInput(focusEditor: boolean, caller: string): void;
@@ -94,7 +100,7 @@ interface IRenameInputField {
 	focusPreviousRenameSuggestion(): void;
 }
 
-export class RenameInputField implements IRenameInputField, IContentWidget, IDisposable {
+export class RenameWidget implements IRenameInputField, IContentWidget, IDisposable {
 
 	// implement IContentWidget
 	readonly allowEditorOverflow: boolean = true;
@@ -126,6 +132,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 	 * @remarks must be set once per session
 	 */
 	private _timeBeforeFirstInputFieldEdit: number | undefined;
+
+	private _renameCandidateProvidersCts: CancellationTokenSource | undefined;
 
 	private readonly _visibleContextKey: IContextKey<boolean>;
 	private readonly _disposables = new DisposableStore();
@@ -194,6 +202,9 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 						this._isEditingRenameCandidate = true;
 					}
 					this._timeBeforeFirstInputFieldEdit ??= this._beforeFirstInputFieldEditSW.elapsed();
+					if (this._renameCandidateProvidersCts?.token.isCancellationRequested === false) {
+						this._renameCandidateProvidersCts.cancel();
+					}
 					this._renameCandidateListView?.clearFocus();
 				})
 			);
@@ -346,7 +357,19 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		}
 	}
 
-	getInput(where: IRange, currentName: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: ProviderResult<NewSymbolName[]>[], cts: CancellationTokenSource): Promise<RenameInputFieldResult | boolean> {
+	getInput(
+		where: IRange,
+		currentName: string,
+		supportPreview: boolean,
+		requestRenameSuggestions: (cts: CancellationToken) => ProviderResult<NewSymbolName[]>[],
+		cts: CancellationTokenSource
+	): Promise<RenameInputFieldResult | boolean> {
+
+		const { start: selectionStart, end: selectionEnd } = this._getSelection(where, currentName);
+
+		this._renameCandidateProvidersCts = new CancellationTokenSource();
+		const candidates = requestRenameSuggestions(this._renameCandidateProvidersCts.token);
+		this._updateRenameCandidates(candidates, currentName, cts.token);
 
 		this._isEditingRenameCandidate = false;
 
@@ -365,8 +388,12 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		const disposeOnDone = new DisposableStore();
 
 		disposeOnDone.add(toDisposable(() => cts.dispose(true))); // @ulugbekna: this may result in `this.cancelInput` being called twice, but it should be safe since we set it to undefined after 1st call
-
-		this._updateRenameCandidates(candidates, currentName, cts.token);
+		disposeOnDone.add(toDisposable(() => {
+			if (this._renameCandidateProvidersCts !== undefined) {
+				this._renameCandidateProvidersCts.dispose(true);
+				this._renameCandidateProvidersCts = undefined;
+			}
+		}));
 
 		const inputResult = new DeferredPromise<RenameInputFieldResult | boolean>();
 
@@ -431,6 +458,24 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		this._show();
 
 		return inputResult.p;
+	}
+
+	/**
+	 * This allows selecting only part of the symbol name in the input field based on the selection in the editor
+	 */
+	private _getSelection(where: IRange, currentName: string): { start: number; end: number } {
+		assertType(this._editor.hasModel());
+
+		const selection = this._editor.getSelection();
+		let start = 0;
+		let end = currentName.length;
+
+		if (!Range.isEmpty(selection) && !Range.spansMultipleLines(selection) && Range.containsRange(where, selection)) {
+			start = Math.max(0, selection.startColumn - where.startColumn);
+			end = Math.min(where.endColumn, selection.endColumn) - where.startColumn;
+		}
+
+		return { start, end };
 	}
 
 	private _show(): void {
@@ -508,8 +553,8 @@ export class RenameInputField implements IRenameInputField, IContentWidget, IDis
 		return this._editor.getTopForLineNumber(this._position!.lineNumber) - this._editor.getTopForLineNumber(firstLineInViewport);
 	}
 
-	private _trace(...args: any[]) {
-		this._logService.trace('RenameInputField', ...args);
+	private _trace(...args: unknown[]) {
+		this._logService.trace('RenameWidget', ...args);
 	}
 }
 

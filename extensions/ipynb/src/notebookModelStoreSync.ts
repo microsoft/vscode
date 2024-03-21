@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
-import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId } from './serializers';
+import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId, sortObjectPropertiesRecursively } from './serializers';
 import { CellMetadata, useCustomPropertyInMetadata } from './common';
 import { getNotebookMetadata } from './notebookSerializer';
 import type * as nbformat from '@jupyterlab/nbformat';
@@ -53,15 +53,25 @@ function cleanup(notebook: NotebookDocument, promise: PromiseLike<void>) {
 		}
 	}
 }
-function trackAndUpdateCellMetadata(notebook: NotebookDocument, cell: NotebookCell, metadata: CellMetadata & { vscode?: { languageId: string } }) {
+function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell: NotebookCell; metadata: CellMetadata & { vscode?: { languageId: string } } }[]) {
 	const pendingUpdates = pendingNotebookCellModelUpdates.get(notebook) ?? new Set<Thenable<void>>();
 	pendingNotebookCellModelUpdates.set(notebook, pendingUpdates);
 	const edit = new WorkspaceEdit();
-	if (useCustomPropertyInMetadata()) {
-		edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, { ...(cell.metadata), custom: metadata })]);
-	} else {
-		edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, { ...cell.metadata, ...metadata })]);
-	}
+	updates.forEach(({ cell, metadata }) => {
+		let newMetadata: any = {};
+		if (useCustomPropertyInMetadata()) {
+			newMetadata = { ...(cell.metadata), custom: metadata };
+		} else {
+			newMetadata = { ...cell.metadata, ...metadata };
+			if (!metadata.execution_count && newMetadata.execution_count) {
+				delete newMetadata.execution_count;
+			}
+			if (!metadata.attachments && newMetadata.attachments) {
+				delete newMetadata.attachments;
+			}
+		}
+		edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, sortObjectPropertiesRecursively(newMetadata))]);
+	});
 	const promise = workspace.applyEdit(edit).then(noop, noop);
 	pendingUpdates.add(promise);
 	const clean = () => cleanup(notebook, promise);
@@ -78,7 +88,7 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 
 	// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
 	const preferredCellLanguage = notebookMetadata.metadata?.language_info?.name;
-
+	const updates: { cell: NotebookCell; metadata: CellMetadata & { vscode?: { languageId: string } } }[] = [];
 	// When we change the language of a cell,
 	// Ensure the metadata in the notebook cell has been updated as well,
 	// Else model will be out of sync with ipynb https://github.com/microsoft/vscode/issues/207968#issuecomment-2002858596
@@ -86,23 +96,33 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 		if (!preferredCellLanguage || e.cell.kind !== NotebookCellKind.Code) {
 			return;
 		}
-		const languageIdInMetadata = getVSCodeCellLanguageId(getCellMetadata(e.cell));
-		if (e.cell.document.languageId !== preferredCellLanguage && e.cell.document.languageId !== languageIdInMetadata) {
-			const metadata: CellMetadata = JSON.parse(JSON.stringify(getCellMetadata(e.cell)));
-			metadata.metadata = metadata.metadata || {};
-			setVSCodeCellLanguageId(metadata, e.cell.document.languageId);
-			trackAndUpdateCellMetadata(notebook, e.cell, metadata);
+		const currentMetadata = e.metadata ? getCellMetadata({ metadata: e.metadata }) : getCellMetadata({ cell: e.cell });
+		const languageIdInMetadata = getVSCodeCellLanguageId(currentMetadata);
+		const metadata: CellMetadata = JSON.parse(JSON.stringify(currentMetadata));
+		metadata.metadata = metadata.metadata || {};
+		let metadataUpdated = false;
+		if (e.executionSummary?.executionOrder && typeof e.executionSummary.success === 'boolean' && currentMetadata.execution_count !== e.executionSummary?.executionOrder) {
+			metadata.execution_count = e.executionSummary.executionOrder;
+			metadataUpdated = true;
+		} else if (!e.executionSummary && !e.metadata && e.outputs?.length === 0 && currentMetadata.execution_count) {
+			// Clear all.
+			delete metadata.execution_count;
+			metadataUpdated = true;
+		}
 
-		} else if (e.cell.document.languageId === preferredCellLanguage && languageIdInMetadata) {
-			const metadata: CellMetadata = JSON.parse(JSON.stringify(getCellMetadata(e.cell)));
-			metadata.metadata = metadata.metadata || {};
+		if (e.document?.languageId && e.document?.languageId !== preferredCellLanguage && e.document?.languageId !== languageIdInMetadata) {
+			setVSCodeCellLanguageId(metadata, e.document.languageId);
+			metadataUpdated = true;
+		} else if (e.document?.languageId && e.document.languageId === preferredCellLanguage && languageIdInMetadata) {
 			removeVSCodeCellLanguageId(metadata);
-			trackAndUpdateCellMetadata(notebook, e.cell, metadata);
-		} else if (e.cell.document.languageId === preferredCellLanguage && e.cell.document.languageId === languageIdInMetadata) {
-			const metadata: CellMetadata = JSON.parse(JSON.stringify(getCellMetadata(e.cell)));
-			metadata.metadata = metadata.metadata || {};
+			metadataUpdated = true;
+		} else if (e.document?.languageId && e.document.languageId === preferredCellLanguage && e.document.languageId === languageIdInMetadata) {
 			removeVSCodeCellLanguageId(metadata);
-			trackAndUpdateCellMetadata(notebook, e.cell, metadata);
+			metadataUpdated = true;
+		}
+
+		if (metadataUpdated) {
+			updates.push({ cell: e.cell, metadata });
 		}
 	});
 
@@ -112,7 +132,7 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 		change.addedCells.forEach(cell => {
 			// When ever a cell is added, always update the metadata
 			// as metadata is always an empty `{}` in ipynb JSON file
-			const cellMetadata = getCellMetadata(cell);
+			const cellMetadata = getCellMetadata({ cell });
 
 			// Avoid updating the metadata if it's not required.
 			if (cellMetadata.metadata) {
@@ -131,9 +151,13 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 			if (isCellIdRequired(notebookMetadata) && !cellMetadata?.id) {
 				metadata.id = generateCellId(e.notebook);
 			}
-			trackAndUpdateCellMetadata(notebook, cell, metadata);
+			updates.push({ cell, metadata });
 		});
 	});
+
+	if (updates.length) {
+		trackAndUpdateCellMetadata(notebook, updates);
+	}
 }
 
 
@@ -158,7 +182,7 @@ function generateCellId(notebook: NotebookDocument) {
 		let duplicate = false;
 		for (let index = 0; index < notebook.cellCount; index++) {
 			const cell = notebook.cellAt(index);
-			const existingId = getCellMetadata(cell)?.id;
+			const existingId = getCellMetadata({ cell })?.id;
 			if (!existingId) {
 				continue;
 			}

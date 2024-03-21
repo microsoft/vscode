@@ -59,7 +59,7 @@
 
 .quick-input-header {
 	display: flex;
-	padding: 8px 6px 6px 6px;
+	padding: 8px 6px 2px 6px;
 }
 
 .quick-input-widget.hidden-input .quick-input-header {
@@ -323,10 +323,19 @@
 	background: none;
 }
 
-/* Quick input separators as full-row item */
 .quick-input-list .quick-input-list-separator-as-item {
-	font-weight: 600;
+	padding: 4px 6px;
 	font-size: 12px;
+}
+
+/* Quick input separators as full-row item */
+.quick-input-list .quick-input-list-separator-as-item .label-name {
+	font-weight: 600;
+}
+
+.quick-input-list .quick-input-list-separator-as-item .label-description {
+	/* Override default description opacity so we don't have a contrast ratio issue. */
+	opacity: 1 !important;
 }
 
 /* Hide border when the item becomes the sticky one */

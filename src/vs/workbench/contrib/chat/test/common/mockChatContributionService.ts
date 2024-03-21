@@ -9,7 +9,6 @@ export class MockChatContributionService implements IChatContributionService {
 	_serviceBrand: undefined;
 
 	constructor(
-		public readonly registeredParticipants: IChatParticipantContribution[] = []
 	) { }
 
 	registeredProviders: IChatProviderContribution[] = [];

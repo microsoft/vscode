@@ -122,7 +122,7 @@ class ChatAgentResponseStream {
 				},
 				push(part) {
 					throwIfDone(this.push);
-					const dto = typeConvert.ChatResponsePart.to(part);
+					const dto = typeConvert.ChatResponsePart.to(part, that._commandsConverter, that._sessionDisposables);
 					_report(dto);
 					return this;
 				},
@@ -166,12 +166,21 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
-	createChatAgent(extension: IExtensionDescription, name: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
+	createChatAgent(extension: IExtensionDescription, id: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, extension.identifier, name, {}, isProposedApiEnabled(extension, 'chatParticipantAdditions'));
+		this._proxy.$registerAgent(handle, extension.identifier, id, {}, undefined);
+		return agent.apiAgent;
+	}
+
+	createDynamicChatAgent(extension: IExtensionDescription, id: string, name: string, description: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
+		const handle = ExtHostChatAgents2._idPool++;
+		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
+		this._agents.set(handle, agent);
+
+		this._proxy.$registerAgent(handle, extension.identifier, id, {}, { name, description });
 		return agent.apiAgent;
 	}
 
@@ -231,11 +240,11 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
-			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), { extensionId: '', name: h.request.agentId }));
+			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), h.request.agentId));
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.fromContent(r, this.commands.converter)));
-			res.push(new extHostTypes.ChatResponseTurn(parts, result, { extensionId: '', name: h.request.agentId }, h.request.command));
+			res.push(new extHostTypes.ChatResponseTurn(parts, result, h.request.agentId, h.request.command));
 		}
 
 		return res;
@@ -338,7 +347,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 class ExtHostChatAgent {
 
 	private _followupProvider: vscode.ChatFollowupProvider | undefined;
-	private _description: string | undefined;
 	private _fullName: string | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
 	private _isDefault: boolean | undefined;
@@ -437,7 +445,6 @@ class ExtHostChatAgent {
 			updateScheduled = true;
 			queueMicrotask(() => {
 				this._proxy.$updateAgent(this._handle, {
-					description: this._description,
 					fullName: this._fullName,
 					icon: !this._iconPath ? undefined :
 						this._iconPath instanceof URI ? this._iconPath :
@@ -463,15 +470,8 @@ class ExtHostChatAgent {
 
 		const that = this;
 		return {
-			get name() {
+			get id() {
 				return that.id;
-			},
-			get description() {
-				return that._description ?? '';
-			},
-			set description(v) {
-				that._description = v;
-				updateMetadataSoon();
 			},
 			get fullName() {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');

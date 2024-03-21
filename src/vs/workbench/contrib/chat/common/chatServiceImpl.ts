@@ -25,7 +25,7 @@ import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentServi
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
+import { ChatRequestParser, IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatCopyKind, IChat, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -435,7 +435,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(data.providerId, data, CancellationToken.None);
 	}
 
-	async sendRequest(sessionId: string, request: string, implicitVariablesEnabled?: boolean): Promise<IChatSendRequestData | undefined> {
+	async sendRequest(sessionId: string, request: string, implicitVariablesEnabled?: boolean, parserContext?: IChatParserContext): Promise<IChatSendRequestData | undefined> {
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 		if (!request.trim()) {
 			this.trace('sendRequest', 'Rejected empty message');
@@ -458,7 +458,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request);
+		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, parserContext);
 		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? this.chatAgentService.getDefaultAgent()!;
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
