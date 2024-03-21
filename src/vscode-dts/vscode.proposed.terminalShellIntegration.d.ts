@@ -22,6 +22,7 @@ declare module 'vscode' {
 		 *   fired.
 		 * - It may be inaccurate initially if the command line is pulled from the buffer directly
 		 *   via the [`OSC 633/133 ; A`, `B` and `C` sequences](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st).
+		 * - It may contain line continuation characters and/or parts of the right prompt.
 		 * - It may be inaccurate if the shell integration does not support command line reporting
 		 *   via the [`OSC 633 ; E` sequence](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st).
 		 */
