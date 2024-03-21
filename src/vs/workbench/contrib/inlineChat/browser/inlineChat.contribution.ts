@@ -24,7 +24,7 @@ import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/br
 // --- browser
 
 registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
-registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
+registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Eager); // EAGER because this registers an agent which we need swiftly
 registerSingleton(IInlineChatSavingService, InlineChatSavingServiceImpl, InstantiationType.Delayed);
 
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
