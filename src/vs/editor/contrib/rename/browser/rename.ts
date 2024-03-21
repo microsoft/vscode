@@ -367,22 +367,23 @@ class RenameController implements IEditorContribution {
 			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.'; isMeasurement: true };
 		};
 
-		const value: RenameInvokedEvent = typeof inputFieldResult === 'boolean'
-			? {
-				kind: 'cancelled',
-				languageId,
-				nRenameSuggestionProviders,
-			}
-			: {
-				kind: 'accepted',
-				languageId,
-				nRenameSuggestionProviders,
+		const value: RenameInvokedEvent =
+			typeof inputFieldResult === 'boolean'
+				? {
+					kind: 'cancelled',
+					languageId,
+					nRenameSuggestionProviders,
+				}
+				: {
+					kind: 'accepted',
+					languageId,
+					nRenameSuggestionProviders,
 
-				source: inputFieldResult.stats.source.k,
-				nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
-				timeBeforeFirstInputFieldEdit: inputFieldResult.stats.timeBeforeFirstInputFieldEdit,
-				wantsPreview: inputFieldResult.wantsPreview,
-			};
+					source: inputFieldResult.stats.source.k,
+					nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
+					timeBeforeFirstInputFieldEdit: inputFieldResult.stats.timeBeforeFirstInputFieldEdit,
+					wantsPreview: inputFieldResult.wantsPreview,
+				};
 
 		if (inDebugMode) {
 			this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEventDebug', value);
