@@ -3,26 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IUniversalWatcher, IUniversalWatchRequest } from 'vs/platform/files/common/watcher';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { Promises } from 'vs/base/common/async';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { isLinux } from 'vs/base/common/platform';
+import { IFileChange } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
 
 export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
 	private readonly recursiveWatcher = this._register(new ParcelWatcher());
-	private readonly nonRecursiveWatcher = this._register(new NodeJSWatcher());
 
-	readonly onDidChangeFile = Event.any(this.recursiveWatcher.onDidChangeFile, this.nonRecursiveWatcher.onDidChangeFile);
+	private readonly nonRecursiveWatcher = this._register(new NodeJSWatcher());
+	private readonly nonResursiveSubscriptions = this._register(new DisposableStore());
+
+	private readonly _onDidChangeFile = this._register(new Emitter<IFileChange[]>());
+	readonly onDidChangeFile = Event.any(this._onDidChangeFile.event, this.recursiveWatcher.onDidChangeFile, this.nonRecursiveWatcher.onDidChangeFile);
+
 	readonly onDidLogMessage = Event.any(this.recursiveWatcher.onDidLogMessage, this.nonRecursiveWatcher.onDidLogMessage);
 	readonly onDidError = Event.any(this.recursiveWatcher.onDidError, this.nonRecursiveWatcher.onDidError);
 
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
+		this.nonResursiveSubscriptions.clear();
 
 		// Recursive first
 		await this.recursiveWatcher.watch(requests.filter(request => request.recursive));
@@ -55,10 +62,13 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
 				nonRecursiveWatchers.delete(nonRecursiveWatcher);
 
-				if (typeof nonRecursiveWatcher.correlationId === 'number') {
-					this.recursiveWatcher.onDidChangeFile(e => {
 
-					});
+				if (typeof nonRecursiveWatcher.correlationId === 'number') {
+					const resource = URI.file(nonRecursiveWatcher.path);
+
+					this.nonResursiveSubscriptions.add(existingWatcher.subscribe(nonRecursiveWatcher.path, type => {
+						this._onDidChangeFile.fire([{ type, resource, cId: nonRecursiveWatcher.correlationId }]);
+					}));
 				}
 			} catch (error) {
 				// ignore

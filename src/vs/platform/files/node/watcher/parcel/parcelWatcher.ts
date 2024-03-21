@@ -22,34 +22,14 @@ import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IParcelWatcherInstance {
-
-	/**
-	 * Signals when the watcher is ready to watch.
-	 */
-	readonly ready: Promise<unknown>;
 
 	/**
 	 * The watch request associated to the watcher.
 	 */
 	readonly request: IRecursiveWatchRequest;
-
-	/**
-	 * How often this watcher has been restarted in case of an unexpected
-	 * shutdown.
-	 */
-	readonly restarts: number;
-
-	/**
-	 * The cancellation token associated with the lifecycle of the watcher.
-	 */
-	readonly token: CancellationToken;
-
-	/**
-	 * An event aggregator to coalesce events and reduce duplicates.
-	 */
-	readonly worker: RunOnceWorker<IFileChange>;
 
 	/**
 	 * The parsed include patterns if any are configured for the watch request.
@@ -62,10 +42,9 @@ export interface IParcelWatcherInstance {
 	readonly excludes: ParsedPattern[] | undefined;
 
 	/**
-	 * Stops and disposes the watcher. This operation is async to await
-	 * unsubscribe call in Parcel.
+	 * Be notified when a file change happens on the given path.
 	 */
-	stop(): Promise<void>;
+	subscribe(path: string, callback: (type: FileChangeType) => void): IDisposable;
 }
 
 class ParcelWatcherInstance implements IParcelWatcherInstance {
@@ -74,10 +53,23 @@ class ParcelWatcherInstance implements IParcelWatcherInstance {
 	readonly excludes: ParsedPattern[] | undefined;
 
 	constructor(
+		/**
+		 * Signals when the watcher is ready to watch.
+		 */
 		readonly ready: Promise<unknown>,
 		readonly request: IRecursiveWatchRequest,
+		/**
+		 * How often this watcher has been restarted in case of an unexpected
+		 * shutdown.
+		 */
 		readonly restarts: number,
+		/**
+		 * The cancellation token associated with the lifecycle of the watcher.
+		 */
 		readonly token: CancellationToken,
+		/**
+		 * An event aggregator to coalesce events and reduce duplicates.
+		 */
 		readonly worker: RunOnceWorker<IFileChange>,
 		private readonly stopFn: () => Promise<void>
 	) {
@@ -85,6 +77,42 @@ class ParcelWatcherInstance implements IParcelWatcherInstance {
 		this.excludes = request.excludes ? parseWatcherPatterns(request.path, request.excludes) : undefined;
 	}
 
+	private readonly subscriptions = new Map<string, Set<(type: FileChangeType) => void>>();
+
+	subscribe(path: string, callback: (type: FileChangeType) => void): IDisposable {
+		let subscriptions = this.subscriptions.get(path);
+		if (!subscriptions) {
+			subscriptions = new Set();
+			this.subscriptions.set(path, subscriptions);
+		}
+
+		subscriptions.add(callback);
+
+		return toDisposable(() => {
+			const subscriptions = this.subscriptions.get(path);
+			if (subscriptions) {
+				subscriptions.delete(callback);
+
+				if (subscriptions.size === 0) {
+					this.subscriptions.delete(path);
+				}
+			}
+		});
+	}
+
+	notifyFileChange(change: IFileChange): void {
+		const subscriptions = this.subscriptions.get(change.resource.fsPath);
+		if (subscriptions) {
+			for (const subscription of subscriptions) {
+				subscription(change.type);
+			}
+		}
+	}
+
+	/**
+	 * Stops and disposes the watcher. This operation is async to await
+	 * unsubscribe call in Parcel.
+	 */
 	stop(): Promise<void> {
 		return this.stopFn();
 	}
@@ -105,7 +133,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 	private readonly _onDidError = this._register(new Emitter<string>());
 	readonly onDidError = this._onDidError.event;
 
-	readonly watchers = new Set<IParcelWatcherInstance>();
+	readonly _watchers = new Set<ParcelWatcherInstance>();
+	get watchers(): IParcelWatcherInstance[] { return Array.from(this._watchers); }
 
 	// A delay for collecting file changes from Parcel
 	// before collecting them for coalescing and emitting.
@@ -153,7 +182,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 		// Figure out which watchers to start and which to stop
 		const requestsToStart: IRecursiveWatchRequest[] = [];
-		const watchersToStop = new Set(Array.from(this.watchers));
+		const watchersToStop = new Set(Array.from(this._watchers));
 		for (const request of requests) {
 			const watcher = this.findWatcher(request);
 			if (watcher && patternsEquals(watcher.request.excludes, request.excludes) && patternsEquals(watcher.request.includes, request.includes) && watcher.request.pollingInterval === request.pollingInterval) {
@@ -187,8 +216,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		}
 	}
 
-	private findWatcher(request: IRecursiveWatchRequest): IParcelWatcherInstance | undefined {
-		for (const watcher of this.watchers) {
+	private findWatcher(request: IRecursiveWatchRequest): ParcelWatcherInstance | undefined {
+		for (const watcher of this._watchers) {
 
 			// Requests or watchers with correlation always match on that
 			if (typeof request.correlationId === 'number' || typeof watcher.request.correlationId === 'number') {
@@ -216,7 +245,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		const snapshotFile = randomPath(tmpdir(), 'vscode-watcher-snapshot');
 
 		// Remember as watcher instance
-		const watcher: IParcelWatcherInstance = new ParcelWatcherInstance(
+		const watcher: ParcelWatcherInstance = new ParcelWatcherInstance(
 			instance.p,
 			request,
 			restarts,
@@ -232,7 +261,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 				unlinkSync(snapshotFile);
 			}
 		);
-		this.watchers.add(watcher);
+		this._watchers.add(watcher);
 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
@@ -284,7 +313,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		const instance = new DeferredPromise<parcelWatcher.AsyncSubscription | undefined>();
 
 		// Remember as watcher instance
-		const watcher: IParcelWatcherInstance = new ParcelWatcherInstance(
+		const watcher: ParcelWatcherInstance = new ParcelWatcherInstance(
 			instance.p,
 			request,
 			restarts,
@@ -300,7 +329,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 				await watcherInstance?.unsubscribe();
 			}
 		);
-		this.watchers.add(watcher);
+		this._watchers.add(watcher);
 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
@@ -336,7 +365,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		});
 	}
 
-	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: IParcelWatcherInstance, realPathDiffers: boolean, realPathLength: number): void {
+	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: ParcelWatcherInstance, realPathDiffers: boolean, realPathLength: number): void {
 		if (parcelEvents.length === 0) {
 			return;
 		}
@@ -351,11 +380,12 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 		// Add to event aggregator for later processing
 		for (const includedEvent of includedEvents) {
+			watcher.notifyFileChange(includedEvent);
 			watcher.worker.work(includedEvent);
 		}
 	}
 
-	private handleIncludes(watcher: IParcelWatcherInstance, parcelEvents: parcelWatcher.Event[]): IFileChange[] {
+	private handleIncludes(watcher: ParcelWatcherInstance, parcelEvents: parcelWatcher.Event[]): IFileChange[] {
 		const events: IFileChange[] = [];
 
 		for (const { path, type: parcelEventType } of parcelEvents) {
@@ -377,7 +407,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		return events;
 	}
 
-	private handleParcelEvents(parcelEvents: IFileChange[], watcher: IParcelWatcherInstance): void {
+	private handleParcelEvents(parcelEvents: IFileChange[], watcher: ParcelWatcherInstance): void {
 
 		// Coalesce events: merge events of same kind
 		const coalescedEvents = coalesceEvents(parcelEvents);
@@ -394,7 +424,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		}
 	}
 
-	private emitEvents(events: IFileChange[], watcher: IParcelWatcherInstance): void {
+	private emitEvents(events: IFileChange[], watcher: ParcelWatcherInstance): void {
 		if (events.length === 0) {
 			return;
 		}
@@ -472,7 +502,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		}
 	}
 
-	private filterEvents(events: IFileChange[], watcher: IParcelWatcherInstance): { events: IFileChange[]; rootDeleted?: boolean } {
+	private filterEvents(events: IFileChange[], watcher: ParcelWatcherInstance): { events: IFileChange[]; rootDeleted?: boolean } {
 		const filteredEvents: IFileChange[] = [];
 		let rootDeleted = false;
 
@@ -501,7 +531,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		return { events: filteredEvents, rootDeleted };
 	}
 
-	private onWatchedPathDeleted(watcher: IParcelWatcherInstance): void {
+	private onWatchedPathDeleted(watcher: ParcelWatcherInstance): void {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
 		this._onDidWatchFail.fire(watcher.request);
@@ -518,7 +548,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		}
 	}
 
-	private legacyMonitorRequest(watcher: IParcelWatcherInstance): void {
+	private legacyMonitorRequest(watcher: ParcelWatcherInstance): void {
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
 			this.trace('Trying to watch on the parent path to restart the watcher...', watcher);
@@ -551,7 +581,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		}
 	}
 
-	private onUnexpectedError(error: unknown, watcher?: IParcelWatcherInstance): void {
+	private onUnexpectedError(error: unknown, watcher?: ParcelWatcherInstance): void {
 		const msg = toErrorMessage(error);
 
 		// Specially handle ENOSPC errors that can happen when
@@ -580,12 +610,12 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 	override async stop(): Promise<void> {
 		await super.stop();
 
-		for (const watcher of this.watchers) {
+		for (const watcher of this._watchers) {
 			await this.stopWatching(watcher);
 		}
 	}
 
-	protected restartWatching(watcher: IParcelWatcherInstance, delay = 800): void {
+	protected restartWatching(watcher: ParcelWatcherInstance, delay = 800): void {
 
 		// Restart watcher delayed to accomodate for
 		// changes on disk that have triggered the
@@ -611,10 +641,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		watcher.token.onCancellationRequested(() => scheduler.dispose());
 	}
 
-	private async stopWatching(watcher: IParcelWatcherInstance): Promise<void> {
+	private async stopWatching(watcher: ParcelWatcherInstance): Promise<void> {
 		this.trace(`stopping file watcher`, watcher);
 
-		this.watchers.delete(watcher);
+		this._watchers.delete(watcher);
 
 		try {
 			await watcher.stop();
@@ -724,21 +754,21 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 		this.verboseLogging = enabled;
 	}
 
-	protected trace(message: string, watcher?: IParcelWatcherInstance): void {
+	protected trace(message: string, watcher?: ParcelWatcherInstance): void {
 		if (this.verboseLogging) {
 			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message, watcher) });
 		}
 	}
 
-	protected warn(message: string, watcher?: IParcelWatcherInstance) {
+	protected warn(message: string, watcher?: ParcelWatcherInstance) {
 		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, watcher) });
 	}
 
-	private error(message: string, watcher: IParcelWatcherInstance | undefined) {
+	private error(message: string, watcher: ParcelWatcherInstance | undefined) {
 		this._onDidLogMessage.fire({ type: 'error', message: this.toMessage(message, watcher) });
 	}
 
-	private toMessage(message: string, watcher?: IParcelWatcherInstance): string {
+	private toMessage(message: string, watcher?: ParcelWatcherInstance): string {
 		return watcher ? `[File Watcher (parcel)] ${message} (path: ${watcher.request.path})` : `[File Watcher (parcel)] ${message}`;
 	}
 }
