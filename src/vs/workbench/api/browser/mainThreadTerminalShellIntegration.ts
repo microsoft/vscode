@@ -36,20 +36,23 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted));
-		let lastCommand: ITerminalCommand | undefined;
+		let currentCommand: ITerminalCommand | undefined;
 		this._store.add(commandDetectionStartEvent.event(e => {
 			// Prevent duplicate events from being sent in case command detection double fires the
 			// event
-			if (e.data === lastCommand) {
+			if (e.data === currentCommand) {
 				return;
 			}
-			lastCommand = e.data;
+			currentCommand = e.data;
 			this._proxy.$shellExecutionStart(e.instance.instanceId, e.data.command, e.data.cwd);
 		}));
 
 		// onDidEndTerminalShellExecution
 		const commandDetectionEndEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished));
-		this._store.add(commandDetectionEndEvent.event(e => this._proxy.$shellExecutionEnd(e.instance.instanceId, e.data.command, e.data.exitCode)));
+		this._store.add(commandDetectionEndEvent.event(e => {
+			currentCommand = undefined;
+			this._proxy.$shellExecutionEnd(e.instance.instanceId, e.data.command, e.data.exitCode);
+		}));
 
 		// onDidChangeTerminalShellIntegration via cwd
 		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
