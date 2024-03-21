@@ -371,6 +371,7 @@ if (isTest) {
 	const xtermHeadless = require('@xterm/headless')
 	const vscodeSqlite3 = require('@vscode/sqlite3')
 	const xtermAddonCanvas = require('@xterm/addon-canvas')
+	const nativeKeymap = require('native-keymap')
 
 	let runCallback
 	let args
@@ -399,6 +400,7 @@ if (isTest) {
 		glob,
 		sinon,
 		nativeWatchdog,
+		nativeKeymap,
 		util,
 		yauzl,
 		events,
