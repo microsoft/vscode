@@ -139,7 +139,7 @@
 			"pattern": "^(\\t|[ ])*[ ]\\*[^/]*\\*/\\s*$|^(\\t|[ ])*[ ]\\*/\\s*$|^(\\t|[ ])*\\*([ ]([^\\*]|\\*(?!/))*)?$"
 		},
 		"indentNextLinePattern": {
-			"pattern": "^\\s*(var|const|let)\\s+\\w+\\s*=\\s*\\(.*\\)\\s*=>\\s*$"
+			"pattern": "^.*=>\\s*$"
 		}
 	},
 	"onEnterRules": [
