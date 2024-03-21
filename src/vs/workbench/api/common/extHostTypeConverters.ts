@@ -2454,7 +2454,7 @@ export namespace ChatResponseReferencePart {
 
 export namespace ChatResponsePart {
 
-	export function to(part: vscode.ChatResponsePart): extHostProtocol.IChatProgressDto {
+	export function to(part: vscode.ChatResponsePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.to(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2465,6 +2465,8 @@ export namespace ChatResponsePart {
 			return ChatResponseProgressPart.to(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.to(part);
+		} else if (part instanceof types.ChatResponseCommandButtonPart) {
+			return ChatResponseCommandButtonPart.to(part, commandsConverter, commandDisposables);
 		}
 		return {
 			kind: 'content',
@@ -2546,7 +2548,7 @@ export namespace ChatResponseProgress {
 			};
 		} else if ('participant' in progress) {
 			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-			return { agentName: progress.participant, command: progress.command, kind: 'agentDetection' };
+			return { agentId: progress.participant, command: progress.command, kind: 'agentDetection' };
 		} else if ('message' in progress) {
 			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {

@@ -12,8 +12,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentRequest, IChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { GeneratingPhrase, IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentLocation, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatUserAction, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -81,7 +81,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
 
-	private _terminalAgentId = 'terminal';
+	private _terminalAgentName = 'terminal';
+	private _terminalAgentId: string | undefined;
 
 	private _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
 
@@ -97,7 +98,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService
+		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
 	) {
 		super();
 
@@ -113,14 +114,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 
-		if (!this._chatAgentService.getAgent(this._terminalAgentId)) {
-			this._register(this._chatAgentService.onDidChangeAgents(() => {
-				if (this._chatAgentService.getAgent(this._terminalAgentId)) {
-					this._terminalAgentRegisteredContextKey.set(true);
-				}
-			}));
-		} else {
-			this._terminalAgentRegisteredContextKey.set(true);
+		if (!this.initTerminalAgent()) {
+			this._register(this._chatAgentService.onDidChangeAgents(() => this.initTerminalAgent()));
 		}
 		this._register(this._chatCodeBlockContextProviderService.registerProvider({
 			getCodeBlockContext: (editor) => {
@@ -139,6 +134,17 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				};
 			}
 		}, 'terminal'));
+	}
+
+	private initTerminalAgent(): boolean {
+		const terminalAgent = this._chatAgentService.getAgentsByName(this._terminalAgentName)[0];
+		if (terminalAgent) {
+			this._terminalAgentId = terminalAgent.id;
+			this._terminalAgentRegisteredContextKey.set(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -285,13 +291,13 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const requestProps: IChatAgentRequest = {
 			sessionId: model.sessionId,
 			requestId: this._currentRequest!.id,
-			agentId: this._terminalAgentId,
+			agentId: this._terminalAgentId!,
 			message: this._lastInput,
 			variables: { variables: [] },
 			location: ChatAgentLocation.Terminal
 		};
 		try {
-			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
+			const task = this._chatAgentService.invokeAgent(this._terminalAgentId!, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
 			this._chatWidget?.value.inlineChatWidget.updateChatMessage(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateProgress(true);

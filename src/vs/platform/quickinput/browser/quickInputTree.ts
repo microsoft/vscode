@@ -277,9 +277,8 @@ class QuickPickSeparatorElement extends BaseQuickPickItemElement {
 class QuickInputItemDelegate implements IListVirtualDelegate<IQuickPickElement> {
 	getHeight(element: IQuickPickElement): number {
 
-		if (!element.item) {
-			// must be a separator
-			return 24;
+		if (element instanceof QuickPickSeparatorElement) {
+			return 30;
 		}
 		return element.saneDetail ? 44 : 22;
 	}
