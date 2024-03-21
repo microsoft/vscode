@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INonRecursiveWatchRequest, IRecursiveWatchRequest, IUniversalWatcher, IUniversalWatchRequest, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { IUniversalWatcher, IUniversalWatchRequest } from 'vs/platform/files/common/watcher';
 import { Event } from 'vs/base/common/event';
 import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
@@ -46,11 +46,10 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 					continue;
 				}
 
-				if (existingWatcher.excludes?.some(exclude => exclude(nonRecursiveWatcher.path))) {
-					continue;
-				}
-
-				if (existingWatcher.includes && !existingWatcher.includes.some(include => include(nonRecursiveWatcher.path))) {
+				if (
+					existingWatcher.excludes?.some(exclude => exclude(nonRecursiveWatcher.path)) ||
+					existingWatcher.includes && !existingWatcher.includes.some(include => include(nonRecursiveWatcher.path))
+				) {
 					continue;
 				}
 
