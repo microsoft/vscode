@@ -158,8 +158,10 @@ class InternalTerminalShellExecution {
 	}
 
 	private _createDataStream(): AsyncIterable<string> {
-		// TODO: This must work correctly across multiple extensions
 		if (!this._dataStream) {
+			if (this._exitCodeResolve === undefined) {
+				return AsyncIterableObject.EMPTY;
+			}
 			this._dataStream = new ShellExecutionDataStream();
 		}
 		return this._dataStream.createIterable();
