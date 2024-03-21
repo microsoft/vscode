@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -20,7 +22,8 @@ import { getNewChatAction } from 'vs/workbench/contrib/chat/browser/actions/chat
 import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { IChatContributionService, IChatParticipantContribution, IChatProviderContribution, IRawChatParticipantContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatContributionService, IChatProviderContribution, IRawChatParticipantContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -64,20 +67,24 @@ const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensi
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.chatParticipant', 'Contributes a Chat Participant'),
+		description: localize('vscode.extension.contributes.chatParticipant', 'Contributes a chat participant'),
 		type: 'array',
 		items: {
 			additionalProperties: false,
 			type: 'object',
 			defaultSnippets: [{ body: { name: '', description: '' } }],
-			required: ['name'],
+			required: ['name', 'id'],
 			properties: {
+				id: {
+					description: localize('chatParticipantId', "A unique id for this chat participant."),
+					type: 'string'
+				},
 				name: {
-					description: localize('chatParticipantName', "Unique name for this Chat Participant."),
+					description: localize('chatParticipantName', "User-facing display name for this chat participant. The user will use '@' with this name to invoke the participant."),
 					type: 'string'
 				},
 				description: {
-					description: localize('chatParticipantDescription', "A description of this Chat Participant, shown in the UI."),
+					description: localize('chatParticipantDescription', "A description of this chat participant, shown in the UI."),
 					type: 'string'
 				},
 				isDefault: {
@@ -92,7 +99,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					}
 				},
 				commands: {
-					markdownDescription: localize('chatCommandsDescription', "Commands available for this Chat Participant, which the user can invoke with a `/`."),
+					markdownDescription: localize('chatCommandsDescription', "Commands available for this chat participant, which the user can invoke with a `/`."),
 					type: 'array',
 					items: {
 						additionalProperties: false,
@@ -131,7 +138,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					}
 				},
 				locations: {
-					markdownDescription: localize('chatLocationsDescription', "Locations in which this Chat Participant is available."),
+					markdownDescription: localize('chatLocationsDescription', "Locations in which this chat participant is available."),
 					type: 'array',
 					default: ['panel'],
 					items: {
@@ -158,12 +165,14 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	private _welcomeViewDescriptor?: IViewDescriptor;
 	private _viewContainer: ViewContainer;
 	private _registrationDisposables = new Map<string, IDisposable>();
+	private _participantRegistrationDisposables = new DisposableMap<string>();
 
 	constructor(
-		@IChatContributionService readonly _chatContributionService: IChatContributionService,
-		@IProductService readonly productService: IProductService,
-		@IContextKeyService readonly contextService: IContextKeyService,
-		@ILogService readonly logService: ILogService,
+		@IChatContributionService private readonly _chatContributionService: IChatContributionService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IProductService private readonly productService: IProductService,
+		@IContextKeyService private readonly contextService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this._viewContainer = this.registerViewContainer();
 		this.registerListeners();
@@ -243,13 +252,34 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					this._chatContributionService.registerChatParticipant({ ...providerDescriptor, extensionId: extension.description.identifier });
+					if (!providerDescriptor.id || !providerDescriptor.name) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant without both id and name.`);
+						continue;
+					}
+
+					this._participantRegistrationDisposables.set(
+						getParticipantKey(extension.description.identifier, providerDescriptor.name),
+						this._chatAgentService.registerAgent(
+							providerDescriptor.id,
+							{
+								extensionId: extension.description.identifier,
+								id: providerDescriptor.id,
+								description: providerDescriptor.description,
+								metadata: {},
+								name: providerDescriptor.name,
+								isDefault: providerDescriptor.isDefault,
+								defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
+								locations: isNonEmptyArray(providerDescriptor.locations) ?
+									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
+									[ChatAgentLocation.Panel],
+								slashCommands: providerDescriptor.commands ?? []
+							} satisfies IChatAgentData));
 				}
 			}
 
 			for (const extension of delta.removed) {
 				for (const providerDescriptor of extension.value) {
-					this._chatContributionService.deregisterChatParticipant({ ...providerDescriptor, extensionId: extension.description.identifier });
+					this._participantRegistrationDisposables.deleteAndDispose(getParticipantKey(extension.description.identifier, providerDescriptor.name));
 				}
 			}
 		});
@@ -314,15 +344,14 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 
-function getParticipantKey(participant: IChatParticipantContribution): string {
-	return `${participant.extensionId.value}_${participant.name}`;
+function getParticipantKey(extensionId: ExtensionIdentifier, participantName: string): string {
+	return `${extensionId.value}_${participantName}`;
 }
 
 export class ChatContributionService implements IChatContributionService {
 	declare _serviceBrand: undefined;
 
 	private _registeredProviders = new Map<string, IChatProviderContribution>();
-	private _registeredParticipants = new Map<string, IChatParticipantContribution>();
 
 	constructor(
 	) { }
@@ -339,19 +368,7 @@ export class ChatContributionService implements IChatContributionService {
 		this._registeredProviders.delete(providerId);
 	}
 
-	public registerChatParticipant(participant: IChatParticipantContribution): void {
-		this._registeredParticipants.set(getParticipantKey(participant), participant);
-	}
-
-	public deregisterChatParticipant(participant: IChatParticipantContribution): void {
-		this._registeredParticipants.delete(getParticipantKey(participant));
-	}
-
 	public get registeredProviders(): IChatProviderContribution[] {
 		return Array.from(this._registeredProviders.values());
-	}
-
-	public get registeredParticipants(): IChatParticipantContribution[] {
-		return Array.from(this._registeredParticipants.values());
 	}
 }

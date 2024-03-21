@@ -545,9 +545,10 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	// Failing tests from issues...
 
-	test.skip('issue #116843: indent after arrow function', () => {
+	test.skip('issue #208215: indent after arrow function', () => {
 
-		// https://github.com/microsoft/vscode/issues/116843
+		// https://github.com/microsoft/vscode/issues/208215
+		// consider the regex: /^\s*(var|const|let)\s+\w+\s*=\s*\(.*\)\s*=>\s*$/
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -562,11 +563,53 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 				'const add1 = (n) =>',
 				'    ',
 			].join('\n'));
-			viewModel.type('n + 1;');
+		});
+	});
+
+	test.skip('issue #208215: outdented after semicolon detected after arrow function', () => {
+
+		// Notes: we want to outdent after having detected a semi-colon which marks the end of the line, but only when we have detected an arrow function
+		// We could use one outdent pattern corresponding per indent pattern, and not a generic outdent and indent pattern
+
+		const model = createTextModel([
+			'const add1 = (n) =>',
+			'    console.log("hi");',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+
+			editor.setSelection(new Selection(2, 24, 2, 24));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
 				'const add1 = (n) =>',
-				'	n + 1;',
+				'    console.log("hi");',
+				'',
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #116843: indent after arrow function', () => {
+
+		// https://github.com/microsoft/vscode/issues/116843
+
+		const model = createTextModel("", languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+
+			viewModel.type([
+				'const add1 = (n) =>',
+				'    n + 1;',
+			].join('\n'));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'const add1 = (n) =>',
+				'    n + 1;',
 				'',
 			].join('\n'));
 		});
@@ -632,6 +675,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 	test.skip('issue #43244: incorrect indentation', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
+		// potential regex to fix:  "^.*[if|while|for]\s*\(.*\)\s*",
 
 		const model = createTextModel([
 			'function f() {',
