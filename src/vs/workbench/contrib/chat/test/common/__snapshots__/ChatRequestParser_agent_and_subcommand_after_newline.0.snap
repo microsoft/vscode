@@ -32,7 +32,6 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
-        locations: [  ],
         metadata: { description: "" },
         slashCommands: [
           {

@@ -32,7 +32,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentService, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -177,12 +177,20 @@ suite('InteractiveChatController', function () {
 		inlineChatService = instaService.get(IInlineChatService) as InlineChatServiceImpl;
 
 		const chatAgentService = instaService.get(IChatAgentService);
-		const agent = {
+
+		store.add(chatAgentService.registerDynamicAgent({
+			extensionId: nullExtensionDescription.identifier,
+			id: 'testAgent',
+			name: 'testAgent',
+			isDefault: true,
+			locations: [ChatAgentLocation.Panel],
+			metadata: {},
+			slashCommands: []
+		}, {
 			async invoke(request, progress, history, token) {
 				return {};
 			},
-		} satisfies IChatAgentImplementation;
-		store.add(chatAgentService.registerAgentImplementation('testAgent', agent));
+		}));
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
 		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
