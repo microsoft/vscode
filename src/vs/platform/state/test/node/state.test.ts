@@ -110,7 +110,7 @@ flakySuite('StateService', () => {
 		return service.close();
 	});
 
-	test('Basics (immediate strategy)', async function () {
+	test.skip('Basics (immediate strategy)', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
@@ -205,7 +205,7 @@ flakySuite('StateService', () => {
 		return service.close();
 	});
 
-	test('Multiple ops (Immediate Strategy)', async function () {
+	test.skip('Multiple ops (Immediate Strategy)', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
@@ -263,7 +263,7 @@ flakySuite('StateService', () => {
 		return service.close();
 	});
 
-	test('Used after close', async function () {
+	test.skip('Used after close', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 

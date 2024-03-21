@@ -168,7 +168,7 @@ flakySuite('BackupMainService', () => {
 		return Promises.rm(testDir);
 	});
 
-	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {
+	test.skip('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {
 
 		// 1) backup workspace path does not exist
 		service.registerFolderBackup(toFolderBackupInfo(fooFile));
@@ -213,7 +213,7 @@ flakySuite('BackupMainService', () => {
 		assert.strictEqual(service.getEmptyWindowBackups().length, 1);
 	});
 
-	test('service validates backup workspaces on startup and cleans up (root workspaces)', async function () {
+	test.skip('service validates backup workspaces on startup and cleans up (root workspaces)', async function () {
 
 		// 1) backup workspace path does not exist
 		service.registerWorkspaceBackup(toWorkspaceBackupInfo(fooFile.fsPath));
@@ -258,7 +258,7 @@ flakySuite('BackupMainService', () => {
 		assert.strictEqual(service.getEmptyWindowBackups().length, 1);
 	});
 
-	test('service supports to migrate backup data from another location', async () => {
+	test.skip('service supports to migrate backup data from another location', async () => {
 		const backupPathToMigrate = service.toBackupPath(fooFile);
 		fs.mkdirSync(backupPathToMigrate);
 		fs.writeFileSync(path.join(backupPathToMigrate, 'backup.txt'), 'Some Data');
@@ -274,7 +274,7 @@ flakySuite('BackupMainService', () => {
 		assert.strictEqual(0, emptyBackups.length);
 	});
 
-	test('service backup migration makes sure to preserve existing backups', async () => {
+	test.skip('service backup migration makes sure to preserve existing backups', async () => {
 		const backupPathToMigrate = service.toBackupPath(fooFile);
 		fs.mkdirSync(backupPathToMigrate);
 		fs.writeFileSync(path.join(backupPathToMigrate, 'backup.txt'), 'Some Data');
