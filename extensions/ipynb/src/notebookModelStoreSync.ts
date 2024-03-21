@@ -104,7 +104,7 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 		if (e.executionSummary?.executionOrder && typeof e.executionSummary.success === 'boolean' && currentMetadata.execution_count !== e.executionSummary?.executionOrder) {
 			metadata.execution_count = e.executionSummary.executionOrder;
 			metadataUpdated = true;
-		} else if (!e.executionSummary && Object.keys(e.metadata || {}).length === 0 && ((e.outputs || []).length === 0) && currentMetadata.execution_count) {
+		} else if (!e.executionSummary && !e.metadata && e.outputs?.length === 0 && currentMetadata.execution_count) {
 			// Clear all.
 			delete metadata.execution_count;
 			metadataUpdated = true;
