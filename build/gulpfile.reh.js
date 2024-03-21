@@ -373,7 +373,8 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			);
 		}
 
-		if (platform === 'linux' || platform === 'alpine') {
+		// Skip packaging requirements check file in legacy server.
+		if ((platform === 'linux' && process.env['VSCODE_NODE_GLIBC'] !== '-glibc-2.17') || platform === 'alpine') {
 			result = es.merge(result,
 				gulp.src(`resources/server/bin/helpers/check-requirements-linux.sh`, { base: '.' })
 					.pipe(replace('@@SERVER_APPLICATION_NAME@@', product.serverApplicationName))
