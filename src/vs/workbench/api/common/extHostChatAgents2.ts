@@ -620,7 +620,7 @@ class ExtHostChatAgent {
 		} satisfies vscode.ChatParticipant;
 	}
 
-	invoke(request: vscode.ChatRequest, context: vscode.ChatContext, response: vscode.ChatExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatResult> {
+	invoke(request: vscode.ChatRequest, context: vscode.ChatContext, response: vscode.ChatExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatResult | void> {
 		return this._requestHandler(request, context, response, token);
 	}
 }
