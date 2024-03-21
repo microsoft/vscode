@@ -5,10 +5,10 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapability, type ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { extHostNamedCustomer, type IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalShellIntegration)
@@ -18,7 +18,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IProductService productService: IProductService
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -36,7 +36,16 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted));
-		this._store.add(commandDetectionStartEvent.event(e => this._proxy.$shellExecutionStart(e.instance.instanceId, e.data.command, e.data.cwd)));
+		let lastCommand: ITerminalCommand | undefined;
+		this._store.add(commandDetectionStartEvent.event(e => {
+			// Prevent duplicate events from being sent in case command detection double fires the
+			// event
+			if (e.data === lastCommand) {
+				return;
+			}
+			lastCommand = e.data;
+			this._proxy.$shellExecutionStart(e.instance.instanceId, e.data.command, e.data.cwd);
+		}));
 
 		// onDidEndTerminalShellExecution
 		const commandDetectionEndEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandFinished));
@@ -50,10 +59,8 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		this._store.add(this._terminalService.onDidDisposeInstance(e => this._proxy.$closeTerminal(e.instanceId)));
 
 		// TerminalShellExecution.createDataStream
-		// HACK: While proposed, this will only work in Insiders so as to not hurt performance in
-		// stable
-		if (productService.quality === 'insiders') {
-			// TODO: This should to go via the server on remote
+		// TODO: Support this on remote; it should go via the server
+		if (!workbenchEnvironmentService.remoteAuthority) {
 			this._store.add(this._terminalService.onAnyInstanceData(e => this._proxy.$shellExecutionData(e.instance.instanceId, e.data)));
 		}
 	}
