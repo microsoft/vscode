@@ -110,13 +110,13 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 			metadataUpdated = true;
 		}
 
-		if (e.cell.document.languageId !== preferredCellLanguage && e.cell.document.languageId !== languageIdInMetadata) {
-			setVSCodeCellLanguageId(metadata, e.cell.document.languageId);
+		if (e.document?.languageId && e.document?.languageId !== preferredCellLanguage && e.document?.languageId !== languageIdInMetadata) {
+			setVSCodeCellLanguageId(metadata, e.document.languageId);
 			metadataUpdated = true;
-		} else if (e.cell.document.languageId === preferredCellLanguage && languageIdInMetadata) {
+		} else if (e.document?.languageId && e.document.languageId === preferredCellLanguage && languageIdInMetadata) {
 			removeVSCodeCellLanguageId(metadata);
 			metadataUpdated = true;
-		} else if (e.cell.document.languageId === preferredCellLanguage && e.cell.document.languageId === languageIdInMetadata) {
+		} else if (e.document?.languageId && e.document.languageId === preferredCellLanguage && e.document.languageId === languageIdInMetadata) {
 			removeVSCodeCellLanguageId(metadata);
 			metadataUpdated = true;
 		}
