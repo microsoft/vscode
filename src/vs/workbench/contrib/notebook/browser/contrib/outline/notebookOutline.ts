@@ -379,7 +379,11 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}));
 
 		installSelectionListener();
-		const treeDataSource: IDataSource<this, OutlineEntry> = { getChildren: parent => parent instanceof NotebookCellOutline ? (this._outlineProvider?.entries ?? []) : parent.children };
+		const treeDataSource: IDataSource<this, OutlineEntry> = {
+			getChildren: parent => {
+				return this.getChildren(parent, _configurationService);
+			}
+		};
 		const delegate = new NotebookOutlineVirtualDelegate();
 		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer, this._editor.getControl(), _target)];
 		const comparator = new NotebookComparator();
@@ -412,6 +416,24 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			comparator,
 			options
 		};
+	}
+
+	*getChildren(parent: OutlineEntry | NotebookCellOutline, configurationService: IConfigurationService): Iterable<OutlineEntry> {
+		for (const entry of parent instanceof NotebookCellOutline ? (this._outlineProvider?.entries ?? []) : parent.children) {
+			const showOutlineCodeCells = configurationService.getValue<boolean>('notebook.outline.showCodeCells');
+			const showMarkdownHeadersOnly = configurationService.getValue<boolean>('notebook.outline.showMarkdownHeadersOnly');
+
+			if (entry.cell.cellKind === CellKind.Markup) {
+				if (!showMarkdownHeadersOnly) {
+					yield entry;
+				} else if (entry.level < 7) {
+					yield entry;
+				}
+			}
+			if (showOutlineCodeCells && entry.cell.cellKind === CellKind.Code) {
+				yield entry;
+			}
+		}
 	}
 
 	async setFullSymbols(cancelToken: CancellationToken) {
@@ -553,25 +575,25 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	order: 100,
 	type: 'object',
 	'properties': {
+		'notebook.outline.showMarkdownHeadersOnly': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('outline.showMarkdownHeadersOnly', "When enabled, notebook outline will show only markdown cells containing a header.")
+		},
 		'notebook.outline.showCodeCells': {
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('outline.showCodeCells', "When enabled, notebook outline shows code cells.")
 		},
-		'notebook.outline.showNonHeaderMarkdownCells': {
+		'notebook.outline.showCodeCellSymbols': {
 			type: 'boolean',
-			default: false,
-			markdownDescription: localize('outline.showNonHeaderMarkdownCells', "When enabled, notebook outline will show non-header markdown cell entries. When disabled, only markdown cells containing a header are shown.")
+			default: true,
+			markdownDescription: localize('outline.showCodeCellSymbols', "When enabled, notebook outline shows code cell symbols. Relies on `notebook.outline.showCodeCells` being enabled.")
 		},
 		'notebook.breadcrumbs.showCodeCells': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('breadcrumbs.showCodeCells', "When enabled, notebook breadcrumbs contain code cells.")
-		},
-		'notebook.outline.showCodeCellSymbols': {
-			type: 'boolean',
-			default: true,
-			markdownDescription: localize('outline.showCodeCellSymbols', "When enabled, notebook outline shows code cell symbols. Relies on `notebook.outline.showCodeCells` being enabled.")
 		},
 		[NotebookSetting.gotoSymbolsAllSymbols]: {
 			type: 'boolean',
@@ -590,18 +612,43 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', IOutlinePane.Id), NOTEBOOK_IS_ACTIVE_EDITOR),
 });
 
+registerAction2(class ToggleShowMarkdownHeadersOnly extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.outline.toggleShowMarkdownHeadersOnly',
+			title: localize('toggleShowMarkdownHeadersOnly', "Markdown Headers Only"),
+			f1: false,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.notebook.outline.showMarkdownHeadersOnly', true)
+			},
+			menu: {
+				id: MenuId.NotebookOutlineFilter,
+				group: '0_markdown_cells',
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const configurationService = accessor.get(IConfigurationService);
+		const showMarkdownHeadersOnly = configurationService.getValue<boolean>('notebook.outline.showMarkdownHeadersOnly');
+		configurationService.updateValue('notebook.outline.showMarkdownHeadersOnly', !showMarkdownHeadersOnly);
+	}
+});
+
+
 registerAction2(class ToggleCodeCellEntries extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.outline.toggleCodeCells',
-			title: localize('toggleCodeCells', "Toggle Code Cells"),
+			title: localize('toggleCodeCells', "Code Cells"),
 			f1: false,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.notebook.outline.showCodeCells', true)
 			},
 			menu: {
 				id: MenuId.NotebookOutlineFilter,
-				group: 'filter',
+				order: 1,
+				group: '1_code_cells',
 			}
 		});
 	}
@@ -613,41 +660,19 @@ registerAction2(class ToggleCodeCellEntries extends Action2 {
 	}
 });
 
-registerAction2(class ToggleNonHeaderMarkdownCells extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.outline.toggleNonHeaderMarkdownCells',
-			title: localize('toggleNonHeaderMarkdownCells', "Toggle Non-Header Markdown Cells"),
-			f1: false,
-			toggled: {
-				condition: ContextKeyExpr.equals('config.notebook.outline.showNonHeaderMarkdownCells', true)
-			},
-			menu: {
-				id: MenuId.NotebookOutlineFilter,
-				group: 'filter',
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const configurationService = accessor.get(IConfigurationService);
-		const showNonHeaderMarkdownCells = configurationService.getValue<boolean>('notebook.outline.showNonHeaderMarkdownCells');
-		configurationService.updateValue('notebook.outline.showNonHeaderMarkdownCells', !showNonHeaderMarkdownCells);
-	}
-});
-
 registerAction2(class ToggleCodeCellSymbolEntries extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.outline.toggleCodeCellSymbolEntries',
-			title: localize('toggleCodeCellSymbolEntries', "Toggle Code Cell Symbol Entries"),
+			id: 'notebook.outline.toggleCodeCellSymbols',
+			title: localize('toggleCodeCellSymbols', "Code Cell Symbols"),
 			f1: false,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.notebook.outline.showCodeCellSymbols', true)
 			},
 			menu: {
 				id: MenuId.NotebookOutlineFilter,
-				group: 'filter',
+				order: 2,
+				group: '1_code_cells',
 			}
 		});
 	}

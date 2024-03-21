@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IActiveNotebookEditor, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IActiveNotebookEditor, ICellViewModel, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
@@ -70,9 +70,10 @@ export class NotebookCellOutlineProvider {
 		);
 
 		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.outline.showCodeCells') ||
-				e.affectsConfiguration('notebook.outline.showNonHeaderMarkdownCells') ||
-				e.affectsConfiguration('notebook.outline.showCodeCellSymbols')
+			if (e.affectsConfiguration('notebook.outline.showMarkdownHeadersOnly') ||
+				e.affectsConfiguration('notebook.outline.showCodeCells') ||
+				e.affectsConfiguration('notebook.outline.showCodeCellSymbols') ||
+				e.affectsConfiguration('notebook.breadcrumbs.showCodeCells')
 			) {
 				this._recomputeState();
 			}
@@ -139,15 +140,16 @@ export class NotebookCellOutlineProvider {
 		}
 
 		let includeCodeCells = true;
-		if (this._target === OutlineTarget.OutlinePane) {
-			includeCodeCells = this._configurationService.getValue<boolean>('notebook.outline.showCodeCells');
-		} else if (this._target === OutlineTarget.Breadcrumbs) {
+		if (this._target === OutlineTarget.Breadcrumbs) {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const showNonHeaderMarkdownCells = this._configurationService.getValue<boolean>('notebook.outline.showNonHeaderMarkdownCells');
-
-		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
+		let notebookCells: ICellViewModel[];
+		if (this._target === OutlineTarget.Breadcrumbs) {
+			notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
+		} else {
+			notebookCells = notebookEditorWidget.getViewModel().viewCells;
+		}
 
 		const entries: OutlineEntry[] = [];
 		for (const cell of notebookCells) {
@@ -166,11 +168,6 @@ export class NotebookCellOutlineProvider {
 
 			for (let i = 1; i < entries.length; i++) {
 				const entry = entries[i];
-
-				if (!showNonHeaderMarkdownCells && entry.cell.cellKind === CellKind.Markup && entry.level === 7) {
-					// skip plain text markdown cells
-					continue;
-				}
 
 				while (true) {
 					const len = parentStack.length;
