@@ -29,5 +29,15 @@ export const javascriptOnEnterRules = [
 		// e.g.  *-----*/|
 		beforeText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
 		action: { indentAction: IndentAction.None, removeText: 1 }
-	}
+	},
+	{
+		beforeText: /^\s*(\bcase\s.+:|\bdefault:)$/,
+		afterText: /^(?!\s*(\bcase\b|\bdefault\b))/,
+		action: { indentAction: IndentAction.Indent }
+	},
+	{
+		previousLineText: /^\s*(((else ?)?if|for|while)\s*\(.*\)\s*|else\s*)$/,
+		beforeText: /^\s+([^{i\s]|i(?!f\b))/,
+		action: { indentAction: IndentAction.Outdent }
+	},
 ];

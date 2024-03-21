@@ -9,6 +9,7 @@ import { DiffAlgorithmName, IEditorWorkerService, IUnicodeHighlightsResult } fro
 import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import { SectionHeader } from 'vs/editor/common/services/findSectionHeaders';
 
 export class TestEditorWorkerService implements IEditorWorkerService {
 
@@ -25,4 +26,5 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> { return null; }
 	canNavigateValueSet(resource: URI): boolean { return false; }
 	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
+	async findSectionHeaders(uri: URI): Promise<SectionHeader[]> { return []; }
 }

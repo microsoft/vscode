@@ -19,7 +19,7 @@ import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/co
 import { CELL_TITLE_CELL_GROUP_ID, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 
 registerAction2(class extends NotebookAction {
@@ -30,7 +30,7 @@ registerAction2(class extends NotebookAction {
 				title: localize2('notebook.cell.chat.accept', "Make Request"),
 				icon: Codicon.send,
 				keybinding: {
-					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
+					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED.negate()),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyCode.Enter
 				},
@@ -59,6 +59,7 @@ registerAction2(class extends NotebookCellAction {
 						CTX_NOTEBOOK_CELL_CHAT_FOCUSED,
 						CTX_INLINE_CHAT_FOCUSED,
 						CTX_INLINE_CHAT_INNER_CURSOR_FIRST,
+						NOTEBOOK_CELL_EDITOR_FOCUSED.negate(),
 						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()
 					),
 					weight: KeybindingWeight.EditorCore + 7,
@@ -99,6 +100,7 @@ registerAction2(class extends NotebookAction {
 						CTX_NOTEBOOK_CELL_CHAT_FOCUSED,
 						CTX_INLINE_CHAT_FOCUSED,
 						CTX_INLINE_CHAT_INNER_CURSOR_LAST,
+						NOTEBOOK_CELL_EDITOR_FOCUSED.negate(),
 						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()
 					),
 					weight: KeybindingWeight.EditorCore + 7,
@@ -224,12 +226,12 @@ registerAction2(class extends NotebookAction {
 				tooltip: localize('apply3', 'Accept Changes'),
 				keybinding: [
 					{
-						when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
+						when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED.negate()),
 						weight: KeybindingWeight.EditorContrib + 10,
 						primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					},
 					{
-						when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_USER_DID_EDIT),
+						when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, NOTEBOOK_CELL_EDITOR_FOCUSED.negate()),
 						weight: KeybindingWeight.EditorCore + 10,
 						primary: KeyCode.Escape
 					},
@@ -237,6 +239,7 @@ registerAction2(class extends NotebookAction {
 						when: ContextKeyExpr.and(
 							NOTEBOOK_EDITOR_FOCUSED,
 							ContextKeyExpr.not(InputFocusedContextKey),
+							NOTEBOOK_CELL_EDITOR_FOCUSED.negate(),
 							CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.isEqualTo('below')
 						),
 						primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -267,7 +270,7 @@ registerAction2(class extends NotebookAction {
 				title: localize('discard', 'Discard'),
 				icon: Codicon.discard,
 				keybinding: {
-					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_USER_DID_EDIT.negate()),
+					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_USER_DID_EDIT.negate(), NOTEBOOK_CELL_EDITOR_FOCUSED.negate()),
 					weight: KeybindingWeight.EditorContrib,
 					primary: KeyCode.Escape
 				},

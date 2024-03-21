@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -207,15 +207,7 @@ export class SearchService extends Disposable implements ISearchService {
 			};
 		})();
 
-		return new Promise((resolve, reject) => {
-			if (token) {
-				token.onCancellationRequested(() => {
-					reject(new CancellationError());
-				});
-			}
-
-			providerPromise.then(resolve, reject);
-		});
+		return token ? raceCancellationError<ISearchComplete>(providerPromise, token) : providerPromise;
 	}
 
 	private getSchemesInQuery(query: ISearchQuery): Set<string> {

@@ -528,6 +528,14 @@ suite('Strings', () => {
 		for (const sequence of sequences) {
 			assert.strictEqual(strings.removeAnsiEscapeCodes(`hello${sequence}world`), 'helloworld', `expect to remove ${JSON.stringify(sequence)}`);
 		}
+
+		for (const sequence of sequences) {
+			assert.deepStrictEqual(
+				[...strings.forAnsiStringParts(`hello${sequence}world`)],
+				[{ isCode: false, str: 'hello' }, { isCode: true, str: sequence }, { isCode: false, str: 'world' }],
+				`expect to forAnsiStringParts ${JSON.stringify(sequence)}`
+			);
+		}
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

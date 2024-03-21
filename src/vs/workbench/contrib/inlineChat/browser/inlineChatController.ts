@@ -50,6 +50,7 @@ import { IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 import { InlineChatHistory } from 'vs/workbench/contrib/inlineChat/browser/inlineChatHistory';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -290,6 +291,7 @@ export class InlineChatController implements IEditorContribution {
 		const widgetPosition = this._showWidget(true, initPosition);
 
 		this._updatePlaceholder();
+		let errorMessage = localize('create.fail', "Failed to start editor chat");
 
 		if (!session) {
 			const createSessionCts = new CancellationTokenSource();
@@ -305,11 +307,19 @@ export class InlineChatController implements IEditorContribution {
 				}
 			});
 
-			session = await this._inlineChatSessionService.createSession(
-				this._editor,
-				{ editMode: this._getMode(), wholeRange: options.initialRange },
-				createSessionCts.token
-			);
+			try {
+				session = await this._inlineChatSessionService.createSession(
+					this._editor,
+					{ editMode: this._getMode(), wholeRange: options.initialRange },
+					createSessionCts.token
+				);
+			} catch (e) {
+				const error = e as Error;
+				// Inline chat errors are from the provider and have their error messages shown to the user
+				if (error instanceof InlineChatError || error?.name === InlineChatError.code) {
+					errorMessage = error.message;
+				}
+			}
 
 			createSessionCts.dispose();
 			msgListener.dispose();
@@ -326,7 +336,7 @@ export class InlineChatController implements IEditorContribution {
 		delete options.existingSession;
 
 		if (!session) {
-			MessageController.get(this._editor)?.showMessage(localize('create.fail', "Failed to start editor chat"), widgetPosition);
+			MessageController.get(this._editor)?.showMessage(errorMessage, widgetPosition);
 			this._log('Failed to start editor chat');
 			return State.CANCEL;
 		}
