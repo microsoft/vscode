@@ -16,15 +16,18 @@ export function getEnterAction(
 	languageConfigurationService: ILanguageConfigurationService
 ): CompleteEnterAction | null {
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+	// Finding if we have rich text edit support
 	const richEditSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId);
 	if (!richEditSupport) {
 		return null;
 	}
 
 	const scopedLineText = scopedLineTokens.getLineContent();
+	// The text before the enter key is pressed
 	const beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 
 	// selection support
+	// presumably the text after the enter key is pressed
 	let afterEnterText: string;
 	if (range.isEmpty()) {
 		afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
