@@ -357,6 +357,7 @@ if (isTest) {
 	const gracefulFs = require('graceful-fs')
 	const stream = require('stream')
 	const vscodeRipgrep = require('@vscode/ripgrep')
+	const parcelWatcher = require('@parcel/watcher')
 	const electron = require('electron')
 	const cookie = require('cookie')
 	const vscodeRegexpp = require('vscode-regexpp')
@@ -412,7 +413,8 @@ if (isTest) {
 		childProcess,
 		vscodeRipgrep,
 		vscodeSqlite3,
-		sinonTest
+		sinonTest,
+		parcelWatcher
 	}
 	// @ts-ignore
 	window.testGlobals = testGlobals
