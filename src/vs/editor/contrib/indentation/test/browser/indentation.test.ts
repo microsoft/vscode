@@ -560,30 +560,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test('issue #208215: outdented after semicolon detected after arrow function', () => {
-
-
-		const model = createTextModel([
-			'const add1 = (n) =>',
-			'    console.log("hi");',
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-
-			editor.setSelection(new Selection(2, 24, 2, 24));
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'const add1 = (n) =>',
-				'    console.log("hi");',
-				'',
-			].join('\n'));
-		});
-	});
-
-	test.skip('issue #116843: indent after arrow function', () => {
+	test('issue #116843: indent after arrow function', () => {
 
 		// https://github.com/microsoft/vscode/issues/116843
 
