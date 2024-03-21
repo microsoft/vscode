@@ -8,7 +8,7 @@
 
 process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
 
-import assert from 'assert';
+import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import glob from 'glob';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { dirname, joinPath } from 'vs/base/common/resources';

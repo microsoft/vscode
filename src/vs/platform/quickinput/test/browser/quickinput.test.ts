@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import * as assert from 'assert';
 import { unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import * as assert from 'assert';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { mainWindow } from 'vs/base/browser/window';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';

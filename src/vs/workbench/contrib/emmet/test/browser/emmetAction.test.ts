@@ -5,7 +5,7 @@
 
 import { IGrammarContributions, EmmetEditorAction } from 'vs/workbench/contrib/emmet/browser/emmetActions';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import assert from 'assert';
+import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';

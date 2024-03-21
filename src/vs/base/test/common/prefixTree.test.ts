@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import assert from 'assert';
+import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('WellDefinedPrefixTree', () => {

@@ -7,7 +7,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { DomActivityTracker } from 'vs/workbench/services/userActivity/browser/domActivityTracker';
 import { UserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
 import * as sinon from 'sinon';
-import assert from 'assert';
+import * as assert from 'assert';
 
 suite('DomActivityTracker', () => {
 	let uas: UserActivityService;

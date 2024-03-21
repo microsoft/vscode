@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import * as assert from 'assert';
 
 import { isURLDomainTrusted } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
 import { URI } from 'vs/base/common/uri';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import * as assert from 'assert';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';

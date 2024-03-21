@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import assert from 'assert';
+import * as assert from 'assert';
 import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
