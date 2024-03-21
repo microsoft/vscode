@@ -566,7 +566,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test.skip('issue #208215: outdented after semicolon detected after arrow function', () => {
+	test.skip('issue #208215: outdent after semicolon detected after arrow function', () => {
 
 		// Notes: we want to outdent after having detected a semi-colon which marks the end of the line, but only when we have detected an arrow function
 		// We could use one outdent pattern corresponding per indent pattern, and not a generic outdent and indent pattern
@@ -672,7 +672,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test('issue #43244: incorrect indentation', () => {
+	test('issue #43244: incorrect indentation after if/for/while without braces', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
 
@@ -705,6 +705,35 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 				'}',
 			].join('\n'));
 
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'function f() {',
+				'    if (condition)',
+				'        return;',
+				'    ',
+				'    ',
+				'}',
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #43244: incorrect indentation after if/for/while without braces 2', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+
+		const model = createTextModel([
+			'function f() {',
+			'    if (condition)',
+			'        return;',
+			'    ',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(4, 5, 4, 5));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
 				'function f() {',
