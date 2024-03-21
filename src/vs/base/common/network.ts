@@ -224,6 +224,7 @@ export type AppResourcePath = (
 	| `y${string}` | `z${string}`
 );
 
+
 export const builtinExtensionsPath: string = '../../extensions';
 export const nodeModulesPath: string = '../../node_modules';
 export const nodeModulesAsarPath: string = '../../node_modules.asar';
@@ -241,7 +242,7 @@ class FileAccessImpl {
 	 *
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
-	asBrowserUri(resourcePath: AppResourcePath | '' | string): URI {
+	asBrowserUri(resourcePath: AppResourcePath | ''|string): URI {
 		const uri = this.toUri(resourcePath);
 		return this.uriToBrowserUri(uri);
 	}
@@ -263,6 +264,8 @@ class FileAccessImpl {
 			// ...only ever for `file` resources
 			uri.scheme === Schemas.file &&
 			(
+				// ...and we run in native environments
+				platform.isNative ||
 				// ...or web worker extensions on desktop
 				(platform.webWorkerOrigin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
 			)
