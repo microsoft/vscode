@@ -361,6 +361,7 @@ if (isTest) {
 	const cookie = require('cookie')
 	const vscodeRegexpp = require('vscode-regexpp')
 	const crypto = require('crypto')
+	const xterm = require('@xterm/xterm')
 	const zlib = require('zlib')
 	const vscodeSqlite3 = require('@vscode/sqlite3')
 
@@ -399,6 +400,7 @@ if (isTest) {
 		setRun,
 		cookie,
 		url,
+		xterm,
 		net,
 		crypto,
 		vscodeRegexpp,
