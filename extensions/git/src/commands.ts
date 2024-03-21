@@ -1522,12 +1522,15 @@ export class CommandCenter {
 	}
 
 	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
-		const textEditor = window.activeTextEditor;
-		if (!textEditor) {
-			return;
+		let modifiedUri = changes.modifiedUri;
+		if (!modifiedUri) {
+			const textEditor = window.activeTextEditor;
+			if (!textEditor) {
+				return;
+			}
+			const modifiedDocument = textEditor.document;
+			modifiedUri = modifiedDocument.uri;
 		}
-		const modifiedDocument = textEditor.document;
-		const modifiedUri = modifiedDocument.uri;
 		if (modifiedUri.scheme !== 'file') {
 			return;
 		}

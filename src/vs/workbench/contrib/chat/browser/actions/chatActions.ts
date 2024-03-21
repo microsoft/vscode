@@ -128,7 +128,7 @@ export class ChatSubmitSecondaryAgentEditorAction extends EditorAction2 {
 			if (widget.getInput().match(/^\s*@/)) {
 				widget.acceptInput();
 			} else {
-				widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
+				widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.name}`);
 			}
 		}
 	}

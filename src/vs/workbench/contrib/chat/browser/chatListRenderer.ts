@@ -359,7 +359,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
 		let progressMsg: string = '';
 		if (element.agent && !element.agent.isDefault) {
-			let usingMsg = chatAgentLeader + element.agent.id;
+			let usingMsg = chatAgentLeader + element.agent.name;
 			if (element.slashCommand) {
 				usingMsg += ` ${chatSubcommandLeader}${element.slashCommand.name}`;
 			}
