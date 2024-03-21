@@ -237,8 +237,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._model.value?.cancelRequest(this._currentRequest);
 		}
 		this._model.clear();
-		this._chatWidget?.value.hide();
-		this._chatWidget?.value.setValue(undefined);
+		this._chatWidget?.rawValue?.hide();
+		this._chatWidget?.rawValue?.setValue(undefined);
 		this._responseContainsCodeBlockContextKey.reset();
 		this._sessionResponseVoteContextKey.reset();
 		this._requestActiveContextKey.reset();
@@ -389,7 +389,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			} else if (!model) {
 				widget.focusInput();
 			}
-			this._chatWidget?.value.hide();
+			this._chatWidget?.rawValue?.hide();
 		}
 	}
 
