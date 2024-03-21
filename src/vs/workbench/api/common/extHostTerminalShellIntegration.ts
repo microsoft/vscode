@@ -29,7 +29,6 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	protected _proxy: MainThreadTerminalShellIntegrationShape;
 
 	private _activeShellIntegrations: Map<number, InternalTerminalShellIntegration> = new Map();
-	private _activeShellExecutions: Map<number, InternalTerminalShellExecution> = new Map();
 
 	protected readonly _onDidChangeTerminalShellIntegration = new Emitter<vscode.TerminalShellIntegrationChangeEvent>();
 	readonly onDidChangeTerminalShellIntegration = this._onDidChangeTerminalShellIntegration.event;
@@ -68,48 +67,48 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public async $acceptDidChangeShellIntegration(id: number): Promise<void> {
+	public $acceptDidChangeShellIntegration(id: number): void {
 		const terminal = this._extHostTerminalService.getTerminalById(id);
-		if (terminal) {
-			const apiTerminal = terminal.value;
-			let shellIntegration = this._activeShellIntegrations.get(id);
-			if (!shellIntegration) {
-				shellIntegration = new InternalTerminalShellIntegration();
-				terminal.shellIntegration = shellIntegration.value;
-			}
-			this._onDidChangeTerminalShellIntegration.fire({
-				terminal: apiTerminal,
-				shellIntegration: shellIntegration.value
-			});
+		if (!terminal) {
+			return;
 		}
-	}
 
-	public async $acceptTerminalShellExecutionStart(id: number, commandLine: string, cwd: URI | string | undefined): Promise<void> {
-		const terminal = this._extHostTerminalService.getTerminalById(id);
-		if (terminal) {
-			// End any existing shell execution
-			this._activeShellExecutions.get(id)?.endExecution(undefined);
-
-			const shellExecution = new InternalTerminalShellExecution(terminal.value, commandLine, cwd);
-			this._activeShellExecutions.set(id, shellExecution);
-			this._onDidStartTerminalShellExecution.fire(shellExecution.value);
+		const apiTerminal = terminal.value;
+		let shellIntegration = this._activeShellIntegrations.get(id);
+		if (!shellIntegration) {
+			shellIntegration = new InternalTerminalShellIntegration(terminal.value, this._onDidStartTerminalShellExecution);
+			this._activeShellIntegrations.set(id, shellIntegration);
+			terminal.shellIntegration = shellIntegration.value;
 		}
+		this._onDidChangeTerminalShellIntegration.fire({
+			terminal: apiTerminal,
+			shellIntegration: shellIntegration.value
+		});
 	}
 
-	public async $acceptTerminalShellExecutionEnd(id: number, exitCode: number | undefined): Promise<void> {
-		this._activeShellExecutions.get(id)?.endExecution(exitCode);
-		this._activeShellExecutions.delete(id);
+	public $acceptTerminalShellExecutionStart(id: number, commandLine: string, cwd: URI | string | undefined): void {
+		this._activeShellIntegrations.get(id)?.startShellExecution(commandLine, cwd);
 	}
 
-	public async $acceptTerminalShellExecutionData(id: number, data: string): Promise<void> {
-		this._activeShellExecutions.get(id)?.emitData(data);
+	public $acceptTerminalShellExecutionEnd(id: number, exitCode: number | undefined): void {
+		this._activeShellIntegrations.get(id)?.currentExecution?.endExecution(exitCode);
+	}
+
+	public $acceptTerminalShellExecutionData(id: number, data: string): void {
+		this._activeShellIntegrations.get(id)?.emitData(data);
 	}
 }
 
 class InternalTerminalShellIntegration {
+	private _currentExecution: InternalTerminalShellExecution | undefined;
+	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
+
 	readonly value: vscode.TerminalShellIntegration;
 
-	constructor() {
+	constructor(
+		private readonly _terminal: vscode.Terminal,
+		private readonly _onDidStartTerminalShellExecution: Emitter<vscode.TerminalShellExecution>
+	) {
 		// TODO: impl
 		this.value = {
 			cwd: undefined,
@@ -117,6 +116,26 @@ class InternalTerminalShellIntegration {
 				return null!;
 			}
 		};
+	}
+
+	// TODO: shellIntegration should own shellExecution
+	// executeCommand(commandLine: string): void {
+
+	// }
+
+	startShellExecution(commandLine: string, cwd: URI | string | undefined): void {
+		this._currentExecution?.endExecution(undefined);
+		this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
+		this._onDidStartTerminalShellExecution.fire(this._currentExecution.value);
+	}
+
+	emitData(data: string): void {
+		this.currentExecution?.emitData(data);
+	}
+
+	endShellExecution(exitCode: number | undefined): void {
+		this._currentExecution?.endExecution(exitCode);
+		this._currentExecution = undefined;
 	}
 }
 

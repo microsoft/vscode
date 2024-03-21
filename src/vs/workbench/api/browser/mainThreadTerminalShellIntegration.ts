@@ -49,6 +49,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			this._proxy.$acceptTerminalShellExecutionEnd(e.instance.instanceId, e.data.exitCode);
 		}));
 
+		// TODO: Only do this if there is a consumer
 		// TODO: This needs to go via the server on remote for performance reasons
 		// TerminalShellExecution.dataStream
 		this._store.add(terminalService.onAnyInstanceData(e => this._proxy.$acceptTerminalShellExecutionData(e.instance.instanceId, e.data)));
