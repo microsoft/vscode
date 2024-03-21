@@ -184,7 +184,7 @@ declare module 'vscode' {
 	/**
 	 * A chat request handler is a callback that will be invoked when a request is made to a chat participant.
 	 */
-	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
+	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
 	/**
 	 * A chat participant can be invoked by the user in a chat session, using the `@` prefix. When it is invoked, it handles the chat request and is solely
