@@ -312,6 +312,18 @@ export class InputBox extends Widget {
 		return this.input.selectionEnd === this.input.value.length && this.input.selectionStart === this.input.selectionEnd;
 	}
 
+	public getSelection(): IRange | null {
+		const selectionStart = this.input.selectionStart;
+		if (selectionStart === null) {
+			return null;
+		}
+		const selectionEnd = this.input.selectionEnd ?? selectionStart;
+		return {
+			start: selectionStart,
+			end: selectionEnd,
+		};
+	}
+
 	public enable(): void {
 		this.input.removeAttribute('disabled');
 	}
