@@ -1,7 +1,7 @@
 import { parcelWatcher } from './testGlobals.js';
 
-const { subscribe } = parcelWatcher
+const { subscribe, writeSnapshot } = parcelWatcher
 
-export { subscribe }
+export { subscribe, writeSnapshot }
 
 export default parcelWatcher
