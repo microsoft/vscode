@@ -437,6 +437,10 @@
 	border-radius: 6px 6px 0px 0px;
 }
 
+.interactive-session .chat-implicit-context .chat-implicit-range {
+	opacity: 0.7;
+}
+
 .interactive-session-followups {
 	display: flex;
 	flex-direction: column;

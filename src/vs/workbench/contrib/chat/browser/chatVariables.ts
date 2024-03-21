@@ -13,7 +13,7 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest, ChatRequestVariablePart, ChatRequestDynamicVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IDynamicVariable, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IDynamicVariable, IChatVariableResolverProgress, IChatLiveVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -24,6 +24,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	declare _serviceBrand: undefined;
 
 	private _resolver = new Map<string, IChatData>();
+	private _liveVariables = new Map<string, IChatLiveVariable>();
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
@@ -58,6 +59,15 @@ export class ChatVariablesService implements IChatVariablesService {
 		return {
 			variables: resolvedVariables,
 		};
+	}
+
+	registerLiveVariable(data: IChatLiveVariable): IDisposable {
+		this._liveVariables.set(data.name.toLowerCase(), data);
+		return toDisposable(() => this._liveVariables.delete(data.name.toLowerCase()));
+	}
+
+	getLiveVariable(name: string): IChatLiveVariable | undefined {
+		return this._liveVariables.get(name.toLowerCase());
 	}
 
 	async resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[]> {

@@ -47,6 +47,9 @@ import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { basename } from 'vs/base/common/resources';
+import { IRange } from 'vs/editor/common/core/range';
 
 const $ = dom.$;
 
@@ -81,6 +84,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private implicitContextLabel!: HTMLElement;
 	private implicitContextCheckbox!: Checkbox;
 	private implicitContextSettingEnabled = false;
+	private implicitContextLiveVariableDisposables = this._register(new DisposableStore());
 	get implicitContextEnabled() {
 		return this.implicitContextCheckbox.checked;
 	}
@@ -123,7 +127,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService
 	) {
 		super();
 
@@ -376,15 +381,34 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initImplicitContext(container: HTMLElement) {
-		this.implicitContextCheckbox = new Checkbox('#selection', true, { ...defaultCheckboxStyles, checkboxBorder: asCssVariableWithDefault(checkboxBorder, inputBackground) });
+		this.implicitContextCheckbox = new Checkbox('', true, { ...defaultCheckboxStyles, checkboxBorder: asCssVariableWithDefault(checkboxBorder, inputBackground) });
 		container.append(this.implicitContextCheckbox.domNode);
 		this.implicitContextLabel = dom.append(container, $('span.chat-implicit-context-label'));
-		this.implicitContextLabel.textContent = '#selection';
+		this.implicitContextLabel.textContent = '';
 	}
 
 	setImplicitContextKinds(kinds: string[]) {
 		dom.setVisibility(this.implicitContextSettingEnabled && kinds.length > 0, this.implicitContextContainer);
-		this.implicitContextLabel.textContent = localize('use', "Use") + ' ' + kinds.map(k => `#${k}`).join(', ');
+		// this.implicitContextLabel.textContent = localize('use', "Use") + ' ' + kinds.map(k => `#${k}`).join(', ');
+
+		this.implicitContextLiveVariableDisposables.clear();
+		const selectionVar = this.chatVariablesService.getLiveVariable('currentcode');
+		if (selectionVar) {
+			this.implicitContextLiveVariableDisposables.add(selectionVar.onDidChange(() => {
+				const value = selectionVar.value.value;
+				if (typeof value !== 'string' && 'uri' in value && 'range' in value) {
+					// Is Location
+					const name = basename(value.uri as URI);
+					const range = value.range as IRange;
+					const rangeLabel = range.startLineNumber === range.endLineNumber ?
+						range.startLineNumber :
+						`${range.startLineNumber}-${range.endLineNumber}`;
+					dom.clearNode(this.implicitContextLabel);
+					dom.append(this.implicitContextLabel, $('span', undefined, `Use ${name}`));
+					dom.append(this.implicitContextLabel, $('span.chat-implicit-range', undefined, `:${rangeLabel}`));
+				}
+			}));
+		}
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {

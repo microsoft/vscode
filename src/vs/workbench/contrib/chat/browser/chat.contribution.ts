@@ -42,6 +42,7 @@ import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVari
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import 'vs/workbench/contrib/chat/browser/contrib/chatHistoryVariables';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
+import 'vs/workbench/contrib/chat/browser/contrib/chatLiveSelectionVariable';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';

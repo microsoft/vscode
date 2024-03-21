@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Location } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
@@ -19,10 +21,15 @@ export interface IChatVariableData {
 	canTakeArgument?: boolean;
 }
 
+export interface IChatLiveVariable extends IChatVariableData {
+	onDidChange: Event<void>;
+	value: IChatRequestVariableValue;
+}
+
 export interface IChatRequestVariableValue {
 	level: 'short' | 'medium' | 'full';
 	kind?: string;
-	value: string | URI;
+	value: string | URI | Location;
 	description?: string;
 }
 
@@ -40,6 +47,8 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
+	registerLiveVariable(data: IChatLiveVariable): IDisposable;
+	getLiveVariable(name: string): IChatLiveVariable | undefined;
 	hasVariable(name: string): boolean;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
