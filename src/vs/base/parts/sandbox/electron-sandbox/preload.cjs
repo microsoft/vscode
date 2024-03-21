@@ -418,6 +418,7 @@ if (isTest) {
 		vscodeSqlite3,
 		sinonTest,
 		parcelWatcher,
+		jschardet,
 		xtermHeadless
 	}
 	// @ts-ignore
