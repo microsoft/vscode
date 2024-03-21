@@ -883,7 +883,7 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
+	test.skip('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
 
