@@ -25,7 +25,6 @@ import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContr
 import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
-
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
 

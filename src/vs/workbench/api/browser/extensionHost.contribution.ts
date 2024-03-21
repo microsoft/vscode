@@ -59,6 +59,7 @@ import './mainThreadStatusBar';
 import './mainThreadStorage';
 import './mainThreadTelemetry';
 import './mainThreadTerminalService';
+import './mainThreadTerminalShellIntegration';
 import './mainThreadTheming';
 import './mainThreadTreeViews';
 import './mainThreadDownloadService';
