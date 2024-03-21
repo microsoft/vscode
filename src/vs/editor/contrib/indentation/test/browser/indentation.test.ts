@@ -735,6 +735,96 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test.skip('issue #43244: indent after equal sign is detected', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+		// issue: Indent after an equal sign is detected followed by whitespace.
+		// This should be outdented when a semi-colon is detected indicating the end of the assignment.
+
+		const model = createTextModel([
+			'const array ='
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(1, 14, 1, 14));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'const array =',
+				'    '
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #43244: indent after dot detected after object/array signifying a method call', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+		// issue: When a dot is written, we should detect that this is a method call and indent accordingly
+
+		const model = createTextModel([
+			'const array = [1, 2, 3];',
+			'array.'
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 7, 2, 7));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'const array = [1, 2, 3];',
+				'array.',
+				'    '
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #43244: indent after dot detected on a subsequent line after object/array signifying a method call', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+		// issue: when a dot is written, we should detect that this is a method call and indent accordingly
+
+		const model = createTextModel([
+			'const array = [1, 2, 3]',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 7, 2, 7));
+			viewModel.type("\n", 'keyboard');
+			viewModel.type(".");
+			assert.strictEqual(model.getValue(), [
+				'const array = [1, 2, 3]',
+				'    .'
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #43244: keep indentation when methods called on object/array', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+		// Currently passes, but should pass with all the tests above too
+
+		const model = createTextModel([
+			'const array = [1, 2, 3]',
+			'    .filter(() => true)'
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 24, 2, 24));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'const array = [1, 2, 3]',
+				'    .filter(() => true)',
+				'    '
+			].join('\n'));
+		});
+	});
+
 	// Add tests for:
 	// https://github.com/microsoft/vscode/issues/88638
 	// https://github.com/microsoft/vscode/issues/63388
