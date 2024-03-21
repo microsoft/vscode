@@ -538,25 +538,17 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// Test added so there is at least one non-ignored test in this suite
-	test('temporary test', () => {
-		assert.ok(true);
-	});
-
 	// Failing tests from issues...
 
-	test.skip('issue #208215: indent after arrow function', () => {
+	test('issue #208215: indent after arrow function', () => {
 
 		// https://github.com/microsoft/vscode/issues/208215
-		// consider the regex: /^\s*(var|const|let)\s+\w+\s*=\s*\(.*\)\s*=>\s*$/
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-
 			viewModel.type('const add1 = (n) =>');
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -566,32 +558,31 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test.skip('issue #208215: outdent after semicolon detected after arrow function', () => {
+	test('issue #208215: indent after arrow function 2', () => {
 
-		// Notes: we want to outdent after having detected a semi-colon which marks the end of the line, but only when we have detected an arrow function
-		// We could use one outdent pattern corresponding per indent pattern, and not a generic outdent and indent pattern
+		// https://github.com/microsoft/vscode/issues/208215
 
 		const model = createTextModel([
-			'const add1 = (n) =>',
-			'    console.log("hi");',
+			'const array = [1, 2, 3, 4, 5];',
+			'array.map(',
+			'    v =>',
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-
-			editor.setSelection(new Selection(2, 24, 2, 24));
+			editor.setSelection(new Selection(3, 9, 3, 9));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
-				'const add1 = (n) =>',
-				'    console.log("hi");',
-				'',
+				'const array = [1, 2, 3, 4, 5];',
+				'array.map(',
+				'    v =>',
+				'        '
 			].join('\n'));
 		});
 	});
 
-	test.skip('issue #116843: indent after arrow function', () => {
+	test('issue #116843: indent after arrow function', () => {
 
 		// https://github.com/microsoft/vscode/issues/116843
 

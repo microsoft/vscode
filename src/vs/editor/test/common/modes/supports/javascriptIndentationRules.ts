@@ -8,5 +8,5 @@ export const javascriptIndentationRules = {
 	increaseIndentPattern: /^((?!\/\/).)*(\{([^}"'`]*|(\t|[ ])*\/\/.*)|\([^)"'`]*|\[[^\]"'`]*)$/,
 	// e.g.  * ...| or */| or *-----*/|
 	unIndentedLinePattern: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$|^(\t|[ ])*[ ]\*\/\s*$|^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
-	indentNextLinePattern: /^.*(if|while|for)\s*\(.*\)\s*$/
+	indentNextLinePattern: /^(.*=>\s*|.*(if|while|for)\s*\(.*\)\s*)$/,
 };
