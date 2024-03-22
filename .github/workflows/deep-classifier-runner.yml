@@ -9,12 +9,17 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    environment: main
     steps:
+      - uses: azure/login@v1
+        with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
-          ref: stable
+          ref: joao/oidc
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
@@ -47,8 +52,8 @@ jobs:
         with:
           configPath: classifier
           allowLabels: "info-needed|new release|error-telemetry|*english-please|translation-required"
-          tenantId: ${{secrets.TOOLS_TENANT_ID}}
-          clientId: ${{secrets.TOOLS_CLIENT_ID}}
-          clientSecret: ${{secrets.TOOLS_CLIENT_SECRET}}
+          # tenantId: ${{secrets.TOOLS_TENANT_ID}}
+          # clientId: ${{secrets.TOOLS_CLIENT_ID}}
+          # clientSecret: ${{secrets.TOOLS_CLIENT_SECRET}}
           clientScope: ${{secrets.TOOLS_CLIENT_SCOPE}}
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
