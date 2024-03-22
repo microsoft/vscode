@@ -158,12 +158,18 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			// we have to re-watch this path again either with another
 			// instance or using node.js watching.
 			disposable.add(Event.once(parcelInstance.onDidStop)(async () => {
-				disposable.add(await this.doWatch(realPath, isDirectory));
+				const watchDisposable = await this.doWatch(realPath, isDirectory);
+				if (!disposable.isDisposed && !this.cts.token.isCancellationRequested) {
+					disposable.add(watchDisposable);
+				} else {
+					watchDisposable.dispose();
+				}
 			}));
 
-			// If our request is correlated, we must emit distinct events
-			// with our correlation ID so that the listener gets them.
-			if (typeof this.request.correlationId === 'number') {
+			// If either our request is correlated or the existing watcher correlates
+			// we must ensure to carry out the event with our correlation ID, even if
+			// undefined.
+			if (typeof this.request.correlationId === 'number' || typeof parcelInstance.request.correlationId === 'number') {
 				disposable.add(parcelInstance.subscribe(this.request.path, change => {
 					this.onDidFilesChange([{ ...change, cId: this.request.correlationId }]);
 				}));

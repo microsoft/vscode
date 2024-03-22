@@ -21,47 +21,47 @@ import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
+export class TestParcelWatcher extends ParcelWatcher {
 
-	class TestParcelWatcher extends ParcelWatcher {
+	protected override readonly suspendedWatchRequestPollingInterval = 100;
 
-		protected override readonly suspendedWatchRequestPollingInterval = 100;
+	private readonly _onDidWatch = this._register(new Emitter<void>());
+	readonly onDidWatch = this._onDidWatch.event;
 
-		private readonly _onDidWatch = this._register(new Emitter<void>());
-		readonly onDidWatch = this._onDidWatch.event;
+	readonly onWatchFail = this._onDidWatchFail.event;
 
-		readonly onWatchFail = this._onDidWatchFail.event;
+	testRemoveDuplicateRequests(paths: string[], excludes: string[] = []): string[] {
 
-		testRemoveDuplicateRequests(paths: string[], excludes: string[] = []): string[] {
+		// Work with strings as paths to simplify testing
+		const requests: IRecursiveWatchRequest[] = paths.map(path => {
+			return { path, excludes, recursive: true };
+		});
 
-			// Work with strings as paths to simplify testing
-			const requests: IRecursiveWatchRequest[] = paths.map(path => {
-				return { path, excludes, recursive: true };
-			});
-
-			return this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
-		}
-
-		protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
-			await super.doWatch(requests);
-			await this.whenReady();
-
-			this._onDidWatch.fire();
-		}
-
-		async whenReady(): Promise<void> {
-			for (const watcher of this.watchers) {
-				await watcher.ready;
-			}
-		}
+		return this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
 	}
 
+	protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
+		await super.doWatch(requests);
+		await this.whenReady();
+
+		this._onDidWatch.fire();
+	}
+
+	async whenReady(): Promise<void> {
+		for (const watcher of this.watchers) {
+			await watcher.ready;
+		}
+	}
+}
+
+((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
 	let testDir: string;
 	let watcher: TestParcelWatcher;
 

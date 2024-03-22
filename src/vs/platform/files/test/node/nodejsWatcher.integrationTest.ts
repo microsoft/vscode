@@ -21,6 +21,8 @@ import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IParcelWatchersAccessor } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
+import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.integrationTest';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -61,7 +63,20 @@ import { Emitter, Event } from 'vs/base/common/event';
 	enableLogging(false);
 
 	setup(async () => {
-		watcher = new TestNodeJSWatcher(undefined);
+		await createWatcher(undefined);
+
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
+
+		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
+
+		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
+	});
+
+	async function createWatcher(accessor: IParcelWatchersAccessor | undefined) {
+		await watcher?.stop();
+		watcher?.dispose();
+
+		watcher = new TestNodeJSWatcher(accessor);
 		watcher?.setVerboseLogging(loggingEnabled);
 
 		watcher.onDidLogMessage(e => {
@@ -75,13 +90,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 				console.log(`[non-recursive watcher test error] ${e}`);
 			}
 		});
-
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
-
-		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
-
-		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
-	});
+	}
 
 	teardown(async () => {
 		await watcher.stop();
@@ -649,4 +658,33 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 		await basicCrudTest(filePath, undefined, 1);
 	});
+
+	test('parcel watcher reused when present for non-recursive file watching (uncorrelated)', function () {
+		return testParcelWatcherReused(undefined);
+	});
+
+	test('parcel watcher reused when present for non-recursive file watching (correlated)', function () {
+		return testParcelWatcherReused(2);
+	});
+
+	async function testParcelWatcherReused(correlationId: number | undefined) {
+		const recursiveWatcher = new TestParcelWatcher();
+		await recursiveWatcher.watch([{ path: testDir, excludes: [], recursive: true, correlationId: 1 }]);
+
+		await createWatcher(recursiveWatcher);
+
+		const filePath = join(testDir, 'deep', 'conway.js');
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId }]);
+
+		await basicCrudTest(filePath, undefined, correlationId);
+
+		await Promises.writeFile(filePath, 'Hello World');
+
+		await recursiveWatcher.stop();
+		recursiveWatcher.dispose();
+
+		await timeout(500); // give the watcher some time to restart
+
+		await basicCrudTest(filePath, true, correlationId);
+	}
 });
