@@ -62,6 +62,15 @@
 	font-size: 11px;
 	align-self: baseline;
 	padding-left: 10px;
+	display: inline-flex;
+}
+
+.monaco-workbench .inline-chat .status .label.info {
+	margin-right: auto;
+	padding-left: 2px;
+}
+
+.monaco-workbench .inline-chat .status .label.status {
 	margin-left: auto;
 }
 
