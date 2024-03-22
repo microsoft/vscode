@@ -62,7 +62,6 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
 				nonRecursiveWatchers.delete(nonRecursiveWatcher);
 
-
 				if (typeof nonRecursiveWatcher.correlationId === 'number') {
 					const resource = URI.file(nonRecursiveWatcher.path);
 
