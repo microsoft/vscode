@@ -90,6 +90,7 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 	// idealIndentForNextLine doesn't equal globalIndent when there is a line matching `indentNextLinePattern`.
 	let idealIndentForNextLine: string = globalIndent;
 
+	console.log('indentationRules.increaseIndentPattern.source : ', indentationRules.increaseIndentPattern.source);
 	if (indentationRules.increaseIndentPattern && indentationRules.increaseIndentPattern.test(adjustedLineContent)) {
 		// need to shift the indent of the next line
 		idealIndentForNextLine = shiftIndent(idealIndentForNextLine);

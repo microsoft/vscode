@@ -520,6 +520,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 				}
 			};
 			// Taking the line after so line startLineNumber + 1
+			// Why do we start from the second line, and not the first line?
 			const indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter, this._languageConfigurationService);
 			console.log('indentOfSecondLine : ', indentOfSecondLine);
 
