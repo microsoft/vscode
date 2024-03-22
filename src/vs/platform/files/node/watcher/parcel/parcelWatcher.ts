@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { randomPath, isEqual } from 'vs/base/common/extpath';
 import { GLOBSTAR, patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
@@ -22,13 +22,18 @@ import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IParcelWatchersAccessor {
 	getWatchers(): IParcelWatcherInstance[];
 }
 
 export interface IParcelWatcherInstance {
+
+	/**
+	 * Signals when the watcher stopped;
+	 */
+	readonly onDidStop: Event<void>;
 
 	/**
 	 * The watch request associated to the watcher.
@@ -51,10 +56,15 @@ export interface IParcelWatcherInstance {
 	exclude(path: string): boolean;
 }
 
-class ParcelWatcherInstance implements IParcelWatcherInstance {
+class ParcelWatcherInstance extends Disposable implements IParcelWatcherInstance {
+
+	private readonly _onDidStop = this._register(new Emitter<void>());
+	readonly onDidStop = this._onDidStop.event;
 
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
 	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
+
+	private readonly subscriptions = new Map<string, Set<(change: IFileChange) => void>>();
 
 	constructor(
 		/**
@@ -77,9 +87,10 @@ class ParcelWatcherInstance implements IParcelWatcherInstance {
 		readonly worker: RunOnceWorker<IFileChange>,
 		private readonly stopFn: () => Promise<void>
 	) {
-	}
+		super();
 
-	private readonly subscriptions = new Map<string, Set<(change: IFileChange) => void>>();
+		this._register(toDisposable(() => this.subscriptions.clear()));
+	}
 
 	subscribe(path: string, callback: (change: IFileChange) => void): IDisposable {
 		let subscriptions = this.subscriptions.get(path);
@@ -123,10 +134,14 @@ class ParcelWatcherInstance implements IParcelWatcherInstance {
 		return Boolean(this.excludes?.some(exclude => exclude(path)));
 	}
 
-	stop(): Promise<void> {
-		this.subscriptions.clear();
+	async stop(): Promise<void> {
+		try {
+			await this.stopFn();
+		} finally {
+			this._onDidStop.fire();
+		}
 
-		return this.stopFn();
+		this.dispose();
 	}
 }
 
