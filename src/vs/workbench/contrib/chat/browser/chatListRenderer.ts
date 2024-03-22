@@ -25,6 +25,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
+import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -41,6 +42,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FileKind, FileType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -58,6 +60,7 @@ import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -800,17 +803,22 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		listDisposables.add(list.onDidOpen((e) => {
 			if (e.element) {
-				this.openerService.open(
-					'uri' in e.element.reference ? e.element.reference.uri : e.element.reference,
-					{
-						fromUserGesture: true,
-						editorOptions: {
-							...e.editorOptions,
-							...{
-								selection: 'range' in e.element.reference ? e.element.reference.range : undefined
+				const uriOrLocation = 'variableName' in e.element.reference ? e.element.reference.value : e.element.reference;
+				const uri = URI.isUri(uriOrLocation) ? uriOrLocation :
+					uriOrLocation?.uri;
+				if (uri) {
+					this.openerService.open(
+						uri,
+						{
+							fromUserGesture: true,
+							editorOptions: {
+								...e.editorOptions,
+								...{
+									selection: 'range' in e.element.reference ? e.element.reference.range : undefined
+								}
 							}
-						}
-					});
+						});
+				}
 			}
 		}));
 		listDisposables.add(list.onContextMenu((e) => {
@@ -1163,10 +1171,13 @@ class ContentReferencesListPool extends Disposable {
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatContentReference) => {
-						if (URI.isUri(element.reference)) {
-							return basename(element.reference.path);
+						const reference = element.reference;
+						if ('variableName' in reference) {
+							return reference.variableName;
+						} else if (URI.isUri(reference)) {
+							return basename(reference.path);
 						} else {
-							return basename(element.reference.uri.path);
+							return basename(reference.uri.path);
 						}
 					},
 
@@ -1212,6 +1223,8 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	constructor(
 		private labels: ResourceLabels,
+		@ILabelService private readonly labelService: ILabelService,
+		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IChatContentReferenceListTemplate {
@@ -1220,18 +1233,30 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		return { templateDisposables, label };
 	}
 
-	renderElement(element: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
+	renderElement(data: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
+		const reference = data.reference;
 		templateData.label.element.style.display = 'flex';
-		const uri = 'uri' in element.reference ? element.reference.uri : element.reference;
-		if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-			templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: Codicon.globe });
+		if ('variableName' in reference) {
+			if (reference.value) {
+				const uri = URI.isUri(reference.value) ? reference.value : reference.value.uri;
+				const title = this.labelService.getUriLabel(dirname(uri), { relative: true });
+				templateData.label.setResource({ resource: uri, name: basenameOrAuthority(uri), description: `#${reference.variableName}` }, { title });
+			} else {
+				const variable = this.chatVariablesService.getVariable(reference.variableName);
+				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: variable?.description });
+			}
 		} else {
-			templateData.label.setFile(uri, {
-				fileKind: FileKind.FILE,
-				// Should not have this live-updating data on a historical reference
-				fileDecorations: { badges: false, colors: false },
-				range: 'range' in element.reference ? element.reference.range : undefined
-			});
+			const uri = 'uri' in reference ? reference.uri : reference;
+			if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: Codicon.globe });
+			} else {
+				templateData.label.setFile(uri, {
+					fileKind: FileKind.FILE,
+					// Should not have this live-updating data on a historical reference
+					fileDecorations: { badges: false, colors: false },
+					range: 'range' in reference ? reference.range : undefined
+				});
+			}
 		}
 	}
 

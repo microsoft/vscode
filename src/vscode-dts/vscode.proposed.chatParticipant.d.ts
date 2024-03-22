@@ -392,7 +392,7 @@ declare module 'vscode' {
 		 * @param value A uri or location
 		 * @returns This stream.
 		 */
-		reference(value: Uri | Location): ChatResponseStream;
+		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }): ChatResponseStream;
 
 		/**
 		 * Pushes a part to this stream.
@@ -430,8 +430,8 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseReferencePart {
-		value: Uri | Location;
-		constructor(value: Uri | Location);
+		value: Uri | Location | { variableName: string; value?: Uri | Location };
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location });
 	}
 
 	export class ChatResponseCommandButtonPart {
