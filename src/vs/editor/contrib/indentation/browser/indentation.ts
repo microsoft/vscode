@@ -390,7 +390,11 @@ export class AutoIndentOnPaste implements IEditorContribution {
 	}
 
 	// function trigerred on paste
+	// trigger only indents so that the original indentation is kept and only full indentation is generally changed
 	public trigger(range: Range): void {
+		console.log('trigger of AutoIndentOnPaste');
+		console.log('range : ', range);
+
 		const selections = this.editor.getSelections();
 		if (selections === null || selections.length > 1) {
 			return;
@@ -433,20 +437,34 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 
 		let firstLineText = model.getLineContent(startLineNumber);
-		// we test if the first line text substring from 0 to the start column is made of whitespaces
+
+		// we test if there are no non whitespace characters in the first line text
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
 			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService);
+			console.log('indentOfFirstLine : ', indentOfFirstLine);
+			console.log('indentOfFirstLine.length : ', indentOfFirstLine?.length);
 
 			if (indentOfFirstLine !== null) {
 				// current indentation at first line text
 				const oldIndentation = strings.getLeadingWhitespace(firstLineText);
+				console.log('oldIndentation : ', oldIndentation);
+				console.log('oldIndentation.length : ', oldIndentation.length);
+
 				// number of spaces needed for the ideal indent of first line
 				const newSpaceCnt = indentUtils.getSpaceCnt(indentOfFirstLine, tabSize);
 				// number of spaces needed for the ideal indent of initial line
 				const oldSpaceCnt = indentUtils.getSpaceCnt(oldIndentation, tabSize);
 
+				console.log('newSpaceCnt : ', newSpaceCnt);
+				console.log('oldSpaceCnt : ', oldSpaceCnt);
+
 				if (newSpaceCnt !== oldSpaceCnt) {
 					const newIndent = indentUtils.generateIndent(newSpaceCnt, tabSize, insertSpaces);
+					console.log('push 1');
+					console.log('edit : ', {
+						range: new Range(startLineNumber, 1, startLineNumber, oldIndentation.length + 1),
+						text: newIndent
+					});
 					textEdits.push({
 						range: new Range(startLineNumber, 1, startLineNumber, oldIndentation.length + 1),
 						text: newIndent
@@ -469,7 +487,8 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		const firstLineNumber = startLineNumber;
 
-		// ignore empty or ignored lines
+		// \S is any non whitespace character
+		// If the line does not have no non whitespace characters, we increase the start line number
 		while (startLineNumber < range.endLineNumber) {
 			if (!/\S/.test(model.getLineContent(startLineNumber + 1))) {
 				startLineNumber++;
@@ -477,6 +496,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			}
 			break;
 		}
+		console.log('startLineNumber : ', startLineNumber);
 
 		if (startLineNumber !== range.endLineNumber) {
 			const virtualModel = {
@@ -499,25 +519,45 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				}
 			};
-			// Taking the line after where startLineNumber + 1
+			// Taking the line after so line startLineNumber + 1
 			const indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter, this._languageConfigurationService);
+			console.log('indentOfSecondLine : ', indentOfSecondLine);
+
 			if (indentOfSecondLine !== null) {
 				const newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
 				// Getting the line content and the leading whitespaces string
 				const oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
 
+				console.log('newSpaceCntOfSecondLine : ', newSpaceCntOfSecondLine);
+				console.log('oldSpaceCntOfSecondLine : ', oldSpaceCntOfSecondLine);
+
 				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
 					// Differences between new spaces count and old spaces count
 					const spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
+					console.log('spaceCntOffset : ', spaceCntOffset);
+
 					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
 						const lineContent = model.getLineContent(i);
+						console.log('lineContent : ', lineContent);
 						const originalIndent = strings.getLeadingWhitespace(lineContent);
 						const originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);
+						console.log('originalSpacesCnt : ', originalSpacesCnt);
 						const newSpacesCnt = originalSpacesCnt + spaceCntOffset;
+						console.log('newSpacesCnt : ', newSpacesCnt);
 						const newIndent = indentUtils.generateIndent(newSpacesCnt, tabSize, insertSpaces);
+
+						console.log('newIndent : ', newIndent);
+						console.log('newIndent.length : ', newIndent.length);
+						console.log('originalIndent : ', originalIndent);
+						console.log('originalIndent.length : ', originalIndent.length);
 
 						// Change the indentation with edit
 						if (newIndent !== originalIndent) {
+							console.log('push 2');
+							console.log('edit ', {
+								range: new Range(i, 1, i, originalIndent.length + 1),
+								text: newIndent
+							});
 							textEdits.push({
 								range: new Range(i, 1, i, originalIndent.length + 1),
 								text: newIndent
@@ -527,6 +567,8 @@ export class AutoIndentOnPaste implements IEditorContribution {
 				}
 			}
 		}
+
+		console.log('textEdits : ', JSON.stringify(textEdits));
 
 		if (textEdits.length > 0) {
 			this.editor.pushUndoStop();
