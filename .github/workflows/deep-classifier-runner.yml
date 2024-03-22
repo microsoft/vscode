@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
-          ref: joao/peach-haddock
+          ref: b59a808273bd2233c9d791a379ba160c6d80f7b1
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
@@ -58,4 +58,8 @@ jobs:
         with:
           configPath: classifier
           allowLabels: "info-needed|new release|error-telemetry|*english-please|translation-required"
+          # tenantId: ${{secrets.TOOLS_TENANT_ID}}
+          # clientId: ${{secrets.TOOLS_CLIENT_ID}}
+          # clientSecret: ${{secrets.TOOLS_CLIENT_SECRET}}
+          clientScope: ${{secrets.TOOLS_CLIENT_SCOPE}}
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
