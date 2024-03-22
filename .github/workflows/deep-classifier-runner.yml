@@ -58,8 +58,4 @@ jobs:
         with:
           configPath: classifier
           allowLabels: "info-needed|new release|error-telemetry|*english-please|translation-required"
-          # tenantId: ${{secrets.TOOLS_TENANT_ID}}
-          # clientId: ${{secrets.TOOLS_CLIENT_ID}}
-          # clientSecret: ${{secrets.TOOLS_CLIENT_SECRET}}
-          clientScope: ${{secrets.TOOLS_CLIENT_SCOPE}}
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
