@@ -83,9 +83,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		}
 		COI.addSearchParam(suffixSearchParams, true, true);
 
-		const suffix = `?${suffixSearchParams.toString()}`;
+		let suffix = `?${suffixSearchParams.toString()}`;
 
 		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
+		const locale = platform.language;
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;
@@ -109,12 +110,19 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				const res = new URL(`${baseUrl}/out/${iframeModulePath}${suffix}`);
 				res.searchParams.set('parentOrigin', mainWindow.origin);
 				res.searchParams.set('salt', stableOriginUUID);
+				if (!platform.Language.isDefaultVariant()) {
+					res.searchParams.set('locale', locale);
+				}
 				return res.toString();
 			}
 
 			console.warn(`The web worker extension host is started in a same-origin iframe!`);
 		}
 
+		if (!platform.Language.isDefaultVariant()) {
+			suffixSearchParams.set('locale', locale);
+			suffix = `?${suffixSearchParams.toString()}`;
+		}
 		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath);
 		return `${relativeExtensionHostIframeSrc.toString(true)}${suffix}`;
 	}

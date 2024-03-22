@@ -15,6 +15,7 @@
 	const name = searchParams.get('debugged') ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
 	const parentOrigin = searchParams.get('parentOrigin') || window.origin;
 	const salt = searchParams.get('salt');
+	const locale = searchParams.get('locale');
 
 	(async function () {
 		const hostnameValidationMarker = 'v--';
@@ -73,6 +74,10 @@
 			}
 
 			const worker = new Worker(workerUrl, { name });
+			if (locale) {
+				// send before `vs/workbench/api/worker/extensionHostWorker`load event.
+				worker.postMessage(`worker:init-locale:${locale}`);
+			}
 			worker.postMessage('vs/workbench/api/worker/extensionHostWorker');
 			const nestedWorkers = new Map();
 

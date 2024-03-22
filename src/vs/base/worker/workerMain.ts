@@ -102,12 +102,27 @@
 		});
 	}
 
+	// stores the current language
+	let __locale__: string | undefined = undefined;
+
 	function configureAMDLoader() {
+		interface NLSConfig {
+			availableLanguages: { [key: string]: string };
+		}
+		const nlsConfig: { 'vs/nls'?: NLSConfig } = {};
+		if (__locale__ && __locale__ !== 'en') {
+			nlsConfig['vs/nls'] = {
+				availableLanguages: {
+					'*': __locale__,
+				},
+			};
+		}
 		require.config({
 			baseUrl: monacoBaseUrl,
 			catchError: true,
 			trustedTypesPolicy,
-			amdModulesPattern: /^vs\//
+			amdModulesPattern: /^vs\//,
+			...nlsConfig,
 		});
 	}
 
@@ -140,6 +155,14 @@
 	let isFirstMessage = true;
 	const beforeReadyMessages: MessageEvent[] = [];
 	globalThis.onmessage = (message: MessageEvent) => {
+		if (isFirstMessage && !__locale__) {
+			const locale = message.data?.match(/^worker:init-locale:(.+)$/);
+			if (locale?.[1]) {
+				__locale__ = locale[1];
+				return;
+			}
+		}
+
 		if (!isFirstMessage) {
 			beforeReadyMessages.push(message);
 			return;
