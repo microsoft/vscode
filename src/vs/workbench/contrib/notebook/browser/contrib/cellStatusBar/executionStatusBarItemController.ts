@@ -21,7 +21,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -342,7 +342,8 @@ export class DiagnosticCellStatusBarContrib extends Disposable implements INoteb
 
 	constructor(
 		notebookEditor: INotebookEditor,
-		@IInstantiationService instantiationService: IInstantiationService) {
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 		super();
 		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => instantiationService.createInstance(DiagnosticCellStatusBarItem, vm, cell)));
 	}
@@ -361,7 +362,7 @@ class DiagnosticCellStatusBarItem extends Disposable {
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
 		cellViewModel: ICellViewModel,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -377,9 +378,12 @@ class DiagnosticCellStatusBarItem extends Disposable {
 		let item: INotebookCellStatusBarItem | undefined;
 
 		if (!!this.cell?.cellDiagnostics.ErrorDetails) {
+			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
+			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
+
 			item = {
 				text: `$(sparkle)`,
-				tooltip: localize('notebook.cell.status.diagnostic', "Quick Actions (ctrl+.)"),
+				tooltip,
 				alignment: CellStatusbarAlignment.Left,
 				command: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
 				priority: 1

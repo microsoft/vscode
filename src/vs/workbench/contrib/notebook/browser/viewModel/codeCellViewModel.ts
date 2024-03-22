@@ -436,10 +436,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	protected onDidChangeTextModelContent(): void {
 		if (this.getEditState() !== CellEditState.Editing) {
-			this._cellDiagnostics.clear();
 			this.updateEditState(CellEditState.Editing, 'onDidChangeTextModelContent');
 			this._onDidChangeState.fire({ contentChanged: true });
 		}
+		this._cellDiagnostics.clear();
 	}
 
 	onDeselect() {
