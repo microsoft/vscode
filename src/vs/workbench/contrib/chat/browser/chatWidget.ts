@@ -501,7 +501,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			{
 				renderFollowups: options?.renderFollowups ?? true,
 				renderStyle: options?.renderStyle,
-				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus }
+				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
+				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
 			}
 		));
 		this.inputPart.render(container, '', this);

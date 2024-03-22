@@ -266,7 +266,10 @@
 }
 
 .monaco-workbench .inline-chat-slash-command {
-	opacity: 0;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+	border-radius: 4px;
+	padding: 1px;
 }
 
 .monaco-workbench .inline-chat-slash-command-detail {

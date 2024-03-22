@@ -19,7 +19,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { CompletionItemKind, CompletionList, TextEdit } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
@@ -41,7 +41,7 @@ import { InlineChatZoneWidget } from './inlineChatZoneWidget';
 import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StashedSession } from './inlineChatSession';
-import { IValidEditOperation } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { tail } from 'vs/base/common/arrays';
@@ -432,7 +432,11 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
-		// TODO@jrieken
+		// Update context key
+		this._ctxSupportIssueReporting.set(this._session.provider.supportIssueReporting ?? false);
+
+		// #region DEBT
+		// DEBT@jrieken
 		// REMOVE when agents are adopted
 		this._sessionStore.add(this._languageFeatureService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'inline chat commands',
@@ -455,14 +459,63 @@ export class InlineChatController implements IEditorContribution {
 						kind: CompletionItemKind.Text,
 						insertText: withSlash,
 						range: Range.fromPositions(new Position(1, 1), position),
+						command: command.executeImmediately ? { id: 'workbench.action.chat.acceptInput', title: withSlash } : undefined
 					});
 				}
 
 				return result;
 			}
 		}));
-		// Update context key
-		this._ctxSupportIssueReporting.set(this._session.provider.supportIssueReporting ?? false);
+
+		const updateSlashDecorations = (collection: IEditorDecorationsCollection, model: ITextModel) => {
+
+			const newDecorations: IModelDeltaDecoration[] = [];
+			for (const command of (this._session?.session.slashCommands ?? []).sort((a, b) => b.command.length - a.command.length)) {
+				const withSlash = `/${command.command}`;
+				const firstLine = model.getLineContent(1);
+				if (firstLine.startsWith(withSlash)) {
+					newDecorations.push({
+						range: new Range(1, 1, 1, withSlash.length + 1),
+						options: {
+							description: 'inline-chat-slash-command',
+							inlineClassName: 'inline-chat-slash-command',
+							after: {
+								// Force some space between slash command and placeholder
+								content: ' '
+							}
+						}
+					});
+
+					// inject detail when otherwise empty
+					if (firstLine.trim() === `/${command.command}`) {
+						newDecorations.push({
+							range: new Range(1, withSlash.length, 1, withSlash.length),
+							options: {
+								description: 'inline-chat-slash-command-detail',
+								after: {
+									content: `${command.detail}`,
+									inlineClassName: 'inline-chat-slash-command-detail'
+								}
+							}
+						});
+					}
+					break;
+				}
+			}
+			collection.set(newDecorations);
+		};
+		const inputInputEditor = this._input.value.chatWidget.inputEditor;
+		const zoneInputEditor = this._zone.value.widget.chatWidget.inputEditor;
+		const inputDecorations = inputInputEditor.createDecorationsCollection();
+		const zoneDecorations = zoneInputEditor.createDecorationsCollection();
+		this._sessionStore.add(inputInputEditor.onDidChangeModelContent(() => updateSlashDecorations(inputDecorations, inputInputEditor.getModel()!)));
+		this._sessionStore.add(zoneInputEditor.onDidChangeModelContent(() => updateSlashDecorations(zoneDecorations, zoneInputEditor.getModel()!)));
+		this._sessionStore.add(toDisposable(() => {
+			inputDecorations.clear();
+			zoneDecorations.clear();
+		}));
+
+		//#endregion ------- DEBT
 
 		if (!this._session.lastExchange) {
 			return State.WAIT_FOR_INPUT;
