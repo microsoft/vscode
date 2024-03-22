@@ -82,6 +82,8 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 	}
 
 	async stop(): Promise<void> {
+		this.nonResursiveSubscriptions.clear();
+
 		await Promises.settled([
 			this.recursiveWatcher.stop(),
 			this.nonRecursiveWatcher.stop()
