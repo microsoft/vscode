@@ -18,12 +18,13 @@ import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/browser/indentation';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { javascriptIndentationRules } from 'vs/editor/test/common/modes/supports/javascriptIndentationRules';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { javascriptIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
+import { javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 
 enum Language {
 	TypeScript,
-	Ruby
+	Ruby,
+	PHP
 }
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
@@ -66,10 +67,18 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 					['[', ']'],
 					['(', ')']
 				],
-				indentationRules: {
-					decreaseIndentPattern: /^\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif)\b|(in|when)\s)/,
-					increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
-				},
+				indentationRules: rubyIndentationRules,
+			}));
+			break;
+		case Language.PHP:
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')']
+				],
+				indentationRules: phpIndentationRules,
+				onEnterRules: phpOnEnterRules
 			}));
 			break;
 	}
@@ -606,6 +615,66 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+
+		const model = createTextModel([
+			'const array = [1, 2, 3, 4, 5];',
+			'array.map(_)'
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 12, 2, 12));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'const array = [1, 2, 3, 4, 5];',
+				'array.map(_',
+				'    ',
+				')'
+			].join('\n'));
+		});
+	});
+
+	test('issue #43244: incorrect indentation after if/for/while without braces', () => {
+
+		// https://github.com/microsoft/vscode/issues/43244
+
+		const model = createTextModel([
+			'function f() {',
+			'    if (condition)',
+			'}'
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 19, 2, 19));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'function f() {',
+				'    if (condition)',
+				'        ',
+				'}',
+			].join('\n'));
+
+			viewModel.type("return;");
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'function f() {',
+				'    if (condition)',
+				'        return;',
+				'    ',
+				'}',
+			].join('\n'));
+		});
+	});
+
+	// Failing tests...
+
 	test.skip('issue #40115: keep indentation when added', () => {
 
 		// https://github.com/microsoft/vscode/issues/40115
@@ -658,41 +727,6 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 				'    for(;;) {',
 				'        ',
 				'    }',
-				'}',
-			].join('\n'));
-		});
-	});
-
-	test('issue #43244: incorrect indentation after if/for/while without braces', () => {
-
-		// https://github.com/microsoft/vscode/issues/43244
-
-		const model = createTextModel([
-			'function f() {',
-			'    if (condition)',
-			'}'
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(2, 19, 2, 19));
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'function f() {',
-				'    if (condition)',
-				'        ',
-				'}',
-			].join('\n'));
-
-			viewModel.type("return;");
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'function f() {',
-				'    if (condition)',
-				'        return;',
-				'    ',
 				'}',
 			].join('\n'));
 		});
@@ -871,28 +905,6 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
-
-		// https://github.com/microsoft/vscode/issues/43244
-
-		const model = createTextModel([
-			'const array = [1, 2, 3, 4, 5];',
-			'array.map(_)'
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(2, 12, 2, 12));
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'const array = [1, 2, 3, 4, 5];',
-				'array.map(_',
-				'    ',
-				')'
-			].join('\n'));
-		});
-	});
 
 	// Add tests for:
 	// https://github.com/microsoft/vscode/issues/88638
@@ -918,6 +930,8 @@ suite('Auto Indent On Type - Ruby', () => {
 
 	test('issue #198350: in or when incorrectly match non keywords for Ruby', () => {
 
+		// https://github.com/microsoft/vscode/issues/198350
+
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
 
@@ -936,6 +950,68 @@ suite('Auto Indent On Type - Ruby', () => {
 			assert.strictEqual(model.getValue(), "  # in");
 			viewModel.type(" ", 'keyboard');
 			assert.strictEqual(model.getValue(), "  # in ");
+		});
+	});
+
+	// Failing tests...
+
+	test.skip('issue #199846: in or when incorrectly match non keywords for Ruby', () => {
+
+		// https://github.com/microsoft/vscode/issues/199846
+		// explanation: happening because the # is detected probably as a comment
+
+		const model = createTextModel("", languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.Ruby, disposables);
+
+			viewModel.type("method('#foo') do");
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				"method('#foo') do",
+				"    "
+			].join('\n'));
+		});
+	});
+});
+
+suite('Auto Indent On Type - PHP', () => {
+
+	const languageId = "php-test";
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('temp issue because there should be at least one passing test in a suite', () => {
+		assert.ok(true);
+	});
+
+	test.skip('issue #199050: should not indent after { detected in a string', () => {
+
+		// https://github.com/microsoft/vscode/issues/199050
+
+		const model = createTextModel("$phrase = preg_replace('#(\{1|%s).*#su', '', $phrase);", languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.PHP, disposables);
+			editor.setSelection(new Selection(1, 54, 1, 54));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				"$phrase = preg_replace('#(\{1|%s).*#su', '', $phrase);",
+				""
+			].join('\n'));
 		});
 	});
 });
