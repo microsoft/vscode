@@ -19,13 +19,14 @@ import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { goIndentationRules, javascriptIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
-import { javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
+import { cppOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 
 enum Language {
 	TypeScript,
 	Ruby,
 	PHP,
-	Go
+	Go,
+	CPP
 }
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
@@ -90,6 +91,16 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 					['(', ')']
 				],
 				indentationRules: goIndentationRules
+			}));
+			break;
+		case Language.CPP:
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')']
+				],
+				onEnterRules: cppOnEnterRules
 			}));
 			break;
 	}
@@ -1070,6 +1081,49 @@ suite('Auto Indent On Paste - Go', () => {
 				'quick  brown',
 				'  fox',
 				'`',
+			].join('\n'));
+		});
+	});
+});
+
+suite('Auto Indent On Type - CPP', () => {
+
+	const languageId = "cpp-test";
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('temp issue because there should be at least one passing test in a suite', () => {
+		assert.ok(true);
+	});
+
+	test('issue #178334: incorrect outdent of } when signature spans multiple lines', () => {
+
+		// https://github.com/microsoft/vscode/issues/178334
+
+		const model = createTextModel([
+			'int WINAPI WinMain(bool instance,',
+			'    int nshowcmd) {}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.CPP, disposables);
+			editor.setSelection(new Selection(2, 20, 2, 20));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'int WINAPI WinMain(bool instance,',
+				'    int nshowcmd) {',
+				'    ',
+				'}'
 			].join('\n'));
 		});
 	});

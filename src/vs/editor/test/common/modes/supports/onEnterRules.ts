@@ -106,6 +106,16 @@ export const phpOnEnterRules = [
 	},
 ];
 
+export const cppOnEnterRules = [
+	{
+		previousLineText: /^\s*(((else ?)?if|for|while)\s*\(.*\)\s*|else\s*)$/,
+		beforeText: /^\s+([^{i\s]|i(?!f\b))/,
+		action: {
+			indentAction: IndentAction.Outdent
+		}
+	}
+];
+
 /*
 export enum IndentAction {
 	None = 0,
