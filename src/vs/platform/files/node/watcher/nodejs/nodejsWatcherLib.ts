@@ -120,40 +120,52 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	private async doWatch(path: string, isDirectory: boolean): Promise<IDisposable> {
-		const disposable = this.doWatchWithParcel(this.request.path /* important to take the original path here */, isDirectory);
+		const disposable = this.doWatchWithExistingWatcher(isDirectory);
 		if (disposable) {
+			this.trace(`reusing an existing recursive watcher for ${path}`);
+
 			return disposable;
 		}
 
 		return this.doWatchWithNodeJS(path, isDirectory);
 	}
 
-	private doWatchWithParcel(path: string, isDirectory: boolean): IDisposable | undefined {
+	private doWatchWithExistingWatcher(isDirectory: boolean): IDisposable | undefined {
 		if (isDirectory) {
 			return undefined; // only supported for files for now
 		}
 
-		const parcelInstance = this.accessor?.findWatcher(path);
-		if (!parcelInstance) {
-			return undefined;
+		if (!this.accessor) {
+			return undefined; // requires access to recursive watchers
 		}
 
-		if (
-			parcelInstance.exclude(path) ||
-			!parcelInstance.include(path)
-		) {
-			return undefined; // parcel instance does not consider this path
+		const path = this.request.path;
+		for (const parcelInstance of this.accessor.getWatchers()) {
+			if (!isEqualOrParent(path, parcelInstance.request.path, !isLinux)) {
+				continue; // watcher does not consider this path
+			}
+
+			if (
+				parcelInstance.exclude(path) ||
+				!parcelInstance.include(path)
+			) {
+				continue; // parcel instance does not consider this path
+			}
+
+			const disposable = new DisposableStore();
+
+			// If our request is correlated, we must emit distinct events
+			// with our correlation ID so that the listener gets them.
+			if (typeof this.request.correlationId === 'number') {
+				disposable.add(parcelInstance.subscribe(path, change => {
+					this.onDidFilesChange([{ ...change, cId: this.request.correlationId }]);
+				}));
+			}
+
+			return disposable;
 		}
 
-		const disposable = new DisposableStore();
-
-		if (typeof this.request.correlationId === 'number') {
-			disposable.add(parcelInstance.subscribe(path, change => {
-				this.onDidFilesChange([{ ...change, cId: this.request.correlationId }]);
-			}));
-		}
-
-		return disposable;
+		return undefined;
 	}
 
 	private async doWatchWithNodeJS(path: string, isDirectory: boolean): Promise<IDisposable> {

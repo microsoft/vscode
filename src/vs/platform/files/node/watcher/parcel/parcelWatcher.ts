@@ -25,24 +25,7 @@ import { coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcher
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IParcelWatchersAccessor {
-	findWatcher(path: string): IParcelWatcherInstance | undefined;
-}
-
-export class RecursiveWatchersAccessor implements IParcelWatchersAccessor {
-
-	private readonly trie = TernarySearchTree.forPaths<IParcelWatcherInstance>(!isLinux);
-
-	update(watcher: ParcelWatcher): void {
-		this.trie.clear();
-
-		for (const instance of watcher.watchers) {
-			this.trie.set(instance.request.path, instance);
-		}
-	}
-
-	findWatcher(path: string): IParcelWatcherInstance | undefined {
-		return this.trie.findSubstr(path);
-	}
+	getWatchers(): IParcelWatcherInstance[];
 }
 
 export interface IParcelWatcherInstance {
@@ -141,11 +124,13 @@ class ParcelWatcherInstance implements IParcelWatcherInstance {
 	}
 
 	stop(): Promise<void> {
+		this.subscriptions.clear();
+
 		return this.stopFn();
 	}
 }
 
-export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
+export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IParcelWatchersAccessor {
 
 	private static readonly MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE = new Map<parcelWatcher.EventType, number>(
 		[
@@ -161,6 +146,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 	readonly onDidError = this._onDidError.event;
 
 	readonly watchers = new Set<ParcelWatcherInstance>();
+
+	getWatchers(): IParcelWatcherInstance[] {
+		return Array.from(this.watchers);
+	}
 
 	// A delay for collecting file changes from Parcel
 	// before collecting them for coalescing and emitting.
