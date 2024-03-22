@@ -345,39 +345,33 @@ export class DiagnosticCellStatusBarContrib extends Disposable implements INoteb
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => instantiationService.createInstance(DiagnosticCellStatusBarItem, vm, cell)));
+		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) =>
+			cell instanceof CodeCellViewModel ?
+				instantiationService.createInstance(DiagnosticCellStatusBarItem, vm, cell) :
+				Disposable.None
+		));
 	}
 }
 registerNotebookContribution(DiagnosticCellStatusBarContrib.id, DiagnosticCellStatusBarContrib);
 
 
 class DiagnosticCellStatusBarItem extends Disposable {
-	private static UPDATE_INTERVAL = 100;
 	private _currentItemIds: string[] = [];
-
-	private _deferredUpdate: IDisposable | undefined;
-
-	private readonly cell!: CodeCellViewModel;
 
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
-		cellViewModel: ICellViewModel,
+		private readonly cell: CodeCellViewModel,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
-
-		if (cellViewModel instanceof CodeCellViewModel) {
-			this.cell = cellViewModel;
-			this._register(new RunOnceScheduler(() => this._update(), DiagnosticCellStatusBarItem.UPDATE_INTERVAL));
-			this._update();
-			this._register(this.cell.cellDiagnostics.onDidDiagnosticsChange(() => this._update()));
-		}
+		this._update();
+		this._register(this.cell.cellDiagnostics.onDidDiagnosticsChange(() => this._update()));
 	}
 
 	private async _update() {
 		let item: INotebookCellStatusBarItem | undefined;
 
-		if (!!this.cell?.cellDiagnostics.ErrorDetails) {
+		if (!!this.cell.cellDiagnostics.ErrorDetails) {
 			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
 			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
 
@@ -391,18 +385,11 @@ class DiagnosticCellStatusBarItem extends Disposable {
 		}
 
 		const items = item ? [item] : [];
+		this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items }]);
+	}
 
-		if (!items.length && !!this.cell?.cellDiagnostics.ErrorDetails) {
-			if (!this._deferredUpdate) {
-				this._deferredUpdate = disposableTimeout(() => {
-					this._deferredUpdate = undefined;
-					this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items }]);
-				}, UPDATE_TIMER_GRACE_PERIOD);
-			}
-		} else {
-			this._deferredUpdate?.dispose();
-			this._deferredUpdate = undefined;
-			this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items }]);
-		}
+	override dispose() {
+		super.dispose();
+		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items: [] }]);
 	}
 }
