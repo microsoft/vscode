@@ -442,7 +442,9 @@ export class InlineChatController implements IEditorContribution {
 			_debugDisplayName: 'inline chat commands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: (model, position, context, token) => {
-
+				if (position.lineNumber !== 1) {
+					return undefined;
+				}
 				if (!this._session || !this._session.session.slashCommands) {
 					return undefined;
 				}
