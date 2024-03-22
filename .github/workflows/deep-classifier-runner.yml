@@ -1,4 +1,9 @@
 name: "Deep Classifier: Runner"
+
+permissions:
+  id-token: write
+  contents: read
+
 on:
   schedule:
     - cron: 0 * * * *
