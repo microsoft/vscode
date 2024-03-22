@@ -21,12 +21,11 @@ jobs:
             client-id: ${{ vars.AZURE_CLIENT_ID }}
             tenant-id: ${{ vars.AZURE_TENANT_ID }}
             allow-no-subscriptions: true
-      - run: az account get-access-token --output json --resource 'api//da00f668-cd99-4c02-b617-3a036b7c79e4'
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
-          ref: stable
+          ref: joao/peach-haddock
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
