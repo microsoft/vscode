@@ -74,8 +74,13 @@ export function isIUsedContext(obj: unknown): obj is IChatUsedContext {
 	);
 }
 
+export interface IChatContentVariableReference {
+	variableName: string;
+	value?: URI | Location;
+}
+
 export interface IChatContentReference {
-	reference: URI | Location;
+	reference: URI | Location | IChatContentVariableReference;
 	kind: 'reference';
 }
 
