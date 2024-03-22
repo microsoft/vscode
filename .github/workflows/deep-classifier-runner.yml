@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
-          ref: b59a808273bd2233c9d791a379ba160c6d80f7b1
+          ref: joao/silver-catfish
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
