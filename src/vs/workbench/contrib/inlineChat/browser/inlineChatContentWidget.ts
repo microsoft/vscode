@@ -172,6 +172,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		if (this._visible) {
 			this._visible = false;
 			this._editor.removeContentWidget(this);
+			this._widget.saveState();
 			this._widget.setVisible(false);
 		}
 	}
