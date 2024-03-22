@@ -18,13 +18,14 @@ import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/browser/indentation';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { javascriptIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
+import { goIndentationRules, javascriptIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
 import { javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 
 enum Language {
 	TypeScript,
 	Ruby,
-	PHP
+	PHP,
+	Go
 }
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
@@ -79,6 +80,16 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 				],
 				indentationRules: phpIndentationRules,
 				onEnterRules: phpOnEnterRules
+			}));
+			break;
+		case Language.Go:
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')']
+				],
+				indentationRules: goIndentationRules
 			}));
 			break;
 	}
@@ -1011,6 +1022,54 @@ suite('Auto Indent On Type - PHP', () => {
 			assert.strictEqual(model.getValue(), [
 				"$phrase = preg_replace('#(\{1|%s).*#su', '', $phrase);",
 				""
+			].join('\n'));
+		});
+	});
+});
+
+suite('Auto Indent On Paste - Go', () => {
+
+	const languageId = "go-test";
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('temp issue because there should be at least one passing test in a suite', () => {
+		assert.ok(true);
+	});
+
+	test.skip('issue #199050: should not indent after { detected in a string', () => {
+
+		// https://github.com/microsoft/vscode/issues/199050
+
+		const model = createTextModel([
+			'var s = `',
+			'quick  brown',
+			'fox',
+			'`',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.Go, disposables);
+			editor.setSelection(new Selection(3, 1, 3, 1));
+			const text = '  ';
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			viewModel.paste(text, true, undefined, 'keyboard');
+			autoIndentOnPasteController.trigger(new Range(3, 1, 3, 3));
+			assert.strictEqual(model.getValue(), [
+				'var s = `',
+				'quick  brown',
+				'  fox',
+				'`',
 			].join('\n'));
 		});
 	});

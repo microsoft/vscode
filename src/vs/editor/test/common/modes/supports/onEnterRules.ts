@@ -106,7 +106,7 @@ export const phpOnEnterRules = [
 	},
 ];
 
-/** Note
+/*
 export enum IndentAction {
 	None = 0,
 	Indent = 1,
