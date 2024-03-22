@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
-          ref: joao/oidc
+          ref: stable
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
