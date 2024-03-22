@@ -44,7 +44,7 @@ export interface IParcelWatcherInstance {
 	/**
 	 * Be notified when a file change happens on the given path.
 	 */
-	subscribe(path: string, callback: (type: FileChangeType) => void): IDisposable;
+	subscribe(path: string, callback: (change: IFileChange) => void): IDisposable;
 }
 
 class ParcelWatcherInstance implements IParcelWatcherInstance {
@@ -77,9 +77,9 @@ class ParcelWatcherInstance implements IParcelWatcherInstance {
 		this.excludes = request.excludes ? parseWatcherPatterns(request.path, request.excludes) : undefined;
 	}
 
-	private readonly subscriptions = new Map<string, Set<(type: FileChangeType) => void>>();
+	private readonly subscriptions = new Map<string, Set<(change: IFileChange) => void>>();
 
-	subscribe(path: string, callback: (type: FileChangeType) => void): IDisposable {
+	subscribe(path: string, callback: (change: IFileChange) => void): IDisposable {
 		let subscriptions = this.subscriptions.get(path);
 		if (!subscriptions) {
 			subscriptions = new Set();
@@ -100,11 +100,11 @@ class ParcelWatcherInstance implements IParcelWatcherInstance {
 		});
 	}
 
-	notifyFileChange(path: string, type: FileChangeType): void {
+	notifyFileChange(path: string, change: IFileChange): void {
 		const subscriptions = this.subscriptions.get(path);
 		if (subscriptions) {
 			for (const subscription of subscriptions) {
-				subscription(type);
+				subscription(change);
 			}
 		}
 	}
@@ -399,8 +399,9 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 					this.trace(` >> ignored (not included) ${path}`);
 				}
 			} else {
-				watcher.notifyFileChange(path, type);
-				events.push({ type, resource: URI.file(path), cId: watcher.request.correlationId });
+				const change = { type, resource: URI.file(path), cId: watcher.request.correlationId };
+				watcher.notifyFileChange(path, change);
+				events.push(change);
 			}
 		}
 

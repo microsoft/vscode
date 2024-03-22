@@ -13,7 +13,6 @@ import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { isLinux } from 'vs/base/common/platform';
 import { IFileChange } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
 
 export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
@@ -63,10 +62,8 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 				nonRecursiveWatchers.delete(nonRecursiveWatcher);
 
 				if (typeof nonRecursiveWatcher.correlationId === 'number') {
-					const resource = URI.file(nonRecursiveWatcher.path);
-
-					this.nonResursiveSubscriptions.add(existingWatcher.subscribe(nonRecursiveWatcher.path, type => {
-						this._onDidChangeFile.fire([{ type, resource, cId: nonRecursiveWatcher.correlationId }]);
+					this.nonResursiveSubscriptions.add(existingWatcher.subscribe(nonRecursiveWatcher.path, change => {
+						this._onDidChangeFile.fire([{ ...change, cId: nonRecursiveWatcher.correlationId }]);
 					}));
 				}
 			} catch (error) {
