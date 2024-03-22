@@ -386,7 +386,7 @@ class DiagnosticCellStatusBarItem extends Disposable {
 				tooltip,
 				alignment: CellStatusbarAlignment.Left,
 				command: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
-				priority: 1
+				priority: Number.MAX_SAFE_INTEGER - 1
 			};
 		}
 
