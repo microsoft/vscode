@@ -663,15 +663,13 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test.skip('issue #43244: incorrect indentation', () => {
+	test('issue #43244: incorrect indentation after if/for/while without braces', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
-		// potential regex to fix:  "^.*[if|while|for]\s*\(.*\)\s*",
 
 		const model = createTextModel([
 			'function f() {',
 			'    if (condition)',
-			'        return;',
 			'}'
 		].join('\n'), languageId, {});
 		disposables.add(model);
@@ -679,23 +677,22 @@ suite('`Full` Auto Indent On Type - TypeScript/JavaScript', () => {
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
 
 			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(3, 16, 3, 16));
+			editor.setSelection(new Selection(2, 19, 2, 19));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
 				'function f() {',
 				'    if (condition)',
-				'        return;',
-				'',
+				'        ',
 				'}',
 			].join('\n'));
 
+			viewModel.type("return;");
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
 				'function f() {',
 				'    if (condition)',
 				'        return;',
-				'',
-				'',
+				'    ',
 				'}',
 			].join('\n'));
 		});
