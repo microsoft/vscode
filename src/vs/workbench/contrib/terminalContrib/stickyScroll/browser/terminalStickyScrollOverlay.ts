@@ -102,6 +102,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._stickyScrollOverlay = this._register(new ctor({
 				rows: 1,
 				cols: this._xterm.raw.cols,
+				allowTransparency: true,
 				allowProposedApi: true,
 				...this._getOptions()
 			}));
