@@ -115,11 +115,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		this._register(this._chatCodeBlockContextProviderService.registerProvider({
 			getCodeBlockContext: (editor) => {
-				const chatWidget = this.chatWidget;
-				if (!chatWidget) {
-					return;
-				}
-				if (!editor) {
+				if (!editor || !this._chatWidget?.hasValue || !this.hasFocus()) {
 					return;
 				}
 				return {
