@@ -125,7 +125,6 @@ export class SearchView extends ViewPane {
 	private hasReplacePatternKey: IContextKey<boolean>;
 	private hasFilePatternKey: IContextKey<boolean>;
 	private hasSomeCollapsibleResultKey: IContextKey<boolean>;
-	private hasAIResultProvider: IContextKey<boolean>;
 
 	private tree!: WorkbenchCompressibleObjectTree<RenderableMatch>;
 	private treeLabels!: ResourceLabels;
@@ -221,10 +220,10 @@ export class SearchView extends ViewPane {
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
 		this.aiResultsVisibleKey = Constants.SearchContext.AIResultsVisibleKey.bindTo(this.contextKeyService);
-		this.hasAIResultProvider = Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService);
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(Constants.SearchContext.hasAIResultProvider.keys()))) {
+			const keys = Constants.SearchContext.hasAIResultProvider.keys();
+			if (e.affectsSome(new Set(keys))) {
 				this.refreshHasAISetting();
 			}
 		}));
@@ -436,6 +435,7 @@ export class SearchView extends ViewPane {
 
 		this.searchWidgetsContainerElement = dom.append(this.container, $('.search-widgets-container'));
 		this.createSearchWidget(this.searchWidgetsContainerElement);
+		this.refreshHasAISetting();
 
 		const history = this.searchHistoryService.load();
 		const filePatterns = this.viewletState['query.filePatterns'] || '';
@@ -680,7 +680,8 @@ export class SearchView extends ViewPane {
 	}
 
 	private shouldShowAIButton(): boolean {
-		return !!(this.configurationService.getValue<boolean>('search.aiResults') && this.hasAIResultProvider.get());
+		const hasProvider = Constants.SearchContext.hasAIResultProvider.getValue(this.contextKeyService);
+		return !!(this.configurationService.getValue<boolean>('search.aiResults') && hasProvider);
 	}
 	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
 		if (event && (event.affectsConfiguration('search.decorations.colors') || event.affectsConfiguration('search.decorations.badges'))) {
