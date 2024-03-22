@@ -110,10 +110,10 @@ export class InlineChatWidget {
 	protected readonly _elements = h(
 		'div.inline-chat@root',
 		[
-			h('div.previewDiff.hidden@previewDiff'),
 			h('div.chat-widget@chatWidget'),
 			h('div.progress@progress'),
 			h('div.followUps.hidden@followUps'),
+			h('div.previewDiff.hidden@previewDiff'),
 			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
@@ -369,7 +369,7 @@ export class InlineChatWidget {
 		return result;
 	}
 
-	private _getExtraHeight(): number {
+	protected _getExtraHeight(): number {
 		return 12 /* padding */ + 2 /*border*/ + 12 /*shadow*/;
 	}
 
@@ -626,25 +626,38 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 	// --- layout
 
 	override get contentHeight(): number {
-		const result = super.contentHeight;
-		const previewDiffHeight = this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
-		const accessibleViewHeight = this._accessibleViewer.value?.height ?? 0;
-		return result + previewDiffHeight + accessibleViewHeight;
+		let result = super.contentHeight;
+		if (this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel()) {
+			result += 14 + Math.min(300, this._previewDiffEditor.value.getContentHeight());
+		}
+		if (this._accessibleViewer.value) {
+			result += this._accessibleViewer.value.height;
+		}
+		return result;
 	}
 
-	protected override _doLayout(widgetDimension: Dimension): void {
-		super._doLayout(widgetDimension);
+	protected override _doLayout(dimension: Dimension): void {
 
-		if (this._accessibleViewer.value) {
-			this._accessibleViewer.value.width = widgetDimension.width - 12;
-		}
+		let newHeight = dimension.height;
+
 
 		if (this._previewDiffEditor.hasValue) {
-			const previewDiffDim = new Dimension(widgetDimension.width - 12, Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())));
+			const previewDiffDim = new Dimension(dimension.width - 12, Math.min(300, this._previewDiffEditor.value.getContentHeight()));
 			this._elements.previewDiff.style.width = `${previewDiffDim.width}px`;
 			this._elements.previewDiff.style.height = `${previewDiffDim.height}px`;
 			this._previewDiffEditor.value.layout(previewDiffDim);
+			newHeight -= previewDiffDim.height + 14;
 		}
+
+		if (this._accessibleViewer.value) {
+			this._accessibleViewer.value.width = dimension.width - 12;
+			newHeight -= this._accessibleViewer.value.height;
+		}
+
+		super._doLayout(dimension.with(undefined, newHeight));
+
+		// update/fix the height of the zone which was set to newHeight in super._doLayout
+		this._elements.root.style.height = `${dimension.height - this._getExtraHeight()}px`;
 	}
 
 	override reset() {
