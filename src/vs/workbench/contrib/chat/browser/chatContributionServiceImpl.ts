@@ -152,7 +152,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 	},
 	activationEventsGenerator: (contributions: IRawChatParticipantContribution[], result: { push(item: string): void }) => {
 		for (const contrib of contributions) {
-			result.push(`onChatParticipant:${contrib.name}`);
+			result.push(`onChatParticipant:${contrib.id}`);
 		}
 	},
 });
