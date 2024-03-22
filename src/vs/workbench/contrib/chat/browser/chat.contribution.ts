@@ -267,7 +267,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			const agentText = (await Promise.all(agents
 				.filter(a => a.id !== defaultAgent?.id)
 				.map(async a => {
-					const agentWithLeader = `${chatAgentLeader}${a.id}`;
+					const agentWithLeader = `${chatAgentLeader}${a.name}`;
 					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest}` };
 					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
 					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${a.description}`;
