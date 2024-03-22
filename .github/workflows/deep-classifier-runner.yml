@@ -15,6 +15,7 @@ jobs:
         with:
             client-id: ${{ vars.AZURE_CLIENT_ID }}
             tenant-id: ${{ vars.AZURE_TENANT_ID }}
+            allow-no-subscriptions: true
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
