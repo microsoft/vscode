@@ -17,6 +17,7 @@ import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { IParcelWatchersAccessor } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -58,6 +59,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	constructor(
 		private readonly request: INonRecursiveWatchRequest,
+		private readonly accessor: IParcelWatchersAccessor | undefined,
 		private readonly onDidFilesChange: (changes: IFileChange[]) => void,
 		private readonly onDidWatchFail?: () => void,
 		private readonly onLogMessage?: (msg: ILogMessage) => void,
@@ -118,6 +120,43 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	private async doWatch(path: string, isDirectory: boolean): Promise<IDisposable> {
+		const disposable = this.doWatchWithParcel(this.request.path /* important to take the original path here */, isDirectory);
+		if (disposable) {
+			return disposable;
+		}
+
+		return this.doWatchWithNodeJS(path, isDirectory);
+	}
+
+	private doWatchWithParcel(path: string, isDirectory: boolean): IDisposable | undefined {
+		if (isDirectory) {
+			return undefined; // only supported for files for now
+		}
+
+		const parcelInstance = this.accessor?.findWatcher(path);
+		if (!parcelInstance) {
+			return undefined;
+		}
+
+		if (
+			parcelInstance.exclude(path) ||
+			!parcelInstance.include(path)
+		) {
+			return undefined; // parcel instance does not consider this path
+		}
+
+		const disposable = new DisposableStore();
+
+		if (typeof this.request.correlationId === 'number') {
+			disposable.add(parcelInstance.subscribe(path, change => {
+				this.onDidFilesChange([{ ...change, cId: this.request.correlationId }]);
+			}));
+		}
+
+		return disposable;
+	}
+
+	private async doWatchWithNodeJS(path: string, isDirectory: boolean): Promise<IDisposable> {
 
 		// macOS: watching samba shares can crash VSCode so we do
 		// a simple check for the file path pointing to /Volumes
@@ -476,7 +515,7 @@ export async function watchFileContents(path: string, onData: (chunk: Uint8Array
 	let isReading = false;
 
 	const request: INonRecursiveWatchRequest = { path, excludes: [], recursive: false };
-	const watcher = new NodeJSFileWatcherLibrary(request, changes => {
+	const watcher = new NodeJSFileWatcherLibrary(request, undefined, changes => {
 		(async () => {
 			for (const { type } of changes) {
 				if (type === FileChangeType.UPDATED) {

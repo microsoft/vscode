@@ -10,6 +10,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isEqual } from 'vs/base/common/extpath';
+import { IParcelWatchersAccessor } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 
 export interface INodeJSWatcherInstance {
 
@@ -31,6 +32,10 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	protected readonly watchers = new Set<INodeJSWatcherInstance>();
 
 	private verboseLogging = false;
+
+	constructor(private readonly accessor: IParcelWatchersAccessor | undefined) {
+		super();
+	}
 
 	protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 
@@ -95,7 +100,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	private startWatching(request: INonRecursiveWatchRequest): void {
 
 		// Start via node.js lib
-		const instance = new NodeJSFileWatcherLibrary(request, changes => this._onDidChangeFile.fire(changes), () => this._onDidWatchFail.fire(request), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+		const instance = new NodeJSFileWatcherLibrary(request, this.accessor, changes => this._onDidChangeFile.fire(changes), () => this._onDidWatchFail.fire(request), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 		// Remember as watcher instance
 		const watcher: INodeJSWatcherInstance = { request, instance };

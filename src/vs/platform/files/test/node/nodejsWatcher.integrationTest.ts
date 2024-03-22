@@ -61,7 +61,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 	enableLogging(false);
 
 	setup(async () => {
-		watcher = new TestNodeJSWatcher();
+		watcher = new TestNodeJSWatcher(undefined);
 		watcher?.setVerboseLogging(loggingEnabled);
 
 		watcher.onDidLogMessage(e => {

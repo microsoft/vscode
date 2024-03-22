@@ -56,7 +56,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 		}
 
 		async whenReady(): Promise<void> {
-			for (const watcher of this._watchers) {
+			for (const watcher of this.watchers) {
 				await watcher.ready;
 			}
 		}
