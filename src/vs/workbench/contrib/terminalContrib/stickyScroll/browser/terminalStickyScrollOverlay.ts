@@ -102,7 +102,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._stickyScrollOverlay = this._register(new ctor({
 				rows: 1,
 				cols: this._xterm.raw.cols,
-				allowTransparency: true,
 				allowProposedApi: true,
 				...this._getOptions()
 			}));
@@ -447,6 +446,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _getOptions(): ITerminalOptions {
 		const o = this._xterm.raw.options;
 		return {
+			allowTransparency: true,
 			cursorInactiveStyle: 'none',
 			scrollback: 0,
 			logLevel: 'off',
