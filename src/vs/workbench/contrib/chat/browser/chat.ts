@@ -98,6 +98,7 @@ export interface IChatWidgetViewOptions {
 		inputSideToolbar?: MenuId;
 		telemetrySource?: string;
 	};
+	editorOverflowWidgetsDomNode?: HTMLElement;
 }
 
 export interface IChatViewViewContext {

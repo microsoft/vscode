@@ -93,6 +93,8 @@ export interface IInlineChatWidgetConstructionOptions {
 	 * globally.
 	 */
 	editableCodeBlocks?: boolean;
+
+	editorOverflowWidgetsDomNode?: HTMLElement;
 }
 
 export interface IInlineChatMessage {
@@ -612,7 +614,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IChatService chatService: IChatService,
 	) {
-		super(ChatAgentLocation.Editor, options, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService);
+		super(ChatAgentLocation.Editor, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService);
 
 		// preview editors
 		this._previewDiffEditor = new Lazy(() => this._store.add(instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {

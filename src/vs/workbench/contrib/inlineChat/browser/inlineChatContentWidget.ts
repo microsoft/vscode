@@ -48,6 +48,7 @@ export class InlineChatContentWidget implements IContentWidget {
 			ChatAgentLocation.Editor,
 			{ resource: true },
 			{
+				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
 				renderStyle: 'compact',
 				renderInputOnTop: true,
 				supportsFileReferences: false,
@@ -78,7 +79,9 @@ export class InlineChatContentWidget implements IContentWidget {
 
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
-			if (this._visible) {
+			if (this._visible
+				// && !"ON"
+			) {
 				this._onDidBlur.fire();
 			}
 		}));
