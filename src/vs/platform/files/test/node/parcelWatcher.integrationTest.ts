@@ -61,7 +61,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 	}
 }
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
+flakySuite('File Watcher (parcel)', () => {
 	let testDir: string;
 	let watcher: TestParcelWatcher;
 
