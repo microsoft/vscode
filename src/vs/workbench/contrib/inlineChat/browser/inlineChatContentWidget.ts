@@ -70,9 +70,9 @@ export class InlineChatContentWidget implements IContentWidget {
 			}
 		);
 		this._store.add(this._widget);
-		this._store.add(this._widget.onDidChangeHeight(() => _editor.layoutContentWidget(this)));
 		this._widget.render(this._inputContainer);
 		this._widget.setModel(this._defaultChatModel, {});
+		this._store.add(this._widget.inputEditor.onDidContentSizeChange(() => _editor.layoutContentWidget(this)));
 
 		this._domNode.tabIndex = -1;
 		this._domNode.className = 'inline-chat-content-widget interactive-session';
