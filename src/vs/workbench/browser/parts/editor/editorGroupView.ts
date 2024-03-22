@@ -697,7 +697,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {
-					"resource": { "${inline}": [ "${URIDescriptor}" ] }
+					"resource": { "${inline}": [ "${URIDescriptor}" ] },
 					"resourceSecondary": { "${inline}": [ "${URIDescriptor}" ] }
 				}
 			*/
