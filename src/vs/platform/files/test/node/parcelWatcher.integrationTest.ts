@@ -185,47 +185,59 @@ import { Emitter, Event } from 'vs/base/common/event';
 		const instance = watcher.getWatchers()[0];
 		assert.strictEqual(request, instance.request);
 
-		const subscriptions = new Map<string, FileChangeType>();
+		const disposables = new DisposableStore();
+
+		const subscriptions1 = new Map<string, FileChangeType>();
+		const subscriptions2 = new Map<string, FileChangeType>();
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
-		instance.subscribe(newFilePath, change => subscriptions.set(change.resource.fsPath, change.type));
+		disposables.add(instance.subscribe(newFilePath, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		disposables.add(instance.subscribe(newFilePath, change => subscriptions2.set(change.resource.fsPath, change.type))); // can subscribe multiple times
+		assert.strictEqual(instance.include(newFilePath), true);
+		assert.strictEqual(instance.exclude(newFilePath), false);
 		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
-		assert.strictEqual(subscriptions.get(newFilePath), FileChangeType.ADDED);
+		assert.strictEqual(subscriptions1.get(newFilePath), FileChangeType.ADDED);
+		assert.strictEqual(subscriptions2.get(newFilePath), FileChangeType.ADDED);
 
 		// New folder
 		const newFolderPath = join(testDir, 'deep', 'New Folder');
-		instance.subscribe(newFolderPath, change => subscriptions.set(change.resource.fsPath, change.type));
+		disposables.add(instance.subscribe(newFolderPath, change => subscriptions1.set(change.resource.fsPath, change.type)));
+		const disposable = instance.subscribe(newFolderPath, change => subscriptions2.set(change.resource.fsPath, change.type));
+		disposable.dispose();
+		assert.strictEqual(instance.include(newFolderPath), true);
+		assert.strictEqual(instance.exclude(newFolderPath), false);
 		changeFuture = awaitEvent(watcher, newFolderPath, FileChangeType.ADDED);
 		await Promises.mkdir(newFolderPath);
 		await changeFuture;
-		assert.strictEqual(subscriptions.get(newFolderPath), FileChangeType.ADDED);
+		assert.strictEqual(subscriptions1.get(newFolderPath), FileChangeType.ADDED);
+		assert.strictEqual(subscriptions2.has(newFolderPath), false /* subscription was disposed before the event */);
 
 		// Rename file
 		let renamedFilePath = join(testDir, 'deep', 'renamedFile.txt');
-		instance.subscribe(renamedFilePath, change => subscriptions.set(change.resource.fsPath, change.type));
+		disposables.add(instance.subscribe(renamedFilePath, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		changeFuture = Promise.all([
 			awaitEvent(watcher, newFilePath, FileChangeType.DELETED),
 			awaitEvent(watcher, renamedFilePath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(newFilePath, renamedFilePath);
 		await changeFuture;
-		assert.strictEqual(subscriptions.get(newFilePath), FileChangeType.DELETED);
-		assert.strictEqual(subscriptions.get(renamedFilePath), FileChangeType.ADDED);
+		assert.strictEqual(subscriptions1.get(newFilePath), FileChangeType.DELETED);
+		assert.strictEqual(subscriptions1.get(renamedFilePath), FileChangeType.ADDED);
 
 		// Rename folder
 		let renamedFolderPath = join(testDir, 'deep', 'Renamed Folder');
-		instance.subscribe(renamedFolderPath, change => subscriptions.set(change.resource.fsPath, change.type));
+		disposables.add(instance.subscribe(renamedFolderPath, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		changeFuture = Promise.all([
 			awaitEvent(watcher, newFolderPath, FileChangeType.DELETED),
 			awaitEvent(watcher, renamedFolderPath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(newFolderPath, renamedFolderPath);
 		await changeFuture;
-		assert.strictEqual(subscriptions.get(newFolderPath), FileChangeType.DELETED);
-		assert.strictEqual(subscriptions.get(renamedFolderPath), FileChangeType.ADDED);
+		assert.strictEqual(subscriptions1.get(newFolderPath), FileChangeType.DELETED);
+		assert.strictEqual(subscriptions1.get(renamedFolderPath), FileChangeType.ADDED);
 
 		// Rename file (same name, different case)
 		const caseRenamedFilePath = join(testDir, 'deep', 'RenamedFile.txt');
@@ -305,17 +317,19 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
-		instance.subscribe(copiedFilepath, change => subscriptions.set(change.resource.fsPath, change.type));
+		disposables.add(instance.subscribe(copiedFilepath, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		await Promises.unlink(copiedFilepath);
 		await changeFuture;
-		assert.strictEqual(subscriptions.get(copiedFilepath), FileChangeType.DELETED);
+		assert.strictEqual(subscriptions1.get(copiedFilepath), FileChangeType.DELETED);
 
 		// Delete folder
 		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.DELETED);
-		instance.subscribe(copiedFolderpath, change => subscriptions.set(change.resource.fsPath, change.type));
+		disposables.add(instance.subscribe(copiedFolderpath, change => subscriptions1.set(change.resource.fsPath, change.type)));
 		await Promises.rmdir(copiedFolderpath);
 		await changeFuture;
-		assert.strictEqual(subscriptions.get(copiedFolderpath), FileChangeType.DELETED);
+		assert.strictEqual(subscriptions1.get(copiedFolderpath), FileChangeType.DELETED);
+
+		disposables.dispose();
 	});
 
 	(isMacintosh /* this test seems not possible with fsevents backend */ ? test.skip : test)('basics (atomic writes)', async function () {
