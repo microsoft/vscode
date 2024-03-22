@@ -24,6 +24,7 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 		// Watch recursively first to give recursive watchers a chance
 		// to step in for non-recursive watch requests, thus reducing
 		// watcher duplication.
+
 		await this.recursiveWatcher.watch(requests.filter(request => request.recursive));
 		await this.nonRecursiveWatcher.watch(requests.filter(request => !request.recursive));
 	}
