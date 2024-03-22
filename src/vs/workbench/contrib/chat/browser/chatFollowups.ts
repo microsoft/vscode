@@ -45,7 +45,13 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 
 		let tooltipPrefix = '';
 		if ('agentId' in followup && followup.agentId && followup.agentId !== this.chatAgentService.getDefaultAgent(this.location)?.id) {
-			tooltipPrefix += `${chatAgentLeader}${followup.agentId} `;
+			const agent = this.chatAgentService.getAgent(followup.agentId);
+			if (!agent) {
+				// Refers to agent that doesn't exist
+				return;
+			}
+
+			tooltipPrefix += `${chatAgentLeader}${agent.name} `;
 			if ('subCommand' in followup && followup.subCommand) {
 				tooltipPrefix += `${chatSubcommandLeader}${followup.subCommand} `;
 			}
