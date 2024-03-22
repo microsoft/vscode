@@ -446,6 +446,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _getOptions(): ITerminalOptions {
 		const o = this._xterm.raw.options;
 		return {
+			allowTransparency: true,
 			cursorInactiveStyle: 'none',
 			scrollback: 0,
 			logLevel: 'off',
