@@ -845,8 +845,6 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	// Failing tests...
-
 	test('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
 
 		// https://github.com/microsoft/vscode/issues/43244
@@ -906,213 +904,6 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 	});
 
 	// Failing tests...
-
-	test('issue #29755: do not add indentation on enter if indentation is already valid', () => {
-
-		//https://github.com/microsoft/vscode/issues/29755
-
-		const model = createTextModel([
-			'function f() {',
-			'    const one = 1;',
-			'    const two = 2;',
-			'}',
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(3, 1, 3, 1));
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'function f() {',
-				'    const one = 1;',
-				'',
-				'    const two = 2;',
-				'}',
-			].join('\n'));
-		});
-	});
-
-	test('issue #36090', () => {
-
-		// https://github.com/microsoft/vscode/issues/36090
-
-		const model = createTextModel([
-			'class ItemCtrl {',
-			'    getPropertiesByItemId(id) {',
-			'        return this.fetchItem(id)',
-			'            .then(item => {',
-			'                return this.getPropertiesOfItem(item);',
-			'            });',
-			'    }',
-			'}',
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: 'advanced' }, (editor, viewModel, instantiationService) => {
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(7, 6, 7, 6));
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(),
-				[
-					'class ItemCtrl {',
-					'    getPropertiesByItemId(id) {',
-					'        return this.fetchItem(id)',
-					'            .then(item => {',
-					'                return this.getPropertiesOfItem(item);',
-					'            });',
-					'    }',
-					'    ',
-					'}',
-				].join('\n')
-			);
-			assert.deepStrictEqual(editor.getSelection(), new Selection(8, 5, 8, 5));
-		});
-	});
-
-	test('issue #115304: indent block comment onEnter', () => {
-
-		// https://github.com/microsoft/vscode/issues/115304
-
-		const model = createTextModel([
-			'/** */',
-			'function f() {}',
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: 'advanced' }, (editor, viewModel, instantiationService) => {
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(1, 4, 1, 4));
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(),
-				[
-					'/**',
-					' * ',
-					' */',
-					'function f() {}',
-				].join('\n')
-			);
-			assert.deepStrictEqual(editor.getSelection(), new Selection(2, 4, 2, 4));
-		});
-	});
-
-	test('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
-
-		// https://github.com/microsoft/vscode/issues/43244
-
-		const model = createTextModel([
-			'const array = [1, 2, 3, 4, 5];',
-			'array.map(_)'
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(2, 12, 2, 12));
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'const array = [1, 2, 3, 4, 5];',
-				'array.map(_',
-				'    ',
-				')'
-			].join('\n'));
-		});
-	});
-
-	test('issue #43244: incorrect indentation after if/for/while without braces', () => {
-
-		// https://github.com/microsoft/vscode/issues/43244
-
-		const model = createTextModel([
-			'function f() {',
-			'    if (condition)',
-			'}'
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(2, 19, 2, 19));
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'function f() {',
-				'    if (condition)',
-				'        ',
-				'}',
-			].join('\n'));
-
-			viewModel.type("return;");
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'function f() {',
-				'    if (condition)',
-				'        return;',
-				'    ',
-				'}',
-			].join('\n'));
-		});
-	});
-
-	// Failing tests...
-
-	test.skip('issue #40115: keep indentation when added', () => {
-
-		// https://github.com/microsoft/vscode/issues/40115
-
-		const model = createTextModel('function foo() {}', languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-
-			editor.setSelection(new Selection(1, 17, 1, 17));
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'function foo() {',
-				'    ',
-				'}',
-			].join('\n'));
-			editor.setSelection(new Selection(2, 5, 2, 5));
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'function foo() {',
-				'    ',
-				'    ',
-				'}',
-			].join('\n'));
-		});
-	});
-
-	test.skip('issue #193875: incorrect indentation on enter', () => {
-
-		// https://github.com/microsoft/vscode/issues/193875
-
-		const model = createTextModel([
-			'{',
-			'    for(;;)',
-			'    for(;;) {}',
-			'}',
-		].join('\n'), languageId, {});
-		disposables.add(model);
-
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
-			editor.setSelection(new Selection(3, 14, 3, 14));
-			viewModel.type("\n", 'keyboard');
-			assert.strictEqual(model.getValue(), [
-				'{',
-				'    for(;;)',
-				'    for(;;) {',
-				'        ',
-				'    }',
-				'}',
-			].join('\n'));
-		});
-	});
 
 	test.skip('issue #208232: incorrect indentation inside of comments', () => {
 
@@ -1287,6 +1078,63 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+
+	test.skip('issue #40115: keep indentation when added', () => {
+
+		// https://github.com/microsoft/vscode/issues/40115
+
+		const model = createTextModel('function foo() {}', languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+
+			editor.setSelection(new Selection(1, 17, 1, 17));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'function foo() {',
+				'    ',
+				'}',
+			].join('\n'));
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'function foo() {',
+				'    ',
+				'    ',
+				'}',
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #193875: incorrect indentation on enter', () => {
+
+		// https://github.com/microsoft/vscode/issues/193875
+
+		const model = createTextModel([
+			'{',
+			'    for(;;)',
+			'    for(;;) {}',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(3, 14, 3, 14));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'{',
+				'    for(;;)',
+				'    for(;;) {',
+				'        ',
+				'    }',
+				'}',
+			].join('\n'));
+		});
+	});
 
 	// Add tests for:
 	// https://github.com/microsoft/vscode/issues/88638
