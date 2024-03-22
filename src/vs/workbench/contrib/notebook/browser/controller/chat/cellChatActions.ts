@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize, localize2 } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
@@ -386,6 +386,18 @@ registerAction2(class extends NotebookAction {
 					]
 				},
 				f1: false,
+				keybinding: {
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+						ContextKeyExpr.not(InputFocusedContextKey),
+						CTX_INLINE_CHAT_HAS_PROVIDER,
+						ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+					),
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyI,
+					secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
+				},
 				menu: [
 					{
 						id: MenuId.NotebookCellBetween,
