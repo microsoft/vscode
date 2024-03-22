@@ -719,11 +719,15 @@ flakySuite('File Watcher (parcel)', () => {
 
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
 
+		let failed = false;
+		watcher.getWatchers()[0].onDidFail(() => failed = true);
+
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
 		Promises.rm(folderPath, RimRafMode.UNLINK);
 		await onDidWatchFail;
 		await changeFuture;
+		assert.strictEqual(failed, true);
 	});
 
 	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async () => {

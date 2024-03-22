@@ -36,6 +36,12 @@ export interface IParcelWatcherInstance {
 	readonly onDidStop: Event<void>;
 
 	/**
+	 * Signals when the watcher failed, for example when the path to watch does not exist
+	 * or got deleted.
+	 */
+	readonly onDidFail: Event<void>;
+
+	/**
 	 * The watch request associated to the watcher.
 	 */
 	readonly request: IRecursiveWatchRequest;
@@ -60,6 +66,9 @@ class ParcelWatcherInstance extends Disposable implements IParcelWatcherInstance
 
 	private readonly _onDidStop = this._register(new Emitter<void>());
 	readonly onDidStop = this._onDidStop.event;
+
+	readonly _onDidFail = this._register(new Emitter<void>());
+	readonly onDidFail = this._onDidFail.event;
 
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
 	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
@@ -390,6 +399,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 			this.onUnexpectedError(error, watcher);
 
 			instance.complete(undefined);
+			watcher._onDidFail.fire();
 
 			this._onDidWatchFail.fire(request);
 		});
@@ -567,21 +577,25 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 	private onWatchedPathDeleted(watcher: ParcelWatcherInstance): void {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
-		this._onDidWatchFail.fire(watcher.request);
-
-		// Do monitoring of the request path parent unless this request
-		// can be handled via suspend/resume in the super class
-		//
-		// TODO@bpasero we should remove this logic in favor of the
-		// support in the super class so that we have 1 consistent
-		// solution for handling this.
-
+		let legacyMonitored = false;
 		if (!this.isCorrelated(watcher.request)) {
-			this.legacyMonitorRequest(watcher);
+			// Do monitoring of the request path parent unless this request
+			// can be handled via suspend/resume in the super class
+			//
+			// TODO@bpasero we should remove this logic in favor of the
+			// support in the super class so that we have 1 consistent
+			// solution for handling this.
+			legacyMonitored = this.legacyMonitorRequest(watcher);
 		}
+
+		if (!legacyMonitored) {
+			watcher._onDidFail.fire();
+		}
+
+		this._onDidWatchFail.fire(watcher.request);
 	}
 
-	private legacyMonitorRequest(watcher: ParcelWatcherInstance): void {
+	private legacyMonitorRequest(watcher: ParcelWatcherInstance): boolean {
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
 			this.trace('Trying to watch on the parent path to restart the watcher...', watcher);
@@ -611,7 +625,11 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 
 			// Make sure to stop watching when the watcher is disposed
 			watcher.token.onCancellationRequested(() => nodeWatcher.dispose());
+
+			return true;
 		}
+
+		return false;
 	}
 
 	private onUnexpectedError(error: unknown, watcher?: ParcelWatcherInstance): void {

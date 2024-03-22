@@ -154,10 +154,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 			const disposable = new DisposableStore();
 
-			// Subscribe to the parcel instance stopping, as this means
-			// we have to re-watch this path again either with another
-			// instance or using node.js watching.
-			disposable.add(Event.once(parcelInstance.onDidStop)(async () => {
+			// Subscribe to the parcel instance stopping or failing, as this means
+			// we have to re-watch this path again either with another instance
+			// or using node.js watching.
+			disposable.add(Event.once(Event.any(parcelInstance.onDidStop, parcelInstance.onDidFail))(async () => {
 				const watchDisposable = await this.doWatch(realPath, isDirectory);
 				if (!disposable.isDisposed && !this.cts.token.isCancellationRequested) {
 					disposable.add(watchDisposable);
