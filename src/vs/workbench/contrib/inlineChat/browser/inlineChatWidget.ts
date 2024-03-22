@@ -52,6 +52,8 @@ import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/co
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 
 export interface InlineChatWidgetViewState {
@@ -281,8 +283,12 @@ export class InlineChatWidget {
 
 		this._elements.followUps.tabIndex = 0;
 		this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
-
 		this._elements.statusLabel.tabIndex = 0;
+
+		// this._elements.status
+		this._store.add(setupCustomHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
+			return this._elements.statusLabel.dataset['title'];
+		}));
 
 		this._store.add(this._chatService.onDidPerformUserAction(e => {
 			if (e.sessionId === this._chatWidget.viewModel?.model.sessionId && e.action.kind === 'vote') {
@@ -525,7 +531,7 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	updateStatus(message: string, ops: { classes?: string[]; resetAfter?: number; keepMessage?: boolean } = {}) {
+	updateStatus(message: string, ops: { classes?: string[]; resetAfter?: number; keepMessage?: boolean; title?: string } = {}) {
 		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const statusLabel = this._elements.statusLabel.innerText;
@@ -534,7 +540,8 @@ export class InlineChatWidget {
 				this.updateStatus(statusLabel, { classes, keepMessage: true });
 			}, ops.resetAfter);
 		}
-		reset(this._elements.statusLabel, message);
+		const renderedMessage = renderLabelWithIcons(message);
+		reset(this._elements.statusLabel, ...renderedMessage);
 		this._elements.statusLabel.className = `label status ${(ops.classes ?? []).join(' ')}`;
 		this._elements.statusLabel.classList.toggle('hidden', !message);
 		if (isTempMessage) {
@@ -542,6 +549,8 @@ export class InlineChatWidget {
 		} else {
 			delete this._elements.statusLabel.dataset['state'];
 		}
+
+		this._elements.statusLabel.dataset['title'] = ops.title;
 		this._onDidChangeHeight.fire();
 	}
 

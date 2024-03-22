@@ -93,7 +93,8 @@ class BridgeAgent implements IChatAgentImplementation {
 			// if (data.message) {
 			// 	progress({ kind: 'progressMessage', content: new MarkdownString(data.message) });
 			// }
-			if (data.slashCommand) {
+			// TODO@ulugbekna,jrieken should we only send data.slashCommand when having detected one?
+			if (data.slashCommand && !inlineRequest.prompt.startsWith('/')) {
 				const command = this._data.slashCommands.find(c => c.name === data.slashCommand);
 				progress({ kind: 'agentDetection', agentId: this._data.id, command });
 			}

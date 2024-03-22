@@ -61,58 +61,27 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
 	align-self: baseline;
-	display: inline-flex;
+	padding-left: 10px;
+	margin-left: auto;
 }
 
 .monaco-workbench .inline-chat .status .label.hidden {
 	display: none;
 }
 
-.monaco-workbench .inline-chat .status .label.info {
-	margin-right: auto;
-	padding-left: 2px;
+.monaco-workbench .inline-chat .status .label.error {
+	color: var(--vscode-errorForeground);
 }
 
-.monaco-workbench .inline-chat .status .label.info > .codicon {
+.monaco-workbench .inline-chat .status .label.warn {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-workbench .inline-chat .status .label > .codicon {
 	padding: 0 5px;
 	font-size: 12px;
 	line-height: 18px;
 }
-
-.monaco-workbench .inline-chat .status .label.status {
-	padding-left: 10px;
-	padding-right: 4px;
-	margin-left: auto;
-}
-
-.monaco-workbench .inline-chat .status .label .slash-command-pill CODE {
-	border-radius: 3px;
-	padding: 0 1px;
-	background-color: var(--vscode-chat-slashCommandBackground);
-	color: var(--vscode-chat-slashCommandForeground);
-}
-
-.monaco-workbench .inline-chat .detectedIntent {
-	color: var(--vscode-descriptionForeground);
-	padding: 5px 0px 5px 5px;
-}
-
-.monaco-workbench .inline-chat .detectedIntent.hidden {
-	display: none;
-}
-
-.monaco-workbench .inline-chat .detectedIntent .slash-command-pill CODE {
-	border-radius: 3px;
-	padding: 0 1px;
-	background-color: var(--vscode-chat-slashCommandBackground);
-	color: var(--vscode-chat-slashCommandForeground);
-}
-
-.monaco-workbench .inline-chat .detectedIntent .slash-command-pill a {
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-}
-
 
 .monaco-workbench .inline-chat .chatMessage .chatMessageContent .value {
 	overflow: hidden;
@@ -144,19 +113,6 @@
 
 .monaco-workbench .inline-chat .chatMessage.hidden {
 	display: none;
-}
-
-.monaco-workbench .inline-chat .status .label A {
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-}
-
-.monaco-workbench .inline-chat .status .label.error {
-	color: var(--vscode-errorForeground);
-}
-
-.monaco-workbench .inline-chat .status .label.warn {
-	color: var(--vscode-editorWarning-foreground);
 }
 
 .monaco-workbench .inline-chat .status .actions {
