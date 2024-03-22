@@ -211,7 +211,7 @@ class InputEditorDecorations extends Disposable {
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
-			const agentHover = `(${agentPart.agent.id}) ${agentPart.agent.description}`;
+			const agentHover = `(${agentPart.agent.name}) ${agentPart.agent.description}`;
 			textDecorations.push({ range: agentPart.editorRange, hoverMessage: new MarkdownString(agentHover) });
 			if (agentSubcommandPart) {
 				textDecorations.push({ range: agentSubcommandPart.editorRange, hoverMessage: new MarkdownString(agentSubcommandPart.command.description) });

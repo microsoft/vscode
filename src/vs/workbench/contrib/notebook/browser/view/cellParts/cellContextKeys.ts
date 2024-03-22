@@ -101,6 +101,7 @@ export class CellContextKeyManager extends Disposable {
 
 		if (element instanceof CodeCellViewModel) {
 			this.elementDisposables.add(element.onDidChangeOutputs(() => this.updateForOutputs()));
+			this.elementDisposables.add(element.cellDiagnostics.onDidDiagnosticsChange(() => this.updateForDiagnostics()));
 		}
 
 		this.elementDisposables.add(this.notebookEditor.onDidChangeActiveCell(() => this.updateForFocusState()));
@@ -118,6 +119,7 @@ export class CellContextKeyManager extends Disposable {
 			this.updateForCollapseState();
 			this.updateForOutputs();
 			this.updateForChat();
+			this.updateForDiagnostics();
 
 			this.cellLineNumbers.set(this.element!.lineNumbers);
 			this.cellResource.set(this.element!.uri.toString());
@@ -202,10 +204,6 @@ export class CellContextKeyManager extends Disposable {
 			this.cellRunState.set('idle');
 			this.cellExecuting.set(false);
 		}
-
-		if (this.element instanceof CodeCellViewModel) {
-			this.cellHasErrorDiagnostics.set(!!this.element.cellErrorDetails);
-		}
 	}
 
 	private updateForEditState() {
@@ -246,5 +244,11 @@ export class CellContextKeyManager extends Disposable {
 		}
 
 		this.cellGeneratedByChat.set(chatController.isCellGeneratedByChat(this.element));
+	}
+
+	private updateForDiagnostics() {
+		if (this.element instanceof CodeCellViewModel) {
+			this.cellHasErrorDiagnostics.set(!!this.element.cellDiagnostics.ErrorDetails);
+		}
 	}
 }

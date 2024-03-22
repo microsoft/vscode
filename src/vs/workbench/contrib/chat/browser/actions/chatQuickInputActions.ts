@@ -178,7 +178,10 @@ export function getQuickChatActionForProvider(id: string, label: string) {
 
 		override run(accessor: ServicesAccessor, query?: string): void {
 			const quickChatService = accessor.get(IQuickChatService);
-			quickChatService.toggle(id, query ? { query } : undefined);
+			quickChatService.toggle(id, query ? {
+				query,
+				selection: new Selection(1, query.length + 1, 1, query.length + 1)
+			} : undefined);
 		}
 	};
 }
