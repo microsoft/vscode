@@ -67,8 +67,10 @@ class ParcelWatcherInstance extends Disposable implements IParcelWatcherInstance
 	private readonly _onDidStop = this._register(new Emitter<void>());
 	readonly onDidStop = this._onDidStop.event;
 
-	readonly _onDidFail = this._register(new Emitter<void>());
+	private readonly _onDidFail = this._register(new Emitter<void>());
 	readonly onDidFail = this._onDidFail.event;
+
+	private didFail = false;
 
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
 	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
@@ -131,7 +133,17 @@ class ParcelWatcherInstance extends Disposable implements IParcelWatcherInstance
 		}
 	}
 
+	notifyWatchFailed(): void {
+		this.didFail = true;
+
+		this._onDidFail.fire();
+	}
+
 	include(path: string): boolean {
+		if (this.didFail) {
+			return false; // never pretend to include anything if we failed
+		}
+
 		if (!this.includes || this.includes.length === 0) {
 			return true; // no specific includes defined, include all
 		}
@@ -399,7 +411,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 			this.onUnexpectedError(error, watcher);
 
 			instance.complete(undefined);
-			watcher._onDidFail.fire();
+			watcher.notifyWatchFailed();
 
 			this._onDidWatchFail.fire(request);
 		});
@@ -589,7 +601,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 		}
 
 		if (!legacyMonitored) {
-			watcher._onDidFail.fire();
+			watcher.notifyWatchFailed();
 		}
 
 		this._onDidWatchFail.fire(watcher.request);
