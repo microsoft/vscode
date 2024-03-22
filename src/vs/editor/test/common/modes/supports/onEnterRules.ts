@@ -59,3 +59,68 @@ export const javascriptOnEnterRules = [
 		action: { indentAction: IndentAction.IndentOutdent, appendText: '\t' }
 	},
 ];
+
+export const phpOnEnterRules = [
+	{
+		beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+		afterText: /^\s*\*\/$/,
+		action: {
+			indentAction: IndentAction.IndentOutdent,
+			appendText: ' * ',
+		}
+	},
+	{
+		beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+		action: {
+			indentAction: IndentAction.None,
+			appendText: ' * ',
+		}
+	},
+	{
+		beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+		action: {
+			indentAction: IndentAction.None,
+			appendText: '* ',
+		}
+	},
+	{
+		beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+		action: {
+			indentAction: IndentAction.None,
+			removeText: 1,
+		}
+	},
+	{
+		beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+		action: {
+			indentAction: IndentAction.None,
+			removeText: 1,
+		}
+	},
+	{
+		beforeText: /^\s+([^{i\s]|i(?!f\b))/,
+		previousLineText: /^\s*(((else ?)?if|for(each)?|while)\s*\(.*\)\s*|else\s*)$/,
+		action: {
+			indentAction: IndentAction.Outdent
+		}
+	},
+];
+
+export const cppOnEnterRules = [
+	{
+		previousLineText: /^\s*(((else ?)?if|for|while)\s*\(.*\)\s*|else\s*)$/,
+		beforeText: /^\s+([^{i\s]|i(?!f\b))/,
+		action: {
+			indentAction: IndentAction.Outdent
+		}
+	}
+];
+
+/*
+export enum IndentAction {
+	None = 0,
+	Indent = 1,
+	IndentOutdent = 2,
+	Outdent = 3
+}
+*/
