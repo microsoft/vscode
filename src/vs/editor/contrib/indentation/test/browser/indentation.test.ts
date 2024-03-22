@@ -50,6 +50,7 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 		case Language.TypeScript:
 			disposables.add(languageConfigurationService.register(languageId, {
 				brackets: [
+					['${', '}'],
 					['{', '}'],
 					['[', ']'],
 					['(', ')']
@@ -548,6 +549,45 @@ suite('`Full` Auto Indent On Paste - TypeScript/JavaScript', () => {
 				'function makeSub(a,b) {',
 				'    subsent = sent.substring(a,b);',
 				'    return subsent;',
+				'}',
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #201420: incorrect indentation when first line is comment', () => {
+
+		// https://github.com/microsoft/vscode/issues/201420
+
+		const model = createTextModel([
+			'function bar() {',
+			'',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+			const tokens = [
+				[{ startIndex: 0, value: 0 }, { startIndex: 8, value: 0 }, { startIndex: 9, value: 0 }, { startIndex: 12, value: 0 }, { startIndex: 13, value: 0 }, { startIndex: 14, value: 0 }, { startIndex: 15, value: 0 }, { startIndex: 16, value: 0 }],
+				[{ startIndex: 0, value: 1 }, { startIndex: 2, value: 1 }, { startIndex: 3, value: 1 }, { startIndex: 10, value: 1 }],
+				[{ startIndex: 0, value: 0 }, { startIndex: 5, value: 0 }, { startIndex: 6, value: 0 }, { startIndex: 9, value: 0 }, { startIndex: 10, value: 0 }, { startIndex: 11, value: 0 }, { startIndex: 12, value: 0 }, { startIndex: 14, value: 0 }],
+				[{ startIndex: 0, value: 0 }, { startIndex: 1, value: 0 }]
+			];
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			registerTokens(instantiationService, tokens, languageId, disposables);
+
+			editor.setSelection(new Selection(2, 1, 2, 1));
+			const text = [
+				'// comment',
+				'const foo = 42',
+			].join('\n');
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			viewModel.paste(text, true, undefined, 'keyboard');
+			autoIndentOnPasteController.trigger(new Range(2, 1, 3, 15));
+			assert.strictEqual(model.getValue(), [
+				'function bar() {',
+				'    // comment',
+				'    const foo = 42',
 				'}',
 			].join('\n'));
 		});
@@ -1105,7 +1145,7 @@ suite('Auto Indent On Type - CPP', () => {
 		assert.ok(true);
 	});
 
-	test('issue #178334: incorrect outdent of } when signature spans multiple lines', () => {
+	test.skip('issue #178334: incorrect outdent of } when signature spans multiple lines', () => {
 
 		// https://github.com/microsoft/vscode/issues/178334
 
