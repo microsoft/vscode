@@ -357,7 +357,7 @@ const COLLAPSE_ALL_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.collapseAllCellOutpu
 const EXPAND_ALL_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.expandAllCellOutputs';
 const TOGGLE_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.toggleOutputs';
 const TOGGLE_CELL_OUTPUT_SCROLLING = 'notebook.cell.toggleOutputScrolling';
-const OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID = 'notebook.cell.openFailureActions';
+export const OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID = 'notebook.cell.openFailureActions';
 
 registerAction2(class CollapseCellInputAction extends NotebookMultiCellAction {
 	constructor() {
@@ -601,7 +601,7 @@ registerAction2(class ExpandAllCellOutputsAction extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		if (context.cell instanceof CodeCellViewModel) {
-			const error = context.cell.cellErrorDetails;
+			const error = context.cell.cellDiagnostics.ErrorDetails;
 			if (error?.location) {
 				const location = Range.lift({
 					startLineNumber: error.location.startLineNumber + 1,
