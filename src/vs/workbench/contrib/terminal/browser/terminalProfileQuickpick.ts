@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService, IKeyMods, IPickOptions, IQuickPickSeparator, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix, type ITerminalExecutable } from 'vs/platform/terminal/common/terminal';
 import { getUriClasses, getColorClass, createColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import * as nls from 'vs/nls';
@@ -131,11 +131,14 @@ export class TerminalProfileQuickpick {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles };
-				newConfigValue[name] = {
-					path: context.item.profile.path,
-					args: context.item.profile.args
-				};
+				const newConfigValue: { [key: string]: ITerminalExecutable } = { ...configProfiles };
+				newConfigValue[name] = { path: context.item.profile.path };
+				if (context.item.profile.args) {
+					newConfigValue[name].args = context.item.profile.args;
+				}
+				if (context.item.profile.env) {
+					newConfigValue[name].env = context.item.profile.env;
+				}
 				await this._configurationService.updateValue(profilesKey, newConfigValue, ConfigurationTarget.USER);
 			},
 			onKeyMods: mods => keyMods = mods
