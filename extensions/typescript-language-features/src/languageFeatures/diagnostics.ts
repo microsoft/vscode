@@ -89,7 +89,7 @@ class FileDiagnostics {
 	}
 
 	/**
-	 * @param ranges The ranges where we requested the region diagnostics.
+	 * @param ranges The ranges whose diagnostics were updated.
 	 */
 	private updateRegionDiagnostics(
 		diagnostics: ReadonlyArray<vscode.Diagnostic>,

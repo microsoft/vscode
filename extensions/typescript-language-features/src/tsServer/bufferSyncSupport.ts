@@ -313,8 +313,8 @@ class GetErrRequest {
 		}
 
 		const supportsSyntaxGetErr = this.client.apiVersion.gte(API.v440);
-		const allFiles = coalesce(Array.from(files.entries())
-			.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
+		const fileEntries = Array.from(files.entries()).filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic));
+		const allFiles = coalesce(fileEntries
 			.map(entry => client.toTsFilePath(entry.resource)));
 
 		if (!allFiles.length) {
@@ -328,24 +328,24 @@ class GetErrRequest {
 				request = client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token);
 			}
 			else {
-				const filesWithRanges = coalesce(Array.from(files.entries())
-					.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
-					.map(entry => {
-						const file = client.toTsFilePath(entry.resource);
-						const ranges = entry.value;
-						if (file && ranges) {
-							return typeConverters.Range.toFileRangesRequestArgs(file, ranges);
-						}
+				let requestFiles;
+				if (this.areRegionDiagnosticsEnabled()) {
+					requestFiles = coalesce(fileEntries
+						.map(entry => {
+							const file = client.toTsFilePath(entry.resource);
+							const ranges = entry.value;
+							if (file && ranges) {
+								return typeConverters.Range.toFileRangesRequestArgs(file, ranges);
+							}
 
-						return file;
-					}));
-				request = client.executeAsync('geterr', { delay: 0, files: filesWithRanges }, this._token.token);
+							return file;
+						}));
+				}
+				else {
+					requestFiles = allFiles;
+				}
+				request = client.executeAsync('geterr', { delay: 0, files: requestFiles }, this._token.token);
 			}
-			// const request = this.areProjectDiagnosticsEnabled()
-			// 	// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
-			// 	// too many diagnostics
-			// 	? client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token)
-			// 	: client.executeAsync('geterr', { delay: 0, files: allFiles }, this._token.token);
 
 			request.finally(() => {
 				if (this._done) {
@@ -368,6 +368,10 @@ class GetErrRequest {
 
 	private areProjectDiagnosticsEnabled() {
 		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
+	}
+
+	private areRegionDiagnosticsEnabled() {
+		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v550);
 	}
 
 	public cancel(): any {
@@ -663,9 +667,6 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	private onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent): void {
-		// const editors = vscode.window.visibleTextEditors.filter(editor => editor.document.uri.toString() === e.document.uri.toString());
-		// const visibleRanges = editors.flatMap(editor => editor.visibleRanges);
-		// // >> TODO: would we need to normalize the ranges? i.e. remove overlaps, etc
 		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
 		if (!syncedBuffer) {
 			return;
@@ -747,7 +748,6 @@ export default class BufferSyncSupport extends Disposable {
 		for (const buffer of this.syncedBuffers.values()) {
 			const editors = vscode.window.visibleTextEditors.filter(editor => editor.document.uri.toString() === buffer.resource.toString());
 			const visibleRanges = editors.flatMap(editor => editor.visibleRanges);
-			// >> TODO: would we need to normalize the ranges? i.e. remove overlaps, etc
 			orderedFileSet.set(buffer.resource, visibleRanges.length ? visibleRanges : undefined);
 		}
 
