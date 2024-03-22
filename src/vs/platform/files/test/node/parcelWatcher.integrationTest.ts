@@ -98,7 +98,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 	});
 
 	teardown(async () => {
+		const watchers = watcher.watchers.size;
+		let stoppedInstances = 0;
+		for (const instance of watcher.watchers) {
+			Event.once(instance.onDidStop)(() => stoppedInstances++);
+		}
+
 		await watcher.stop();
+		assert.strictEqual(stoppedInstances, watchers, 'All watchers must be stopped before the test ends');
 		watcher.dispose();
 
 		// Possible that the file watcher is still holding
@@ -170,37 +177,55 @@ import { Emitter, Event } from 'vs/base/common/event';
 	}
 
 	test('basics', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
+		const request = { path: testDir, excludes: [], recursive: true };
+		await watcher.watch([request]);
+		assert.strictEqual(watcher.watchers.size, watcher.getWatchers().length);
+		assert.strictEqual(Array.from(watcher.watchers)[0], watcher.getWatchers()[0]);
+
+		const instance = watcher.getWatchers()[0];
+		assert.strictEqual(request, instance.request);
+
+		const subscriptions = new Map<string, FileChangeType>();
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
+		instance.subscribe(newFilePath, change => subscriptions.set(change.resource.fsPath, change.type));
 		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
+		assert.strictEqual(subscriptions.get(newFilePath), FileChangeType.ADDED);
 
 		// New folder
 		const newFolderPath = join(testDir, 'deep', 'New Folder');
+		instance.subscribe(newFolderPath, change => subscriptions.set(change.resource.fsPath, change.type));
 		changeFuture = awaitEvent(watcher, newFolderPath, FileChangeType.ADDED);
 		await Promises.mkdir(newFolderPath);
 		await changeFuture;
+		assert.strictEqual(subscriptions.get(newFolderPath), FileChangeType.ADDED);
 
 		// Rename file
 		let renamedFilePath = join(testDir, 'deep', 'renamedFile.txt');
+		instance.subscribe(renamedFilePath, change => subscriptions.set(change.resource.fsPath, change.type));
 		changeFuture = Promise.all([
 			awaitEvent(watcher, newFilePath, FileChangeType.DELETED),
 			awaitEvent(watcher, renamedFilePath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(newFilePath, renamedFilePath);
 		await changeFuture;
+		assert.strictEqual(subscriptions.get(newFilePath), FileChangeType.DELETED);
+		assert.strictEqual(subscriptions.get(renamedFilePath), FileChangeType.ADDED);
 
 		// Rename folder
 		let renamedFolderPath = join(testDir, 'deep', 'Renamed Folder');
+		instance.subscribe(renamedFolderPath, change => subscriptions.set(change.resource.fsPath, change.type));
 		changeFuture = Promise.all([
 			awaitEvent(watcher, newFolderPath, FileChangeType.DELETED),
 			awaitEvent(watcher, renamedFolderPath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(newFolderPath, renamedFolderPath);
 		await changeFuture;
+		assert.strictEqual(subscriptions.get(newFolderPath), FileChangeType.DELETED);
+		assert.strictEqual(subscriptions.get(renamedFolderPath), FileChangeType.ADDED);
 
 		// Rename file (same name, different case)
 		const caseRenamedFilePath = join(testDir, 'deep', 'RenamedFile.txt');
@@ -280,13 +305,17 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
+		instance.subscribe(copiedFilepath, change => subscriptions.set(change.resource.fsPath, change.type));
 		await Promises.unlink(copiedFilepath);
 		await changeFuture;
+		assert.strictEqual(subscriptions.get(copiedFilepath), FileChangeType.DELETED);
 
 		// Delete folder
 		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.DELETED);
+		instance.subscribe(copiedFolderpath, change => subscriptions.set(change.resource.fsPath, change.type));
 		await Promises.rmdir(copiedFolderpath);
 		await changeFuture;
+		assert.strictEqual(subscriptions.get(copiedFolderpath), FileChangeType.DELETED);
 	});
 
 	(isMacintosh /* this test seems not possible with fsevents backend */ ? test.skip : test)('basics (atomic writes)', async function () {

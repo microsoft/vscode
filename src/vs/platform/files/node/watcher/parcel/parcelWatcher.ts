@@ -429,9 +429,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 					this.trace(` >> ignored (not included) ${path}`);
 				}
 			} else {
-				const change = { type, resource: URI.file(path), cId: watcher.request.correlationId };
-				watcher.notifyFileChange(path, change);
-				events.push(change);
+				events.push({ type, resource: URI.file(path), cId: watcher.request.correlationId });
 			}
 		}
 
@@ -460,9 +458,13 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 			return;
 		}
 
-		// Logging
-		if (this.verboseLogging) {
-			for (const event of events) {
+		for (const event of events) {
+
+			// Emit to instance subscriptions
+			watcher.notifyFileChange(event.resource.fsPath, event);
+
+			// Logging
+			if (this.verboseLogging) {
 				this.traceEvent(event, watcher.request);
 			}
 		}
