@@ -239,7 +239,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	async acceptInput(userQuery?: string, inputState?: any): Promise<void> {
 		if (userQuery) {
-			this.history.add({ text: userQuery, state: inputState });
+			let element = this.history.getHistory().find(candidate => candidate.text === userQuery);
+			if (!element) {
+				element = { text: userQuery, state: inputState };
+			} else {
+				element.state = inputState;
+			}
+			this.history.add(element);
 		}
 
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {

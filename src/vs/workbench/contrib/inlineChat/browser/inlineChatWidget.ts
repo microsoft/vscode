@@ -13,7 +13,6 @@ import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ISettableObservable, constObservable, derived, observableValue } from 'vs/base/common/observable';
 import 'vs/css!./media/inlineChat';
 import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
 import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -31,11 +30,9 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/br
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { asCssVariable, asCssVariableName, editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
@@ -45,7 +42,6 @@ import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/cha
 import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -114,12 +110,10 @@ export class InlineChatWidget {
 	protected readonly _elements = h(
 		'div.inline-chat@root',
 		[
-			h('div.previewDiff.hidden@previewDiff'),
-			h('div.previewCreateTitle.show-file-icons.hidden@previewCreateTitle'),
-			h('div.previewCreate.hidden@previewCreate'),
 			h('div.chat-widget@chatWidget'),
 			h('div.progress@progress'),
 			h('div.followUps.hidden@followUps'),
+			h('div.previewDiff.hidden@previewDiff'),
 			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
@@ -375,7 +369,7 @@ export class InlineChatWidget {
 		return result;
 	}
 
-	private _getExtraHeight(): number {
+	protected _getExtraHeight(): number {
 		return 12 /* padding */ + 2 /*border*/ + 12 /*shadow*/;
 	}
 
@@ -607,10 +601,6 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 	private readonly _previewDiffEditor: Lazy<EmbeddedDiffEditorWidget>;
 	private readonly _previewDiffModel = this._store.add(new MutableDisposable());
 
-	private readonly _previewCreateTitle: ResourceLabel;
-	private readonly _previewCreateEditor: Lazy<ICodeEditor>;
-	private readonly _previewCreateDispoable = this._store.add(new MutableDisposable());
-
 	constructor(
 		private readonly _parentEditor: ICodeEditor,
 		options: IInlineChatWidgetConstructionOptions,
@@ -631,45 +621,46 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 			..._previewEditorEditorOptions,
 			onlyShowAccessibleDiffViewer: accessibilityService.isScreenReaderOptimized(),
 		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, _parentEditor)));
-
-		this._previewCreateTitle = this._store.add(instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
-		this._previewCreateEditor = new Lazy(() => this._store.add(instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, _parentEditor)));
 	}
 
 	// --- layout
 
 	override get contentHeight(): number {
-		const result = super.contentHeight;
-		const previewDiffHeight = this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
-		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
-		const previewCreateHeight = this._previewCreateEditor.hasValue && this._previewCreateEditor.value.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())) : 0;
-		const accessibleViewHeight = this._accessibleViewer.value?.height ?? 0;
-		return result + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + accessibleViewHeight;
+		let result = super.contentHeight;
+		if (this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel()) {
+			result += 14 + Math.min(300, this._previewDiffEditor.value.getContentHeight());
+		}
+		if (this._accessibleViewer.value) {
+			result += this._accessibleViewer.value.height;
+		}
+		return result;
 	}
 
-	protected override _doLayout(widgetDimension: Dimension): void {
-		super._doLayout(widgetDimension);
+	protected override _doLayout(dimension: Dimension): void {
 
-		if (this._accessibleViewer.value) {
-			this._accessibleViewer.value.width = widgetDimension.width - 12;
-		}
+		let newHeight = dimension.height;
+
 
 		if (this._previewDiffEditor.hasValue) {
-			const previewDiffDim = new Dimension(widgetDimension.width - 12, Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())));
+			const previewDiffDim = new Dimension(dimension.width - 12, Math.min(300, this._previewDiffEditor.value.getContentHeight()));
 			this._elements.previewDiff.style.width = `${previewDiffDim.width}px`;
 			this._elements.previewDiff.style.height = `${previewDiffDim.height}px`;
 			this._previewDiffEditor.value.layout(previewDiffDim);
+			newHeight -= previewDiffDim.height + 14;
 		}
 
-		if (this._previewCreateEditor.hasValue) {
-			const previewCreateDim = new Dimension(widgetDimension.width, Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())));
-			this._previewCreateEditor.value.layout(previewCreateDim);
-			this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
+		if (this._accessibleViewer.value) {
+			this._accessibleViewer.value.width = dimension.width - 12;
+			newHeight -= this._accessibleViewer.value.height;
 		}
+
+		super._doLayout(dimension.with(undefined, newHeight));
+
+		// update/fix the height of the zone which was set to newHeight in super._doLayout
+		this._elements.root.style.height = `${dimension.height - this._getExtraHeight()}px`;
 	}
 
 	override reset() {
-		this.hideCreatePreview();
 		this.hideEditsPreview();
 		this._accessibleViewer.clear();
 		super.reset();
@@ -740,30 +731,8 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	async showCreatePreview(model: IUntitledTextEditorModel): Promise<void> {
-		this._elements.previewCreateTitle.classList.remove('hidden');
-		this._elements.previewCreate.classList.remove('hidden');
-
-		const ref = await this._textModelResolverService.createModelReference(model.resource);
-		this._previewCreateDispoable.value = ref;
-		this._previewCreateTitle.element.setFile(model.resource, { fileKind: FileKind.FILE });
-
-		this._previewCreateEditor.value.setModel(ref.object.textEditorModel);
-		this._onDidChangeHeight.fire();
-	}
-
-	hideCreatePreview() {
-		this._elements.previewCreateTitle.classList.add('hidden');
-		this._elements.previewCreate.classList.add('hidden');
-		this._previewCreateEditor.rawValue?.setModel(null);
-		this._previewCreateDispoable.clear();
-		this._previewCreateTitle.element.clear();
-		this._onDidChangeHeight.fire();
-	}
-
 	showsAnyPreview() {
-		return !this._elements.previewDiff.classList.contains('hidden') ||
-			!this._elements.previewCreate.classList.contains('hidden');
+		return !this._elements.previewDiff.classList.contains('hidden');
 	}
 }
 
