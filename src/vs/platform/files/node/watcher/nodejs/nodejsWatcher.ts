@@ -7,10 +7,9 @@ import { Event } from 'vs/base/common/event';
 import { patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { isLinux } from 'vs/base/common/platform';
-import { INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isEqual } from 'vs/base/common/extpath';
-import { IParcelWatchersAccessor } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 
 export interface INodeJSWatcherInstance {
 
@@ -33,7 +32,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 
 	private verboseLogging = false;
 
-	constructor(private readonly accessor: IParcelWatchersAccessor | undefined) {
+	constructor(protected readonly recursiveWatcher: IRecursiveWatcher | undefined) {
 		super();
 	}
 
@@ -100,7 +99,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	private startWatching(request: INonRecursiveWatchRequest): void {
 
 		// Start via node.js lib
-		const instance = new NodeJSFileWatcherLibrary(request, this.accessor, changes => this._onDidChangeFile.fire(changes), () => this._onDidWatchFail.fire(request), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+		const instance = new NodeJSFileWatcherLibrary(request, this.recursiveWatcher, changes => this._onDidChangeFile.fire(changes), () => this._onDidWatchFail.fire(request), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
 
 		// Remember as watcher instance
 		const watcher: INodeJSWatcherInstance = { request, instance };

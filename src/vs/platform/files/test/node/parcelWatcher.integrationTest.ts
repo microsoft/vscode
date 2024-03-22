@@ -59,6 +59,10 @@ export class TestParcelWatcher extends ParcelWatcher {
 			await watcher.ready;
 		}
 	}
+
+	getWatchers() {
+		return Array.from(this.watchers);
+	}
 }
 
 flakySuite('File Watcher (parcel)', () => {

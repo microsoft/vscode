@@ -11,7 +11,7 @@ import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } fro
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { randomPath, isEqual } from 'vs/base/common/extpath';
+import { randomPath, isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { GLOBSTAR, patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
@@ -22,11 +22,7 @@ import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-
-export interface IParcelWatchersAccessor {
-	getWatchers(): IParcelWatcherInstance[];
-}
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IParcelWatcherInstance {
 
@@ -166,7 +162,7 @@ class ParcelWatcherInstance extends Disposable implements IParcelWatcherInstance
 	}
 }
 
-export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IParcelWatchersAccessor {
+export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 	private static readonly MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE = new Map<parcelWatcher.EventType, number>(
 		[
@@ -182,10 +178,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 	readonly onDidError = this._onDidError.event;
 
 	readonly watchers = new Set<ParcelWatcherInstance>();
-
-	getWatchers(): IParcelWatcherInstance[] {
-		return Array.from(this.watchers);
-	}
 
 	// A delay for collecting file changes from Parcel
 	// before collecting them for coalescing and emitting.
@@ -813,6 +805,30 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 		return true;
 	}
 
+	subscribe(path: string, callback: (error: boolean, change?: IFileChange) => void): IDisposable | undefined {
+		for (const watcher of this.watchers) {
+			if (!isEqualOrParent(path, watcher.request.path, !isLinux)) {
+				continue; // watcher does not consider this path
+			}
+
+			if (
+				watcher.exclude(path) ||
+				!watcher.include(path)
+			) {
+				continue; // parcel instance does not consider this path
+			}
+
+			const disposables = new DisposableStore();
+
+			disposables.add(Event.once(Event.any(watcher.onDidStop, watcher.onDidFail))(() => callback(true /* error */)));
+			disposables.add(watcher.subscribe(path, change => callback(false, change)));
+
+			return disposables;
+		}
+
+		return undefined;
+	}
+
 	async setVerboseLogging(enabled: boolean): Promise<void> {
 		this.verboseLogging = enabled;
 	}
@@ -834,4 +850,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher, IPa
 	private toMessage(message: string, watcher?: ParcelWatcherInstance): string {
 		return watcher ? `[File Watcher (parcel)] ${message} (path: ${watcher.request.path})` : `[File Watcher (parcel)] ${message}`;
 	}
+
+	protected get recursiveWatcher() { return this; }
 }

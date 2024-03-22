@@ -6,7 +6,6 @@
 import { watch } from 'fs';
 import { RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -17,8 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
-import { IParcelWatchersAccessor } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
+import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -60,7 +58,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	constructor(
 		private readonly request: INonRecursiveWatchRequest,
-		private readonly accessor: IParcelWatchersAccessor | undefined,
+		protected readonly recursiveWatcher: IRecursiveWatcher | undefined,
 		private readonly onDidFilesChange: (changes: IFileChange[]) => void,
 		private readonly onDidWatchFail?: () => void,
 		private readonly onLogMessage?: (msg: ILogMessage) => void,
@@ -121,67 +119,51 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	private async doWatch(realPath: string, isDirectory: boolean): Promise<IDisposable> {
-		const disposable = this.doWatchWithExistingWatcher(realPath, isDirectory);
-		if (disposable) {
-			this.trace(`reusing an existing recursive watcher for ${this.request.path}`);
+		const disposables = new DisposableStore();
 
-			return disposable;
+		if (this.doWatchWithExistingWatcher(realPath, isDirectory, disposables)) {
+			this.trace(`reusing an existing recursive watcher for ${this.request.path}`);
+		} else {
+			this.doWatchWithNodeJS(realPath, isDirectory, disposables);
 		}
 
-		return this.doWatchWithNodeJS(realPath, isDirectory);
+		return disposables;
 	}
 
-	private doWatchWithExistingWatcher(realPath: string, isDirectory: boolean): IDisposable | undefined {
+	private doWatchWithExistingWatcher(realPath: string, isDirectory: boolean, disposables: DisposableStore): boolean {
 		if (isDirectory) {
-			return undefined; // only supported for files for now
+			return false; // only supported for files where we have the full path known upfront
 		}
 
-		if (!this.accessor) {
-			return undefined; // requires access to recursive watchers
+		if (!this.recursiveWatcher) {
+			return false; // requires access to recursive watcher
 		}
 
-		for (const parcelInstance of this.accessor.getWatchers()) {
-			if (!isEqualOrParent(this.request.path, parcelInstance.request.path, !isLinux)) {
-				continue; // watcher does not consider this path
-			}
-
-			if (
-				parcelInstance.exclude(this.request.path) ||
-				!parcelInstance.include(this.request.path)
-			) {
-				continue; // parcel instance does not consider this path
-			}
-
-			const disposable = new DisposableStore();
-
-			// Subscribe to the parcel instance stopping or failing, as this means
-			// we have to re-watch this path again either with another instance
-			// or using node.js watching.
-			disposable.add(Event.once(Event.any(parcelInstance.onDidStop, parcelInstance.onDidFail))(async () => {
+		const subscription = this.recursiveWatcher.subscribe(this.request.path, async (error, change) => {
+			if (error) {
 				const watchDisposable = await this.doWatch(realPath, isDirectory);
-				if (!disposable.isDisposed && !this.cts.token.isCancellationRequested) {
-					disposable.add(watchDisposable);
+				if (!disposables.isDisposed && !this.cts.token.isCancellationRequested) {
+					disposables.add(watchDisposable);
 				} else {
 					watchDisposable.dispose();
 				}
-			}));
-
-			// If either our request is correlated or the existing watcher correlates
-			// we must ensure to carry out the event with our correlation ID, even if
-			// undefined.
-			if (typeof this.request.correlationId === 'number' || typeof parcelInstance.request.correlationId === 'number') {
-				disposable.add(parcelInstance.subscribe(this.request.path, change => {
+			} else if (change) {
+				if (typeof change.cId === 'number' || typeof this.request.correlationId === 'number') {
 					this.onDidFilesChange([{ ...change, cId: this.request.correlationId }]);
-				}));
+				}
 			}
+		});
 
-			return disposable;
+		if (subscription) {
+			disposables.add(subscription);
+
+			return true;
 		}
 
-		return undefined;
+		return false;
 	}
 
-	private async doWatchWithNodeJS(realPath: string, isDirectory: boolean): Promise<IDisposable> {
+	private async doWatchWithNodeJS(realPath: string, isDirectory: boolean, disposables: DisposableStore): Promise<void> {
 
 		// macOS: watching samba shares can crash VSCode so we do
 		// a simple check for the file path pointing to /Volumes
@@ -191,12 +173,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		if (isMacintosh && isEqualOrParent(realPath, '/Volumes/', true)) {
 			this.error(`Refusing to watch ${realPath} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
 
-			return Disposable.None;
+			return;
 		}
 
 		const cts = new CancellationTokenSource(this.cts.token);
+		disposables.add(toDisposable(() => cts.dispose(true)));
 
-		const disposables = new DisposableStore();
+		const watcherDisposables = new DisposableStore(); // we need a separate disposable store because we re-create the watcher from within in some cases
+		disposables.add(watcherDisposables);
 
 		try {
 			const requestResource = URI.file(this.request.path);
@@ -204,7 +188,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 			// Creating watcher can fail with an exception
 			const watcher = watch(realPath);
-			disposables.add(toDisposable(() => {
+			watcherDisposables.add(toDisposable(() => {
 				watcher.removeAllListeners();
 				watcher.close();
 			}));
@@ -223,8 +207,12 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				}
 			}
 
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
 			const mapPathToStatDisposable = new Map<string, IDisposable>();
-			disposables.add(toDisposable(() => {
+			watcherDisposables.add(toDisposable(() => {
 				for (const [, disposable] of mapPathToStatDisposable) {
 					disposable.dispose();
 				}
@@ -232,6 +220,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			}));
 
 			watcher.on('error', (code: number, signal: string) => {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+
 				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${code}, ${signal})`);
 
 				this.onDidWatchFail?.();
@@ -384,7 +376,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							if (fileExists) {
 								this.onFileChange({ resource: requestResource, type: FileChangeType.UPDATED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
 
-								disposables.add(await this.doWatch(realPath, false));
+								watcherDisposables.add(await this.doWatch(realPath, false));
 							}
 
 							// File seems to be really gone, so emit a deleted and failed event
@@ -395,8 +387,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 						// Very important to dispose the watcher which now points to a stale inode
 						// and wire in a new disposable that tracks our timeout that is installed
-						disposables.clear();
-						disposables.add(toDisposable(() => clearTimeout(timeoutHandle)));
+						watcherDisposables.clear();
+						watcherDisposables.add(toDisposable(() => clearTimeout(timeoutHandle)));
 					}
 
 					// File changed
@@ -412,11 +404,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 			this.onDidWatchFail?.();
 		}
-
-		return toDisposable(() => {
-			cts.dispose(true);
-			disposables.dispose();
-		});
 	}
 
 	private onWatchedPathDeleted(resource: URI): void {

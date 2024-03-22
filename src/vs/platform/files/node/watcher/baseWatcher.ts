@@ -5,7 +5,7 @@
 
 import { watchFile, unwatchFile, Stats } from 'fs';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogMessage, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, isWatchRequestWithCorrelation } from 'vs/platform/files/common/watcher';
+import { ILogMessage, IRecursiveWatcher, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, isWatchRequestWithCorrelation } from 'vs/platform/files/common/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -101,9 +101,38 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		this.updateWatchers();
 	}
 
-	private monitorSuspendedWatchRequest(request: IWatchRequestWithCorrelation, disposables: DisposableStore) {
+	private monitorSuspendedWatchRequest(request: IWatchRequestWithCorrelation, disposables: DisposableStore): void {
+		if (this.doMonitorWithExistingWatcher(request, disposables)) {
+			this.trace(`reusing an existing recursive watcher to monitor ${request.path}`);
+		} else {
+			this.doMonitorWithNodeJS(request, disposables);
+		}
+	}
+
+	private doMonitorWithExistingWatcher(request: IWatchRequestWithCorrelation, disposables: DisposableStore): boolean {
+		if (!this.recursiveWatcher) {
+			return false; // requires access to recursive watcher
+		}
+
+		const subscription = this.recursiveWatcher.subscribe(request.path, (error, change) => {
+			if (error) {
+				this.monitorSuspendedWatchRequest(request, disposables);
+			} else if (change?.type === FileChangeType.ADDED) {
+				this.onMonitoredPathAdded(request, change.resource);
+			}
+		});
+
+		if (subscription) {
+			disposables.add(subscription);
+
+			return true;
+		}
+
+		return false;
+	}
+
+	private doMonitorWithNodeJS(request: IWatchRequestWithCorrelation, disposables: DisposableStore): void {
 		const resource = URI.file(request.path);
-		const that = this;
 
 		let pathNotFound = false;
 
@@ -119,15 +148,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 			// Watch path created: resume watching request
 			if (!currentPathNotFound && (previousPathNotFound || oldPathNotFound)) {
-				this.trace(`fs.watchFile() detected ${request.path} exists again, resuming watcher (correlationId: ${request.correlationId})`);
-
-				// Emit as event
-				const event: IFileChange = { resource, type: FileChangeType.ADDED, cId: request.correlationId };
-				that._onDidChangeFile.fire([event]);
-				this.traceEvent(event, request);
-
-				// Resume watching
-				this.resumeWatchRequest(request);
+				this.onMonitoredPathAdded(request, resource);
 			}
 		};
 
@@ -149,6 +170,18 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		}));
 	}
 
+	private onMonitoredPathAdded(request: IWatchRequestWithCorrelation, resource: URI) {
+		this.trace(`fs.watchFile() detected ${request.path} exists again, resuming watcher (correlationId: ${request.correlationId})`);
+
+		// Emit as event
+		const event: IFileChange = { resource, type: FileChangeType.ADDED, cId: request.correlationId };
+		this._onDidChangeFile.fire([event]);
+		this.traceEvent(event, request);
+
+		// Resume watching
+		this.resumeWatchRequest(request);
+	}
+
 	private isPathNotFound(stats: Stats): boolean {
 		return stats.ctimeMs === 0 && stats.ino === 0;
 	}
@@ -167,6 +200,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	protected abstract doWatch(requests: IUniversalWatchRequest[]): Promise<void>;
+
+	protected abstract readonly recursiveWatcher: IRecursiveWatcher | undefined;
 
 	protected abstract trace(message: string): void;
 	protected abstract warn(message: string): void;
