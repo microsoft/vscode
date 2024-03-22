@@ -745,9 +745,6 @@ export class InlineChatController implements IEditorContribution {
 
 		await this._session.hunkData.recompute();
 
-		// console.log(request.response.result);
-		// this._session.addExchange(new SessionExchange(this._session.lastInput, response));
-
 		this._zone.value.widget.updateToolbar(true);
 
 		if (message & Message.CANCEL_SESSION) {
@@ -756,8 +753,6 @@ export class InlineChatController implements IEditorContribution {
 			return State.PAUSE;
 		} else if (message & Message.ACCEPT_SESSION) {
 			return State.ACCEPT;
-			// } else if (message & (Message.ACCEPT_INPUT)) {
-			// 	return State.MAKE_REQUEST;
 		} else {
 			return State.APPLY_RESPONSE;
 		}
