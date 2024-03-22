@@ -178,6 +178,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 			outlineEntryToolbar.setActions(actions.primary, actions.secondary);
 
 			this.setupToolbarListeners(outlineEntryToolbar, menu, actions, node.element, template);
+			template.actionMenu.style.padding = '0 0.8em 0 0.4em';
 		}
 	}
 
