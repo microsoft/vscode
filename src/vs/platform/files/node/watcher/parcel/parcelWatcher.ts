@@ -100,11 +100,11 @@ class ParcelWatcherInstance implements IParcelWatcherInstance {
 		});
 	}
 
-	notifyFileChange(change: IFileChange): void {
-		const subscriptions = this.subscriptions.get(change.resource.fsPath);
+	notifyFileChange(path: string, type: FileChangeType): void {
+		const subscriptions = this.subscriptions.get(path);
 		if (subscriptions) {
 			for (const subscription of subscriptions) {
-				subscription(change.type);
+				subscription(type);
 			}
 		}
 	}
@@ -133,7 +133,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 	private readonly _onDidError = this._register(new Emitter<string>());
 	readonly onDidError = this._onDidError.event;
 
-	readonly _watchers = new Set<ParcelWatcherInstance>();
+	protected readonly _watchers = new Set<ParcelWatcherInstance>();
 	get watchers(): IParcelWatcherInstance[] { return Array.from(this._watchers); }
 
 	// A delay for collecting file changes from Parcel
@@ -380,7 +380,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 		// Add to event aggregator for later processing
 		for (const includedEvent of includedEvents) {
-			watcher.notifyFileChange(includedEvent);
 			watcher.worker.work(includedEvent);
 		}
 	}
@@ -400,6 +399,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 					this.trace(` >> ignored (not included) ${path}`);
 				}
 			} else {
+				watcher.notifyFileChange(path, type);
 				events.push({ type, resource: URI.file(path), cId: watcher.request.correlationId });
 			}
 		}
