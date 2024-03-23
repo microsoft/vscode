@@ -60,7 +60,7 @@ impl Display for AuthProvider {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			AuthProvider::Microsoft => write!(f, "Microsoft Account"),
-			AuthProvider::Github => write!(f, "Github Account"),
+			AuthProvider::Github => write!(f, "GitHub Account"),
 		}
 	}
 }
@@ -144,7 +144,7 @@ impl StoredCredential {
 				let res = match res {
 					Ok(r) => r,
 					Err(e) => {
-						warning!(log, "failed to check Github token: {}", e);
+						warning!(log, "failed to check GitHub token: {}", e);
 						return false;
 					}
 				};
@@ -154,7 +154,7 @@ impl StoredCredential {
 				}
 
 				let err = StatusError::from_res(res).await;
-				debug!(log, "github token looks expired: {:?}", err);
+				debug!(log, "GitHub token looks expired: {:?}", err);
 				true
 			}
 		}
@@ -678,7 +678,7 @@ impl Auth {
 		if !*IS_INTERACTIVE_CLI {
 			info!(
 				self.log,
-				"Using Github for authentication, run `{} tunnel user login --provider <provider>` option to change this.",
+				"Using GitHub for authentication, run `{} tunnel user login --provider <provider>` option to change this.",
 				APPLICATION_NAME
 			);
 			return Ok(AuthProvider::Github);
