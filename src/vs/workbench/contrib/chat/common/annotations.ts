@@ -28,7 +28,7 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 			result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + item.content.value, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
 		} else if (item.kind === 'markdownVuln') {
 			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
-			const markdownText = `<vscode_annotation details='${vulnText}'>${item.content.value}</vscode_annotation>`;
+			const markdownText = `<vscode_annotation details="${vulnText}">${item.content.value}</vscode_annotation>`;
 			if (previousItem?.kind === 'markdownContent') {
 				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
 			} else {
@@ -77,4 +77,3 @@ export function extractVulnerabilitiesFromText(text: string): { newText: string;
 
 	return { newText, vulnerabilities };
 }
-

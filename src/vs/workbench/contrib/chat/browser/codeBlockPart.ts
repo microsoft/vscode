@@ -377,6 +377,7 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	private getVulnerabilitiesLabel(): string {
+		// This is never assigned?
 		if (!this.currentCodeBlockData || !this.currentCodeBlockData.vulns) {
 			return '';
 		}

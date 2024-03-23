@@ -18,6 +18,7 @@ import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { CodeBlockModelCollection } from './codeBlockModelCollection';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ResourceMap } from 'vs/base/common/map';
+import { annotateSpecialMarkdownContent } from 'vs/workbench/contrib/chat/common/annotations';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -259,7 +260,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
-		const content = isRequestVM(model) ? model.messageText : model.response.asString();
+		const content = isRequestVM(model) ? model.messageText : annotateSpecialMarkdownContent(model.response.value).reduce((acc, part) => acc + (part.kind === 'markdownContent' ? part.content.value : ''), '');
 		const renderer = new marked.Renderer();
 
 		let codeBlockIndex = 0;

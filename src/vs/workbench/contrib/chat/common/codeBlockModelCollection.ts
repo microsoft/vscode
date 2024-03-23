@@ -40,7 +40,7 @@ export class CodeBlockModelCollection extends Disposable {
 		if (!entries) {
 			return;
 		}
-		return { model: entries.model.then(ref => ref.object), vulns: entries.vulns };
+		return { model: entries.model.then(ref => ref.object), vulns: entries.vulns, setVulns(v) { entries.vulns = v; } };
 	}
 
 	getOrCreate(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): { model: Promise<IResolvedTextEditorModel>; vulns: readonly IMarkdownVulnerability[] } {
@@ -52,7 +52,7 @@ export class CodeBlockModelCollection extends Disposable {
 		const uri = this.getUri(sessionId, chat, codeBlockIndex);
 		const ref = this.textModelService.createModelReference(uri);
 		this._models.set(uri, { model: ref, vulns: [] });
-		return { model: ref.then(ref => ref.object), vulns: [] };
+		return { model: ref.then(ref => ref.object), vulns: [], setVulns(v) { } };
 	}
 
 	clear(): void {
@@ -65,7 +65,9 @@ export class CodeBlockModelCollection extends Disposable {
 
 		const extractedVulns = extractVulnerabilitiesFromText(content.text);
 		const newText = extractedVulns.newText;
+		// This doesn't assign to the object in the map
 		entry.vulns = extractedVulns.vulnerabilities;
+		(entry as any).setVulns(extractedVulns.vulnerabilities);
 
 		const textModel = (await entry.model).textEditorModel;
 		if (content.languageId) {
