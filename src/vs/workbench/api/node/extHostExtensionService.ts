@@ -19,6 +19,10 @@ import { realpathSync } from 'vs/base/node/extpath';
 import { ExtHostConsoleForwarder } from 'vs/workbench/api/node/extHostConsoleForwarder';
 import { ExtHostDiskFileSystemProvider } from 'vs/workbench/api/node/extHostDiskFileSystemProvider';
 
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url)
+
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
 	protected _installInterceptor(): void {
@@ -109,7 +113,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			if (extensionId) {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
-			r = require.__$__nodeRequire<T>(module.fsPath);
+			r = require(module.fsPath) as T;
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
