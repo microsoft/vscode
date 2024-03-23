@@ -8,7 +8,7 @@ import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { INonRecursiveWatchRequest, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { INonRecursiveWatchRequest, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
 import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
@@ -71,7 +71,7 @@ flakySuite('File Watcher (node.js)', () => {
 		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 	});
 
-	async function createWatcher(accessor: IRecursiveWatcher | undefined) {
+	async function createWatcher(accessor: IRecursiveWatcherWithSubscribe | undefined) {
 		await watcher?.stop();
 		watcher?.dispose();
 

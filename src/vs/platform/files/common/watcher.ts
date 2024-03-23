@@ -120,6 +120,9 @@ export interface IWatcher {
 
 export interface IRecursiveWatcher extends IWatcher {
 	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface IRecursiveWatcherWithSubscribe extends IRecursiveWatcher {
 
 	/**
 	 * Subscribe to file events for the given path. The callback is called

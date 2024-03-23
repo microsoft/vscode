@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -58,7 +58,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	constructor(
 		private readonly request: INonRecursiveWatchRequest,
-		protected readonly recursiveWatcher: IRecursiveWatcher | undefined,
+		protected readonly recursiveWatcher: IRecursiveWatcherWithSubscribe | undefined,
 		private readonly onDidFilesChange: (changes: IFileChange[]) => void,
 		private readonly onDidWatchFail?: () => void,
 		private readonly onLogMessage?: (msg: ILogMessage) => void,

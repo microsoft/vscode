@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { patternsEquals } from 'vs/base/common/glob';
 import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
 import { isLinux } from 'vs/base/common/platform';
-import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isEqual } from 'vs/base/common/extpath';
 
@@ -32,7 +32,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 
 	private verboseLogging = false;
 
-	constructor(protected readonly recursiveWatcher: IRecursiveWatcher | undefined) {
+	constructor(protected readonly recursiveWatcher: IRecursiveWatcherWithSubscribe | undefined) {
 		super();
 	}
 
