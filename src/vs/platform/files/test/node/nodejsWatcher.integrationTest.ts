@@ -666,8 +666,26 @@ flakySuite('File Watcher (node.js)', () => {
 		return testParcelWatcherReused(2);
 	});
 
-	async function testParcelWatcherReused(correlationId: number | undefined) {
+	function createParcelWatcher() {
 		const recursiveWatcher = new TestParcelWatcher();
+		recursiveWatcher.setVerboseLogging(loggingEnabled);
+		recursiveWatcher.onDidLogMessage(e => {
+			if (loggingEnabled) {
+				console.log(`[recursive watcher test message] ${e.message}`);
+			}
+		});
+
+		recursiveWatcher.onDidError(e => {
+			if (loggingEnabled) {
+				console.log(`[recursive watcher test error] ${e}`);
+			}
+		});
+
+		return recursiveWatcher;
+	}
+
+	async function testParcelWatcherReused(correlationId: number | undefined) {
+		const recursiveWatcher = createParcelWatcher();
 		await recursiveWatcher.watch([{ path: testDir, excludes: [], recursive: true, correlationId: 1 }]);
 
 		await createWatcher(recursiveWatcher);
@@ -686,4 +704,20 @@ flakySuite('File Watcher (node.js)', () => {
 
 		await basicCrudTest(filePath, true, correlationId);
 	}
+
+	test('correlated watch requests support suspend/resume (file, does not exist in beginning, parcel watcher reused)', async function () {
+		const recursiveWatcher = createParcelWatcher();
+		await recursiveWatcher.watch([{ path: testDir, excludes: [], recursive: true }]);
+
+		await createWatcher(recursiveWatcher);
+
+		const filePath = join(testDir, 'not-found-2.txt');
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+		await onDidWatchFail;
+
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+		await basicCrudTest(filePath, undefined, 1, undefined);
+	});
 });
