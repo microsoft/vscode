@@ -6,10 +6,10 @@
 import * as dom from 'vs/base/browser/dom';
 import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Checkbox } from 'vs/base/browser/ui/toggle/toggle';
-import { Action, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -36,12 +36,14 @@ import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/b
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { defaultCheckboxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { asCssVariableWithDefault, checkboxBorder, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { CancelAction, IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -142,9 +144,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
@@ -373,8 +372,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			actionViewItemProvider: (action, options) => {
-				if (action.id === SubmitAction.ID) {
-					return this.createSubmitActionViewItem(action as MenuItemAction);
+				if ((action.id === SubmitAction.ID || action.id === CancelAction.ID) && action instanceof MenuItemAction) {
+					const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined);
+					return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction);
 				}
 
 				return undefined;
@@ -414,39 +414,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const lineNumber = this.inputModel.getLineCount();
 			this._inputEditor.setPosition({ lineNumber, column: this.inputModel.getLineMaxColumn(lineNumber) });
 		}
-	}
-
-	private createSubmitActionViewItem(action: MenuItemAction): IActionViewItem | undefined {
-		const menu = this.menuService.createMenu(MenuId.ChatExecuteSecondary, this.contextKeyService);
-		const dropdownAction = this._register(new Action('chat.moreExecuteActions', localize('notebook.moreExecuteActionsLabel', "More..."), 'codicon-chevron-down'));
-		const item = this.instantiationService.createInstance(DropdownWithPrimaryActionViewItem,
-			action,
-			dropdownAction,
-			[],
-			'',
-			this.contextMenuService,
-			{
-				getKeyBinding: (action: IAction) => this.keybindingService.lookupKeybinding(action.id, this.contextKeyService)
-			});
-		const setActions = () => {
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary);
-			const secondaryAgent = this.chatAgentService.getSecondaryAgent();
-			if (secondaryAgent) {
-				secondary.forEach(a => {
-					if (a.id === ChatSubmitSecondaryAgentEditorAction.ID) {
-						a.label = localize('chat.submitToSecondaryAgent', "Send to @{0}", secondaryAgent.name);
-					}
-
-					return a;
-				});
-			}
-
-			item.update(dropdownAction, secondary);
-		};
-		setActions();
-		this._register(menu.onDidChange(() => setActions()));
-		return item;
 	}
 
 	private initImplicitContext(container: HTMLElement) {
@@ -522,4 +489,55 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 function getLastPosition(model: ITextModel): IPosition {
 	return { lineNumber: model.getLineCount(), column: model.getLineLength(model.getLineCount()) + 1 };
+}
+
+// This does seems like a lot just to customize an item with dropdown. This whole class exists just because we need an
+// onDidChange listener on the submenu, which is apparently not needed in other cases.
+class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
+	constructor(
+		action: MenuItemAction,
+		dropdownAction: IAction,
+		@IMenuService menuService: IMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IThemeService themeService: IThemeService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
+	) {
+		super(
+			action,
+			dropdownAction,
+			[],
+			'',
+			contextMenuService,
+			{
+				getKeyBinding: (action: IAction) => keybindingService.lookupKeybinding(action.id, contextKeyService)
+			},
+			keybindingService,
+			notificationService,
+			contextKeyService,
+			themeService,
+			accessibilityService);
+		const menu = menuService.createMenu(MenuId.ChatExecuteSecondary, contextKeyService);
+		const setActions = () => {
+			const secondary: IAction[] = [];
+			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary);
+			const secondaryAgent = chatAgentService.getSecondaryAgent();
+			if (secondaryAgent) {
+				secondary.forEach(a => {
+					if (a.id === ChatSubmitSecondaryAgentEditorAction.ID) {
+						a.label = localize('chat.submitToSecondaryAgent', "Send to @{0}", secondaryAgent.name);
+					}
+
+					return a;
+				});
+			}
+
+			this.update(dropdownAction, secondary);
+		};
+		setActions();
+		this._register(menu.onDidChange(() => setActions()));
+	}
 }

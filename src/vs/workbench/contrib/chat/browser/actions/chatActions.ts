@@ -27,7 +27,7 @@ import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS, CONTEXT_REQUEST, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS, CONTEXT_REQUEST, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -101,14 +101,16 @@ export class ChatSubmitSecondaryAgentEditorAction extends EditorAction2 {
 		super({
 			id: ChatSubmitSecondaryAgentEditorAction.ID,
 			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_INPUT_HAS_AGENT.negate()),
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_INPUT_HAS_AGENT.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: {
-				id: MenuId.ChatExecuteSecondary
+				id: MenuId.ChatExecuteSecondary,
+				group: 'group_1',
+				when: CONTEXT_CHAT_INPUT_HAS_AGENT.negate(),
 			}
 		});
 	}
@@ -144,12 +146,17 @@ export class ChatSubmitEditorAction extends EditorAction2 {
 		super({
 			id: ChatSubmitEditorAction.ID,
 			title: localize2({ key: 'actions.chat.submit', comment: ['Apply input from the chat input box'] }, "Submit"),
-			precondition: ContextKeyExpr.and(CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_INPUT_HAS_TEXT),
+			precondition: CONTEXT_CHAT_INPUT_HAS_TEXT,
 			keybinding: {
-				when: EditorContextKeys.textInputFocus,
+				when: CONTEXT_IN_CHAT_INPUT,
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			menu: {
+				id: MenuId.ChatExecuteSecondary,
+				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
+				group: 'group_1',
+			},
 		});
 	}
 
