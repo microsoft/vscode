@@ -533,6 +533,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	private _hideInput: boolean | undefined;
 	private _hideCountBadge: boolean | undefined;
 	private _hideCheckAll: boolean | undefined;
+	private _filterPattern: RegExp | undefined;
 
 	get quickNavigate() {
 		return this._quickNavigate;
@@ -567,7 +568,12 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		}
 	}
 
-	filterValue = (value: string) => value;
+	filterValue = (value: string): string => {
+		if (this.filterPattern) {
+			return value.match(this.filterPattern)?.[0] ?? '';
+		}
+		return value;
+	};
 
 	set ariaLabel(ariaLabel: string | undefined) {
 		this._ariaLabel = ariaLabel;
@@ -671,6 +677,15 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 
 	set sortByLabel(sortByLabel: boolean) {
 		this._sortByLabel = sortByLabel;
+		this.update();
+	}
+
+	get filterPattern() {
+		return this._filterPattern;
+	}
+
+	set filterPattern(pattern: RegExp | undefined) {
+		this._filterPattern = pattern;
 		this.update();
 	}
 
