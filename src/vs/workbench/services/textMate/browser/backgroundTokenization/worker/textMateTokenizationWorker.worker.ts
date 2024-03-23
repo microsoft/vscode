@@ -11,7 +11,7 @@ import { ICreateGrammarResult, TMGrammarFactory } from 'vs/workbench/services/te
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IOnigLib, IRawTheme, StackDiff } from 'vscode-textmate';
 import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer';
-import { importAMDNodeModule } from 'vs/amdX.js';
+import { importAMDNodeModule } from 'vs/amdX';
 
 /**
  * Defines the worker entry point. Must be exported and named `create`.
