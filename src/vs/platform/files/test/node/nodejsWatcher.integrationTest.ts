@@ -64,7 +64,7 @@ flakySuite('File Watcher (node.js)', () => {
 	setup(async () => {
 		await createWatcher(undefined);
 
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
+		testDir = URI.file(getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher')).fsPath;
 
 		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
