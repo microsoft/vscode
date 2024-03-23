@@ -5,9 +5,13 @@
 
 //@ts-check
 
-const path = require('path');
-const { defineConfig } = require('@vscode/test-cli');
-const os = require('os');
+import path from 'path';
+import { defineConfig } from '@vscode/test-cli';
+import * as  os from 'os';
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 /**
  * A list of extension folders who have opted into tests, or configuration objects.
@@ -53,7 +57,7 @@ const defaultLaunchArgs = process.env.API_TESTS_EXTRA_ARGS?.split(' ') || [
 	'--disable-telemetry', '--skip-welcome', '--skip-release-notes', `--crash-reporter-directory=${__dirname}/.build/crashes`, `--logsPath=${__dirname}/.build/logs/integration-tests`, '--no-cached-data', '--disable-updates', '--use-inmemory-secretstorage', '--disable-extensions', '--disable-workspace-trust'
 ];
 
-module.exports = defineConfig(extensions.map(extension => {
+export default defineConfig(extensions.map(extension => {
 	/** @type {import('@vscode/test-cli').TestConfiguration} */
 	const config = typeof extension === 'object'
 		? { files: `extensions/${extension.label}/out/**/*.test.js`, ...extension }
