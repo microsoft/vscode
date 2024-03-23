@@ -40,7 +40,7 @@ export class SimpleCompletionModel {
 		private readonly _items: SimpleCompletionItem[],
 		private _lineContext: LineContext,
 		readonly replacementIndex: number,
-		readonly replacementLength: number
+		readonly replacementLength: number,
 	) {
 	}
 
@@ -182,7 +182,7 @@ export class SimpleCompletionModel {
 			labelLengths.push(item.completion.label.length);
 		}
 
-		this._filteredItems = target; // target.sort(this._snippetCompareFn);
+		this._filteredItems = target.sort((a, b) => b.score[0] - a.score[0]);
 		this._refilterKind = Refilter.Nothing;
 
 		this._stats = {
