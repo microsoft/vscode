@@ -32,23 +32,15 @@
 		"src/vs/editor/test/node/diffing/fixtures/**": true
 	},
 	"files.readonlyInclude": {
-		"**/node_modules/**/*.*": true,
-		"**/yarn.lock": true,
-		"**/Cargo.lock": true,
-		"src/vs/workbench/workbench.web.main.css": true,
+		"build/**/*.js": true,
+		"extensions/**/dist/**": true,
 		"src/vs/workbench/workbench.desktop.main.css": true,
 		"src/vs/workbench/workbench.desktop.main.nls.js": true,
+		"src/vs/workbench/workbench.web.main.css": true,
 		"src/vs/workbench/workbench.web.main.nls.js": true,
-		"build/**/*.js": true,
-		"out/**": true,
-		"out-build/**": true,
-		"out-vscode/**": true,
-		"out-vscode-reh/**": true,
-		"extensions/**/dist/**": true,
-		"extensions/**/out/**": true,
-		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
-		"test/integration/browser/out/**": true
+		"test/integration/browser/out/**": true,
+		"test/smoke/out/**": true
 	},
 	"files.readonlyExclude": {
 		"build/builtin/*.js": true,

@@ -3,15 +3,9 @@
 	"compilerOptions": {
 		"outDir": "./out",
 		"experimentalDecorators": true,
-		"typeRoots": [
-			"./node_modules/@types"
-		],
-		"lib": [
-			"WebWorker"
-		]
+		"typeRoots": ["./node_modules/@types"],
+		"lib": ["WebWorker"],
+		"esModuleInterop": false
 	},
-	"include": [
-		"src/**/*",
-		"../../src/vscode-dts/vscode.d.ts"
-	]
+	"include": ["src/**/*", "../../src/vscode-dts/vscode.d.ts"]
 }
