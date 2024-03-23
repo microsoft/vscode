@@ -445,7 +445,7 @@ class AgentCompletions extends Disposable {
 					.map(agent => {
 						const isDupe = !!agents.find(other => other.name === agent.name && other.id !== agent.id);
 						const detail = agent.description;
-						const agentLabel = `${chatAgentLeader}${agent.name} (${agent.id})`;
+						const agentLabel = `${chatAgentLeader}${agent.name}`;
 
 						return {
 							label: isDupe ?
