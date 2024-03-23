@@ -4233,7 +4233,7 @@ declare namespace monaco.editor {
 		 */
 		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
 		/**
-		 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+		 * Define whether to scroll sticky scroll with editor horizontal scrollbar
 		 */
 		scrollWithEditor?: boolean;
 	}
