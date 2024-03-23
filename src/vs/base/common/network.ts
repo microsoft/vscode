@@ -8,9 +8,7 @@ import * as platform from 'vs/base/common/platform';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/path';
-
-
-const root = new URL('../../../', import.meta.url).toString()
+import { root } from 'vs/base/common/root';
 
 export namespace Schemas {
 
@@ -225,10 +223,10 @@ export type AppResourcePath = (
 );
 
 
-export const builtinExtensionsPath: string = '../../extensions';
-export const nodeModulesPath: string = '../../node_modules';
-export const nodeModulesAsarPath: string = '../../node_modules.asar';
-export const nodeModulesAsarUnpackedPath: string = '../../node_modules.asar.unpacked';
+export const builtinExtensionsPath: string = `${root}extensions`;
+export const nodeModulesPath: string = `${root}node_modules`;
+export const nodeModulesAsarPath: string = `${root}node_modules.asar`;
+export const nodeModulesAsarUnpackedPath: string = `${root}node_modules.asar.unpacked`;
 
 export const VSCODE_AUTHORITY = 'vscode-app';
 
@@ -290,7 +288,7 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(resourcePath: AppResourcePath | '' | string): URI {
-		const uri = this.toUri(resourcePath,);
+		const uri = this.toUri(resourcePath);
 		return this.uriToFileUri(uri);
 	}
 
@@ -319,7 +317,10 @@ class FileAccessImpl {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
-		const resolved = `${root}${uriOrModule}`;
+		if (uriOrModule.startsWith('vscode-file://')) {
+			return URI.parse(uriOrModule)
+		}
+		const resolved = `${root}out/${uriOrModule}`;
 		return URI.parse(resolved);
 	}
 }
