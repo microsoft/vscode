@@ -48,7 +48,7 @@ import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon'
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -2015,7 +2015,7 @@ export namespace TestResults {
 }
 
 export namespace TestCoverage {
-	function fromCoveredCount(count: vscode.CoveredCount): ICoveredCount {
+	function fromCoverageCount(count: vscode.TestCoverageCount): ICoverageCount {
 		return { covered: count.covered, total: count.total };
 	}
 
@@ -2047,9 +2047,9 @@ export namespace TestCoverage {
 		return {
 			id,
 			uri: coverage.uri,
-			statement: fromCoveredCount(coverage.statementCoverage),
-			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
-			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
+			statement: fromCoverageCount(coverage.statementCoverage),
+			branch: coverage.branchCoverage && fromCoverageCount(coverage.branchCoverage),
+			declaration: coverage.declarationCoverage && fromCoverageCount(coverage.declarationCoverage),
 		};
 	}
 }
@@ -2439,22 +2439,45 @@ export namespace ChatResponseCommandButtonPart {
 
 export namespace ChatResponseReferencePart {
 	export function to(part: vscode.ChatResponseReferencePart): Dto<IChatContentReference> {
+		if ('variableName' in part.value) {
+			return {
+				kind: 'reference',
+				reference: {
+					variableName: part.value.variableName,
+					value: URI.isUri(part.value.value) ?
+						part.value.value :
+						Location.from(<vscode.Location>part.value.value)
+				}
+			};
+		}
+
 		return {
 			kind: 'reference',
-			reference: !URI.isUri(part.value) ? Location.from(<vscode.Location>part.value) : part.value
+			reference: URI.isUri(part.value) ?
+				part.value :
+				Location.from(<vscode.Location>part.value)
 		};
 	}
 	export function from(part: Dto<IChatContentReference>): vscode.ChatResponseReferencePart {
 		const value = revive<IChatContentReference>(part);
+
+		const mapValue = (value: URI | languages.Location): vscode.Uri | vscode.Location => URI.isUri(value) ?
+			value :
+			Location.to(value);
+
 		return new types.ChatResponseReferencePart(
-			URI.isUri(value.reference) ? value.reference : Location.to(value.reference)
+			'variableName' in value.reference ? {
+				variableName: value.reference.variableName,
+				value: value.reference.value && mapValue(value.reference.value)
+			} :
+				mapValue(value.reference)
 		);
 	}
 }
 
 export namespace ChatResponsePart {
 
-	export function to(part: vscode.ChatResponsePart): extHostProtocol.IChatProgressDto {
+	export function to(part: vscode.ChatResponsePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.to(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2465,6 +2488,8 @@ export namespace ChatResponsePart {
 			return ChatResponseProgressPart.to(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.to(part);
+		} else if (part instanceof types.ChatResponseCommandButtonPart) {
+			return ChatResponseCommandButtonPart.to(part, commandsConverter, commandDisposables);
 		}
 		return {
 			kind: 'content',
@@ -2546,41 +2571,11 @@ export namespace ChatResponseProgress {
 			};
 		} else if ('participant' in progress) {
 			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-			return { agentName: progress.participant, command: progress.command, kind: 'agentDetection' };
+			return { agentId: progress.participant, command: progress.command, kind: 'agentDetection' };
 		} else if ('message' in progress) {
 			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {
 			return undefined;
-		}
-	}
-
-	export function to(progress: extHostProtocol.IChatProgressDto): vscode.ChatProgress | undefined {
-		switch (progress.kind) {
-			case 'markdownContent':
-			case 'inlineReference':
-			case 'treeData':
-				return ChatResponseProgress.to(progress);
-			case 'content':
-				return { content: progress.content };
-			case 'usedContext':
-				return { documents: progress.documents.map(d => ({ uri: URI.revive(d.uri), version: d.version, ranges: d.ranges.map(r => Range.to(r)) })) };
-			case 'reference':
-				return {
-					reference:
-						isUriComponents(progress.reference) ?
-							URI.revive(progress.reference) :
-							Location.to(progress.reference)
-				};
-			case 'agentDetection':
-				// For simplicity, don't sent back the 'extended' types
-				return undefined;
-			case 'progressMessage':
-				return { message: progress.content.value };
-			case 'vulnerability':
-				return { content: progress.content, vulnerabilities: progress.vulnerabilities };
-			default:
-				// Unknown type, eg something in history that was removed? Ignore
-				return undefined;
 		}
 	}
 
@@ -2626,6 +2621,7 @@ export namespace ChatLocation {
 			case ChatAgentLocation.Notebook: return types.ChatLocation.Notebook;
 			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
 			case ChatAgentLocation.Panel: return types.ChatLocation.Panel;
+			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
 		}
 	}
 }

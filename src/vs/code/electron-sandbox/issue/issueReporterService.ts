@@ -127,7 +127,7 @@ export class IssueReporter extends Disposable {
 		codiconStyleSheet.id = 'codiconStyles';
 
 		// TODO: Is there a way to use the IThemeService here instead
-		const iconsStyleSheet = getIconsStyleSheet(undefined);
+		const iconsStyleSheet = this._register(getIconsStyleSheet(undefined));
 		function updateAll() {
 			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}
@@ -166,6 +166,7 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	// TODO @justschen: After migration to Aux Window, switch to dedicated css.
 	private applyStyles(styles: IssueReporterStyles) {
 		const styleTag = document.createElement('style');
 		const content: string[] = [];
@@ -923,13 +924,24 @@ export class IssueReporter extends Disposable {
 	private validateInput(inputId: string): boolean {
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
 		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
+		const descriptionShortMessage = this.getElementById(`description-short-error`);
 		if (!inputElement.value) {
 			inputElement.classList.add('invalid-input');
 			inputValidationMessage?.classList.remove('hidden');
+			descriptionShortMessage?.classList.add('hidden');
 			return false;
-		} else {
+		} else if (inputId === 'description' && inputElement.value.length < 10) {
+			inputElement.classList.add('invalid-input');
+			descriptionShortMessage?.classList.remove('hidden');
+			inputValidationMessage?.classList.add('hidden');
+			return false;
+		}
+		else {
 			inputElement.classList.remove('invalid-input');
 			inputValidationMessage?.classList.add('hidden');
+			if (inputId === 'description') {
+				descriptionShortMessage?.classList.add('hidden');
+			}
 			return true;
 		}
 	}

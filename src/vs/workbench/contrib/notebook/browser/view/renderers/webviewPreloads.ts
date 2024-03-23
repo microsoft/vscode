@@ -270,6 +270,53 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
 		}
 	};
+	const selectOutputContents = (cellOrOutputId: string) => {
+		const selection = window.getSelection();
+		if (!selection) {
+			return;
+		}
+		const cellOutputContainer = window.document.getElementById(cellOrOutputId);
+		if (!cellOutputContainer) {
+			return;
+		}
+		selection.removeAllRanges();
+		const range = document.createRange();
+		range.selectNode(cellOutputContainer);
+		selection.addRange(range);
+
+	};
+
+	const onPageUpDownSelectionHandler = (e: KeyboardEvent) => {
+		if (!lastFocusedOutput?.id || !e.shiftKey) {
+			return;
+		}
+		// We want to handle just `Shift + PageUp/PageDown` & `Shift + Cmd + ArrowUp/ArrowDown` (for mac)
+		if (!(e.code === 'PageUp' || e.code === 'PageDown') && !(e.metaKey && (e.code === 'ArrowDown' || e.code === 'ArrowUp'))) {
+			return;
+		}
+		const outputContainer = window.document.getElementById(lastFocusedOutput.id);
+		const selection = window.getSelection();
+		if (!outputContainer || !selection?.anchorNode) {
+			return;
+		}
+
+		// These should change the scroll position, not adjust the selected cell in the notebook
+		e.stopPropagation(); // We don't want the notebook to handle this.
+		e.preventDefault(); // We will handle selection.
+
+		const { anchorNode, anchorOffset } = selection;
+		const range = document.createRange();
+		if (e.code === 'PageDown' || e.code === 'ArrowDown') {
+			range.setStart(anchorNode, anchorOffset);
+			range.setEnd(outputContainer, 1);
+		}
+		else {
+			range.setStart(outputContainer, 0);
+			range.setEnd(anchorNode, anchorOffset);
+		}
+		selection.removeAllRanges();
+		selection.addRange(range);
+	};
 
 	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
 		postNotebookMessage<webviewMessages.IClickedDataUrlMessage>('clicked-data-url', {
@@ -295,6 +342,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	window.document.body.addEventListener('click', handleInnerClick);
 	window.document.body.addEventListener('focusin', checkOutputInputFocus);
 	window.document.body.addEventListener('focusout', handleOutputFocusOut);
+	window.document.body.addEventListener('keydown', onPageUpDownSelectionHandler);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;
@@ -473,24 +521,55 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
+	let previousDelta: number | undefined;
 	let scrollTimeout: any /* NodeJS.Timeout */ | undefined;
 	let scrolledElement: Element | undefined;
-	function flagRecentlyScrolled(node: Element) {
+	let lastTimeScrolled: number | undefined;
+	function flagRecentlyScrolled(node: Element, deltaY?: number) {
 		scrolledElement = node;
-		node.setAttribute('recentlyScrolled', 'true');
-		clearTimeout(scrollTimeout);
-		scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+		if (!deltaY) {
+			lastTimeScrolled = Date.now();
+			previousDelta = undefined;
+			node.setAttribute('recentlyScrolled', 'true');
+			clearTimeout(scrollTimeout);
+			scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+			return true;
+		}
+
+		if (node.hasAttribute('recentlyScrolled')) {
+			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 300) {
+				// it has been a while since we actually scrolled
+				// if scroll velocity increases, it's likely a new scroll event
+				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 2) {
+					clearTimeout(scrollTimeout);
+					scrolledElement?.removeAttribute('recentlyScrolled');
+					return false;
+				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 2) {
+					clearTimeout(scrollTimeout);
+					scrolledElement?.removeAttribute('recentlyScrolled');
+					return false;
+				}
+
+				// the tail end of a smooth scrolling event (from a trackpad) can go on for a while
+				// so keep swallowing it, but we can shorten the timeout since the events occur rapidly
+				clearTimeout(scrollTimeout);
+				scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 50);
+			} else {
+				clearTimeout(scrollTimeout);
+				scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+			}
+
+			previousDelta = deltaY;
+			return true;
+		}
+
+		return false;
 	}
 
 	function eventTargetShouldHandleScroll(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
 			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('cell_container') || node.classList.contains('markup') || node.classList.contains('output_container')) {
 				return false;
-			}
-
-			if (node.hasAttribute('recentlyScrolled') && scrolledElement === node) {
-				flagRecentlyScrolled(node);
-				return true;
 			}
 
 			// scroll up
@@ -515,6 +594,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				flagRecentlyScrolled(node);
+				return true;
+			}
+
+			if (flagRecentlyScrolled(node, event.deltaY)) {
 				return true;
 			}
 		}
@@ -1608,6 +1691,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'focus-output':
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
+				break;
+			case 'select-output-contents':
+				selectOutputContents(event.data.cellOrOutputId);
 				break;
 			case 'decorations': {
 				let outputContainer = window.document.getElementById(event.data.cellId);

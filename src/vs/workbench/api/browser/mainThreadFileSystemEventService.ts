@@ -283,7 +283,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			// `<workspace path>/bar` but will not work as include for files within
 			// `bar` unless a suffix of `/**` if added.
 			// (https://github.com/microsoft/vscode/issues/148245)
-			else if (workspaceFolder) {
+			else if (!opts.recursive && workspaceFolder) {
 				const config = this._configurationService.getValue<IFilesConfiguration>();
 				if (config.files?.watcherExclude) {
 					for (const key in config.files.watcherExclude) {

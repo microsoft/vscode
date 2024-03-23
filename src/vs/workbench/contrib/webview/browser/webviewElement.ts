@@ -815,8 +815,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}
 
 		try {
-			this.element.parentElement?.focus(); // this helps to move floating windows to the front if any...
-			this.element.contentWindow?.focus(); // ...because `contentWindow` is not able to do so
+			this.element.contentWindow?.focus();
 		} catch {
 			// noop
 		}
@@ -840,6 +839,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			if (this.window?.document.activeElement && this.window.document.activeElement !== this.element && this.window.document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
+
+			// It is possible for the webview to be contained in another window
+			// that does not have focus. As such, also focus the body of the
+			// webview's window to ensure it is properly receiving keyboard focus.
+			this.window?.document.body?.focus();
 
 			this._send('focus', undefined);
 		});

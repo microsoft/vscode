@@ -1575,6 +1575,7 @@ export class ExtensionRuntimeStateAction extends ExtensionAction {
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super('extensions.runtimeState', '', ExtensionRuntimeStateAction.DisabledClass, false);
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
@@ -1615,6 +1616,21 @@ export class ExtensionRuntimeStateAction extends ExtensionAction {
 
 	override async run(): Promise<any> {
 		const runtimeState = this.extension?.runtimeState;
+		if (!runtimeState?.action) {
+			return;
+		}
+
+		type ExtensionRuntimeStateActionClassification = {
+			owner: 'sandy081';
+			comment: 'Extension runtime state action event';
+			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Executed action' };
+		};
+		type ExtensionRuntimeStateActionEvent = {
+			action: string;
+		};
+		this.telemetryService.publicLog2<ExtensionRuntimeStateActionEvent, ExtensionRuntimeStateActionClassification>('extensions:runtimestate:action', {
+			action: runtimeState.action
+		});
 
 		if (runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow) {
 			return this.hostService.reload();

@@ -15,6 +15,10 @@ export class MockChatVariablesService implements IChatVariablesService {
 		throw new Error('Method not implemented.');
 	}
 
+	getVariable(name: string): IChatVariableData | undefined {
+		throw new Error('Method not implemented.');
+	}
+
 	hasVariable(name: string): boolean {
 		throw new Error('Method not implemented.');
 	}

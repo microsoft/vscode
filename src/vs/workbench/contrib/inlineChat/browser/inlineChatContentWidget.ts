@@ -3,16 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inlineChatContentWidget';
+import 'vs/css!./media/inlineChatContentWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import * as dom from 'vs/base/browser/dom';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Emitter, Event } from 'vs/base/common/event';
-import { InlineChatInputWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatInputWidget';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { clamp } from 'vs/base/common/numbers';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { Range } from 'vs/editor/common/core/range';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -32,26 +39,56 @@ export class InlineChatContentWidget implements IContentWidget {
 	private _visible: boolean = false;
 	private _focusNext: boolean = false;
 
+	private readonly _defaultChatModel: ChatModel;
+	private readonly _widget: ChatWidget;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _widget: InlineChatInputWidget,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
-		this._store.add(this._widget.onDidChangeHeight(() => _editor.layoutContentWidget(this)));
+
+		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, `inlineChatDefaultModel/editorContentWidgetPlaceholder`, undefined));
+
+		this._widget = instaService.createInstance(
+			ChatWidget,
+			ChatAgentLocation.Editor,
+			{ resource: true },
+			{
+				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
+				renderStyle: 'compact',
+				renderInputOnTop: true,
+				supportsFileReferences: false,
+				menus: {
+					telemetrySource: 'inlineChat-content'
+				},
+				filter: _item => false
+			},
+			{
+				listForeground: editorForeground,
+				listBackground: inlineChatBackground,
+				inputEditorBackground: inputBackground,
+				resultEditorBackground: editorBackground
+			}
+		);
+		this._store.add(this._widget);
+		this._widget.render(this._inputContainer);
+		this._widget.setModel(this._defaultChatModel, {});
+		this._store.add(this._widget.inputEditor.onDidContentSizeChange(() => _editor.layoutContentWidget(this)));
 
 		this._domNode.tabIndex = -1;
-		this._domNode.className = 'inline-chat-content-widget';
+		this._domNode.className = 'inline-chat-content-widget interactive-session';
 
 		this._domNode.appendChild(this._inputContainer);
 
 		this._messageContainer.classList.add('hidden', 'message');
 		this._domNode.appendChild(this._messageContainer);
 
-		this._widget.moveTo(this._inputContainer);
 
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
-			if (this._visible) {
+			if (this._visible
+				// && !"ON"
+			) {
 				this._onDidBlur.fire();
 			}
 		}));
@@ -83,38 +120,53 @@ export class InlineChatContentWidget implements IContentWidget {
 	beforeRender(): IDimension | null {
 
 		const contentWidth = this._editor.getLayoutInfo().contentWidth;
-		const minWidth = contentWidth * 0.33;
-		const maxWidth = contentWidth * 0.66;
+		const minWidth = Math.round(contentWidth * 0.38);
+		const maxWidth = Math.round(contentWidth * 0.82);
 
-		const dim = this._widget.getPreferredSize();
-		const width = clamp(dim.width, minWidth, maxWidth);
-		this._widget.layout(new dom.Dimension(width, dim.height));
+		const width = clamp(220, minWidth, maxWidth);
 
+		const inputEditorHeight = this._widget.inputEditor.getContentHeight();
+		this._widget.inputEditor.layout(new dom.Dimension(width, inputEditorHeight));
+
+		// const actualHeight = this._widget.inputPartHeight;
+		// return new dom.Dimension(width, actualHeight);
 		return null;
 	}
 
 	afterRender(): void {
 		if (this._focusNext) {
 			this._focusNext = false;
-			this._widget.focus();
+			this._widget.focusInput();
 		}
 	}
 
 	// ---
+
+	get chatWidget(): ChatWidget {
+		return this._widget;
+	}
+
+	get isVisible(): boolean {
+		return this._visible;
+	}
+
+	get value(): string {
+		return this._widget.inputEditor.getValue();
+	}
 
 	show(position: IPosition) {
 		if (!this._visible) {
 			this._visible = true;
 			this._focusNext = true;
 
-
-			this._widget.moveTo(this._inputContainer);
-			this._widget.reset();
+			this._editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position));
+			this._widget.inputEditor.setValue('');
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
 
 			this._position = wordInfo ? new Position(position.lineNumber, wordInfo.startColumn) : position;
 			this._editor.addContentWidget(this);
+			this._widget.setVisible(true);
 		}
 	}
 
@@ -122,10 +174,18 @@ export class InlineChatContentWidget implements IContentWidget {
 		if (this._visible) {
 			this._visible = false;
 			this._editor.removeContentWidget(this);
+			this._widget.saveState();
+			this._widget.setVisible(false);
 		}
 	}
 
-	updateMessage(message: string) {
+	setSession(session: Session): void {
+		this._widget.setModel(session.chatModel, {});
+		this._widget.setInputPlaceholder(session.session.placeholder ?? '');
+		this._updateMessage(session.session.message ?? '');
+	}
+
+	private _updateMessage(message: string) {
 		this._messageContainer.classList.toggle('hidden', !message);
 		const renderedMessage = renderLabelWithIcons(message);
 		dom.reset(this._messageContainer, ...renderedMessage);

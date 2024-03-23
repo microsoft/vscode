@@ -9,6 +9,7 @@ import { IExtension, ExtensionType, IExtensionManifest, IExtensionIdentifier } f
 import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess } from 'vs/base/common/network';
+import { localize } from 'vs/nls';
 
 export type DidChangeProfileEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
 
@@ -63,9 +64,11 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 	onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
+	onDidEnableExtensions: Event<IExtension[]>;
 
-	getExtension(location: URI): Promise<IResourceExtension | null>;
-	getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]>;
+	isWorkspaceExtensionsSupported(): boolean;
+	getExtensions(locations: URI[]): Promise<IResourceExtension[]>;
+	getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	installFromLocation(location: URI): Promise<ILocalExtension>;
@@ -73,6 +76,13 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 }
+
+export const extensionsConfigurationNodeBase = {
+	id: 'extensions',
+	order: 30,
+	title: localize('extensionsConfigurationTitle', "Extensions"),
+	type: 'object'
+};
 
 export const enum EnablementState {
 	DisabledByTrustRequirement,

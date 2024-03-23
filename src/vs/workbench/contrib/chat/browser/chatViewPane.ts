@@ -23,6 +23,7 @@ import { SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IChatViewPane } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -133,6 +134,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 
 			this._widget = this._register(scopedInstantiationService.createInstance(
 				ChatWidget,
+				ChatAgentLocation.Panel,
 				{ viewId: this.id },
 				{ supportsFileReferences: true },
 				{

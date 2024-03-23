@@ -8,10 +8,10 @@ import {
 	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SYNC_CONTEXT, InstallExtensionInfo,
 	IProductVersion
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, extensionsConfigurationNodeBase, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { areSameExtensions, computeTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -24,12 +24,12 @@ import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialog
 import Severity from 'vs/base/common/severity';
 import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustRequestService, WorkspaceTrustRequestButton } from 'vs/platform/workspace/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isString, isUndefined } from 'vs/base/common/types';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -38,10 +38,10 @@ import { IExtensionsScannerService, IScannedExtension } from 'vs/platform/extens
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
-
-	private static readonly WORKSPACE_EXTENSIONS_KEY = 'workspaceExtensions.locations';
 
 	declare readonly _serviceBrand: undefined;
 
@@ -60,7 +60,11 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	readonly onDidUpdateExtensionMetadata: Event<ILocalExtension>;
 	readonly onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
+	readonly onDidEnableExtensions: Event<ILocalExtension[]>;
+
 	protected readonly servers: IExtensionManagementServer[] = [];
+
+	private readonly workspaceExtensionManagementService?: WorkspaceExtensionsManagementService;
 
 	constructor(
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -76,13 +80,33 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+
+		if (productService.quality !== 'stable') {
+			Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+				.registerConfiguration({
+					...extensionsConfigurationNodeBase,
+					properties: {
+						'extensions.experimental.supportWorkspaceExtensions': {
+							type: 'boolean',
+							description: localize('extensions.experimental.supportWorkspaceExtensions', "Enables support for workspace specific local extensions."),
+							default: false,
+							scope: ConfigurationScope.APPLICATION
+						}
+					}
+				});
+		}
+
+		if (this.productService.quality !== 'stable' && this.configurationService.getValue('extensions.experimental.supportWorkspaceExtensions') === true) {
+			this.workspaceExtensionManagementService = this._register(this.instantiationService.createInstance(WorkspaceExtensionsManagementService));
+			this.onDidEnableExtensions = this.workspaceExtensionManagementService.onDidChangeInvalidExtensions;
+		} else {
+			this.onDidEnableExtensions = Event.None;
+		}
+
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
 			this.servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 		}
@@ -125,12 +149,16 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 	}
 
+	isWorkspaceExtensionsSupported(): boolean {
+		return !!this.workspaceExtensionManagementService;
+	}
+
 	async getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {
 		const result: ILocalExtension[] = [];
 		await Promise.all(this.servers.map(async server => {
 			const installed = await server.extensionManagementService.getInstalled(type, profileLocation, productVersion);
 			if (server === this.getWorkspaceExtensionsServer()) {
-				const workspaceExtensions = await this.getInstalledWorkspaceExtensions();
+				const workspaceExtensions = await this.getInstalledWorkspaceExtensions(true);
 				installed.push(...workspaceExtensions);
 			}
 			result.push(...installed);
@@ -203,7 +231,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
-			await this.checkForWorkspaceTrust(extension.manifest);
+			await this.checkForWorkspaceTrust(extension.manifest, false);
 			return server.extensionManagementService.reinstallFromGallery(extension);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
@@ -247,7 +275,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	async installVSIX(vsix: URI, manifest: IExtensionManifest, options?: InstallOptions): Promise<ILocalExtension> {
 		const serversToInstall = this.getServersToInstall(manifest);
 		if (serversToInstall?.length) {
-			await this.checkForWorkspaceTrust(manifest);
+			await this.checkForWorkspaceTrust(manifest, false);
 			const [local] = await Promises.settled(serversToInstall.map(server => this.installVSIXInServer(vsix, server, options)));
 			return local;
 		}
@@ -401,59 +429,38 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 	}
 
-	async getExtension(location: URI): Promise<IResourceExtension | null> {
-		const workspaceExtension = await this.scanWorkspaceExtension(location);
-		if (workspaceExtension) {
-			return {
-				identifier: workspaceExtension.identifier,
-				location: workspaceExtension.location,
-				manifest: workspaceExtension.manifest,
-				changelogUri: workspaceExtension.changelogUrl,
-				readmeUri: workspaceExtension.readmeUrl,
-			};
-		}
-		return null;
-	}
-
-	async getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]> {
-		const existingLocations = this.getWorkspaceExtensionsLocations();
-		if (!existingLocations.length) {
+	async getExtensions(locations: URI[]): Promise<IResourceExtension[]> {
+		if (!this.workspaceExtensionManagementService) {
 			return [];
 		}
-
-		const workspaceExtensions: ILocalExtension[] = [];
-		let save = false;
-		await Promise.allSettled(existingLocations.map(async location => {
-			if (!this.workspaceService.isInsideWorkspace(location)) {
-				save = true;
-				this.logService.info(`Removing the workspace extension ${location.toString()} as it is not inside the workspace`);
-				return;
-			}
-			if (!(await this.fileService.exists(location))) {
-				save = true;
-				this.logService.info(`Removing the workspace extension ${location.toString()} as it does not exist`);
-				return;
-			}
-			try {
-				const extension = await this.scanWorkspaceExtension(location);
-				if (extension) {
-					workspaceExtensions.push(extension);
-				} else {
-					this.logService.info(`Skipping workspace extension ${location.toString()} as it does not exist`);
-				}
-			} catch (error) {
-				this.logService.error('Skipping the workspace extension', location.toString(), error);
+		const scannedExtensions = await this.extensionsScannerService.scanMultipleExtensions(locations, ExtensionType.User, { includeInvalid: true });
+		const result: IResourceExtension[] = [];
+		await Promise.all(scannedExtensions.map(async scannedExtension => {
+			const workspaceExtension = await this.workspaceExtensionManagementService?.toLocalWorkspaceExtension(scannedExtension);
+			if (workspaceExtension) {
+				result.push({
+					identifier: workspaceExtension.identifier,
+					location: workspaceExtension.location,
+					manifest: workspaceExtension.manifest,
+					changelogUri: workspaceExtension.changelogUrl,
+					readmeUri: workspaceExtension.readmeUrl,
+				});
 			}
 		}));
-		if (save) {
-			this.saveWorkspaceExtensionsLocations(workspaceExtensions.map(e => e.location));
-		}
-		return workspaceExtensions;
+		return result;
+	}
+
+	async getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]> {
+		return this.workspaceExtensionManagementService?.getInstalled(includeInvalid) ?? [];
 	}
 
 	async installResourceExtension(extension: IResourceExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
 		if (!installOptions.isWorkspaceScoped) {
 			return this.installFromLocation(extension.location);
+		}
+
+		if (!this.workspaceExtensionManagementService) {
+			throw new Error('Workspace Extensions are not supported');
 		}
 
 		this.logService.info(`Installing the extension ${extension.identifier.id} from ${extension.location.toString()} in workspace`);
@@ -468,38 +475,15 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		});
 
 		try {
-			const workspaceExtension = await this.scanWorkspaceExtension(extension.location);
-			if (!workspaceExtension) {
-				throw new Error('Cannot install the extension as it does not exist.');
-			}
-			if (!workspaceExtension.isValid) {
-				throw new Error(`Cannot install the extension as it is invalid. ${workspaceExtension.validations.join(', ')}`);
-			}
+			await this.checkForWorkspaceTrust(extension.manifest, true);
 
-			await this.checkForWorkspaceTrust(extension.manifest);
+			const workspaceExtension = await this.workspaceExtensionManagementService.install(extension);
 
-			const existingLocations = this.getWorkspaceExtensionsLocations();
-			const workspaceExtensions = await this.getInstalledWorkspaceExtensions();
-
-			const existingExtensionIndex = workspaceExtensions.findIndex(e => areSameExtensions(e.identifier, workspaceExtension.identifier));
-			if (existingExtensionIndex !== -1) {
-				existingLocations.splice(existingExtensionIndex, 1);
-			}
-			existingLocations.push(extension.location);
-
-			this.saveWorkspaceExtensionsLocations(existingLocations);
-
-			// log
 			this.logService.info(`Successfully installed the extension ${workspaceExtension.identifier.id} from ${extension.location.toString()} in the workspace`);
-			this.telemetryService.publicLog2<{}, {
-				owner: 'sandy081';
-				comment: 'Install workspace extension';
-			}>('workspaceextension:install');
-
 			this._onDidInstallExtensions.fire([{
 				identifier: workspaceExtension.identifier,
 				source: extension.location,
-				operation: existingExtensionIndex !== -1 ? InstallOperation.Update : InstallOperation.Install,
+				operation: InstallOperation.Install,
 				applicationScoped: false,
 				profileLocation: this.userDataProfileService.currentProfile.extensionsResource,
 				local: workspaceExtension,
@@ -507,6 +491,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			}]);
 			return workspaceExtension;
 		} catch (error) {
+			this.logService.error(`Failed to install the extension ${extension.identifier.id} from ${extension.location.toString()} in the workspace`, getErrorMessage(error));
 			this._onDidInstallExtensions.fire([{
 				identifier: extension.identifier,
 				source: extension.location,
@@ -525,6 +510,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			throw new Error('The extension is not a workspace extension');
 		}
 
+		if (!this.workspaceExtensionManagementService) {
+			throw new Error('Workspace Extensions are not supported');
+		}
+
 		this.logService.info(`Uninstalling the workspace extension ${extension.identifier.id} from ${extension.location.toString()}`);
 		const server = this.getWorkspaceExtensionsServer();
 		this._onUninstallExtension.fire({
@@ -535,13 +524,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		});
 
 		try {
-			const existingLocations = this.getWorkspaceExtensionsLocations();
-			const index = existingLocations.findIndex(existingLocation => this.uriIdentityService.extUri.isEqual(extension.location, existingLocation));
-			if (index !== -1) {
-				existingLocations.splice(index, 1);
-				this.saveWorkspaceExtensionsLocations(existingLocations);
-			}
-
+			await this.workspaceExtensionManagementService.uninstall(extension);
 			this.logService.info(`Successfully uninstalled the workspace extension ${extension.identifier.id} from ${extension.location.toString()}`);
 			this.telemetryService.publicLog2<{}, {
 				owner: 'sandy081';
@@ -554,6 +537,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				workspaceScoped: true
 			});
 		} catch (error) {
+			this.logService.error(`Failed to uninstall the workspace extension ${extension.identifier.id} from ${extension.location.toString()}`, getErrorMessage(error));
 			this._onDidUninstallExtension.fire({
 				identifier: extension.identifier,
 				server,
@@ -562,42 +546,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				workspaceScoped: true
 			});
 			throw error;
-		}
-	}
-
-	private getWorkspaceExtensionsLocations(): URI[] {
-		const locations: URI[] = [];
-		try {
-			const parsed = JSON.parse(this.storageService.get(ExtensionManagementService.WORKSPACE_EXTENSIONS_KEY, StorageScope.WORKSPACE, '[]'));
-			if (Array.isArray(locations)) {
-				for (const location of parsed) {
-					if (isString(location)) {
-						if (this.workspaceService.getWorkbenchState() === WorkbenchState.FOLDER) {
-							locations.push(this.workspaceService.getWorkspace().folders[0].toResource(location));
-						} else {
-							this.logService.warn(`Invalid value for 'extensions' in workspace storage: ${location}`);
-						}
-					} else {
-						locations.push(URI.revive(location));
-					}
-				}
-			} else {
-				this.logService.warn(`Invalid value for 'extensions' in workspace storage: ${locations}`);
-			}
-		} catch (error) {
-			this.logService.warn(`Error parsing workspace extensions locations: ${getErrorMessage(error)}`);
-		}
-		return locations;
-	}
-
-	private saveWorkspaceExtensionsLocations(locations: URI[]): void {
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			this.storageService.store(ExtensionManagementService.WORKSPACE_EXTENSIONS_KEY,
-				JSON.stringify(coalesce(locations
-					.map(location => this.uriIdentityService.extUri.relativePath(this.workspaceService.getWorkspace().folders[0].uri, location)))),
-				StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		} else {
-			this.storageService.store(ExtensionManagementService.WORKSPACE_EXTENSIONS_KEY, JSON.stringify(locations), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
@@ -627,7 +575,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		if (!installOptions?.context?.[EXTENSION_INSTALL_SYNC_CONTEXT]) {
-			await this.checkForWorkspaceTrust(manifest);
+			await this.checkForWorkspaceTrust(manifest, false);
 		}
 
 		if (!installOptions?.donotIncludePackAndDependencies) {
@@ -727,15 +675,17 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		throw new Error('No extension server found');
 	}
 
-	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
-		if (this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(manifest) === false) {
+	protected async checkForWorkspaceTrust(manifest: IExtensionManifest, requireTrust: boolean): Promise<void> {
+		if (requireTrust || this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(manifest) === false) {
+			const buttons: WorkspaceTrustRequestButton[] = [];
+			buttons.push({ label: localize('extensionInstallWorkspaceTrustButton', "Trust Workspace & Install"), type: 'ContinueWithTrust' });
+			if (!requireTrust) {
+				buttons.push({ label: localize('extensionInstallWorkspaceTrustContinueButton', "Install"), type: 'ContinueWithoutTrust' });
+			}
+			buttons.push({ label: localize('extensionInstallWorkspaceTrustManageButton', "Learn More"), type: 'Manage' });
 			const trustState = await this.workspaceTrustRequestService.requestWorkspaceTrust({
 				message: localize('extensionInstallWorkspaceTrustMessage', "Enabling this extension requires a trusted workspace."),
-				buttons: [
-					{ label: localize('extensionInstallWorkspaceTrustButton', "Trust Workspace & Install"), type: 'ContinueWithTrust' },
-					{ label: localize('extensionInstallWorkspaceTrustContinueButton', "Install"), type: 'ContinueWithoutTrust' },
-					{ label: localize('extensionInstallWorkspaceTrustManageButton', "Learn More"), type: 'Manage' }
-				]
+				buttons
 			});
 
 			if (trustState === undefined) {
@@ -853,18 +803,211 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.resolve();
 	}
 
-	private async scanWorkspaceExtension(location: URI): Promise<ILocalExtension | null> {
+	registerParticipant() { throw new Error('Not Supported'); }
+	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
+}
+
+class WorkspaceExtensionsManagementService extends Disposable {
+
+	private static readonly WORKSPACE_EXTENSIONS_KEY = 'workspaceExtensions.locations';
+
+	private readonly _onDidChangeInvalidExtensions = this._register(new Emitter<ILocalExtension[]>());
+	readonly onDidChangeInvalidExtensions = this._onDidChangeInvalidExtensions.event;
+
+	private readonly extensions: ILocalExtension[] = [];
+	private readonly initializePromise: Promise<void>;
+
+	private readonly invalidExtensionWatchers = this._register(new DisposableStore());
+
+	constructor(
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
+		super();
+
+		this._register(Event.debounce<FileChangesEvent, FileChangesEvent[]>(this.fileService.onDidFilesChange, (last, e) => {
+			(last = last ?? []).push(e);
+			return last;
+		}, 1000)(events => {
+			const changedInvalidExtensions = this.extensions.filter(extension => !extension.isValid && events.some(e => e.affects(extension.location)));
+			if (changedInvalidExtensions.length) {
+				this.checkExtensionsValidity(changedInvalidExtensions);
+			}
+		}));
+
+		this.initializePromise = this.initialize();
+	}
+
+	private async initialize(): Promise<void> {
+		const existingLocations = this.getWorkspaceExtensionsLocations();
+		if (!existingLocations.length) {
+			return;
+		}
+
+		await Promise.allSettled(existingLocations.map(async location => {
+			if (!this.workspaceService.isInsideWorkspace(location)) {
+				this.logService.info(`Removing the workspace extension ${location.toString()} as it is not inside the workspace`);
+				return;
+			}
+			if (!(await this.fileService.exists(location))) {
+				this.logService.info(`Removing the workspace extension ${location.toString()} as it does not exist`);
+				return;
+			}
+			try {
+				const extension = await this.scanWorkspaceExtension(location);
+				if (extension) {
+					this.extensions.push(extension);
+				} else {
+					this.logService.info(`Skipping workspace extension ${location.toString()} as it does not exist`);
+				}
+			} catch (error) {
+				this.logService.error('Skipping the workspace extension', location.toString(), error);
+			}
+		}));
+
+		this.saveWorkspaceExtensions();
+	}
+
+	private watchInvalidExtensions(): void {
+		this.invalidExtensionWatchers.clear();
+		for (const extension of this.extensions) {
+			if (!extension.isValid) {
+				this.invalidExtensionWatchers.add(this.fileService.watch(extension.location));
+			}
+		}
+	}
+
+	private async checkExtensionsValidity(extensions: ILocalExtension[]): Promise<void> {
+		const validExtensions: ILocalExtension[] = [];
+		await Promise.all(extensions.map(async extension => {
+			const newExtension = await this.scanWorkspaceExtension(extension.location);
+			if (newExtension?.isValid) {
+				validExtensions.push(newExtension);
+			}
+		}));
+
+		let changed = false;
+		for (const extension of validExtensions) {
+			const index = this.extensions.findIndex(e => this.uriIdentityService.extUri.isEqual(e.location, extension.location));
+			if (index !== -1) {
+				changed = true;
+				this.extensions.splice(index, 1, extension);
+			}
+		}
+
+		if (changed) {
+			this.saveWorkspaceExtensions();
+			this._onDidChangeInvalidExtensions.fire(validExtensions);
+		}
+	}
+
+	async getInstalled(includeInvalid: boolean): Promise<ILocalExtension[]> {
+		await this.initializePromise;
+		return this.extensions.filter(e => includeInvalid || e.isValid);
+	}
+
+	async install(extension: IResourceExtension): Promise<ILocalExtension> {
+		await this.initializePromise;
+
+		const workspaceExtension = await this.scanWorkspaceExtension(extension.location);
+		if (!workspaceExtension) {
+			throw new Error('Cannot install the extension as it does not exist.');
+		}
+
+		const existingExtensionIndex = this.extensions.findIndex(e => areSameExtensions(e.identifier, extension.identifier));
+		if (existingExtensionIndex === -1) {
+			this.extensions.push(workspaceExtension);
+		} else {
+			this.extensions.splice(existingExtensionIndex, 1, workspaceExtension);
+		}
+
+		this.saveWorkspaceExtensions();
+		this.telemetryService.publicLog2<{}, {
+			owner: 'sandy081';
+			comment: 'Install workspace extension';
+		}>('workspaceextension:install');
+
+		return workspaceExtension;
+	}
+
+	async uninstall(extension: ILocalExtension): Promise<void> {
+		await this.initializePromise;
+
+		const existingExtensionIndex = this.extensions.findIndex(e => areSameExtensions(e.identifier, extension.identifier));
+		if (existingExtensionIndex !== -1) {
+			this.extensions.splice(existingExtensionIndex, 1);
+			this.saveWorkspaceExtensions();
+		}
+
+		this.telemetryService.publicLog2<{}, {
+			owner: 'sandy081';
+			comment: 'Uninstall workspace extension';
+		}>('workspaceextension:uninstall');
+	}
+
+	private getWorkspaceExtensionsLocations(): URI[] {
+		const locations: URI[] = [];
+		try {
+			const parsed = JSON.parse(this.storageService.get(WorkspaceExtensionsManagementService.WORKSPACE_EXTENSIONS_KEY, StorageScope.WORKSPACE, '[]'));
+			if (Array.isArray(locations)) {
+				for (const location of parsed) {
+					if (isString(location)) {
+						if (this.workspaceService.getWorkbenchState() === WorkbenchState.FOLDER) {
+							locations.push(this.workspaceService.getWorkspace().folders[0].toResource(location));
+						} else {
+							this.logService.warn(`Invalid value for 'extensions' in workspace storage: ${location}`);
+						}
+					} else {
+						locations.push(URI.revive(location));
+					}
+				}
+			} else {
+				this.logService.warn(`Invalid value for 'extensions' in workspace storage: ${locations}`);
+			}
+		} catch (error) {
+			this.logService.warn(`Error parsing workspace extensions locations: ${getErrorMessage(error)}`);
+		}
+		return locations;
+	}
+
+	private saveWorkspaceExtensions(): void {
+		const locations = this.extensions.map(extension => extension.location);
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			this.storageService.store(WorkspaceExtensionsManagementService.WORKSPACE_EXTENSIONS_KEY,
+				JSON.stringify(coalesce(locations
+					.map(location => this.uriIdentityService.extUri.relativePath(this.workspaceService.getWorkspace().folders[0].uri, location)))),
+				StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.store(WorkspaceExtensionsManagementService.WORKSPACE_EXTENSIONS_KEY, JSON.stringify(locations), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+		this.watchInvalidExtensions();
+	}
+
+	async scanWorkspaceExtension(location: URI): Promise<ILocalExtension | null> {
 		const scannedExtension = await this.extensionsScannerService.scanExistingExtension(location, ExtensionType.User, { includeInvalid: true });
 		return scannedExtension ? this.toLocalWorkspaceExtension(scannedExtension) : null;
 	}
 
-	private async toLocalWorkspaceExtension(extension: IScannedExtension): Promise<ILocalExtension> {
+	async toLocalWorkspaceExtension(extension: IScannedExtension): Promise<ILocalExtension> {
 		const stat = await this.fileService.resolve(extension.location);
 		let readmeUrl: URI | undefined;
 		let changelogUrl: URI | undefined;
 		if (stat.children) {
 			readmeUrl = stat.children.find(({ name }) => /^readme(\.txt|\.md|)$/i.test(name))?.resource;
 			changelogUrl = stat.children.find(({ name }) => /^changelog(\.txt|\.md|)$/i.test(name))?.resource;
+		}
+		const validations: [Severity, string][] = [...extension.validations];
+		let isValid = extension.isValid;
+		if (extension.manifest.main) {
+			if (!(await this.fileService.exists(this.uriIdentityService.extUri.joinPath(extension.location, extension.manifest.main)))) {
+				isValid = false;
+				validations.push([Severity.Error, localize('main.notFound', "Cannot activate, becase {0} not found", extension.manifest.main)]);
+			}
 		}
 		return {
 			identifier: extension.identifier,
@@ -873,8 +1016,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			location: extension.location,
 			manifest: extension.manifest,
 			targetPlatform: extension.targetPlatform,
-			validations: extension.validations,
-			isValid: extension.isValid,
+			validations,
+			isValid,
 			readmeUrl,
 			changelogUrl,
 			publisherDisplayName: extension.metadata?.publisherDisplayName || null,
@@ -891,7 +1034,4 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			source: 'resource'
 		};
 	}
-
-	registerParticipant() { throw new Error('Not Supported'); }
-	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 }

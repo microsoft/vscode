@@ -218,7 +218,7 @@ export async function showRunRecentQuickPick(
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
 	});
 	const outputProvider = instantiationService.createInstance(TerminalOutputProvider);
-	const quickPick = quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
+	const quickPick = quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>();
 	const originalItems = items;
 	quickPick.items = [...originalItems];
 	quickPick.sortByLabel = false;
@@ -258,6 +258,24 @@ export async function showRunRecentQuickPick(
 			await instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, filterMode, value);
 		}
 	});
+	let terminalScrollStateSaved = false;
+	quickPick.onDidChangeActive(async () => {
+		const xterm = instance.xterm;
+		if (!xterm) {
+			return;
+		}
+		const [item] = quickPick.activeItems;
+		if ('command' in item && item.command) {
+			if (!terminalScrollStateSaved) {
+				xterm.markTracker.saveScrollState();
+				terminalScrollStateSaved = true;
+			}
+			xterm.markTracker.revealCommand(item.command);
+		} else {
+			terminalScrollStateSaved = false;
+			xterm.markTracker.restoreScrollState();
+		}
+	});
 	quickPick.onDidAccept(async () => {
 		const result = quickPick.activeItems[0];
 		let text: string;
@@ -271,6 +289,12 @@ export async function showRunRecentQuickPick(
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}
+		terminalScrollStateSaved = false;
+		instance.xterm?.markTracker.restoreScrollState();
+	});
+	quickPick.onDidHide(() => {
+		terminalScrollStateSaved = false;
+		instance.xterm?.markTracker.restoreScrollState();
 	});
 	if (value) {
 		quickPick.value = value;
