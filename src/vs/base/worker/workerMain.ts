@@ -127,7 +127,6 @@
 	async function loadCode(moduleId: string) {
 		if (isEsm) {
 			const modulePath = new URL('../../../' + moduleId + '.js', import.meta.url).toString()
-			console.log({ modulePath })
 			const module = await import(modulePath)
 			handleModuleLoaded((module))
 			return
