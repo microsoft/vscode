@@ -319,7 +319,6 @@ class FileAccessImpl {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
-		console.log(uriOrModule)
 		const resolved = `${root}${uriOrModule}`;
 		return URI.parse(resolved);
 	}
