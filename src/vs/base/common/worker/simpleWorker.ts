@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promiseWithResolvers } from 'vs/base/common/async.js';
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
@@ -535,7 +535,9 @@ export class SimpleWorkerServer<H extends object> {
 		}
 
 		// Get the global config
-		const module = await import(moduleId) as { create: IRequestHandlerFactory<H> }
+		const url = FileAccess.asBrowserUri(moduleId).toString()
+		console.log({ url })
+		const module = await import(url) as { create: IRequestHandlerFactory<H> }
 		this._requestHandler = module.create(hostProxy);
 		if (!this._requestHandler) {
 			throw new Error(`No RequestHandler!`);
