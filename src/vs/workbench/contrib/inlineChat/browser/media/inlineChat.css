@@ -20,72 +20,16 @@
 	background: var(--vscode-inlineChat-background);
 }
 
-/* body */
-
-.monaco-workbench .inline-chat .body {
-	display: flex;
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
+	margin-bottom: 1px;
 }
 
-.monaco-workbench .inline-chat-input {
-	display: flex;
-	box-sizing: border-box;
-	outline: 1px solid var(--vscode-inlineChatInput-border);
-	outline-offset: -1px;
-	border-radius: 2px;
-	background-color: var(--vscode-inlineChatInput-background);
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-input-and-execute-toolbar {
+	width: 100%;
 }
 
-.monaco-workbench .inline-chat-input.synthetic-focus {
-	outline: 1px solid var(--vscode-inlineChatInput-focusBorder);
-}
-
-.monaco-workbench .inline-chat-input .input {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 2px 2px 2px 6px;
-	background-color: var(--vscode-inlineChatInput-background);
-	cursor: text;
-}
-
-.monaco-workbench .inline-chat-input .input .monaco-editor-background {
-	background-color: var(--vscode-inlineChatInput-background);
-}
-
-.monaco-workbench .inline-chat-input .input .editor-placeholder {
-	position: absolute;
-	z-index: 1;
-	color: var(--vscode-inlineChatInput-placeholderForeground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.monaco-workbench .inline-chat-input .input .editor-placeholder.hidden {
-	display: none;
-}
-
-.monaco-workbench .inline-chat-input .input .editor-container {
-	vertical-align: middle;
-}
-
-.monaco-workbench .inline-chat-input .toolbar {
-	display: flex;
-	flex-direction: column;
-	align-self: flex-start;
-	padding-top: 4px;
-	padding-right: 4px;
-}
-
-.monaco-workbench .inline-chat-input .toolbar .actions-container {
-	display: flex;
-	flex-direction: row;
-	gap: 4px;
-}
-
-.monaco-workbench .inline-chat .body > .widget-toolbar {
-	padding-left: 4px;
-	align-self: flex-start;
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
+	padding: 4px
 }
 
 /* progress bit */
@@ -117,11 +61,8 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
 	align-self: baseline;
+	padding-left: 10px;
 	display: inline-flex;
-}
-
-.monaco-workbench .inline-chat .status .label.hidden {
-	display: none;
 }
 
 .monaco-workbench .inline-chat .status .label.info {
@@ -129,46 +70,27 @@
 	padding-left: 2px;
 }
 
-.monaco-workbench .inline-chat .status .label.info > .codicon {
+.monaco-workbench .inline-chat .status .label.status {
+	margin-left: auto;
+}
+
+.monaco-workbench .inline-chat .status .label.hidden {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .status .label.error {
+	color: var(--vscode-errorForeground);
+}
+
+.monaco-workbench .inline-chat .status .label.warn {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-workbench .inline-chat .status .label > .codicon {
 	padding: 0 5px;
 	font-size: 12px;
 	line-height: 18px;
 }
-
-.monaco-workbench .inline-chat .status .label.status {
-	padding-left: 10px;
-	padding-right: 4px;
-	margin-left: auto;
-}
-
-.monaco-workbench .inline-chat .status .label .slash-command-pill CODE {
-	border-radius: 3px;
-	padding: 0 1px;
-	background-color: var(--vscode-chat-slashCommandBackground);
-	color: var(--vscode-chat-slashCommandForeground);
-}
-
-.monaco-workbench .inline-chat .detectedIntent {
-	color: var(--vscode-descriptionForeground);
-	padding: 5px 0px 5px 5px;
-}
-
-.monaco-workbench .inline-chat .detectedIntent.hidden {
-	display: none;
-}
-
-.monaco-workbench .inline-chat .detectedIntent .slash-command-pill CODE {
-	border-radius: 3px;
-	padding: 0 1px;
-	background-color: var(--vscode-chat-slashCommandBackground);
-	color: var(--vscode-chat-slashCommandForeground);
-}
-
-.monaco-workbench .inline-chat .detectedIntent .slash-command-pill a {
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-}
-
 
 .monaco-workbench .inline-chat .chatMessage .chatMessageContent .value {
 	overflow: hidden;
@@ -200,19 +122,6 @@
 
 .monaco-workbench .inline-chat .chatMessage.hidden {
 	display: none;
-}
-
-.monaco-workbench .inline-chat .status .label A {
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-}
-
-.monaco-workbench .inline-chat .status .label.error {
-	color: var(--vscode-errorForeground);
-}
-
-.monaco-workbench .inline-chat .status .label.warn {
-	color: var(--vscode-editorWarning-foreground);
 }
 
 .monaco-workbench .inline-chat .status .actions {
@@ -322,7 +231,10 @@
 }
 
 .monaco-workbench .inline-chat-slash-command {
-	opacity: 0;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+	border-radius: 4px;
+	padding: 1px;
 }
 
 .monaco-workbench .inline-chat-slash-command-detail {

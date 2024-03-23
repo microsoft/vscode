@@ -57,6 +57,8 @@ pub struct CodeServerArgs {
 	pub log: Option<log::Level>,
 	pub accept_server_license_terms: bool,
 	pub verbose: bool,
+	pub server_data_dir: Option<String>,
+	pub extensions_dir: Option<String>,
 	// extension management
 	pub install_extensions: Vec<String>,
 	pub uninstall_extensions: Vec<String>,
@@ -143,6 +145,12 @@ impl CodeServerArgs {
 			if let Some(i) = &self.category {
 				args.push(format!("--category={}", i));
 			}
+		}
+		if let Some(d) = &self.server_data_dir {
+			args.push(format!("--server-data-dir={}", d));
+		}
+		if let Some(d) = &self.extensions_dir {
+			args.push(format!("--extensions-dir={}", d));
 		}
 		if self.start_server {
 			args.push(String::from("--start-server"));

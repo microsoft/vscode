@@ -128,7 +128,7 @@ export class ChatSubmitSecondaryAgentEditorAction extends EditorAction2 {
 			if (widget.getInput().match(/^\s*@/)) {
 				widget.acceptInput();
 			} else {
-				widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
+				widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.name}`);
 			}
 		}
 	}
@@ -295,7 +295,7 @@ const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: 
 	},
 	category: CHAT_CATEGORY,
 	icon: Codicon.history,
-	f1: false,
+	f1: true,
 	precondition: CONTEXT_PROVIDER_EXISTS
 });
 

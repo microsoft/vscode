@@ -12,8 +12,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentRequest, IChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { GeneratingPhrase, IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentLocation, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatUserAction, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -23,7 +23,6 @@ import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/br
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { InlineChatHistory } from 'vs/workbench/contrib/inlineChat/browser/inlineChatHistory';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 const enum Message {
@@ -71,7 +70,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private _currentRequest: ChatRequestModel | undefined;
 
-	private readonly _history: InlineChatHistory;
 	private _lastInput: string | undefined;
 	private _lastResponseContent: string | undefined;
 	get lastResponseContent(): string | undefined {
@@ -81,7 +79,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
 
-	private _terminalAgentId = 'terminal';
+	private _terminalAgentName = 'terminal';
+	private _terminalAgentId: string | undefined;
 
 	private _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
 
@@ -97,7 +96,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService
+		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
 	) {
 		super();
 
@@ -107,28 +106,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
 
-		this._history = this._instantiationService.createInstance(InlineChatHistory, 'terminal-chat-history');
-
 		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
 			return;
 		}
 
-		if (!this._chatAgentService.getAgent(this._terminalAgentId)) {
-			this._register(this._chatAgentService.onDidChangeAgents(() => {
-				if (this._chatAgentService.getAgent(this._terminalAgentId)) {
-					this._terminalAgentRegisteredContextKey.set(true);
-				}
-			}));
-		} else {
-			this._terminalAgentRegisteredContextKey.set(true);
+		if (!this.initTerminalAgent()) {
+			this._register(this._chatAgentService.onDidChangeAgents(() => this.initTerminalAgent()));
 		}
 		this._register(this._chatCodeBlockContextProviderService.registerProvider({
 			getCodeBlockContext: (editor) => {
-				const chatWidget = this.chatWidget;
-				if (!chatWidget) {
-					return;
-				}
-				if (!editor) {
+				if (!editor || !this._chatWidget?.hasValue || !this.hasFocus()) {
 					return;
 				}
 				return {
@@ -139,6 +126,31 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				};
 			}
 		}, 'terminal'));
+
+		// TODO
+		// This is glue/debt that's needed while ChatModel isn't yet adopted. The chat model uses
+		// a default chat model (unless configured) and feedback is reported against that one. This
+		// code forwards the feedback to an actual registered provider
+		this._register(this._chatService.onDidPerformUserAction(e => {
+			if (e.providerId === this._chatWidget?.rawValue?.inlineChatWidget.getChatModel().providerId) {
+				if (e.action.kind === 'bug') {
+					this.acceptFeedback(undefined);
+				} else if (e.action.kind === 'vote') {
+					this.acceptFeedback(e.action.direction === InteractiveSessionVoteDirection.Up);
+				}
+			}
+		}));
+	}
+
+	private initTerminalAgent(): boolean {
+		const terminalAgent = this._chatAgentService.getAgentsByName(this._terminalAgentName)[0];
+		if (terminalAgent) {
+			this._terminalAgentId = terminalAgent.id;
+			this._terminalAgentRegisteredContextKey.set(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -231,8 +243,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._model.value?.cancelRequest(this._currentRequest);
 		}
 		this._model.clear();
-		this._chatWidget?.value.hide();
-		this._chatWidget?.value.setValue(undefined);
+		this._chatWidget?.rawValue?.hide();
+		this._chatWidget?.rawValue?.setValue(undefined);
 		this._responseContainsCodeBlockContextKey.reset();
 		this._sessionResponseVoteContextKey.reset();
 		this._requestActiveContextKey.reset();
@@ -273,7 +285,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		};
 
 		await model.waitForInitialization();
-		this._history.update(this._lastInput);
+		this._chatWidget?.value.addToHistory(this._lastInput);
 		const request: IParsedChatRequest = {
 			text: this._lastInput,
 			parts: []
@@ -285,13 +297,13 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const requestProps: IChatAgentRequest = {
 			sessionId: model.sessionId,
 			requestId: this._currentRequest!.id,
-			agentId: this._terminalAgentId,
+			agentId: this._terminalAgentId!,
 			message: this._lastInput,
 			variables: { variables: [] },
 			location: ChatAgentLocation.Terminal
 		};
 		try {
-			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
+			const task = this._chatAgentService.invokeAgent(this._terminalAgentId!, requestProps, progressCallback, getHistoryEntriesFromModel(model), cancellationToken);
 			this._chatWidget?.value.inlineChatWidget.updateChatMessage(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateProgress(true);
@@ -342,7 +354,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	hasFocus(): boolean {
-		return !!this._chatWidget?.value.hasFocus();
+		return !!this._chatWidget?.rawValue?.hasFocus() ?? false;
 	}
 
 	async acceptCommand(shouldExecute: boolean): Promise<void> {
@@ -350,12 +362,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!code) {
 			return;
 		}
-		this._chatWidget?.value.acceptCommand(code.object.textEditorModel.getValue(), shouldExecute);
+		this._chatWidget?.value.acceptCommand(code.textEditorModel.getValue(), shouldExecute);
 	}
 
 	reveal(): void {
 		this._chatWidget?.value.reveal();
-		this._history.clearCandidate();
 	}
 
 	async viewInChat(): Promise<void> {
@@ -383,14 +394,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			} else if (!model) {
 				widget.focusInput();
 			}
-			this._chatWidget?.value.hide();
-		}
-	}
-
-	populateHistory(up: boolean) {
-		const entry = this._history.populateHistory(this.getInput(), up);
-		if (entry) {
-			this.updateInput(entry, true);
+			this._chatWidget?.rawValue?.hide();
 		}
 	}
 

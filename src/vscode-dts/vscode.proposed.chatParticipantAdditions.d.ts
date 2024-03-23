@@ -167,13 +167,15 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
+	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
 	export namespace chat {
 		/**
 		 * Create a chat participant with the extended progress type
 		 */
-		export function createChatParticipant(name: string, handler: ChatExtendedRequestHandler): ChatParticipant;
+		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
+
+		export function createDynamicChatParticipant(id: string, name: string, description: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 	}
 
 	/*
@@ -279,13 +281,5 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		resolve2?(name: string, context: ChatVariableContext, stream: ChatVariableResolverResponseStream, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
-	}
-
-	export interface ChatParticipant {
-		/**
-		 * A human-readable description explaining what this participant does.
-		 * Only allow a static description for normal participants. Here where dynamic participants are allowed, the description must be able to be set as well.
-		 */
-		description?: string;
 	}
 }

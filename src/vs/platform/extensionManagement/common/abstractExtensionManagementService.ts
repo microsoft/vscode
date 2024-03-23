@@ -340,6 +340,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		} catch (error) {
 			// rollback installed extensions
 			if (successResults.length) {
+				this.logService.info('Rollback: Uninstalling installed extensions', getErrorMessage(error));
 				await Promise.allSettled(successResults.map(async ({ local, profileLocation }) => {
 					try {
 						await this.createUninstallExtensionTask(local, { versionOnly: true, profileLocation }).run();
