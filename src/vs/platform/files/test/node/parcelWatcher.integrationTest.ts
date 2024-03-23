@@ -732,11 +732,25 @@ flakySuite('File Watcher (parcel)', () => {
 		assert.strictEqual(instance.include(folderPath), false); // failing watcher should no longer include the path
 	});
 
-	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async () => {
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning, not reusing watcher)', async () => {
+		await testCorrelatedWatchFolderDoesNotExist(false);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning, reusing watcher)', async () => {
+		await testCorrelatedWatchFolderDoesNotExist(true);
+	});
+
+	async function testCorrelatedWatchFolderDoesNotExist(reuseExistingWatcher: boolean) {
 		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 
 		const folderPath = join(testDir, 'not-found');
-		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		const requests: IRecursiveWatchRequest[] = [{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }];
+		if (reuseExistingWatcher) {
+			requests.push({ path: testDir, excludes: [], recursive: true });
+		}
+
+		await watcher.watch(requests);
 		await onDidWatchFail;
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
@@ -759,11 +773,25 @@ flakySuite('File Watcher (parcel)', () => {
 		await onDidWatch;
 
 		await basicCrudTest(filePath, 1);
+	}
+
+	test('correlated watch requests support suspend/resume (folder, exist in beginning, not reusing watcher)', async () => {
+		await testCorrelatedWatchFolderExists(false);
 	});
 
-	test('correlated watch requests support suspend/resume (folder, exist in beginning)', async () => {
+	test('correlated watch requests support suspend/resume (folder, exist in beginning, reusing watcher)', async () => {
+		await testCorrelatedWatchFolderExists(true);
+	});
+
+	async function testCorrelatedWatchFolderExists(reuseExistingWatcher: boolean) {
 		const folderPath = join(testDir, 'deep');
-		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		const requests: IRecursiveWatchRequest[] = [{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }];
+		if (reuseExistingWatcher) {
+			requests.push({ path: testDir, excludes: [], recursive: true });
+		}
+
+		await watcher.watch(requests);
 
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath, 1);
@@ -779,5 +807,5 @@ flakySuite('File Watcher (parcel)', () => {
 		await onDidWatch;
 
 		await basicCrudTest(filePath, 1);
-	});
+	}
 });
