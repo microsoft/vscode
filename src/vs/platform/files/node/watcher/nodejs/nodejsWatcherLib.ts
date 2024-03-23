@@ -290,6 +290,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 								return;
 							}
 
+							if (cts.token.isCancellationRequested) {
+								return;
+							}
+
 							// In order to properly detect renames on a case-insensitive
 							// file system, we need to use `existsChildStrictCase` helper
 							// because otherwise we would wrongly assume a file exists
