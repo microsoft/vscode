@@ -79,7 +79,7 @@ export function connectProxyResolver(
 function createPatchedModule<T extends object>(module: T, patch: any) {
 	// @ts-ignore
 	if (module[Symbol.toStringTag] === 'Module') {
-		console.info(`[proxyResolver] ESM: module cannot be patched`)
+		// cannot be patched
 		return
 	}
 	return Object.assign(module, patch)
