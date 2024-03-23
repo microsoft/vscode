@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DeferredPromise } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mockObject } from 'vs/base/test/common/mock';

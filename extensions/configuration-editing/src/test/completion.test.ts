@@ -11,6 +11,8 @@ import * as os from 'os';
 import 'mocha';
 
 
+assert(1 === 1)
+
 const testFolder = fs.mkdtemp(path.join(os.tmpdir(), 'conf-editing-'));
 
 suite('Completions in settings.json', () => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';

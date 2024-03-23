@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { commands, env, Position, Range, Selection, SnippetString, TextDocument, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, deleteFile } from '../utils';
 
@@ -61,7 +61,6 @@ suite('vscode API - editors', () => {
 		if (actualValue !== newValue) {
 			// clipboard not working?!?
 			this.skip();
-			return;
 		}
 
 		const snippetString = new SnippetString('running: $CLIPBOARD');

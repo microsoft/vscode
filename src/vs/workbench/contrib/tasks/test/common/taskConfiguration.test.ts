@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
-import * as assert from 'assert';
+import assert from 'assert';
 import Severity from 'vs/base/common/severity';
 import * as UUID from 'vs/base/common/uuid';
 

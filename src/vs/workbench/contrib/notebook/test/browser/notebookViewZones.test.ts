@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

@@ -6,7 +6,7 @@ import 'mocha';
 import * as path from 'path';
 import * as fs from 'fs';
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { getLanguageModes, TextDocument, Range, FormattingOptions, ClientCapabilities } from '../modes/languageModes';
 
 import { format } from '../modes/formatting';

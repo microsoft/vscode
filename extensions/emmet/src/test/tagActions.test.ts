@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import * as assert from 'assert';
+import assert from 'assert';
 import { Selection, workspace, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { removeTag } from '../removeTag';

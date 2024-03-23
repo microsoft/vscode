@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import * as assert from 'assert';
+import assert from 'assert';
 import { Selection, CompletionList, CancellationTokenSource, Position, CompletionTriggerKind, CompletionContext } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { expandEmmetAbbreviation } from '../abbreviationActions';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { join } from 'path';
 import { CancellationTokenSource, commands, MarkdownString, TabInputNotebook, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TabInputText, Uri, ViewColumn, window, workspace, TabInputTextDiff, UIKind, env } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
@@ -149,12 +149,10 @@ suite('vscode API - window', () => {
 		if (!window.state.focused) {
 			// no focus!
 			this.skip();
-			return;
 		}
 
 		if (process.env['BUILD_SOURCEVERSION'] || process.env['CI']) {
 			this.skip();
-			return;
 		}
 		function assertActiveEditor(editor: TextEditor) {
 			if (window.activeTextEditor === editor) {
