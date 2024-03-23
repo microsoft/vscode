@@ -13,7 +13,8 @@
 			"sinon",
 			"winreg",
 			"trusted-types",
-			"wicg-file-system-access"
+			"wicg-file-system-access",
+			"@webgpu/types"
 		],
 		"plugins": [
 			{
