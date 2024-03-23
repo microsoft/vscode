@@ -1,0 +1,32 @@
+{
+  "name": "hello-esm",
+  "displayName": "Hello Esm",
+  "description": "description",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.13.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  },
+  "activationEvents": [
+    "onCommand:hello-esm.hello"
+  ],
+  "type": "module",
+  "main": "./src/index.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hello-esm.hello",
+        "title": "hello esm",
+        "category": "hello-esm"
+      }
+    ]
+  }
+}
