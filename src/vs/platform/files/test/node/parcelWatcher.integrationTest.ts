@@ -54,10 +54,6 @@ export class TestParcelWatcher extends ParcelWatcher {
 			await watcher.ready;
 		}
 	}
-
-	getWatchers() {
-		return Array.from(this.watchers);
-	}
 }
 
 // this suite has shown flaky runs in Azure pipelines where
@@ -183,10 +179,9 @@ flakySuite('File Watcher (parcel)', () => {
 	test('basics', async function () {
 		const request = { path: testDir, excludes: [], recursive: true };
 		await watcher.watch([request]);
-		assert.strictEqual(watcher.watchers.size, watcher.getWatchers().length);
-		assert.strictEqual(Array.from(watcher.watchers)[0], watcher.getWatchers()[0]);
+		assert.strictEqual(watcher.watchers.size, watcher.watchers.size);
 
-		const instance = watcher.getWatchers()[0];
+		const instance = Array.from(watcher.watchers)[0];
 		assert.strictEqual(request, instance.request);
 
 		const disposables = new DisposableStore();
@@ -724,7 +719,7 @@ flakySuite('File Watcher (parcel)', () => {
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
 
 		let failed = false;
-		const instance = watcher.getWatchers()[0];
+		const instance = Array.from(watcher.watchers)[0];
 		assert.strictEqual(instance.include(folderPath), true);
 		instance.onDidFail(() => failed = true);
 
