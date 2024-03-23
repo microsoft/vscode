@@ -24,41 +24,7 @@ import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
-export interface IParcelWatcherInstance {
-
-	/**
-	 * Signals when the watcher stopped;
-	 */
-	readonly onDidStop: Event<void>;
-
-	/**
-	 * Signals when the watcher failed, for example when the path to watch does not exist
-	 * or got deleted.
-	 */
-	readonly onDidFail: Event<void>;
-
-	/**
-	 * The watch request associated to the watcher.
-	 */
-	readonly request: IRecursiveWatchRequest;
-
-	/**
-	 * Be notified when a file change happens on the given path.
-	 */
-	subscribe(path: string, callback: (change: IFileChange) => void): IDisposable;
-
-	/**
-	 * Whether the given path should be included.
-	 */
-	include(path: string): boolean;
-
-	/**
-	 * Whether the given path should be excluded.
-	 */
-	exclude(path: string): boolean;
-}
-
-class ParcelWatcherInstance extends Disposable implements IParcelWatcherInstance {
+class ParcelWatcherInstance extends Disposable {
 
 	private readonly _onDidStop = this._register(new Emitter<void>());
 	readonly onDidStop = this._onDidStop.event;

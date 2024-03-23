@@ -23,11 +23,6 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
-// this suite has shown flaky runs in Azure pipelines where
-// tasks would just hang and timeout after a while (not in
-// mocha but generally). as such they will run only on demand
-// whenever we update the watcher library.
-
 export class TestParcelWatcher extends ParcelWatcher {
 
 	protected override readonly suspendedWatchRequestPollingInterval = 100;
@@ -64,6 +59,11 @@ export class TestParcelWatcher extends ParcelWatcher {
 		return Array.from(this.watchers);
 	}
 }
+
+// this suite has shown flaky runs in Azure pipelines where
+// tasks would just hang and timeout after a while (not in
+// mocha but generally). as such they will run only on demand
+// whenever we update the watcher library.
 
 flakySuite('File Watcher (parcel)', () => {
 	let testDir: string;
