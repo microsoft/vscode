@@ -52,7 +52,6 @@ export interface StateDeltas {
 }
 
 const loadSpecialModule = (uri: string) => {
-	console.log({ uri })
 	const nodeModulesIndex = uri.indexOf('node_modules')
 	if (nodeModulesIndex === -1) {
 		return import(uri)
