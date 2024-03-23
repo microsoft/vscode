@@ -226,11 +226,6 @@ declare module 'vscode' {
 		sampleRequest?: string;
 
 		/**
-		 * Whether invoking the participant puts the chat into a persistent mode, where the participant is automatically added to the chat input for the next message.
-		 */
-		isSticky?: boolean;
-
-		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
 		 * a result.
 		 *
