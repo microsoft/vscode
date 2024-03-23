@@ -535,8 +535,10 @@ export class SimpleWorkerServer<H extends object> {
 		}
 
 		// Get the global config
-		const url = FileAccess.asBrowserUri(moduleId).toString()
-		console.log({ url })
+		let url = FileAccess.asBrowserUri(moduleId).toString()
+		if (!url.endsWith('.js')) {
+			url += '.js'
+		}
 		const module = await import(url) as { create: IRequestHandlerFactory<H> }
 		this._requestHandler = module.create(hostProxy);
 		if (!this._requestHandler) {
