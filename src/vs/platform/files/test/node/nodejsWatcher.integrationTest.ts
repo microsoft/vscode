@@ -569,10 +569,10 @@ flakySuite('File Watcher (node.js)', () => {
 		await changeFuture;
 	});
 
-	(isMacintosh /* macOS: does not seem to report deletes on folders */ ? test.skip : test)('deleting watched path emits watcher fail and delete event when correlated (folder watch)', async function () {
+	(isMacintosh || isWindows /* macOS: does not seem to report deletes on folders | Windows: reports on('error') event only */ ? test.skip : test)('deleting watched path emits watcher fail and delete event when correlated (folder watch)', async function () {
 		const folderPath = join(testDir, 'deep');
 
-		await watcher.watch([{ path: folderPath, excludes: [], recursive: false }]);
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
 
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
