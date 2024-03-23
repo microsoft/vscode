@@ -382,7 +382,6 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		} else if (platform === 'linux' || platform === 'alpine') {
 			result = es.merge(result,
 				gulp.src(`resources/server/bin/helpers/check-requirements-linux.sh`, { base: '.' })
-					.pipe(replace('@@SERVER_APPLICATION_NAME@@', product.serverApplicationName))
 					.pipe(rename(`bin/helpers/check-requirements.sh`))
 					.pipe(util.setExecutableBit())
 			);
