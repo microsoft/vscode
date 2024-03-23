@@ -59,6 +59,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _refreshListeners = this._register(new MutableDisposable());
 
 	private _state: OverlayState = OverlayState.Off;
+	private _isRefreshQueued = false;
 	private _rawMaxLineCount: number = 5;
 
 	constructor(
@@ -114,7 +115,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}));
 			this._register(this._xterm.raw.onResize(() => {
 				this._syncOptions();
-				this._throttledRefresh();
+				this._refresh();
 			}));
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
@@ -175,37 +176,15 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._element?.classList.toggle(CssClasses.Visible, isVisible);
 	}
 
-	/**
-	 * The entry point to refresh sticky scroll. This is synchronous and will call into the method
-	 * that actually refreshes using either debouncing or throttling depending on the situation.
-	 *
-	 * The goal is that if the command has changed to update immediately (with throttling) and if
-	 * the command is the same then update with debouncing as it's less likely updates will show up.
-	 * This approach also helps with:
-	 *
-	 * - Cursor move only updates such as moving horizontally in pagers which without this may show
-	 *   the sticky scroll before hiding it again almost immediately due to everything not being
-	 *   parsed yet.
-	 * - Improving performance due to deferring less important updates via debouncing.
-	 * - Less flickering when scrolling, while still updating immediately when the command changes.
-	 */
 	private _refresh(): void {
-		if (!this._xterm.raw.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
+		if (this._isRefreshQueued) {
 			return;
 		}
-		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY);
-		if (command && this._currentStickyCommand !== command) {
-			this._throttledRefresh();
-		} else {
-			// If it's the same command, do not throttle as the sticky scroll overlay height may
-			// need to be adjusted. This would cause a flicker if throttled.
+		this._isRefreshQueued = true;
+		queueMicrotask(() => {
 			this._refreshNow();
-		}
-	}
-
-	@throttle(0)
-	private _throttledRefresh(): void {
-		this._refreshNow();
+			this._isRefreshQueued = false;
+		});
 	}
 
 	private _refreshNow(): void {
@@ -467,6 +446,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _getOptions(): ITerminalOptions {
 		const o = this._xterm.raw.options;
 		return {
+			allowTransparency: true,
 			cursorInactiveStyle: 'none',
 			scrollback: 0,
 			logLevel: 'off',

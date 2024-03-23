@@ -537,6 +537,10 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
 }
 
+export interface MainThreadTerminalShellIntegrationShape extends IDisposable {
+	$executeCommand(terminalId: number, commandLine: string): void;
+}
+
 export type TransferQuickPickItemOrSeparator = TransferQuickPickItem | quickInput.IQuickPickSeparator;
 export interface TransferQuickPickItem {
 	handle: number;
@@ -1261,7 +1265,7 @@ export interface ExtHostChatVariablesShape {
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
-	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean, supportsFollowups: boolean, supportsIssueReporting: boolean): Promise<void>;
+	$registerInteractiveEditorProvider(handle: number, label: string, extensionId: ExtensionIdentifier, supportsFeedback: boolean, supportsFollowups: boolean, supportsIssueReporting: boolean): Promise<void>;
 	$handleProgressChunk(requestId: string, chunk: Dto<IInlineChatProgressItem>): Promise<void>;
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
@@ -2262,6 +2266,15 @@ export interface ExtHostTerminalServiceShape {
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
 }
 
+export interface ExtHostTerminalShellIntegrationShape {
+	$shellIntegrationChange(instanceId: number): void;
+	$shellExecutionStart(instanceId: number, commandLine: string | undefined, cwd: UriComponents | string | undefined): void;
+	$shellExecutionEnd(instanceId: number, commandLine: string | undefined, exitCode: number | undefined): void;
+	$shellExecutionData(instanceId: number, data: string): void;
+	$cwdChange(instanceId: number, cwd: UriComponents | string): void;
+	$closeTerminal(instanceId: number): void;
+}
+
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
@@ -2813,6 +2826,7 @@ export const MainContext = {
 	MainThreadSpeech: createProxyIdentifier<MainThreadSpeechShape>('MainThreadSpeechProvider'),
 	MainThreadTelemetry: createProxyIdentifier<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createProxyIdentifier<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
+	MainThreadTerminalShellIntegration: createProxyIdentifier<MainThreadTerminalShellIntegrationShape>('MainThreadTerminalShellIntegration'),
 	MainThreadWebviews: createProxyIdentifier<MainThreadWebviewsShape>('MainThreadWebviews'),
 	MainThreadWebviewPanels: createProxyIdentifier<MainThreadWebviewPanelsShape>('MainThreadWebviewPanels'),
 	MainThreadWebviewViews: createProxyIdentifier<MainThreadWebviewViewsShape>('MainThreadWebviewViews'),
@@ -2873,6 +2887,7 @@ export const ExtHostContext = {
 	ExtHostExtensionService: createProxyIdentifier<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
 	ExtHostLogLevelServiceShape: createProxyIdentifier<ExtHostLogLevelServiceShape>('ExtHostLogLevelServiceShape'),
 	ExtHostTerminalService: createProxyIdentifier<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
+	ExtHostTerminalShellIntegration: createProxyIdentifier<ExtHostTerminalShellIntegrationShape>('ExtHostTerminalShellIntegration'),
 	ExtHostSCM: createProxyIdentifier<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostSearch: createProxyIdentifier<ExtHostSearchShape>('ExtHostSearch'),
 	ExtHostTask: createProxyIdentifier<ExtHostTaskShape>('ExtHostTask'),

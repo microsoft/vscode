@@ -42,7 +42,6 @@ suite('chat', () => {
 
 		const participant = chat.createChatParticipant('api-test.participant', (request, context, _progress, _token) => {
 			emitter.fire({ request, context });
-			return null;
 		});
 		participant.isDefault = true;
 		disposables.push(participant);

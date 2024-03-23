@@ -73,6 +73,10 @@ export class ChatVariablesService implements IChatVariablesService {
 		return this._resolver.has(name.toLowerCase());
 	}
 
+	getVariable(name: string): IChatVariableData | undefined {
+		return this._resolver.get(name.toLowerCase())?.data;
+	}
+
 	getVariables(): Iterable<Readonly<IChatVariableData>> {
 		const all = Iterable.map(this._resolver.values(), data => data.data);
 		return Iterable.filter(all, data => !data.hidden);

@@ -154,6 +154,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
 
 	// Lazily initialized events that fire when the specified event fires on _any_ terminal
+	// TODO: Batch events
+	@memoize get onAnyInstanceData() { return this.createOnInstanceEvent(instance => Event.map(instance.onData, data => ({ instance, data }))); }
 	@memoize get onAnyInstanceDataInput() { return this.createOnInstanceEvent(e => e.onDidInputData); }
 	@memoize get onAnyInstanceIconChange() { return this.createOnInstanceEvent(e => e.onIconChanged); }
 	@memoize get onAnyInstanceMaximumDimensionsChange() { return this.createOnInstanceEvent(e => Event.map(e.onMaximumDimensionsChanged, () => e, e.store)); }

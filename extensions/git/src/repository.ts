@@ -1166,9 +1166,10 @@ export class Repository implements Disposable {
 		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, async () => {
 			await this.repository.stage(path, contents);
+
+			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
 		});
-		this._onDidChangeOriginalResource.fire(resource);
 	}
 
 	async revert(resources: Uri[]): Promise<void> {

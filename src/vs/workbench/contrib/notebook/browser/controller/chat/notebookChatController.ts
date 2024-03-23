@@ -34,6 +34,7 @@ import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
 import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -85,7 +86,7 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		super();
 
 		this._register(inlineChatWidget.onDidChangeHeight(() => {
-			this.heightInPx = inlineChatWidget.getHeight();
+			this.heightInPx = inlineChatWidget.contentHeight;
 			this._notebookEditor.changeViewZones(accessor => {
 				accessor.layoutZone(id);
 			});
@@ -404,6 +405,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		const inlineChatWidget = this._widgetDisposableStore.add(this._instantiationService.createInstance(
 			InlineChatWidget,
+			ChatAgentLocation.Notebook,
 			{
 				telemetrySource: 'notebook-generate-cell',
 				inputMenuId: MENU_CELL_CHAT_INPUT,
@@ -517,7 +519,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		assertType(this._activeSession);
 		this._warmupRequestCts?.dispose(true);
 		this._warmupRequestCts = undefined;
-		this._activeSession.addInput(new SessionPrompt(this._widget.inlineChatWidget.value));
+		this._activeSession.addInput(new SessionPrompt(this._widget.inlineChatWidget.value, 0, true));
 
 		assertType(this._activeSession.lastInput);
 		const value = this._activeSession.lastInput.value;
@@ -612,7 +614,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				if (!progressiveChatResponse) {
 					const message = {
 						message: new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false }),
-						providerId: this._activeSession!.provider.debugName,
+						providerId: this._activeSession!.provider.label,
 						requestId: request.requestId,
 					};
 					progressiveChatResponse = this._widget?.inlineChatWidget.updateChatMessage(message, true);

@@ -33,6 +33,8 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 export type TelemetryData = {
@@ -163,10 +165,11 @@ export class Session {
 		readonly session: IInlineChatSession,
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
+		readonly chatModel: ChatModel,
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
-			extension: provider.debugName,
+			extension: ExtensionIdentifier.toKey(provider.extensionId),
 			startTime: this._startTime.toISOString(),
 			endTime: this._startTime.toISOString(),
 			edits: 0,
@@ -281,21 +284,11 @@ export class Session {
 
 export class SessionPrompt {
 
-	private _attempt: number = 0;
-
 	constructor(
 		readonly value: string,
+		readonly attempt: number,
+		readonly withIntentDetection: boolean,
 	) { }
-
-	get attempt() {
-		return this._attempt;
-	}
-
-	retry() {
-		const result = new SessionPrompt(this.value);
-		result._attempt = this._attempt + 1;
-		return result;
-	}
 }
 
 export class SessionExchange {

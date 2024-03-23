@@ -295,7 +295,7 @@ const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: 
 	},
 	category: CHAT_CATEGORY,
 	icon: Codicon.history,
-	f1: false,
+	f1: true,
 	precondition: CONTEXT_PROVIDER_EXISTS
 });
 
