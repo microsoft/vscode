@@ -234,7 +234,6 @@ const actualMain = async () => {
 	performance.mark('code/didWaitForWindowConfig');
 	clearTimeout(timeout);
 
-	console.log({ configuration })
 	await main(configuration)
 
 }
