@@ -123,7 +123,8 @@ export interface IRecursiveWatcher extends IWatcher {
 
 	/**
 	 * Subscribe to file events for the given path. The callback is called
-	 * whenever a file event occurs for the path.
+	 * whenever a file event occurs for the path. I fthe watcher failed,
+	 * the error parameter is set to `true`.
 	 *
 	 * @returns an `IDisposable` to stop listening to events or `undefined`
 	 * if no events can be watched for the path given the current set of

@@ -86,6 +86,10 @@ class ParcelWatcherInstance extends Disposable {
 		});
 	}
 
+	hasSubscriptions(): boolean {
+		return this.subscriptions.size > 0;
+	}
+
 	notifyFileChange(path: string, change: IFileChange): void {
 		const subscriptions = this.subscriptions.get(path);
 		if (subscriptions) {
@@ -440,8 +444,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcher {
 
 		for (const event of events) {
 
-			// Emit to instance subscriptions
-			watcher.notifyFileChange(event.resource.fsPath, event);
+			// Emit to instance subscriptions if any
+			if (watcher.hasSubscriptions()) {
+				watcher.notifyFileChange(event.resource.fsPath, event);
+			}
 
 			// Logging
 			if (this.verboseLogging) {
