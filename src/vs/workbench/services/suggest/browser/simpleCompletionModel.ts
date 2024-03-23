@@ -174,8 +174,6 @@ export class SimpleCompletionModel {
 			}
 
 			item.idx = i;
-			// TODO: Word distance
-			item.distance = 1;//this._wordDistance.distance(item.position, item.completion);
 			target.push(item);
 
 			// update stats
