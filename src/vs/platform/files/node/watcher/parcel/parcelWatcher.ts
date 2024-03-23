@@ -66,6 +66,8 @@ class ParcelWatcherInstance extends Disposable {
 	}
 
 	subscribe(path: string, callback: (change: IFileChange) => void): IDisposable {
+		path = URI.file(path).fsPath; // make sure to store the path in `fsPath` form to match it with events later
+
 		let subscriptions = this.subscriptions.get(path);
 		if (!subscriptions) {
 			subscriptions = new Set();

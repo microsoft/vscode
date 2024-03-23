@@ -693,7 +693,7 @@ flakySuite('File Watcher (node.js)', () => {
 		const filePath = join(testDir, 'deep', 'conway.js');
 		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId }]);
 
-		await basicCrudTest(filePath, undefined, correlationId);
+		await basicCrudTest(filePath, true, correlationId);
 
 		await Promises.writeFile(filePath, 'Hello World');
 
