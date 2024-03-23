@@ -263,9 +263,11 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 	private readonly _onDidChange = new vscode.EventEmitter<FileItem | ReferenceItem | undefined>();
 
 	readonly onDidChangeTreeData = this._onDidChange.event;
+	readonly collapseResults: 'alwaysCollapse' | 'alwaysExpand';
 
 	constructor(private readonly _model: ReferencesModel) {
 		this._listener = _model.onDidChangeTreeData(() => this._onDidChange.fire(undefined));
+		this.collapseResults = vscode.workspace.getConfiguration().get('references.collapseResults') ?? 'alwaysCollapse';
 	}
 
 	dispose(): void {
@@ -280,7 +282,9 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			result.contextValue = 'file-item';
 			result.description = true;
 			result.iconPath = vscode.ThemeIcon.File;
-			result.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+			result.collapsibleState = this.collapseResults === 'alwaysCollapse'
+				? vscode.TreeItemCollapsibleState.Collapsed
+				: vscode.TreeItemCollapsibleState.Expanded;
 			return result;
 
 		} else {
