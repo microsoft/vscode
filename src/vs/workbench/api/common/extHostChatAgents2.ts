@@ -360,7 +360,6 @@ class ExtHostChatAgent {
 	private _supportIssueReporting: boolean | undefined;
 	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
-	private _isSticky: boolean | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
 
 	constructor(
@@ -461,7 +460,6 @@ class ExtHostChatAgent {
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					sampleRequest: this._sampleRequest,
 					supportIssueReporting: this._supportIssueReporting,
-					isSticky: this._isSticky,
 					requester: this._requester
 				});
 				updateScheduled = false;
@@ -597,13 +595,6 @@ class ExtHostChatAgent {
 				? undefined!
 				: this._onDidPerformAction.event
 			,
-			get isSticky() {
-				return that._isSticky;
-			},
-			set isSticky(v) {
-				that._isSticky = v;
-				updateMetadataSoon();
-			},
 			set requester(v) {
 				that._requester = v;
 				updateMetadataSoon();
