@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import 'mocha';
-import assert from 'assert';
+import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes';

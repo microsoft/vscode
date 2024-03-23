@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import assert from 'assert';
+import * as assert from 'assert';
 import { getLanguageModes, ClientCapabilities, TextDocument, SelectionRange } from '../modes/languageModes';
 import { getSelectionRanges } from '../modes/selectionRanges';
 import { getNodeFileFS } from '../node/nodeFs';

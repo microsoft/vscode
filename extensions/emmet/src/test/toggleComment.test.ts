@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import assert from 'assert';
+import * as assert from 'assert';
 import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { toggleComment as toggleCommentImpl } from '../toggleComment';

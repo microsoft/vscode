@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import assert from 'assert';
+import * as assert from 'assert';
 
 suite('mapped edits provider', () => {
 

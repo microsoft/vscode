@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import assert from 'assert';
+import * as assert from 'assert';
 import { Position, Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { evaluateMathExpression } from '../evaluateMathExpression';

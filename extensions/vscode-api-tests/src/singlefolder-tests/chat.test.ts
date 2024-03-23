@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import * as assert from 'assert';
 import 'mocha';
 import { commands, CancellationToken, ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, InteractiveSession, ProviderResult, chat, interactive } from 'vscode';
 import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';

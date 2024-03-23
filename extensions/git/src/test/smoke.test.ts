@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import assert from 'assert';
+import * as assert from 'assert';
 import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
