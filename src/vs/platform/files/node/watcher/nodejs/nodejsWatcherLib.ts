@@ -124,7 +124,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		if (this.doWatchWithExistingWatcher(realPath, isDirectory, disposables)) {
 			this.trace(`reusing an existing recursive watcher for ${this.request.path}`);
 		} else {
-			this.doWatchWithNodeJS(realPath, isDirectory, disposables);
+			await this.doWatchWithNodeJS(realPath, isDirectory, disposables);
 		}
 
 		return disposables;
@@ -135,20 +135,24 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			return false; // only supported for files where we have the full path known upfront
 		}
 
-		if (!this.recursiveWatcher) {
-			return false; // requires access to recursive watcher
-		}
+		const subscription = this.recursiveWatcher?.subscribe(this.request.path, async (error, change) => {
+			if (disposables.isDisposed) {
+				return; // return early if already disposed
+			}
 
-		const subscription = this.recursiveWatcher.subscribe(this.request.path, async (error, change) => {
 			if (error) {
 				const watchDisposable = await this.doWatch(realPath, isDirectory);
-				if (!disposables.isDisposed && !this.cts.token.isCancellationRequested) {
+				if (!disposables.isDisposed) {
 					disposables.add(watchDisposable);
 				} else {
 					watchDisposable.dispose();
 				}
 			} else if (change) {
 				if (typeof change.cId === 'number' || typeof this.request.correlationId === 'number') {
+					// Re-emit this change with the correlation id of the request
+					// so that the client can correlate the event with the request
+					// properly. Without correlation, we do not have to do that
+					// because the event will appear on the global listener already.
 					this.onDidFilesChange([{ ...change, cId: this.request.correlationId }]);
 				}
 			}

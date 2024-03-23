@@ -110,11 +110,11 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	private doMonitorWithExistingWatcher(request: IWatchRequestWithCorrelation, disposables: DisposableStore): boolean {
-		if (!this.recursiveWatcher) {
-			return false; // requires access to recursive watcher
-		}
+		const subscription = this.recursiveWatcher?.subscribe(request.path, (error, change) => {
+			if (disposables.isDisposed) {
+				return; // return early if already disposed
+			}
 
-		const subscription = this.recursiveWatcher.subscribe(request.path, (error, change) => {
 			if (error) {
 				this.monitorSuspendedWatchRequest(request, disposables);
 			} else if (change?.type === FileChangeType.ADDED) {
@@ -171,7 +171,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	private onMonitoredPathAdded(request: IWatchRequestWithCorrelation, resource: URI) {
-		this.trace(`fs.watchFile() detected ${request.path} exists again, resuming watcher (correlationId: ${request.correlationId})`);
+		this.trace(`detected ${request.path} exists again, resuming watcher (correlationId: ${request.correlationId})`);
 
 		// Emit as event
 		const event: IFileChange = { resource, type: FileChangeType.ADDED, cId: request.correlationId };
