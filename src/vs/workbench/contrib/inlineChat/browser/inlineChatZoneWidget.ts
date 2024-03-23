@@ -14,8 +14,9 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -41,7 +42,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, this.editor, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
-			inputMenuId: MENU_INLINE_CHAT_INPUT,
+			inputMenuId: MenuId.ChatExecute,
 			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
 			feedbackMenuId: MENU_INLINE_CHAT_WIDGET_FEEDBACK,
 			statusMenuId: {
@@ -59,7 +60,12 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				}
 			}
 		});
-		this._disposables.add(this.widget.onDidChangeHeight(() => this._relayout()));
+		this._disposables.add(this.widget.onDidChangeHeight(() => {
+			if (this.position) {
+				// only relayout when visible
+				this._relayout(this._computeHeightInLines());
+			}
+		}));
 		this._disposables.add(this.widget);
 		this.create();
 
@@ -105,22 +111,19 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	private _computeHeightInLines(): number {
-		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-		const widgetHeight = this.widget.getHeight();
-		return widgetHeight / lineHeight;
+		const chatContentHeight = this.widget.contentHeight;
+		const editorHeight = this.editor.getLayoutInfo().height;
+
+		const contentHeight = Math.min(chatContentHeight, editorHeight * 0.42);
+		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
+		// console.log('ZONE#_computeHeightInLines', { chatContentHeight, editorHeight, contentHeight, heightInLines });
+		return heightInLines;
 	}
 
 	protected override _onWidth(_widthInPixel: number): void {
 		if (this._dimension) {
 			this._doLayout(this._dimension.height);
 		}
-	}
-
-	protected override _relayout() {
-		if (this._dimension) {
-			this._doLayout(this._dimension.height);
-		}
-		super._relayout(this._computeHeightInLines());
 	}
 
 	override show(position: Position): void {
@@ -131,14 +134,13 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
 
 		this._setWidgetMargins(position);
-		this.widget.takeInputWidgetOwnership();
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 	}
 
 	override updatePositionAndHeight(position: Position): void {
 		this._setWidgetMargins(position);
-		super.updatePositionAndHeight(position);
+		super.updatePositionAndHeight(position, this._computeHeightInLines());
 	}
 
 	protected override _getWidth(info: EditorLayoutInfo): number {

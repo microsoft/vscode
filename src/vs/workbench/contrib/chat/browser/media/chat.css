@@ -430,6 +430,11 @@
 	flex-direction: column;
 }
 
+.interactive-session .interactive-input-part.compact {
+	margin: 0;
+	padding: 6px 0px;
+}
+
 .interactive-session .chat-implicit-context {
 	padding: 8px 8px 13px;
 	margin-bottom: -5px;

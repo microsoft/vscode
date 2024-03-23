@@ -60,7 +60,7 @@
         },
         metadata: {  },
         slashCommands: [  ],
-        locations: [ 1 ],
+        locations: [ "panel" ],
         isDefault: undefined
       },
       slashCommand: undefined,

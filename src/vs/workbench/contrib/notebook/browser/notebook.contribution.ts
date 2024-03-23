@@ -1101,9 +1101,9 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		[NotebookSetting.cellFailureDiagnostics]: {
-			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Enable experimental diagnostics for cell failures."),
+			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Show available diagnostics for cell failures."),
 			type: 'boolean',
-			default: false
+			default: true
 		},
 	}
 });

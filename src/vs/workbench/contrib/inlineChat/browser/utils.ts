@@ -77,7 +77,7 @@ export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdi
 
 export function asProgressiveEdit(interval: IntervalTimer, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
 
-	wordsPerSec = Math.max(10, wordsPerSec);
+	wordsPerSec = Math.max(30, wordsPerSec);
 
 	const stream = new AsyncIterableSource<string>();
 	let newText = edit.text ?? '';

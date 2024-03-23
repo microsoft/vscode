@@ -10,6 +10,7 @@ import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkE
 import { ExtHostContext, ExtHostInlineChatShape, MainContext, MainThreadInlineChatShape as MainThreadInlineChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IProgress } from 'vs/platform/progress/common/progress';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadInlineChat)
 export class MainThreadInlineChat implements MainThreadInlineChatShape {
@@ -31,9 +32,9 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 		this._registrations.dispose();
 	}
 
-	async $registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean, supportsFollowups: boolean, supportIssueReporting: boolean): Promise<void> {
+	async $registerInteractiveEditorProvider(handle: number, label: string, extensionId: ExtensionIdentifier, supportsFeedback: boolean, supportsFollowups: boolean, supportIssueReporting: boolean): Promise<void> {
 		const unreg = this._inlineChatService.addProvider({
-			debugName,
+			extensionId,
 			label,
 			supportIssueReporting,
 			prepareInlineChatSession: async (model, range, token) => {

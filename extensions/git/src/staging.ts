@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Range, LineChange, Selection } from 'vscode';
+import { TextDocument, Range, LineChange, Selection, Uri } from 'vscode';
 
 export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
 	const result: string[] = [];
@@ -149,4 +149,7 @@ export interface DiffEditorSelectionHunkToolbarContext {
 	 * The original text with the selected modified changes applied.
 	*/
 	originalWithModifiedChanges: string;
+
+	modifiedUri: Uri;
+	originalUri: Uri;
 }

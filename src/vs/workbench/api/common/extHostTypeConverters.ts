@@ -2439,15 +2439,38 @@ export namespace ChatResponseCommandButtonPart {
 
 export namespace ChatResponseReferencePart {
 	export function to(part: vscode.ChatResponseReferencePart): Dto<IChatContentReference> {
+		if ('variableName' in part.value) {
+			return {
+				kind: 'reference',
+				reference: {
+					variableName: part.value.variableName,
+					value: URI.isUri(part.value.value) ?
+						part.value.value :
+						Location.from(<vscode.Location>part.value.value)
+				}
+			};
+		}
+
 		return {
 			kind: 'reference',
-			reference: !URI.isUri(part.value) ? Location.from(<vscode.Location>part.value) : part.value
+			reference: URI.isUri(part.value) ?
+				part.value :
+				Location.from(<vscode.Location>part.value)
 		};
 	}
 	export function from(part: Dto<IChatContentReference>): vscode.ChatResponseReferencePart {
 		const value = revive<IChatContentReference>(part);
+
+		const mapValue = (value: URI | languages.Location): vscode.Uri | vscode.Location => URI.isUri(value) ?
+			value :
+			Location.to(value);
+
 		return new types.ChatResponseReferencePart(
-			URI.isUri(value.reference) ? value.reference : Location.to(value.reference)
+			'variableName' in value.reference ? {
+				variableName: value.reference.variableName,
+				value: value.reference.value && mapValue(value.reference.value)
+			} :
+				mapValue(value.reference)
 		);
 	}
 }
@@ -2556,36 +2579,6 @@ export namespace ChatResponseProgress {
 		}
 	}
 
-	export function to(progress: extHostProtocol.IChatProgressDto): vscode.ChatProgress | undefined {
-		switch (progress.kind) {
-			case 'markdownContent':
-			case 'inlineReference':
-			case 'treeData':
-				return ChatResponseProgress.to(progress);
-			case 'content':
-				return { content: progress.content };
-			case 'usedContext':
-				return { documents: progress.documents.map(d => ({ uri: URI.revive(d.uri), version: d.version, ranges: d.ranges.map(r => Range.to(r)) })) };
-			case 'reference':
-				return {
-					reference:
-						isUriComponents(progress.reference) ?
-							URI.revive(progress.reference) :
-							Location.to(progress.reference)
-				};
-			case 'agentDetection':
-				// For simplicity, don't sent back the 'extended' types
-				return undefined;
-			case 'progressMessage':
-				return { message: progress.content.value };
-			case 'vulnerability':
-				return { content: progress.content, vulnerabilities: progress.vulnerabilities };
-			default:
-				// Unknown type, eg something in history that was removed? Ignore
-				return undefined;
-		}
-	}
-
 	export function toProgressContent(progress: extHostProtocol.IChatContentProgressDto, commandsConverter: Command.ICommandsConverter): vscode.ChatContentProgress | undefined {
 		switch (progress.kind) {
 			case 'markdownContent':
@@ -2628,6 +2621,7 @@ export namespace ChatLocation {
 			case ChatAgentLocation.Notebook: return types.ChatLocation.Notebook;
 			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
 			case ChatAgentLocation.Panel: return types.ChatLocation.Panel;
+			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
 		}
 	}
 }

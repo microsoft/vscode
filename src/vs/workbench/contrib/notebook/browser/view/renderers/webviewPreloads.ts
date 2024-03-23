@@ -521,24 +521,55 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
+	let previousDelta: number | undefined;
 	let scrollTimeout: any /* NodeJS.Timeout */ | undefined;
 	let scrolledElement: Element | undefined;
-	function flagRecentlyScrolled(node: Element) {
+	let lastTimeScrolled: number | undefined;
+	function flagRecentlyScrolled(node: Element, deltaY?: number) {
 		scrolledElement = node;
-		node.setAttribute('recentlyScrolled', 'true');
-		clearTimeout(scrollTimeout);
-		scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+		if (!deltaY) {
+			lastTimeScrolled = Date.now();
+			previousDelta = undefined;
+			node.setAttribute('recentlyScrolled', 'true');
+			clearTimeout(scrollTimeout);
+			scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+			return true;
+		}
+
+		if (node.hasAttribute('recentlyScrolled')) {
+			if (lastTimeScrolled && Date.now() - lastTimeScrolled > 300) {
+				// it has been a while since we actually scrolled
+				// if scroll velocity increases, it's likely a new scroll event
+				if (!!previousDelta && deltaY < 0 && deltaY < previousDelta - 2) {
+					clearTimeout(scrollTimeout);
+					scrolledElement?.removeAttribute('recentlyScrolled');
+					return false;
+				} else if (!!previousDelta && deltaY > 0 && deltaY > previousDelta + 2) {
+					clearTimeout(scrollTimeout);
+					scrolledElement?.removeAttribute('recentlyScrolled');
+					return false;
+				}
+
+				// the tail end of a smooth scrolling event (from a trackpad) can go on for a while
+				// so keep swallowing it, but we can shorten the timeout since the events occur rapidly
+				clearTimeout(scrollTimeout);
+				scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 50);
+			} else {
+				clearTimeout(scrollTimeout);
+				scrollTimeout = setTimeout(() => { scrolledElement?.removeAttribute('recentlyScrolled'); }, 300);
+			}
+
+			previousDelta = deltaY;
+			return true;
+		}
+
+		return false;
 	}
 
 	function eventTargetShouldHandleScroll(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
 			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('cell_container') || node.classList.contains('markup') || node.classList.contains('output_container')) {
 				return false;
-			}
-
-			if (node.hasAttribute('recentlyScrolled') && scrolledElement === node) {
-				flagRecentlyScrolled(node);
-				return true;
 			}
 
 			// scroll up
@@ -563,6 +594,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				flagRecentlyScrolled(node);
+				return true;
+			}
+
+			if (flagRecentlyScrolled(node, event.deltaY)) {
 				return true;
 			}
 		}

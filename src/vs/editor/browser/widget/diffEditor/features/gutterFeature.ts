@@ -9,6 +9,7 @@ import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { URI } from 'vs/base/common/uri';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { appendRemoveOnDispose, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
@@ -69,7 +70,15 @@ export class DiffEditorGutter extends Disposable {
 				const selection = this._selectedDiffs.read(reader);
 				if (selection.length > 0) {
 					const m = DetailedLineRangeMapping.fromRangeMappings(selection.flatMap(s => s.rangeMappings));
-					return [new DiffGutterItem(m, true, MenuId.DiffEditorSelectionToolbar, undefined)];
+					return [
+						new DiffGutterItem(
+							m,
+							true,
+							MenuId.DiffEditorSelectionToolbar,
+							undefined,
+							model.model.original.uri,
+							model.model.modified.uri,
+						)];
 				}
 
 				const currentDiff = this._currentDiff.read(reader);
@@ -79,6 +88,8 @@ export class DiffEditorGutter extends Disposable {
 					m.lineRangeMapping === currentDiff?.lineRangeMapping,
 					MenuId.DiffEditorHunkToolbar,
 					undefined,
+					model.model.original.uri,
+					model.model.modified.uri,
 				));
 			},
 			createView: (item, target) => {
@@ -87,7 +98,7 @@ export class DiffEditorGutter extends Disposable {
 		}));
 
 		this._register(addDisposableListener(this.elements.gutter, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
-			if (!this._editors.modified.getOption(EditorOption.scrollbar).handleMouseWheel) {
+			if (this._editors.modified.getOption(EditorOption.scrollbar).handleMouseWheel) {
 				this._editors.modified.delegateScrollFromMouseWheelEvent(e);
 			}
 		}, { passive: false }));
@@ -149,6 +160,8 @@ class DiffGutterItem implements IGutterItemInfo {
 		public readonly showAlways: boolean,
 		public readonly menuId: MenuId,
 		public readonly rangeOverride: LineRange | undefined,
+		public readonly originalUri: URI,
+		public readonly modifiedUri: URI,
 	) {
 	}
 	get id(): string { return this.mapping.modified.toString(); }
@@ -174,8 +187,6 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-
-		//const r = new ObservableElementSizeObserver
 
 		const hoverDelegate = this._register(instantiationService.createInstance(
 			WorkbenchHoverDelegate,
@@ -208,10 +219,13 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 				overflowBehavior: { maxItems: this._isSmall.read(reader) ? 1 : 3 },
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				actionRunner: new ActionRunnerWithContext(() => {
-					const mapping = this._item.get().mapping;
+					const item = this._item.get();
+					const mapping = item.mapping;
 					return {
 						mapping,
 						originalWithModifiedChanges: gutter.computeStagedValue(mapping),
+						originalUri: item.originalUri,
+						modifiedUri: item.modifiedUri,
 					} satisfies DiffEditorSelectionHunkToolbarContext;
 				}),
 				menuOptions: {
@@ -273,4 +287,7 @@ export interface DiffEditorSelectionHunkToolbarContext {
 	 * The original text with the selected modified changes applied.
 	*/
 	originalWithModifiedChanges: string;
+
+	modifiedUri: URI;
+	originalUri: URI;
 }

@@ -721,6 +721,8 @@
 		"--vscode-testing-uncoveredBorder",
 		"--vscode-testing-uncoveredBranchBackground",
 		"--vscode-testing-uncoveredGutterBackground",
+		"--vscode-testing-uncoveredGutterBackground",
+		"--vscode-testing-coverage-lineHeight",
 		"--vscode-textBlockQuote-background",
 		"--vscode-textBlockQuote-border",
 		"--vscode-textCodeBlock-background",
