@@ -654,7 +654,8 @@ export function insertCell(
 	type: CellKind,
 	direction: 'above' | 'below' = 'above',
 	initialText: string = '',
-	ui: boolean = false
+	ui: boolean = false,
+	targetLanguage: string | undefined = undefined
 ) {
 	const viewModel = editor.getViewModel() as NotebookViewModel;
 	const activeKernel = editor.activeKernel;
@@ -664,34 +665,37 @@ export function insertCell(
 
 	const cell = editor.cellAt(index);
 	const nextIndex = ui ? viewModel.getNextVisibleCellIndex(index) : index + 1;
-	let language;
-	if (type === CellKind.Code) {
-		const supportedLanguages = activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds();
-		const defaultLanguage = supportedLanguages[0] || PLAINTEXT_LANGUAGE_ID;
-		if (cell?.cellKind === CellKind.Code) {
-			language = cell.language;
-		} else if (cell?.cellKind === CellKind.Markup) {
-			const nearestCodeCellIndex = viewModel.nearestCodeCellIndex(index);
-			if (nearestCodeCellIndex > -1) {
-				language = viewModel.cellAt(nearestCodeCellIndex)!.language;
+	let language = targetLanguage;
+
+	if (language === undefined) {
+		if (type === CellKind.Code) {
+			const supportedLanguages = activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds();
+			const defaultLanguage = supportedLanguages[0] || PLAINTEXT_LANGUAGE_ID;
+			if (cell?.cellKind === CellKind.Code) {
+				language = cell.language;
+			} else if (cell?.cellKind === CellKind.Markup) {
+				const nearestCodeCellIndex = viewModel.nearestCodeCellIndex(index);
+				if (nearestCodeCellIndex > -1) {
+					language = viewModel.cellAt(nearestCodeCellIndex)!.language;
+				} else {
+					language = defaultLanguage;
+				}
 			} else {
+				if (cell === undefined && direction === 'above') {
+					// insert cell at the very top
+					language = viewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || defaultLanguage;
+				} else {
+					language = defaultLanguage;
+				}
+			}
+
+			if (!supportedLanguages.includes(language)) {
+				// the language no longer exists
 				language = defaultLanguage;
 			}
 		} else {
-			if (cell === undefined && direction === 'above') {
-				// insert cell at the very top
-				language = viewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || defaultLanguage;
-			} else {
-				language = defaultLanguage;
-			}
+			language = 'markdown';
 		}
-
-		if (!supportedLanguages.includes(language)) {
-			// the language no longer exists
-			language = defaultLanguage;
-		}
-	} else {
-		language = 'markdown';
 	}
 
 	const insertIndex = cell ?

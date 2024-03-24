@@ -84,6 +84,10 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 			return false;
 		}
 
+		if (activeCell.language === 'prompt-cell') {
+			return false;
+		}
+
 		return true;
 	}
 }
