@@ -176,11 +176,11 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 						format: presentationFormat,
 						blend: {
 							color: {
-								srcFactor: 'one',
+								srcFactor: 'src-alpha',
 								dstFactor: 'one-minus-src-alpha'
 							},
 							alpha: {
-								srcFactor: 'one',
+								srcFactor: 'src-alpha',
 								dstFactor: 'one-minus-src-alpha'
 							},
 						},
