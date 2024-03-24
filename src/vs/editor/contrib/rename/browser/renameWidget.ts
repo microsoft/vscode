@@ -16,7 +16,7 @@ import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType, isDefined } from 'vs/base/common/types';
-import 'vs/css!./renameInputField';
+import 'vs/css!./renameWidget';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -66,24 +66,24 @@ export type NewNameSource =
 /**
  * Various statistics regarding rename input field
  */
-export type RenameInputFieldStats = {
+export type RenameWidgetStats = {
 	nRenameSuggestions: number;
 	source: NewNameSource;
 	timeBeforeFirstInputFieldEdit: number | undefined;
 };
 
-export type RenameInputFieldResult = {
+export type RenameWidgetResult = {
 	/**
 	 * The new name to be used
 	 */
 	newName: string;
 	wantsPreview?: boolean;
-	stats: RenameInputFieldStats;
+	stats: RenameWidgetStats;
 };
 
-interface IRenameInputField {
+interface IRenameWidget {
 	/**
-	 * @returns a `boolean` standing for `shouldFocusEditor`, if user didn't pick a new name, or a {@link RenameInputFieldResult}
+	 * @returns a `boolean` standing for `shouldFocusEditor`, if user didn't pick a new name, or a {@link RenameWidgetResult}
 	 */
 	getInput(
 		where: IRange,
@@ -91,7 +91,7 @@ interface IRenameInputField {
 		supportPreview: boolean,
 		requestRenameSuggestions: (cts: CancellationToken) => ProviderResult<NewSymbolName[]>[],
 		cts: CancellationTokenSource
-	): Promise<RenameInputFieldResult | boolean>;
+	): Promise<RenameWidgetResult | boolean>;
 
 	acceptInput(wantsPreview: boolean): void;
 	cancelInput(focusEditor: boolean, caller: string): void;
@@ -100,7 +100,7 @@ interface IRenameInputField {
 	focusPreviousRenameSuggestion(): void;
 }
 
-export class RenameWidget implements IRenameInputField, IContentWidget, IDisposable {
+export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable {
 
 	// implement IContentWidget
 	readonly allowEditorOverflow: boolean = true;
@@ -243,7 +243,7 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 		if (this._domNode === undefined) {
 			return;
 		}
-		assertType(this._label !== undefined, 'RenameInputField#_updateFont: _label must not be undefined given _domNode is defined');
+		assertType(this._label !== undefined, 'RenameWidget#_updateFont: _label must not be undefined given _domNode is defined');
 
 		this._editor.applyFontInfo(this._input.domNode);
 
@@ -361,14 +361,14 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 		where: IRange,
 		currentName: string,
 		supportPreview: boolean,
-		requestRenameSuggestions: (cts: CancellationToken) => ProviderResult<NewSymbolName[]>[],
+		requestRenameCandidates: (cts: CancellationToken) => ProviderResult<NewSymbolName[]>[],
 		cts: CancellationTokenSource
-	): Promise<RenameInputFieldResult | boolean> {
+	): Promise<RenameWidgetResult | boolean> {
 
 		const { start: selectionStart, end: selectionEnd } = this._getSelection(where, currentName);
 
 		this._renameCandidateProvidersCts = new CancellationTokenSource();
-		const candidates = requestRenameSuggestions(this._renameCandidateProvidersCts.token);
+		const candidates = requestRenameCandidates(this._renameCandidateProvidersCts.token);
 		this._updateRenameCandidates(candidates, currentName, cts.token);
 
 		this._isEditingRenameCandidate = false;
@@ -395,7 +395,7 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 			}
 		}));
 
-		const inputResult = new DeferredPromise<RenameInputFieldResult | boolean>();
+		const inputResult = new DeferredPromise<RenameWidgetResult | boolean>();
 
 		inputResult.p.finally(() => {
 			disposeOnDone.dispose();
@@ -547,7 +547,7 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 		if (visibleRanges.length > 0) {
 			firstLineInViewport = visibleRanges[0].startLineNumber;
 		} else {
-			this._logService.warn('RenameInputField#_getTopForPosition: this should not happen - visibleRanges is empty');
+			this._logService.warn('RenameWidget#_getTopForPosition: this should not happen - visibleRanges is empty');
 			firstLineInViewport = Math.max(1, this._position!.lineNumber - 5); // @ulugbekna: fallback to current line minus 5
 		}
 		return this._editor.getTopForLineNumber(this._position!.lineNumber) - this._editor.getTopForLineNumber(firstLineInViewport);
@@ -559,12 +559,6 @@ export class RenameWidget implements IRenameInputField, IContentWidget, IDisposa
 }
 
 class RenameCandidateListView {
-
-	private readonly _onDidFocusChange = new Emitter<NewSymbolName>();
-	readonly onDidFocusChange = this._onDidFocusChange.event;
-
-	private readonly _onDidSelectionChange = new Emitter<void>();
-	readonly onDidSelectionChange = this._onDidSelectionChange.event;
 
 	/** Parent node of the list widget; needed to control # of list elements visible */
 	private readonly _listContainer: HTMLDivElement;

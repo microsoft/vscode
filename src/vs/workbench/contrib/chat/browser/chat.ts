@@ -9,10 +9,11 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
@@ -90,6 +91,14 @@ export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderStyle?: 'default' | 'compact';
 	supportsFileReferences?: boolean;
+	filter?: (item: ChatTreeItem) => boolean;
+	editableCodeBlocks?: boolean;
+	menus?: {
+		executeToolbar?: MenuId;
+		inputSideToolbar?: MenuId;
+		telemetrySource?: string;
+	};
+	editorOverflowWidgetsDomNode?: HTMLElement;
 }
 
 export interface IChatViewViewContext {
@@ -106,6 +115,7 @@ export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
+	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;

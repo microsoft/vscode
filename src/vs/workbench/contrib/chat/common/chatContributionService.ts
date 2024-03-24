@@ -44,6 +44,7 @@ export interface IRawChatParticipantContribution {
 	name: string;
 	description?: string;
 	isDefault?: boolean;
+	isSticky?: boolean;
 	commands?: IRawChatCommandContribution[];
 	defaultImplicitVariables?: string[];
 	locations?: RawChatParticipantLocation[];

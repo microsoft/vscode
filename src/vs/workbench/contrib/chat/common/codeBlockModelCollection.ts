@@ -108,15 +108,22 @@ export class CodeBlockModelCollection extends Disposable {
 
 		return {
 			references: chat.contentReferences.map(ref => {
-				if (URI.isUri(ref.reference)) {
+				const uriOrLocation = 'variableName' in ref.reference ?
+					ref.reference.value :
+					ref.reference;
+				if (!uriOrLocation) {
+					return;
+				}
+
+				if (URI.isUri(uriOrLocation)) {
 					return {
-						uri: ref.reference.toJSON()
+						uri: uriOrLocation.toJSON()
 					};
 				}
 
 				return {
-					uri: ref.reference.uri.toJSON(),
-					range: ref.reference.range,
+					uri: uriOrLocation.uri.toJSON(),
+					range: uriOrLocation.range,
 				};
 			})
 		};

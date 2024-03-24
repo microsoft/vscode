@@ -644,7 +644,7 @@ function getRealType(type: string) {
 
 async function processArtifact(artifact: Artifact, artifactFilePath: string): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
-	const match = /^vscode(?:_legacy)?_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
+	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
 		throw new Error(`Invalid artifact name: ${artifact.name}`);
@@ -712,6 +712,7 @@ async function main() {
 	const stages = new Set<string>(['Compile', 'CompileCLI']);
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER') === 'True') { stages.add('LinuxLegacyServer'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }

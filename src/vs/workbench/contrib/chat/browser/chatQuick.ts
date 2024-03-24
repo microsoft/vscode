@@ -10,6 +10,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -19,6 +20,7 @@ import { editorBackground, inputBackground, quickInputBackground, quickInputFore
 import { IChatWidgetService, IQuickChatService, IQuickChatOpenOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -75,10 +77,12 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	open(providerId?: string, options?: IQuickChatOpenOptions): void {
 		if (this._input) {
 			if (this._currentChat && options?.query) {
+				this._currentChat.focus();
 				this._currentChat.setValue(options.query, options.selection);
 				if (!options.isPartialQuery) {
 					this._currentChat.acceptInput();
 				}
+				return;
 			}
 			return this.focus();
 		}
@@ -225,8 +229,9 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
+				ChatAgentLocation.Panel,
 				{ resource: true },
-				{ renderInputOnTop: true, renderStyle: 'compact' },
+				{ renderInputOnTop: true, renderStyle: 'compact', menus: { inputSideToolbar: MenuId.ChatInputSide } },
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,

@@ -55,7 +55,7 @@ registerActiveXtermAction({
 	icon: Codicon.close,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET,
-		group: 'main',
+		group: 'navigation',
 		order: 2
 	},
 	f1: true,
@@ -227,7 +227,7 @@ registerActiveXtermAction({
 	},
 	{
 		id: MENU_TERMINAL_CHAT_WIDGET,
-		group: 'main',
+		group: 'navigation',
 		order: 1,
 		when: ContextKeyExpr.and(CTX_INLINE_CHAT_EMPTY.negate(), TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate()),
 	}],
@@ -258,7 +258,7 @@ registerActiveXtermAction({
 	},
 	menu: {
 		id: MENU_TERMINAL_CHAT_INPUT,
-		group: 'main',
+		group: 'navigation',
 		order: 1,
 		when: TerminalChatContextKeys.requestActive.negate(),
 	},
@@ -282,7 +282,7 @@ registerActiveXtermAction({
 	icon: Codicon.debugStop,
 	menu: {
 		id: MENU_TERMINAL_CHAT_INPUT,
-		group: 'main',
+		group: 'navigation',
 		when: TerminalChatContextKeys.requestActive,
 	},
 	run: (_xterm, _accessor, activeInstance) => {
@@ -291,54 +291,6 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
 		contr?.cancel();
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.FeedbackHelpful,
-	title: localize2('feedbackHelpful', 'Helpful'),
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined)
-	),
-	icon: Codicon.thumbsup,
-	toggled: TerminalChatContextKeys.sessionResponseVote.isEqualTo('up'),
-	menu: {
-		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-		group: 'inline',
-		order: 1,
-		when: TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined),
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.acceptFeedback(true);
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.FeedbackUnhelpful,
-	title: localize2('feedbackUnhelpful', 'Unhelpful'),
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined),
-	),
-	toggled: TerminalChatContextKeys.sessionResponseVote.isEqualTo('down'),
-	icon: Codicon.thumbsdown,
-	menu: {
-		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-		group: 'inline',
-		order: 2,
-		when: TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined),
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.acceptFeedback(false);
 	}
 });
 
@@ -364,45 +316,5 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
 		contr?.acceptFeedback();
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.PreviousFromHistory,
-	title: localize2('previousFromHistory', 'Previous From History'),
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined)
-	),
-	keybinding: {
-		weight: KeybindingWeight.EditorCore + 10, // win against core_command
-		primary: KeyCode.UpArrow,
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.populateHistory(true);
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.NextFromHistory,
-	title: localize2('nextFromHistory', 'Next From History'),
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined)
-	),
-	keybinding: {
-		weight: KeybindingWeight.EditorCore + 10, // win against core_command
-		primary: KeyCode.DownArrow,
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.populateHistory(false);
 	}
 });

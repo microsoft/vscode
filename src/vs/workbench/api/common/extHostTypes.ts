@@ -4298,8 +4298,8 @@ export class ChatResponseCommandButtonPart {
 }
 
 export class ChatResponseReferencePart {
-	value: vscode.Uri | vscode.Location;
-	constructor(value: vscode.Uri | vscode.Location) {
+	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }) {
 		this.value = value;
 	}
 }
@@ -4327,7 +4327,8 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 export enum ChatLocation {
 	Panel = 1,
 	Terminal = 2,
-	Notebook = 3
+	Notebook = 3,
+	Editor = 4,
 }
 
 export class LanguageModelChatSystemMessage {
@@ -4350,9 +4351,11 @@ export class LanguageModelChatUserMessage {
 
 export class LanguageModelChatAssistantMessage {
 	content: string;
+	name?: string;
 
-	constructor(content: string) {
+	constructor(content: string, name?: string) {
 		this.content = content;
+		this.name = name;
 	}
 }
 
