@@ -56,6 +56,12 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	readonly ready = this.watch();
 
+	private _isReusingRecursiveWatcher = false;
+	get isReusingRecursiveWatcher(): boolean { return this._isReusingRecursiveWatcher; }
+
+	private _didFail = false;
+	get failed(): boolean { return this._didFail; }
+
 	constructor(
 		private readonly request: INonRecursiveWatchRequest,
 		protected readonly recursiveWatcher: IRecursiveWatcherWithSubscribe | undefined,
@@ -89,8 +95,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				this.trace(`ignoring a path for watching who's stat info failed to resolve: ${this.request.path} (error: ${error})`);
 			}
 
-			this.onDidWatchFail?.();
+			this.notifyWatchFailed();
 		}
+	}
+
+	private notifyWatchFailed(): void {
+		this._didFail = true;
+
+		this.onDidWatchFail?.();
 	}
 
 	private async normalizePath(request: INonRecursiveWatchRequest): Promise<string> {
@@ -123,7 +135,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		if (this.doWatchWithExistingWatcher(realPath, isDirectory, disposables)) {
 			this.trace(`reusing an existing recursive watcher for ${this.request.path}`);
+			this._isReusingRecursiveWatcher = true;
 		} else {
+			this._isReusingRecursiveWatcher = false;
 			await this.doWatchWithNodeJS(realPath, isDirectory, disposables);
 		}
 
@@ -230,7 +244,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${code}, ${signal})`);
 
-				this.onDidWatchFail?.();
+				this.notifyWatchFailed();
 			});
 
 			watcher.on('change', (type, raw) => {
@@ -410,7 +424,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${error.toString()})`);
 			}
 
-			this.onDidWatchFail?.();
+			this.notifyWatchFailed();
 		}
 	}
 
@@ -421,7 +435,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		this.onFileChange({ resource, type: FileChangeType.DELETED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
 		this.fileChangesAggregator.flush();
 
-		this.onDidWatchFail?.();
+		this.notifyWatchFailed();
 	}
 
 	private onFileChange(event: IFileChange, skipIncludeExcludeChecks = false): void {

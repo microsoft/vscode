@@ -166,4 +166,21 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	private toMessage(message: string, watcher?: INodeJSWatcherInstance): string {
 		return watcher ? `[File Watcher (node.js)] ${message} (${this.requestToString(watcher.request)})` : `[File Watcher (node.js)] ${message}`;
 	}
+
+	override fillRequestStats(lines: string[]): void {
+		const watchers = Array.from(this.watchers.values());
+		watchers.sort((w1, w2) => w1.request.path.length - w2.request.path.length);
+
+		lines.push(`\n[Non-Recursive Watchers (${this.watchers.size})]:`);
+		for (const watcher of watchers) {
+			const decorations = [];
+			if (watcher.instance.failed) {
+				decorations.push('[FAILED]');
+			}
+			if (watcher.instance.isReusingRecursiveWatcher) {
+				decorations.push('[REUSING]');
+			}
+			lines.push(`- ${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${this.requestDetailsToString(watcher.request)})`);
+		}
+	}
 }

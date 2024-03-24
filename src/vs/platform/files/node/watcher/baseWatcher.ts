@@ -25,6 +25,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	private readonly allCorrelatedWatchRequests = new Map<number /* correlation ID */, IWatchRequestWithCorrelation>();
 
 	private readonly suspendedWatchRequests = this._register(new DisposableMap<number /* correlation ID */>());
+	private readonly suspendedWatchRequestsWithPolling = new Set<number /* correlation ID */>();
 
 	protected readonly suspendedWatchRequestPollingInterval: number = 5007; // node.js default
 
@@ -69,6 +70,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		for (const [correlationId] of this.suspendedWatchRequests) {
 			if (!this.allCorrelatedWatchRequests.has(correlationId)) {
 				this.suspendedWatchRequests.deleteAndDispose(correlationId);
+				this.suspendedWatchRequestsWithPolling.delete(correlationId);
 			}
 		}
 
@@ -80,6 +82,14 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			...this.allNonCorrelatedWatchRequests,
 			...Array.from(this.allCorrelatedWatchRequests.values()).filter(request => !this.suspendedWatchRequests.has(request.correlationId))
 		]);
+	}
+
+	isSuspended(request: IUniversalWatchRequest): 'polling' | boolean {
+		if (typeof request.correlationId !== 'number') {
+			return false;
+		}
+
+		return this.suspendedWatchRequestsWithPolling.has(request.correlationId) ? 'polling' : this.suspendedWatchRequests.has(request.correlationId);
 	}
 
 	private suspendWatchRequest(request: IWatchRequestWithCorrelation): void {
@@ -97,6 +107,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	private resumeWatchRequest(request: IWatchRequestWithCorrelation): void {
 		this.suspendedWatchRequests.deleteAndDispose(request.correlationId);
+		this.suspendedWatchRequestsWithPolling.delete(request.correlationId);
 
 		this.updateWatchers();
 	}
@@ -104,8 +115,10 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	private monitorSuspendedWatchRequest(request: IWatchRequestWithCorrelation, disposables: DisposableStore): void {
 		if (this.doMonitorWithExistingWatcher(request, disposables)) {
 			this.trace(`reusing an existing recursive watcher to monitor ${request.path}`);
+			this.suspendedWatchRequestsWithPolling.delete(request.correlationId);
 		} else {
 			this.doMonitorWithNodeJS(request, disposables);
+			this.suspendedWatchRequestsWithPolling.add(request.correlationId);
 		}
 	}
 
@@ -188,6 +201,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	async stop(): Promise<void> {
 		this.suspendedWatchRequests.clearAndDisposeAll();
+		this.suspendedWatchRequestsWithPolling.clear();
 	}
 
 	protected traceEvent(event: IFileChange, request: IUniversalWatchRequest): void {
@@ -196,7 +210,11 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	protected requestToString(request: IUniversalWatchRequest): string {
-		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
+		return `${request.path} (${this.requestDetailsToString(request)})`;
+	}
+
+	protected requestDetailsToString(request: IUniversalWatchRequest): string {
+		return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}`;
 	}
 
 	protected abstract doWatch(requests: IUniversalWatchRequest[]): Promise<void>;
@@ -208,4 +226,6 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	abstract onDidError: Event<string>;
 	abstract setVerboseLogging(enabled: boolean): Promise<void>;
+
+	abstract fillRequestStats(lines: string[]): void;
 }

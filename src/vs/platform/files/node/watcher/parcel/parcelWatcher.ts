@@ -33,6 +33,7 @@ class ParcelWatcherInstance extends Disposable {
 	readonly onDidFail = this._onDidFail.event;
 
 	private didFail = false;
+	private didStop = false;
 
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
 	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
@@ -88,8 +89,8 @@ class ParcelWatcherInstance extends Disposable {
 		});
 	}
 
-	hasSubscriptions(): boolean {
-		return this.subscriptions.size > 0;
+	subscriptionsCount(): number {
+		return this.subscriptions.size;
 	}
 
 	notifyFileChange(path: string, change: IFileChange): void {
@@ -105,6 +106,10 @@ class ParcelWatcherInstance extends Disposable {
 		this.didFail = true;
 
 		this._onDidFail.fire();
+	}
+
+	isFailed(): boolean {
+		return this.didFail;
 	}
 
 	include(path: string): boolean {
@@ -123,7 +128,13 @@ class ParcelWatcherInstance extends Disposable {
 		return Boolean(this.excludes?.some(exclude => exclude(path)));
 	}
 
+	isStopped(): boolean {
+		return this.didStop;
+	}
+
 	async stop(): Promise<void> {
+		this.didStop = true;
+
 		try {
 			await this.stopFn();
 		} finally {
@@ -447,7 +458,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		for (const event of events) {
 
 			// Emit to instance subscriptions if any
-			if (watcher.hasSubscriptions()) {
+			if (watcher.subscriptionsCount() > 0) {
 				watcher.notifyFileChange(event.resource.fsPath, event);
 			}
 
@@ -826,4 +837,24 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	}
 
 	protected get recursiveWatcher() { return this; }
+
+	override fillRequestStats(lines: string[]): void {
+		const watchers = Array.from(this.watchers.values());
+		watchers.sort((w1, w2) => w1.request.path.length - w2.request.path.length);
+
+		lines.push(`\n[Recursive Watchers (${this.watchers.size})]:`);
+		for (const watcher of watchers) {
+			const decorations = [];
+			if (watcher.isFailed()) {
+				decorations.push('[FAILED]');
+			}
+			if (watcher.isStopped()) {
+				decorations.push('[STOPPED]');
+			}
+			if (watcher.subscriptionsCount() > 0) {
+				decorations.push(`[SUBSCRIBED:${watcher.subscriptionsCount()}]`);
+			}
+			lines.push(`- ${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${this.requestDetailsToString(watcher.request)})`);
+		}
+	}
 }
