@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { BugIndicatingError } from 'vs/base/common/errors';
@@ -363,8 +364,9 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		if (viewOverlays) {
 			renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._host, viewportData);
 		} else {
-			this._canvas.width = this.domNode.domNode.clientWidth;
-			this._canvas.height = this.domNode.domNode.clientHeight;
+			const activeWindow = getActiveWindow();
+			this._canvas.width = this.domNode.domNode.clientWidth * activeWindow.devicePixelRatio;
+			this._canvas.height = this.domNode.domNode.clientHeight * activeWindow.devicePixelRatio;
 			if (!this._gpuRenderer) {
 				this._gpuRenderer = new GpuViewLayerRenderer<T>(this._canvas, this._host, viewportData);
 			}
