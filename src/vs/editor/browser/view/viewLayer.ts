@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { TextureAtlas } from 'vs/editor/browser/view/gpu/textureAtlas';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as viewEvents from 'vs/editor/common/viewEvents';
@@ -257,7 +257,6 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	private readonly _linesCollection: RenderedLinesCollection<T>;
 
 	private readonly _canvas: HTMLCanvasElement;
-	private readonly _textureAtlasCanvas: HTMLCanvasElement;
 
 	constructor(host: IVisibleLinesHost<T>) {
 		this._host = host;
@@ -267,21 +266,6 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		this._canvas.style.height = '100%';
 		this._canvas.style.width = '100%';
 		this.domNode.domNode.appendChild(this._canvas);
-
-		const textureAtlasCanvas = this._textureAtlasCanvas = document.createElement('canvas');
-		textureAtlasCanvas.width = 100;
-		textureAtlasCanvas.height = 100;
-		const textureAtlasCtx = textureAtlasCanvas.getContext('2d')!;
-		const style = getActiveWindow().getComputedStyle(this.domNode.domNode);
-		for (let i = 0; i < textureAtlasCanvas.width; i++) {
-			textureAtlasCtx.fillStyle = `#00${((i / 100) * 255).toString(16)}00`;
-			textureAtlasCtx.fillRect(i, 0, 1, textureAtlasCanvas.height);
-		}
-		textureAtlasCtx.fillStyle = '#fff';
-		textureAtlasCtx.font = `${style.fontSize} ${style.fontFamily}`;
-		textureAtlasCtx.textBaseline = 'top';
-		textureAtlasCtx.fillText(' ', 0, 0);
-		textureAtlasCtx.fillText('x', 50, 0);
 
 		this._linesCollection = new RenderedLinesCollection<T>(() => this._host.createVisibleLine());
 	}
@@ -382,7 +366,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 			this._canvas.width = this.domNode.domNode.clientWidth;
 			this._canvas.height = this.domNode.domNode.clientHeight;
 			if (!this._canvasRenderer) {
-				this._canvasRenderer = new CanvasViewLayerRenderer<T>(this._canvas, this._host, viewportData, this._textureAtlasCanvas);
+				this._canvasRenderer = new CanvasViewLayerRenderer<T>(this._canvas, this._host, viewportData);
 			}
 			renderer = this._canvasRenderer;
 			renderer.update(viewportData);
@@ -657,8 +641,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 }
 
-const useWebgpu = true;
-
 const enum Constants {
 	IndicesPerCell = 6
 }
@@ -751,8 +733,6 @@ class CanvasViewLayerRenderer<T extends IVisibleLine> {
 	host: IVisibleLinesHost<T>;
 	viewportData: ViewportData;
 
-	private readonly _ctx!: CanvasRenderingContext2D;
-
 	private readonly _gpuCtx!: GPUCanvasContext;
 
 	private _adapter!: GPUAdapter;
@@ -770,17 +750,13 @@ class CanvasViewLayerRenderer<T extends IVisibleLine> {
 
 	private _initialized = false;
 
-	constructor(domNode: HTMLCanvasElement, host: IVisibleLinesHost<T>, viewportData: ViewportData, private readonly _textureAtlasCanvas: HTMLCanvasElement) {
+	constructor(domNode: HTMLCanvasElement, host: IVisibleLinesHost<T>, viewportData: ViewportData) {
 		this.domNode = domNode;
 		this.host = host;
 		this.viewportData = viewportData;
 
-		if (useWebgpu) {
-			this._gpuCtx = this.domNode.getContext('webgpu')!;
-			this.initWebgpu();
-		} else {
-			this._ctx = this.domNode.getContext('2d')!;
-		}
+		this._gpuCtx = this.domNode.getContext('webgpu')!;
+		this.initWebgpu();
 	}
 
 	async initWebgpu() {
@@ -863,19 +839,24 @@ class CanvasViewLayerRenderer<T extends IVisibleLine> {
 		}
 
 
+		// Create texture atlas
+		const textureAtlas = new TextureAtlas(this.domNode, this._device.limits.maxTextureDimension2D);
+		textureAtlas.getGlyph('ABC', 0);
+
+
 
 		// Upload texture bitmap from atlas
 		const textureAtlasGpuTexture = this._device.createTexture({
 			format: 'rgba8unorm',
-			size: { width: this._textureAtlasCanvas.width, height: this._textureAtlasCanvas.height },
+			size: { width: textureAtlas.source.width, height: textureAtlas.source.height },
 			usage: GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
 				GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		this._device.queue.copyExternalImageToTexture(
-			{ source: this._textureAtlasCanvas },
+			{ source: textureAtlas.source },
 			{ texture: textureAtlasGpuTexture },
-			{ width: this._textureAtlasCanvas.width, height: this._textureAtlasCanvas.height },
+			{ width: textureAtlas.source.width, height: textureAtlas.source.height },
 		);
 
 
@@ -892,8 +873,8 @@ class CanvasViewLayerRenderer<T extends IVisibleLine> {
 		{
 			const uniformValues = new Float32Array(TextureInfoUniformBufferInfo.Size);
 			// TODO: Update on canvas resize
-			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize] = this._textureAtlasCanvas.width;
-			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize + 1] = this._textureAtlasCanvas.height;
+			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize] = textureAtlas.source.width;
+			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize + 1] = textureAtlas.source.height;
 			this._device.queue.writeBuffer(textureInfoUniformBuffer, 0, uniformValues);
 		}
 
@@ -916,8 +897,8 @@ class CanvasViewLayerRenderer<T extends IVisibleLine> {
 		});
 		{
 			const sprites: { x: number; y: number; w: number; h: number }[] = [
-				{ x: 0, y: 0, w: 7, h: 16 },
-				{ x: 50, y: 0, w: 7, h: 10 }
+				{ x: 0, y: 0, w: 7, h: 10 },
+				{ x: 0, y: 0, w: 50, h: 50 }
 			];
 			const bufferSize = spriteInfoStorageBufferByteSize * sprites.length;
 			const values = new Float32Array(bufferSize / 4);
@@ -1017,34 +998,10 @@ class CanvasViewLayerRenderer<T extends IVisibleLine> {
 			linesLength: inContext.linesLength
 		};
 
-		if (useWebgpu) {
-			if (!this._initialized) {
-				return ctx;
-			}
-			return this._renderWebgpu(ctx, startLineNumber, stopLineNumber, deltaTop);
-		} else {
-			this._ctx.clearRect(0, 0, this.domNode.width, this.domNode.height);
-
-			let i = 0;
-			let scrollTop = parseInt(this.domNode.parentElement!.getAttribute('data-adjusted-scroll-top')!);
-			if (Number.isNaN(scrollTop)) {
-				scrollTop = 0;
-			}
-			for (let lineNumber = startLineNumber; lineNumber <= stopLineNumber; lineNumber++) {
-				const y = Math.round((-scrollTop + deltaTop[lineNumber - startLineNumber]));
-				// console.log(this.viewportData.getViewLineRenderingData(lineNumber).content, 0, y);
-				const content = this.viewportData.getViewLineRenderingData(lineNumber).content;
-				for (let x = 0; x < content.length; x++) {
-					if (content.charAt(x) === ' ') {
-						continue;
-					}
-					this._ctx.drawImage(this._textureAtlasCanvas, 50, 0, 7, this.viewportData.lineHeight, x * 7, y + 2/* offset x char */, 7, this.viewportData.lineHeight);
-				}
-				i++;
-			}
+		if (!this._initialized) {
+			return ctx;
 		}
-
-		return ctx;
+		return this._renderWebgpu(ctx, startLineNumber, stopLineNumber, deltaTop);
 	}
 
 	private _renderWebgpu(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
@@ -1100,8 +1057,8 @@ class CanvasViewLayerRenderer<T extends IVisibleLine> {
 		const data = new Float32Array(objectCount * Constants.IndicesPerCell);
 		data[offset] = wgslX; // x
 		data[offset + 1] = -wgslY; // y
-		data[offset + 2] = 7; // width
-		data[offset + 3] = 10; // height
+		data[offset + 2] = 50;// 7; // width
+		data[offset + 3] = 50;//10; // height
 		data[offset + 4] = 0; // unused
 		data[offset + 5] = 1; // textureIndex
 
