@@ -10,7 +10,7 @@ import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/wor
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { SuggestAddon } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
-import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -18,6 +18,8 @@ import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/brow
 import { localize2 } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 class TerminalSuggestContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.suggest';
@@ -37,6 +39,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		_processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -51,9 +54,20 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				this._loadSuggestAddon(xterm.raw);
 			}
 		}));
+		this.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.SendKeybindingsToShell)) {
+				this._loadSuggestAddon(xterm.raw);
+			}
+		}));
 	}
 
 	private _loadSuggestAddon(xterm: RawXtermTerminal): void {
+		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
+		if (sendingKeybindingsToShell) {
+			this._addon?.dispose();
+			this._addon = undefined;
+			return;
+		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
 			this._addon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
 			xterm.loadAddon(this._addon);
