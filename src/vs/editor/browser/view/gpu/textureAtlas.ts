@@ -59,20 +59,21 @@ export class TextureAtlas extends Disposable {
 			rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top
 		);
 		let glyph: ITextureAtlasGlyph | undefined = this._glyphMap.get(chars);
-		if (!glyph) {
-			// TODO: Implement allocation
-			glyph = {
-				x: 0,
-				y: 0,
-				w: rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,
-				h: rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top
-			};
-			console.log('Allocating glyph', {
-				rasterizedGlyph,
-				glyph
-			});
-			this._glyphMap.set(chars, glyph);
+		if (glyph) {
+			return glyph;
 		}
+		// TODO: Implement allocation
+		glyph = {
+			x: 0,
+			y: 0,
+			w: rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,
+			h: rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top
+		};
+		console.log('Allocating glyph', {
+			rasterizedGlyph,
+			glyph
+		});
+		this._glyphMap.set(chars, glyph);
 		return glyph;
 	}
 }
@@ -88,7 +89,7 @@ class GlyphRasterizer extends Disposable {
 		this._canvas = new OffscreenCanvas(this._fontSize * 3, this._fontSize * 3);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d'));
 		this._ctx.font = `${this._fontSize}px ${fontFamily}`;
-		this._ctx.fillStyle = '#00FF00';
+		this._ctx.fillStyle = '#FFFFFF';
 	}
 
 	// TODO: Support drawing multiple fonts and sizes
