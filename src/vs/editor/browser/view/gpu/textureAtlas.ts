@@ -45,6 +45,10 @@ export class TextureAtlas extends Disposable {
 	// TODO: Color, style etc.
 	public getGlyph(lineContent: string, glyphIndex: number): ITextureAtlasGlyph {
 		const chars = lineContent.charAt(glyphIndex);
+		let glyph: ITextureAtlasGlyph | undefined = this._glyphMap.get(chars);
+		if (glyph) {
+			return glyph;
+		}
 		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars);
 		this._ctx.drawImage(
 			rasterizedGlyph.source,
@@ -59,13 +63,10 @@ export class TextureAtlas extends Disposable {
 			rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,
 			rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top
 		);
-		let glyph: ITextureAtlasGlyph | undefined = this._glyphMap.get(chars);
-		if (glyph) {
-			return glyph;
-		}
 		// TODO: Implement allocation
 		glyph = {
-			id: this._nextId++,
+			// TODO: Set real id
+			id: 1, //this._nextId++,
 			x: 0,
 			y: 0,
 			w: rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,

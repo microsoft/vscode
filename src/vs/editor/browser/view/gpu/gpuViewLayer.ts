@@ -445,7 +445,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				// TODO: Handle tab
 
 				chars = content[x];
-				// TODO: Get glyph
+				const glyph = this._textureAtlas.getGlyph(content, x);
 
 				// TODO: Move math to gpu
 				// TODO: Render using a line offset for partial line scrolling
@@ -462,7 +462,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				dataBuffer[charCount * Constants.IndicesPerCell + 1] = -wgslY; // y
 				dataBuffer[charCount * Constants.IndicesPerCell + 2] = 0;
 				dataBuffer[charCount * Constants.IndicesPerCell + 3] = 0;
-				dataBuffer[charCount * Constants.IndicesPerCell + 4] = 1;     // textureIndex
+				dataBuffer[charCount * Constants.IndicesPerCell + 4] = glyph.id;     // textureIndex
 				dataBuffer[charCount * Constants.IndicesPerCell + 5] = 0;
 
 				charCount++;
@@ -470,22 +470,5 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		}
 		// console.log('charCount: ' + charCount);
 		return charCount;
-
-
-
-
-		// screenAbsoluteX = 100;
-		// screenAbsoluteY = 100;
-
-
-		// const offset = 0;
-		// const objectCount = 1;
-		// const data = new Float32Array(objectCount * Constants.IndicesPerCell);
-		// data[offset] = wgslX; // x
-		// data[offset + 1] = -wgslY; // y
-		// data[offset + 2] = 1; // textureIndex
-
-		// storageValues.set(data);
-		// return objectCount;
 	}
 }
