@@ -7,6 +7,7 @@ import { getActiveWindow } from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { observeDevicePixelDimensions } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { GpuViewLayerRenderer } from 'vs/editor/browser/view/gpu/gpuViewLayer';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
@@ -266,7 +267,6 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		this._canvas = document.createElement('canvas');
 		this._canvas.style.height = '100%';
 		this._canvas.style.width = '100%';
-		this.domNode.domNode.appendChild(this._canvas);
 
 		this._linesCollection = new RenderedLinesCollection<T>(() => this._host.createVisibleLine());
 	}
@@ -364,9 +364,16 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		if (viewOverlays) {
 			renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._host, viewportData);
 		} else {
-			const activeWindow = getActiveWindow();
-			this._canvas.width = this.domNode.domNode.clientWidth * activeWindow.devicePixelRatio;
-			this._canvas.height = this.domNode.domNode.clientHeight * activeWindow.devicePixelRatio;
+			// If not yet attached, listen for device pixel size and attach
+			if (!this._canvas.parentElement) {
+				// TODO: Track disposable
+				observeDevicePixelDimensions(this._canvas, getActiveWindow(), (w, h) => {
+					this._canvas.width = w;
+					this._canvas.height = h;
+				});
+				this.domNode.domNode.appendChild(this._canvas);
+			}
+
 			if (!this._gpuRenderer) {
 				this._gpuRenderer = new GpuViewLayerRenderer<T>(this._canvas, this._host, viewportData);
 			}

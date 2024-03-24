@@ -434,8 +434,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		data[offset + 1] = -wgslY; // y
 		data[offset + 2] = 1; // textureIndex
 
-
-
 		const storageValues = new Float32Array(this._dataValueBuffers[this._dataValuesBufferActiveIndex]);
 		storageValues.set(data);
 		return objectCount;

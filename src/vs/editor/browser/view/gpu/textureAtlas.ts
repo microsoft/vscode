@@ -30,7 +30,6 @@ export class TextureAtlas extends Disposable {
 		const style = activeWindow.getComputedStyle(parentDomNode);
 		const fontSize = Math.ceil(parseInt(style.fontSize.replace('px', '')) * activeWindow.devicePixelRatio);
 		this._ctx.font = `${fontSize}px ${style.fontFamily}`;
-		this._ctx.textBaseline = 'top';
 
 		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
 
