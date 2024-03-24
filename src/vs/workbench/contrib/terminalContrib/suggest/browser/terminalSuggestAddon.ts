@@ -425,9 +425,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		// Right
 		if (data === '\x1b[C') {
-			handled = true;
-			this._cursorIndexDelta += 1;
-			handledCursorDelta++;
+			// If right requests beyond where the completion was requested (potentially accepting a shell completion), hide
+			if (this._additionalInput?.length !== this._cursorIndexDelta) {
+				handled = true;
+				this._cursorIndexDelta++;
+				handledCursorDelta++;
+			}
 		}
 		if (data.match(/^[a-z0-9]$/i)) {
 
