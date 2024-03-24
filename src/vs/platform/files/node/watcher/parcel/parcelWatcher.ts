@@ -814,6 +814,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return undefined;
 	}
 
+	//#region Dignostics / Logging
+
 	async setVerboseLogging(enabled: boolean): Promise<void> {
 		this.verboseLogging = enabled;
 	}
@@ -842,7 +844,22 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		const watchers = Array.from(this.watchers.values());
 		watchers.sort((w1, w2) => w1.request.path.length - w2.request.path.length);
 
-		lines.push(`\n[Recursive Watchers (${this.watchers.size})]:`);
+		let active = 0;
+		let failed = 0;
+		let stopped = 0;
+		for (const watcher of watchers) {
+			if (!watcher.isFailed() && !watcher.isStopped()) {
+				active++;
+			}
+			if (watcher.isFailed()) {
+				failed++;
+			}
+			if (watcher.isStopped()) {
+				stopped++;
+			}
+		}
+
+		lines.push(`\n[Recursive Watchers (${this.watchers.size}, active: ${active}, failed: ${failed}, stopped: ${stopped})]:`);
 		for (const watcher of watchers) {
 			const decorations = [];
 			if (watcher.isFailed()) {
@@ -857,4 +874,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			lines.push(`- ${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${this.requestDetailsToString(watcher.request)})`);
 		}
 	}
+
+	//#endregion
 }

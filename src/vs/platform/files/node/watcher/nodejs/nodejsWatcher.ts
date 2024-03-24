@@ -145,6 +145,8 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		return Array.from(mapCorrelationtoRequests.values()).map(requests => Array.from(requests.values())).flat();
 	}
 
+	//#region Dignostics / Logging
+
 	async setVerboseLogging(enabled: boolean): Promise<void> {
 		this.verboseLogging = enabled;
 
@@ -171,7 +173,22 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		const watchers = Array.from(this.watchers.values());
 		watchers.sort((w1, w2) => w1.request.path.length - w2.request.path.length);
 
-		lines.push(`\n[Non-Recursive Watchers (${this.watchers.size})]:`);
+		let active = 0;
+		let failed = 0;
+		let reusing = 0;
+		for (const watcher of watchers) {
+			if (!watcher.instance.failed && !watcher.instance.isReusingRecursiveWatcher) {
+				active++;
+			}
+			if (watcher.instance.failed) {
+				failed++;
+			}
+			if (watcher.instance.isReusingRecursiveWatcher) {
+				reusing++;
+			}
+		}
+
+		lines.push(`\n[Non-Recursive Watchers (${this.watchers.size}, active: ${active}, failed: ${failed}, reusing: ${reusing})]:`);
 		for (const watcher of watchers) {
 			const decorations = [];
 			if (watcher.instance.failed) {
@@ -183,4 +200,6 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 			lines.push(`- ${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${this.requestDetailsToString(watcher.request)})`);
 		}
 	}
+
+	//#endregion
 }

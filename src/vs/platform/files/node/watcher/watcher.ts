@@ -34,6 +34,8 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 		await this.nonRecursiveWatcher.watch(requests.filter(request => !request.recursive));
 	}
 
+	//#region Dignostics / Logging
+
 	async setVerboseLogging(enabled: boolean): Promise<void> {
 		this.logRequestStats();
 
@@ -51,12 +53,37 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
 		const lines: string[] = [];
 
-		lines.push(`[Recursive Requests (${recursiveRequests.length})]:`);
+		let polling = 0;
+		let suspended = 0;
+		for (const request of recursiveRequests) {
+			const isSuspended = this.recursiveWatcher.isSuspended(request);
+			if (isSuspended === false) {
+				continue;
+			}
+			suspended++;
+			if (isSuspended === 'polling') {
+				polling++;
+			}
+		}
+
+		lines.push(`\n[Recursive Requests (${recursiveRequests.length}, suspended: ${suspended}, polling: ${polling})]:`);
 		for (const request of recursiveRequests) {
 			this.fillRequestStats(lines, request, this.recursiveWatcher);
 		}
 
-		lines.push(`\n[Non-Recursive Requests (${nonRecursiveRequests.length})]:`);
+		polling = 0;
+		suspended = 0;
+		for (const request of nonRecursiveRequests) {
+			const isSuspended = this.nonRecursiveWatcher.isSuspended(request);
+			if (isSuspended === false) {
+				continue;
+			}
+			suspended++;
+			if (isSuspended === 'polling') {
+				polling++;
+			}
+		}
+		lines.push(`\n[Non-Recursive Requests (${nonRecursiveRequests.length}, suspended: ${suspended}, polling: ${polling})]:`);
 		for (const request of nonRecursiveRequests) {
 			this.fillRequestStats(lines, request, this.nonRecursiveWatcher);
 		}
@@ -96,6 +123,8 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 	protected requestDetailsToString(request: IUniversalWatchRequest): string {
 		return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
 	}
+
+	//#endregion
 
 	async stop(): Promise<void> {
 		await Promises.settled([
