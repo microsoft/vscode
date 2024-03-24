@@ -693,16 +693,18 @@ flakySuite('File Watcher (node.js)', () => {
 		const filePath = join(testDir, 'deep', 'conway.js');
 		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId }]);
 
-		await basicCrudTest(filePath, true, correlationId);
-
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId);
 		await Promises.writeFile(filePath, 'Hello World');
+		await changeFuture;
 
 		await recursiveWatcher.stop();
 		recursiveWatcher.dispose();
 
 		await timeout(500); // give the watcher some time to restart
 
-		await basicCrudTest(filePath, true, correlationId);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, correlationId);
+		await Promises.writeFile(filePath, 'Hello World');
+		await changeFuture;
 	}
 
 	test('correlated watch requests support suspend/resume (file, does not exist in beginning, parcel watcher reused)', async function () {
@@ -717,7 +719,8 @@ flakySuite('File Watcher (node.js)', () => {
 		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
 		await onDidWatchFail;
 
-		await basicCrudTest(filePath, undefined, 1, undefined, true);
-		await basicCrudTest(filePath, undefined, 1, undefined);
+		const changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, 1);
+		await Promises.writeFile(filePath, 'Hello World');
+		await changeFuture;
 	});
 });
