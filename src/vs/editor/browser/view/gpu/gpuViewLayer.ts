@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextureAtlas } from 'vs/editor/browser/view/gpu/textureAtlas';
+import { TextureAtlas, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/textureAtlas';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
@@ -14,10 +14,11 @@ interface IRendererContext<T extends IVisibleLine> {
 }
 
 const enum Constants {
-	IndicesPerCell = 6
+	IndicesPerCell = 3
 }
 
 const enum BindingId {
+	// TODO: Improve names
 	SpriteInfo = 0,
 	DynamicUnitInfo = 1,
 	TextureSampler = 2,
@@ -46,8 +47,6 @@ struct Vertex {
 
 struct DynamicUnitInfo {
 	position: vec2f,
-	dimensions: vec2f,
-	unused: f32,
 	textureId: f32,
 };
 
@@ -72,7 +71,7 @@ struct VSOutput {
 
 	var vsOut: VSOutput;
 	vsOut.position = vec4f(
-		(((vert.position * 2 - 1) / uniforms.canvasDimensions)) * dynamicUnitInfo.dimensions + dynamicUnitInfo.position,
+		(((vert.position * 2 - 1) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position,
 		0.0,
 		1.0
 	);
@@ -213,23 +212,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		// Create texture atlas
 		const textureAtlas = new TextureAtlas(this.domNode, this._device.limits.maxTextureDimension2D);
-		textureAtlas.getGlyph('ABC', 0);
-
-
-
-		// Upload texture bitmap from atlas
-		const textureAtlasGpuTexture = this._device.createTexture({
-			format: 'rgba8unorm',
-			size: { width: textureAtlas.source.width, height: textureAtlas.source.height },
-			usage: GPUTextureUsage.TEXTURE_BINDING |
-				GPUTextureUsage.COPY_DST |
-				GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-		this._device.queue.copyExternalImageToTexture(
-			{ source: textureAtlas.source },
-			{ texture: textureAtlasGpuTexture },
-			{ width: textureAtlas.source.width, height: textureAtlas.source.height },
-		);
 
 
 
@@ -268,9 +250,11 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 		{
-			const sprites: { x: number; y: number; w: number; h: number }[] = [
-				{ x: 0, y: 0, w: 7, h: 10 },
-				{ x: 0, y: 0, w: 50, h: 50 }
+			const glyph = textureAtlas.getGlyph('ABC', 0);
+			const sprites: ITextureAtlasGlyph[] = [
+				glyph,
+				glyph
+				// { x: 0, y: 0, w: 50, h: 50 },
 			];
 			const bufferSize = spriteInfoStorageBufferByteSize * sprites.length;
 			const values = new Float32Array(bufferSize / 4);
@@ -284,6 +268,25 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			}
 			this._device.queue.writeBuffer(spriteInfoStorageBuffer, 0, values);
 		}
+
+
+
+
+
+
+		// Upload texture bitmap from atlas
+		const textureAtlasGpuTexture = this._device.createTexture({
+			format: 'rgba8unorm',
+			size: { width: textureAtlas.source.width, height: textureAtlas.source.height },
+			usage: GPUTextureUsage.TEXTURE_BINDING |
+				GPUTextureUsage.COPY_DST |
+				GPUTextureUsage.RENDER_ATTACHMENT,
+		});
+		this._device.queue.copyExternalImageToTexture(
+			{ source: textureAtlas.source },
+			{ texture: textureAtlasGpuTexture },
+			{ width: textureAtlas.source.width, height: textureAtlas.source.height },
+		);
 
 
 
@@ -429,10 +432,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		const data = new Float32Array(objectCount * Constants.IndicesPerCell);
 		data[offset] = wgslX; // x
 		data[offset + 1] = -wgslY; // y
-		data[offset + 2] = 50;// 7; // width
-		data[offset + 3] = 50;//10; // height
-		data[offset + 4] = 0; // unused
-		data[offset + 5] = 1; // textureIndex
+		data[offset + 2] = 1; // textureIndex
 
 
 

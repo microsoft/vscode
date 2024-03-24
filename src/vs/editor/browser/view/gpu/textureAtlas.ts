@@ -26,13 +26,13 @@ export class TextureAtlas extends Disposable {
 		this._canvas = new OffscreenCanvas(maxTextureSize, maxTextureSize);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d'));
 
-		const style = getActiveWindow().getComputedStyle(parentDomNode);
-		this._ctx.font = `${style.fontSize} ${style.fontFamily}`;
+		const activeWindow = getActiveWindow();
+		const style = activeWindow.getComputedStyle(parentDomNode);
+		const fontSize = Math.ceil(parseInt(style.fontSize.replace('px', '')) * activeWindow.devicePixelRatio);
+		this._ctx.font = `${fontSize}px ${style.fontFamily}`;
 		this._ctx.textBaseline = 'top';
 
-		// TODO: Device pixel ratio?
-		const fontSize = parseInt(style.fontSize.replace('px', ''));
-		this._glyphRasterizer = new GlyphRasterizer(fontSize);
+		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
 
 		// Reduce impact of a memory leak if this object is not released
 		this._register(toDisposable(() => {
@@ -64,8 +64,8 @@ export class TextureAtlas extends Disposable {
 			glyph = {
 				x: 0,
 				y: 0,
-				width: rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,
-				height: rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top
+				w: rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,
+				h: rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top
 			};
 			console.log('Allocating glyph', {
 				rasterizedGlyph,
@@ -82,18 +82,23 @@ class GlyphRasterizer extends Disposable {
 	// A temporary context that glyphs are drawn to before being transfered to the atlas.
 	private _ctx: OffscreenCanvasRenderingContext2D;
 
-	constructor(private readonly _fontSize: number) {
+	constructor(private readonly _fontSize: number, fontFamily: string) {
 		super();
 
 		this._canvas = new OffscreenCanvas(this._fontSize * 3, this._fontSize * 3);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d'));
+		this._ctx.font = `${this._fontSize}px ${fontFamily}`;
+		this._ctx.fillStyle = '#00FF00';
 	}
 
+	// TODO: Support drawing multiple fonts and sizes
+	// TODO: Should pull in the font size from config instead of random dom node
 	public rasterizeGlyph(chars: string): IRasterizedGlyph {
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
-		this._ctx.fillStyle = '#00FF00';
+		// TODO: Draw in middle using alphabetical baseline
 		this._ctx.fillText(chars, this._fontSize, this._fontSize);
+
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
 		// TODO: Hot path: Reuse object
 		const result: IRasterizedGlyph = {
@@ -180,8 +185,8 @@ class GlyphRasterizer extends Disposable {
 export interface ITextureAtlasGlyph {
 	x: number;
 	y: number;
-	width: number;
-	height: number;
+	w: number;
+	h: number;
 }
 
 interface IBoundingBox {
