@@ -210,11 +210,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	protected requestToString(request: IUniversalWatchRequest): string {
-		return `${request.path} (${this.requestDetailsToString(request)})`;
-	}
-
-	protected requestDetailsToString(request: IUniversalWatchRequest): string {
-		return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}`;
+		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
 	}
 
 	protected abstract doWatch(requests: IUniversalWatchRequest[]): Promise<void>;
@@ -226,6 +222,4 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	abstract onDidError: Event<string>;
 	abstract setVerboseLogging(enabled: boolean): Promise<void>;
-
-	abstract fillRequestStats(lines: string[]): void;
 }

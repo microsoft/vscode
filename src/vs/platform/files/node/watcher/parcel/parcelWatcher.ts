@@ -24,7 +24,7 @@ import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
-class ParcelWatcherInstance extends Disposable {
+export class ParcelWatcherInstance extends Disposable {
 
 	private readonly _onDidStop = this._register(new Emitter<void>());
 	readonly onDidStop = this._onDidStop.event;
@@ -814,8 +814,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return undefined;
 	}
 
-	//#region Dignostics / Logging
-
 	async setVerboseLogging(enabled: boolean): Promise<void> {
 		this.verboseLogging = enabled;
 	}
@@ -839,41 +837,4 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	}
 
 	protected get recursiveWatcher() { return this; }
-
-	override fillRequestStats(lines: string[]): void {
-		const watchers = Array.from(this.watchers.values());
-		watchers.sort((w1, w2) => w1.request.path.length - w2.request.path.length);
-
-		let active = 0;
-		let failed = 0;
-		let stopped = 0;
-		for (const watcher of watchers) {
-			if (!watcher.isFailed() && !watcher.isStopped()) {
-				active++;
-			}
-			if (watcher.isFailed()) {
-				failed++;
-			}
-			if (watcher.isStopped()) {
-				stopped++;
-			}
-		}
-
-		lines.push(`\n[Recursive Watchers (${this.watchers.size}, active: ${active}, failed: ${failed}, stopped: ${stopped})]:`);
-		for (const watcher of watchers) {
-			const decorations = [];
-			if (watcher.isFailed()) {
-				decorations.push('[FAILED]');
-			}
-			if (watcher.isStopped()) {
-				decorations.push('[STOPPED]');
-			}
-			if (watcher.subscriptionsCount() > 0) {
-				decorations.push(`[SUBSCRIBED:${watcher.subscriptionsCount()}]`);
-			}
-			lines.push(`- ${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${this.requestDetailsToString(watcher.request)})`);
-		}
-	}
-
-	//#endregion
 }

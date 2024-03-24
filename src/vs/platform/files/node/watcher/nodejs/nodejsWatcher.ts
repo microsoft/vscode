@@ -28,7 +28,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 
 	readonly onDidError = Event.None;
 
-	protected readonly watchers = new Set<INodeJSWatcherInstance>();
+	readonly watchers = new Set<INodeJSWatcherInstance>();
 
 	private verboseLogging = false;
 
@@ -145,8 +145,6 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		return Array.from(mapCorrelationtoRequests.values()).map(requests => Array.from(requests.values())).flat();
 	}
 
-	//#region Dignostics / Logging
-
 	async setVerboseLogging(enabled: boolean): Promise<void> {
 		this.verboseLogging = enabled;
 
@@ -168,38 +166,4 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	private toMessage(message: string, watcher?: INodeJSWatcherInstance): string {
 		return watcher ? `[File Watcher (node.js)] ${message} (${this.requestToString(watcher.request)})` : `[File Watcher (node.js)] ${message}`;
 	}
-
-	override fillRequestStats(lines: string[]): void {
-		const watchers = Array.from(this.watchers.values());
-		watchers.sort((w1, w2) => w1.request.path.length - w2.request.path.length);
-
-		let active = 0;
-		let failed = 0;
-		let reusing = 0;
-		for (const watcher of watchers) {
-			if (!watcher.instance.failed && !watcher.instance.isReusingRecursiveWatcher) {
-				active++;
-			}
-			if (watcher.instance.failed) {
-				failed++;
-			}
-			if (watcher.instance.isReusingRecursiveWatcher) {
-				reusing++;
-			}
-		}
-
-		lines.push(`\n[Non-Recursive Watchers (${this.watchers.size}, active: ${active}, failed: ${failed}, reusing: ${reusing})]:`);
-		for (const watcher of watchers) {
-			const decorations = [];
-			if (watcher.instance.failed) {
-				decorations.push('[FAILED]');
-			}
-			if (watcher.instance.isReusingRecursiveWatcher) {
-				decorations.push('[REUSING]');
-			}
-			lines.push(`- ${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${this.requestDetailsToString(watcher.request)})`);
-		}
-	}
-
-	//#endregion
 }
