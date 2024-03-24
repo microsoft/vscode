@@ -15,6 +15,8 @@ export class TextureAtlas extends Disposable {
 
 	private _glyphRasterizer: GlyphRasterizer;
 
+	private _nextId = 0;
+
 	public get source(): OffscreenCanvas {
 		return this._canvas;
 	}
@@ -63,6 +65,7 @@ export class TextureAtlas extends Disposable {
 		}
 		// TODO: Implement allocation
 		glyph = {
+			id: this._nextId++,
 			x: 0,
 			y: 0,
 			w: rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,
@@ -108,6 +111,7 @@ class GlyphRasterizer extends Disposable {
 		return result;
 	}
 
+	// TODO: Pass back origin offset
 	private _findGlyphBoundingBox(imageData: ImageData): IBoundingBox {
 		// TODO: Hot path: Reuse object
 		const boundingBox = {
@@ -183,6 +187,7 @@ class GlyphRasterizer extends Disposable {
 }
 
 export interface ITextureAtlasGlyph {
+	id: number;
 	x: number;
 	y: number;
 	w: number;

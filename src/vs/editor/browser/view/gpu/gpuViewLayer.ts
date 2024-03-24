@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from 'vs/base/browser/dom';
 import { TextureAtlas, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/textureAtlas';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -14,7 +15,7 @@ interface IRendererContext<T extends IVisibleLine> {
 }
 
 const enum Constants {
-	IndicesPerCell = 3
+	IndicesPerCell = 6
 }
 
 const enum BindingId {
@@ -47,7 +48,9 @@ struct Vertex {
 
 struct DynamicUnitInfo {
 	position: vec2f,
+	unused1: vec2f,
 	textureId: f32,
+	unused2: f32
 };
 
 struct VSOutput {
@@ -70,14 +73,15 @@ struct VSOutput {
 	let spriteInfo = spriteInfo[u32(dynamicUnitInfo.textureId)];
 
 	var vsOut: VSOutput;
+	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		(((vert.position * 2 - 1) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position,
+		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position,
 		0.0,
 		1.0
 	);
 
 	// Textures are flipped from natural direction on the y-axis, so flip it back
-	vsOut.texcoord = vec2f(vert.position.x, 1.0 - vert.position.y);
+	vsOut.texcoord = vert.position;
 	vsOut.texcoord = (
 		// Sprite offset (0-1)
 		(spriteInfo.position / textureInfoUniform.spriteSheetSize) +
@@ -92,8 +96,6 @@ struct VSOutput {
 @group(0) @binding(${BindingId.Texture}) var ourTexture: texture_2d<f32>;
 
 @fragment fn fs(vsOut: VSOutput) -> @location(0) vec4f {
-	// var a = textureSample(ourTexture, ourSampler, vsOut.texcoord);
-	// return vec4f(1.0, 0.0, 0.0, 1.0);
 	return textureSample(ourTexture, ourSampler, vsOut.texcoord);
 }
 `;
@@ -118,6 +120,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 	private _vertexBuffer!: GPUBuffer;
 	private _squareVertices!: { vertexData: Float32Array; numVertices: number };
+
+	private _textureAtlas!: TextureAtlas;
 
 	private _initialized = false;
 
@@ -211,7 +215,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 
 		// Create texture atlas
-		const textureAtlas = new TextureAtlas(this.domNode, this._device.limits.maxTextureDimension2D);
+		const textureAtlas = this._textureAtlas = new TextureAtlas(this.domNode, this._device.limits.maxTextureDimension2D);
 
 
 
@@ -290,7 +294,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 
 
-		const cellCount = 2;
+		// TODO: Grow/shrink buffer size dynamically
+		const cellCount = 10000;
 		const bufferSize = cellCount * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._dataBindBuffer = this._device.createBuffer({
 			label: 'Entity dynamic info buffer',
@@ -380,11 +385,11 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _renderWebgpu(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
-
-		const visibleObjectCount = this._updateDataBuffer();
+		// TODO: Improve "data" name
+		const dataBuffer = new Float32Array(this._dataValueBuffers[this._dataValuesBufferActiveIndex]);
+		const visibleObjectCount = this._updateDataBuffer(dataBuffer, ctx, startLineNumber, stopLineNumber, deltaTop);
 
 		// Write buffer and swap it out to unblock writes
-		const dataBuffer = new Float32Array(this._dataValueBuffers[this._dataValuesBufferActiveIndex]);
 		this._device.queue.writeBuffer(this._dataBindBuffer, 0, dataBuffer, 0, visibleObjectCount * Constants.IndicesPerCell);
 
 		this._dataValuesBufferActiveIndex = (this._dataValuesBufferActiveIndex + 1) % 2;
@@ -409,7 +414,9 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		return ctx;
 	}
 
-	private _updateDataBuffer() {
+	// TODO: This update could be moved to an arbitrary task thread if expensive?
+	private _updateDataBuffer(dataBuffer: Float32Array, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
+		let chars: string = '';
 		let screenAbsoluteX: number = 0;
 		let screenAbsoluteY: number = 0;
 		let zeroToOneX: number = 0;
@@ -417,25 +424,68 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		let wgslX: number = 0;
 		let wgslY: number = 0;
 
-		screenAbsoluteX = 100;
-		screenAbsoluteY = 100;
+		const activeWindow = getActiveWindow();
+		let charCount = 0;
+		let scrollTop = parseInt(this.domNode.parentElement!.getAttribute('data-adjusted-scroll-top')!);
+		if (Number.isNaN(scrollTop)) {
+			scrollTop = 0;
+		}
+		for (let lineNumber = startLineNumber; lineNumber <= stopLineNumber; lineNumber++) {
+			const y = Math.round((-scrollTop + deltaTop[lineNumber - startLineNumber]));
+			// Offscreen
+			if (y < 0) {
+				continue;
+			}
+			const content = this.viewportData.getViewLineRenderingData(lineNumber).content;
+			// console.log(content, 0, y);
+			for (let x = 0; x < content.length; x++) {
+				if (content.charAt(x) === ' ') {
+					continue;
+				}
+				// TODO: Handle tab
 
-		screenAbsoluteX = Math.round(screenAbsoluteX);
-		screenAbsoluteY = Math.round(screenAbsoluteY);
-		zeroToOneX = screenAbsoluteX / this.domNode.width;
-		zeroToOneY = screenAbsoluteY / this.domNode.height;
-		wgslX = zeroToOneX * 2 - 1;
-		wgslY = zeroToOneY * 2 - 1;
+				chars = content[x];
+				// TODO: Get glyph
 
-		const offset = 0;
-		const objectCount = 1;
-		const data = new Float32Array(objectCount * Constants.IndicesPerCell);
-		data[offset] = wgslX; // x
-		data[offset + 1] = -wgslY; // y
-		data[offset + 2] = 1; // textureIndex
+				// TODO: Move math to gpu
+				// TODO: Render using a line offset for partial line scrolling
+				// TODO: Sub-pixel rendering
+				screenAbsoluteX = x * 7 * activeWindow.devicePixelRatio;
+				// TODO: This +10 is because the glyph is being rendered in the wrong position
+				screenAbsoluteY = Math.round(y * activeWindow.devicePixelRatio);
+				zeroToOneX = screenAbsoluteX / this.domNode.width;
+				zeroToOneY = screenAbsoluteY / this.domNode.height;
+				wgslX = zeroToOneX * 2 - 1;
+				wgslY = zeroToOneY * 2 - 1;
 
-		const storageValues = new Float32Array(this._dataValueBuffers[this._dataValuesBufferActiveIndex]);
-		storageValues.set(data);
-		return objectCount;
+				dataBuffer[charCount * Constants.IndicesPerCell + 0] = wgslX; // x
+				dataBuffer[charCount * Constants.IndicesPerCell + 1] = -wgslY; // y
+				dataBuffer[charCount * Constants.IndicesPerCell + 2] = 0;
+				dataBuffer[charCount * Constants.IndicesPerCell + 3] = 0;
+				dataBuffer[charCount * Constants.IndicesPerCell + 4] = 1;     // textureIndex
+				dataBuffer[charCount * Constants.IndicesPerCell + 5] = 0;
+
+				charCount++;
+			}
+		}
+		// console.log('charCount: ' + charCount);
+		return charCount;
+
+
+
+
+		// screenAbsoluteX = 100;
+		// screenAbsoluteY = 100;
+
+
+		// const offset = 0;
+		// const objectCount = 1;
+		// const data = new Float32Array(objectCount * Constants.IndicesPerCell);
+		// data[offset] = wgslX; // x
+		// data[offset + 1] = -wgslY; // y
+		// data[offset + 2] = 1; // textureIndex
+
+		// storageValues.set(data);
+		// return objectCount;
 	}
 }
