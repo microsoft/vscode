@@ -923,6 +923,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						kind: getDiagnosticsKind(event),
 						resource: this.toResource(diagnosticEvent.body.file),
 						diagnostics: diagnosticEvent.body.diagnostics,
+						// @ts-expect-error until ts 5.5
 						spans: diagnosticEvent.body.spans,
 					});
 				}
