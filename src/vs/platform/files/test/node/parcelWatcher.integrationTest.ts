@@ -101,7 +101,11 @@ flakySuite('File Watcher (parcel)', () => {
 		const watchers = watcher.watchers.size;
 		let stoppedInstances = 0;
 		for (const instance of watcher.watchers) {
-			Event.once(instance.onDidStop)(() => stoppedInstances++);
+			Event.once(instance.onDidStop)(() => {
+				if (instance.stopped) {
+					stoppedInstances++;
+				}
+			});
 		}
 
 		await watcher.stop();
@@ -730,6 +734,7 @@ flakySuite('File Watcher (parcel)', () => {
 		await changeFuture;
 		assert.strictEqual(failed, true);
 		assert.strictEqual(instance.include(folderPath), false); // failing watcher should no longer include the path
+		assert.strictEqual(instance.failed, true);
 	});
 
 	test('correlated watch requests support suspend/resume (folder, does not exist in beginning, not reusing watcher)', async () => {
@@ -745,13 +750,23 @@ flakySuite('File Watcher (parcel)', () => {
 
 		const folderPath = join(testDir, 'not-found');
 
-		const requests: IRecursiveWatchRequest[] = [{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }];
+		const requests: IRecursiveWatchRequest[] = [];
 		if (reuseExistingWatcher) {
 			requests.push({ path: testDir, excludes: [], recursive: true });
+			await watcher.watch(requests);
 		}
+
+		const request: IRecursiveWatchRequest = { path: folderPath, excludes: [], recursive: true, correlationId: 1 };
+		requests.push(request);
 
 		await watcher.watch(requests);
 		await onDidWatchFail;
+
+		if (reuseExistingWatcher) {
+			assert.strictEqual(watcher.isSuspended(request), true);
+		} else {
+			assert.strictEqual(watcher.isSuspended(request), 'polling');
+		}
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
 		let onDidWatch = Event.toPromise(watcher.onDidWatch);

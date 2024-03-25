@@ -39,8 +39,8 @@ export function computeStats(
 		fillRequestStats(lines, request, nonRecursiveWatcher);
 	}
 
-	fillRecursiveRequestStats(lines, recursiveWatcher);
-	fillNonRecursiveRequestStats(lines, nonRecursiveWatcher);
+	fillRecursiveWatcherStats(lines, recursiveWatcher);
+	fillNonRecursiveWatcherStats(lines, nonRecursiveWatcher);
 
 	let maxLength = 0;
 	for (const line of lines) {
@@ -84,13 +84,13 @@ function computeRecursiveWatchStatus(recursiveWatcher: ParcelWatcher): { active:
 	let failed = 0;
 	let stopped = 0;
 	for (const watcher of recursiveWatcher.watchers.values()) {
-		if (!watcher.isFailed() && !watcher.isStopped()) {
+		if (!watcher.failed && !watcher.stopped) {
 			active++;
 		}
-		if (watcher.isFailed()) {
+		if (watcher.failed) {
 			failed++;
 		}
-		if (watcher.isStopped()) {
+		if (watcher.stopped) {
 			stopped++;
 		}
 	}
@@ -162,7 +162,7 @@ function requestDetailsToString(request: IUniversalWatchRequest): string {
 	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}`;
 }
 
-function fillRecursiveRequestStats(lines: string[], recursiveWatcher: ParcelWatcher): void {
+function fillRecursiveWatcherStats(lines: string[], recursiveWatcher: ParcelWatcher): void {
 	const watchers = sortByPathPrefix(Array.from(recursiveWatcher.watchers.values()));
 
 	const { active, failed, stopped } = computeRecursiveWatchStatus(recursiveWatcher);
@@ -170,10 +170,10 @@ function fillRecursiveRequestStats(lines: string[], recursiveWatcher: ParcelWatc
 
 	for (const watcher of watchers) {
 		const decorations = [];
-		if (watcher.isFailed()) {
+		if (watcher.failed) {
 			decorations.push('[FAILED]');
 		}
-		if (watcher.isStopped()) {
+		if (watcher.stopped) {
 			decorations.push('[STOPPED]');
 		}
 		if (watcher.subscriptionsCount() > 0) {
@@ -183,7 +183,7 @@ function fillRecursiveRequestStats(lines: string[], recursiveWatcher: ParcelWatc
 	}
 }
 
-function fillNonRecursiveRequestStats(lines: string[], nonRecursiveWatcher: NodeJSWatcher): void {
+function fillNonRecursiveWatcherStats(lines: string[], nonRecursiveWatcher: NodeJSWatcher): void {
 	const watchers = sortByPathPrefix(Array.from(nonRecursiveWatcher.watchers.values()));
 
 	const { active, failed, reusing } = computeNonRecursiveWatchStatus(nonRecursiveWatcher);

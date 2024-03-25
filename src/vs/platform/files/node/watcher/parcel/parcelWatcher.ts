@@ -33,7 +33,10 @@ export class ParcelWatcherInstance extends Disposable {
 	readonly onDidFail = this._onDidFail.event;
 
 	private didFail = false;
+	get failed(): boolean { return this.didFail; }
+
 	private didStop = false;
+	get stopped(): boolean { return this.didStop; }
 
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
 	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
@@ -108,10 +111,6 @@ export class ParcelWatcherInstance extends Disposable {
 		this._onDidFail.fire();
 	}
 
-	isFailed(): boolean {
-		return this.didFail;
-	}
-
 	include(path: string): boolean {
 		if (this.didFail) {
 			return false; // never pretend to include anything if we failed
@@ -126,10 +125,6 @@ export class ParcelWatcherInstance extends Disposable {
 
 	exclude(path: string): boolean {
 		return Boolean(this.excludes?.some(exclude => exclude(path)));
-	}
-
-	isStopped(): boolean {
-		return this.didStop;
 	}
 
 	async stop(): Promise<void> {
