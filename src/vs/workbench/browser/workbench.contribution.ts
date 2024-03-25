@@ -810,6 +810,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('zenMode.hideLineNumbers', "Controls whether turning on Zen Mode also hides the editor line numbers.")
 			},
+			'zenMode.hideMinimap': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('zenMode.hideMinimap', "Controls whether turning on Zen Mode also hides the editor minimap.")
+			},
 			'zenMode.restore': {
 				'type': 'boolean',
 				'default': true,

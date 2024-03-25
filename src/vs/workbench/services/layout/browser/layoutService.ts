@@ -30,6 +30,7 @@ export const enum Parts {
 }
 
 export const enum ZenModeSettings {
+	HIDE_MINIMAP = 'zenMode.hideMinimap',
 	SHOW_TABS = 'zenMode.showTabs',
 	HIDE_LINENUMBERS = 'zenMode.hideLineNumbers',
 	HIDE_STATUSBAR = 'zenMode.hideStatusBar',
