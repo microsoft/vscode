@@ -155,7 +155,7 @@ function fillRequestStats(lines: string[], request: IUniversalWatchRequest, watc
 		}
 	}
 
-	lines.push(`- ${request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${requestDetailsToString(request)})`);
+	lines.push(`${request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${requestDetailsToString(request)})`);
 }
 
 function requestDetailsToString(request: IUniversalWatchRequest): string {
@@ -182,7 +182,7 @@ function fillRecursiveWatcherStats(lines: string[], recursiveWatcher: ParcelWatc
 		if (watcher.restarts > 0) {
 			decorations.push(`[RESTARTED:${watcher.restarts}]`);
 		}
-		lines.push(`- ${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${requestDetailsToString(watcher.request)})`);
+		lines.push(`${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${requestDetailsToString(watcher.request)})`);
 	}
 }
 
@@ -200,6 +200,6 @@ function fillNonRecursiveWatcherStats(lines: string[], nonRecursiveWatcher: Node
 		if (watcher.instance.isReusingRecursiveWatcher) {
 			decorations.push('[REUSING]');
 		}
-		lines.push(`- ${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${requestDetailsToString(watcher.request)})`);
+		lines.push(`${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${requestDetailsToString(watcher.request)})`);
 	}
 }
