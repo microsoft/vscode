@@ -148,10 +148,10 @@ function fillRequestStats(lines: string[], request: IUniversalWatchRequest, watc
 	const decorations = [];
 	const suspended = watcher.isSuspended(request);
 	if (suspended !== false) {
-		decorations.push('[SUSPENDED]');
-
 		if (suspended === 'polling') {
-			decorations.push('[POLLING]');
+			decorations.push('[SUSPENDED <polling>]');
+		} else {
+			decorations.push('[SUSPENDED <non-polling>]');
 		}
 	}
 
@@ -178,6 +178,9 @@ function fillRecursiveWatcherStats(lines: string[], recursiveWatcher: ParcelWatc
 		}
 		if (watcher.subscriptionsCount() > 0) {
 			decorations.push(`[SUBSCRIBED:${watcher.subscriptionsCount()}]`);
+		}
+		if (watcher.restarts > 0) {
+			decorations.push(`[RESTARTED:${watcher.restarts}]`);
 		}
 		lines.push(`- ${watcher.request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${requestDetailsToString(watcher.request)})`);
 	}
