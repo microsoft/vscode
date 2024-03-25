@@ -305,6 +305,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return toDecodeStream(stream, {
 			acceptTextOnly: options?.acceptTextOnly ?? false,
 			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			candidateGuessEncodings:
+				options?.candidateGuessEncodings
+				|| this.textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings'),
 			overwriteEncoding: async detectedEncoding => {
 				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding ?? undefined);
 

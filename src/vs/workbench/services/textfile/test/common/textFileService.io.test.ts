@@ -592,6 +592,21 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(result.encoding, 'windows1252');
 	});
 
+	test('readStream - autoguessEncoding (candidateGuessEncodings)', async () => {
+		// This file is determined to be Windows-1252 unless candidateDetectEncoding is set.
+		const resource = URI.file(join(testDir, 'some.shiftjis.1.txt'));
+
+		const result = await service.readStream(resource, { autoGuessEncoding: true, candidateGuessEncodings: ['utf-8', 'shiftjis', 'euc-jp'] });
+		assert.strictEqual(result.encoding, 'shiftjis');
+	});
+
+	test('readStream - autoguessEncoding (candidateGuessEncodings is Empty)', async () => {
+		const resource = URI.file(join(testDir, 'some_cp1252.txt'));
+
+		const result = await service.readStream(resource, { autoGuessEncoding: true, candidateGuessEncodings: [] });
+		assert.strictEqual(result.encoding, 'windows1252');
+	});
+
 	test('readStream - FILE_IS_BINARY', async () => {
 		const resource = URI.file(join(testDir, 'binary.txt'));
 

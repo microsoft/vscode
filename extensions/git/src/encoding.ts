@@ -49,14 +49,56 @@ const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 	'big5': 'cp950'
 };
 
-export function detectEncoding(buffer: Buffer): string | null {
+const JSCHARDET_SUPPORTED_GUESS_ENCODINGS = [
+	'Big5',
+	'EUC-JP',
+	'EUC-KR',
+	'EUC-TW',
+	'GB2312',
+	'HZ-GB-2312',
+	'IBM855',
+	'IBM866',
+	'ISO-2022-CN',
+	'ISO-2022-JP',
+	'ISO-2022-KR',
+	'ISO-8859-2',
+	'ISO-8859-5',
+	'ISO-8859-7',
+	'KOI8-R',
+	'SHIFT_JIS',
+	'TIS-620',
+	'UTF-16BE',
+	'UTF-16LE',
+	'UTF-32BE',
+	'UTF-32LE',
+	'UTF-8',
+	'X-ISO-10646-UCS-4-2143',
+	'X-ISO-10646-UCS-4-3412',
+	'windows-1250',
+	'windows-1251',
+	'windows-1252',
+	'windows-1253',
+	'windows-1255',
+	'x-mac-cyrillic',
+];
+
+export function detectEncoding(buffer: Buffer, candidateGuessEncodings: string[]): string | null {
 	const result = detectEncodingByBOM(buffer);
 
 	if (result) {
 		return result;
 	}
 
-	const detected = jschardet.detect(buffer);
+	let encodings: string[] | undefined = normalizedEncodings(candidateGuessEncodings);
+	if (encodings.length === 0) {
+		encodings = undefined;
+	}
+
+	const detected = jschardet.detect(buffer, {
+		// Lower the threshold to make sure we have a result
+		minimumThreshold: 0,
+		detectEncodings: encodings,
+	});
 
 	if (!detected || !detected.encoding) {
 		return null;
@@ -74,4 +116,14 @@ export function detectEncoding(buffer: Buffer): string | null {
 	const mapped = JSCHARDET_TO_ICONV_ENCODINGS[normalizedEncodingName];
 
 	return mapped || normalizedEncodingName;
+}
+
+function normalizedEncodings(encodings: string[]): string[] {
+	const normalizedEncodings = encodings.map(encoding => encoding.replace(/[^a-zA-Z0-9]/g, '').toLowerCase());
+	const validEncodings = JSCHARDET_SUPPORTED_GUESS_ENCODINGS.filter(supportEncoding => {
+		const normalizedSupportEncoding = supportEncoding.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+		return normalizedEncodings.indexOf(normalizedSupportEncoding) !== -1;
+	});
+
+	return validEncodings;
 }
