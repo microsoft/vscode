@@ -318,6 +318,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		selection.addRange(range);
 	};
 
+	const disableNativeSelectAll = (e: KeyboardEvent) => {
+		if (!lastFocusedOutput?.id) {
+			return;
+		}
+		if ((e.key === 'a' && e.ctrlKey) || (e.metaKey && e.key === 'a')) {
+			e.preventDefault(); // We will handle selection in editor code.
+			return;
+		}
+	};
+
 	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
 		postNotebookMessage<webviewMessages.IClickedDataUrlMessage>('clicked-data-url', {
 			data,
@@ -343,6 +353,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	window.document.body.addEventListener('focusin', checkOutputInputFocus);
 	window.document.body.addEventListener('focusout', handleOutputFocusOut);
 	window.document.body.addEventListener('keydown', onPageUpDownSelectionHandler);
+	window.document.body.addEventListener('keydown', disableNativeSelectAll);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;
