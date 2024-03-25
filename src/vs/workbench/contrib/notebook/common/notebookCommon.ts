@@ -32,6 +32,7 @@ import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/serv
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IFileReadLimits } from 'vs/platform/files/common/files';
 import { parse as parseUri, generate as generateUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
+import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -120,6 +121,7 @@ export interface NotebookCellInternalMetadata {
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
 	renderDuration?: { [key: string]: number };
+	error?: ICellExecutionError;
 }
 
 export interface NotebookCellCollapseState {
@@ -945,10 +947,16 @@ export const NotebookSetting = {
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 	remoteSaving: 'notebook.experimental.remoteSave',
 	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
+	outlineShowMarkdownHeadersOnly: 'notebook.outline.showMarkdownHeadersOnly',
+	outlineShowCodeCells: 'notebook.outline.showCodeCells',
+	outlineShowCodeCellSymbols: 'notebook.outline.showCodeCellSymbols',
+	breadcrumbsShowCodeCells: 'notebook.breadcrumbs.showCodeCells',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell',
 	cellChat: 'notebook.experimental.cellChat',
-	notebookVariablesView: 'notebook.experimental.variablesView'
+	notebookVariablesView: 'notebook.experimental.variablesView',
+	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
+	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 } as const;
 
 export const enum CellStatusbarAlignment {

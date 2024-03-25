@@ -471,7 +471,7 @@ pub enum CodeError {
 
 	#[error("platform not currently supported: {0}")]
 	UnsupportedPlatform(String),
-	#[error("This machine does not meet {name}'s prerequisites, expected either...: {bullets}")]
+	#[error("This machine does not meet {name}'s prerequisites, expected either...\n{bullets}")]
 	PrerequisitesFailed { name: &'static str, bullets: String },
 	#[error("failed to spawn process: {0:?}")]
 	ProcessSpawnFailed(std::io::Error),
@@ -512,6 +512,10 @@ pub enum CodeError {
 	// todo: can be specialized when update service is moved to CodeErrors
 	#[error("Could not check for update: {0}")]
 	UpdateCheckFailed(String),
+	#[error("Could not write connection token file: {0}")]
+	CouldNotCreateConnectionTokenFile(std::io::Error),
+	#[error("A tunnel with the name {0} exists and is in-use. Please pick a different name or stop the existing tunnel.")]
+	TunnelActiveAndInUse(String),
 }
 
 makeAnyError!(

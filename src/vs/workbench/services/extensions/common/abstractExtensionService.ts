@@ -160,10 +160,19 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}));
 
+		this._register(this._extensionManagementService.onDidEnableExtensions(extensions => {
+			if (extensions.length) {
+				if (isCI) {
+					this._logService.info(`AbstractExtensionService.onDidEnableExtensions fired`);
+				}
+				this._handleDeltaExtensions(new DeltaExtensionsQueueItem(extensions, []));
+			}
+		}));
+
 		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
 			const extensions: IExtension[] = [];
 			for (const { local, operation } of result) {
-				if (local && operation !== InstallOperation.Migrate && this._safeInvokeIsEnabled(local)) {
+				if (local && local.isValid && operation !== InstallOperation.Migrate && this._safeInvokeIsEnabled(local)) {
 					extensions.push(local);
 				}
 			}
@@ -864,8 +873,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	public async startExtensionHosts(): Promise<void> {
+	public async startExtensionHosts(updates?: { toAdd: IExtension[]; toRemove: string[] }): Promise<void> {
 		this._doStopExtensionHosts();
+
+		if (updates) {
+			await this._handleDeltaExtensions(new DeltaExtensionsQueueItem(updates.toAdd, updates.toRemove));
+		}
 
 		const lock = await this._registry.acquireLock('startExtensionHosts');
 		try {

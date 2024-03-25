@@ -9,10 +9,10 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
+import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor/commands';
+import { INLINE_CHAT_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -81,10 +81,12 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 			if (type === 'panelChat' && cachedPosition) {
 				inputEditor.setPosition(cachedPosition);
 				inputEditor.focus();
+
 			} else if (type === 'inlineChat') {
-				if (editor) {
-					InlineChatController.get(editor)?.focus();
-				}
+				// TODO@jrieken find a better way for this
+				const ctrl = <{ focus(): void } | undefined>editor?.getContribution(INLINE_CHAT_ID);
+				ctrl?.focus();
+
 			}
 		},
 		options: { type: AccessibleViewType.Help }

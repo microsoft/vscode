@@ -7,6 +7,8 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Codicon } from 'vs/base/common/codicons';
@@ -187,18 +189,17 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 	abstract get templateId(): string;
 
 	renderTemplate(container: HTMLElement): IExpressionTemplateData {
+		const templateDisposable = new DisposableStore();
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
 		lazyButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.eye));
-		lazyButton.title = localize('debug.lazyButton.tooltip', "Click to expand");
+		templateDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
 		const value = dom.append(expression, $('span.value'));
 
-		const label = new HighlightedLabel(name);
+		const label = templateDisposable.add(new HighlightedLabel(name));
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
-
-		const templateDisposable = new DisposableStore();
 
 		let actionBar: ActionBar | undefined;
 		if (this.renderActionBar) {

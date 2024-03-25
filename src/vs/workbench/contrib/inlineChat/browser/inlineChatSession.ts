@@ -33,6 +33,8 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 export type TelemetryData = {
@@ -67,11 +69,6 @@ export type TelemetryDataClassification = {
 	responseTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma separated list of response types like edits, message, mixed' };
 };
 
-export enum ExpansionState {
-	EXPANDED = 'expanded',
-	CROPPED = 'cropped',
-	NOT_CROPPED = 'not_cropped'
-}
 
 export class SessionWholeRange {
 
@@ -142,7 +139,6 @@ export class SessionWholeRange {
 export class Session {
 
 	private _lastInput: SessionPrompt | undefined;
-	private _lastExpansionState: ExpansionState | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
@@ -169,10 +165,11 @@ export class Session {
 		readonly session: IInlineChatSession,
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
+		readonly chatModel: ChatModel,
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
-			extension: provider.debugName,
+			extension: ExtensionIdentifier.toKey(provider.extensionId),
 			startTime: this._startTime.toISOString(),
 			endTime: this._startTime.toISOString(),
 			edits: 0,
@@ -202,14 +199,6 @@ export class Session {
 	markUnstashed() {
 		this._teldata.unstashed! += 1;
 		this._isUnstashed = true;
-	}
-
-	get lastExpansionState(): ExpansionState | undefined {
-		return this._lastExpansionState;
-	}
-
-	set lastExpansionState(state: ExpansionState) {
-		this._lastExpansionState = state;
 	}
 
 	get textModelNSnapshotAltVersion(): number | undefined {
@@ -295,21 +284,11 @@ export class Session {
 
 export class SessionPrompt {
 
-	private _attempt: number = 0;
-
 	constructor(
 		readonly value: string,
+		readonly attempt: number,
+		readonly withIntentDetection: boolean,
 	) { }
-
-	get attempt() {
-		return this._attempt;
-	}
-
-	retry() {
-		const result = new SessionPrompt(this.value);
-		result._attempt = this._attempt + 1;
-		return result;
-	}
 }
 
 export class SessionExchange {
@@ -723,7 +702,9 @@ export class HunkData {
 	discardAll() {
 		const edits: ISingleEditOperation[][] = [];
 		for (const item of this.getInfo()) {
-			edits.push(this._discardEdits(item));
+			if (item.getState() !== HunkState.Rejected) {
+				edits.push(this._discardEdits(item));
+			}
 		}
 		const undoEdits: IValidEditOperation[][] = [];
 		this._textModelN.pushEditOperations(null, edits.flat(), (_undoEdits) => {

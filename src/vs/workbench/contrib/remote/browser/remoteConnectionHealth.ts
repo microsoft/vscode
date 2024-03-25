@@ -21,6 +21,7 @@ import Severity from 'vs/base/common/severity';
 
 
 const REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY = 'remote.unsupportedConnectionChoice';
+const BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY = 'workbench.banner.remote.unsupportedConnection.dismissed';
 
 export class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
 
@@ -90,19 +91,27 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 					allowed = await this._confirmConnection();
 				}
 				if (allowed) {
-					const actions = [
-						{
-							label: localize('unsupportedGlibcBannerLearnMore', "Learn More"),
-							href: 'https://aka.ms/vscode-remote/faq/old-linux'
-						}
-					];
-					this.bannerService.show({
-						id: 'unsupportedGlibcWarning.banner',
-						message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS version that is unsupported by {0}.", this.productService.nameLong),
-						actions,
-						icon: Codicon.warning,
-						disableCloseAction: true
-					});
+					const bannerDismissedVersion = this.storageService.get(`${BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY}`, StorageScope.PROFILE) ?? '';
+					// Ignore patch versions and dismiss the banner if the major and minor versions match.
+					const shouldShowBanner = bannerDismissedVersion.slice(0, bannerDismissedVersion.lastIndexOf('.')) !== this.productService.version.slice(0, this.productService.version.lastIndexOf('.'));
+					if (shouldShowBanner) {
+						const actions = [
+							{
+								label: localize('unsupportedGlibcBannerLearnMore', "Learn More"),
+								href: 'https://aka.ms/vscode-remote/faq/old-linux'
+							}
+						];
+						this.bannerService.show({
+							id: 'unsupportedGlibcWarning.banner',
+							message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS version that is unsupported by {0}.", this.productService.nameLong),
+							actions,
+							icon: Codicon.warning,
+							closeLabel: `Do not show again in v${this.productService.version}`,
+							onClose: () => {
+								this.storageService.store(`${BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY}`, this.productService.version, StorageScope.PROFILE, StorageTarget.MACHINE);
+							}
+						});
+					}
 				} else {
 					this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
 					return;

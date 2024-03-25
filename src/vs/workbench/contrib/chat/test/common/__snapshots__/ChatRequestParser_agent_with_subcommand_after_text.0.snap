@@ -13,9 +13,14 @@
       },
       agent: {
         id: "agent",
+        name: "agent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        locations: [ "panel" ],
         metadata: { description: "" },
-        provideSlashCommands: [Function provideSlashCommands],
-        lastSlashCommands: [
+        slashCommands: [
           {
             name: "subCommand",
             description: ""

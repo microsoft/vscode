@@ -31,6 +31,12 @@ function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState |
 	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
 }
 
+export enum CommentWidgetFocus {
+	None = 0,
+	Widget = 1,
+	Editor = 2
+}
+
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	const range = e.target.range;
 
@@ -105,8 +111,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _contextKeyService: IContextKeyService;
 	private _scopedInstantiationService: IInstantiationService;
 
-	public get owner(): string {
-		return this._owner;
+	public get uniqueOwner(): string {
+		return this._uniqueOwner;
 	}
 	public get commentThread(): languages.CommentThread {
 		return this._commentThread;
@@ -120,7 +126,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	constructor(
 		editor: ICodeEditor,
-		private _owner: string,
+		private _uniqueOwner: string,
 		private _commentThread: languages.CommentThread,
 		private _pendingComment: string | undefined,
 		private _pendingEdits: { [key: number]: string } | undefined,
@@ -137,7 +143,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			[IContextKeyService, this._contextKeyService]
 		));
 
-		const controller = this.commentService.getCommentController(this._owner);
+		const controller = this.commentService.getCommentController(this._uniqueOwner);
 		if (controller) {
 			this._commentOptions = controller.options;
 		}
@@ -181,7 +187,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		// we don't do anything here as we always do the reveal ourselves.
 	}
 
-	public reveal(commentUniqueId?: number, focus: boolean = false) {
+	public reveal(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
 		if (!this._isExpanded) {
 			this.show(this.arrowPosition(this._commentThread.range), 2);
 		}
@@ -197,16 +203,23 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
 				}
 				this.editor.setScrollTop(scrollTop);
-				if (focus) {
+				if (focus === CommentWidgetFocus.Widget) {
 					this._commentThreadWidget.focus();
+				} else if (focus === CommentWidgetFocus.Editor) {
+					this._commentThreadWidget.focusCommentEditor();
 				}
 				return;
 			}
 		}
+		const rangeToReveal = this._commentThread.range
+			? new Range(this._commentThread.range.startLineNumber, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + 1, 1)
+			: new Range(1, 1, 1, 1);
 
-		this.editor.revealRangeInCenter(this._commentThread.range ?? new Range(1, 1, 1, 1));
-		if (focus) {
+		this.editor.revealRangeInCenter(rangeToReveal);
+		if (focus === CommentWidgetFocus.Widget) {
 			this._commentThreadWidget.focus();
+		} else if (focus === CommentWidgetFocus.Editor) {
+			this._commentThreadWidget.focusCommentEditor();
 		}
 	}
 
@@ -229,7 +242,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			CommentThreadWidget,
 			container,
 			this.editor,
-			this._owner,
+			this._uniqueOwner,
 			this.editor.getModel()!.uri,
 			this._contextKeyService,
 			this._scopedInstantiationService,
@@ -258,7 +271,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 							} else {
 								range = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.endColumn);
 							}
-							await this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, range);
+							await this.commentService.updateCommentThreadTemplate(this.uniqueOwner, this._commentThread.commentThreadHandle, range);
 						}
 					}
 				},
@@ -281,7 +294,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	private deleteCommentThread(): void {
 		this.dispose();
-		this.commentService.disposeCommentThread(this.owner, this._commentThread.threadId);
+		this.commentService.disposeCommentThread(this.uniqueOwner, this._commentThread.threadId);
 	}
 
 	public collapse() {

@@ -389,12 +389,12 @@ export class ObservableValue<T, TChange = void>
 	constructor(
 		private readonly _owner: Owner,
 		private readonly _debugName: string | undefined,
-		initialValue: T
+		initialValue: T,
 	) {
 		super();
 		this._value = initialValue;
 	}
-	public get(): T {
+	public override get(): T {
 		return this._value;
 	}
 

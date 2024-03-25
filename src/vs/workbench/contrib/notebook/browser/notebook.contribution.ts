@@ -62,6 +62,7 @@ import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook
 import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
 import 'vs/workbench/contrib/notebook/browser/controller/executeActions';
+import 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
 import 'vs/workbench/contrib/notebook/browser/controller/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
@@ -1090,7 +1091,7 @@ configurationRegistry.registerConfiguration({
 			default: 'auto'
 		},
 		[NotebookSetting.cellChat]: {
-			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental cell chat for notebooks."),
+			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental floating chat widget in notebooks."),
 			type: 'boolean',
 			default: false
 		},
@@ -1098,6 +1099,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
 			type: 'boolean',
 			default: false
-		}
+		},
+		[NotebookSetting.cellFailureDiagnostics]: {
+			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Show available diagnostics for cell failures."),
+			type: 'boolean',
+			default: true
+		},
 	}
 });

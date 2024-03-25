@@ -8,9 +8,9 @@ import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor/commands';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -91,9 +91,6 @@ function createScreenReaderHelp(): IDisposable {
 		const keybindingService = accessor.get(IKeybindingService);
 		const contextKeyService = accessor.get(IContextKeyService);
 
-		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
-		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
-
 		if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget)) {
 			return;
 		}
@@ -103,11 +100,25 @@ function createScreenReaderHelp(): IDisposable {
 			return;
 		}
 
+		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
+		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
+		let switchSides;
+		const switchSidesKb = keybindingService.lookupKeybinding('diffEditor.switchSide')?.getAriaLabel();
+		if (switchSidesKb) {
+			switchSides = localize('msg3', "Run the command Diff Editor: Switch Side ({0}) to toggle between the original and modified editors.", switchSidesKb);
+		} else {
+			switchSides = localize('switchSidesNoKb', "Run the command Diff Editor: Switch Side, which is currently not triggerable via keybinding, to toggle between the original and modified editors.");
+		}
+
+		const diffEditorActiveAnnouncement = localize('msg5', "The setting, accessibility.verbosity.diffEditorActive, controls if a diff editor announcement is made when it becomes the active editor.");
+
 		const keys = ['accessibility.signals.diffLineDeleted', 'accessibility.signals.diffLineInserted', 'accessibility.signals.diffLineModified'];
 		const content = [
 			localize('msg1', "You are in a diff editor."),
 			localize('msg2', "View the next ({0}) or previous ({1}) diff in diff review mode, which is optimized for screen readers.", next, previous),
-			localize('msg3', "To control which accessibility signals should be played, the following settings can be configured: {0}.", keys.join(', ')),
+			switchSides,
+			diffEditorActiveAnnouncement,
+			localize('msg4', "To control which accessibility signals should be played, the following settings can be configured: {0}.", keys.join(', ')),
 		];
 		const commentCommandInfo = getCommentCommandInfo(keybindingService, contextKeyService, codeEditor);
 		if (commentCommandInfo) {

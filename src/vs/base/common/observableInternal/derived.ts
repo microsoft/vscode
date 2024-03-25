@@ -10,7 +10,7 @@ import { DebugNameData, IDebugNameData, Owner } from 'vs/base/common/observableI
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 export type EqualityComparer<T> = (a: T, b: T) => boolean;
-const defaultEqualityComparer: EqualityComparer<any> = (a, b) => a === b;
+export const defaultEqualityComparer: EqualityComparer<any> = (a, b) => a === b;
 
 /**
  * Creates an observable that is derived from other observables.

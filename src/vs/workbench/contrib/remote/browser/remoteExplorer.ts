@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
@@ -41,8 +41,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 export const VIEWLET_ID = 'workbench.view.remote';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
-	private contextKeyListener?: IDisposable;
-	private _activityBadge?: IDisposable;
+	private readonly contextKeyListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly activityBadge = this._register(new MutableDisposable<IDisposable>());
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
 
 	constructor(
@@ -75,10 +75,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async enableForwardedPortsView() {
-		if (this.contextKeyListener) {
-			this.contextKeyListener.dispose();
-			this.contextKeyListener = undefined;
-		}
+		this.contextKeyListener.clear();
 
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 
@@ -91,7 +88,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 				viewsRegistry.registerViews([tunnelPanelDescriptor], viewContainer);
 			}
 		} else {
-			this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {
+			this.contextKeyListener.value = this.contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
 					this.enableForwardedPortsView();
 				}
@@ -119,9 +116,8 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async updateActivityBadge() {
-		this._activityBadge?.dispose();
 		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
-			this._activityBadge = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
+			this.activityBadge.value = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
 				badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
 			});
 		}
@@ -221,8 +217,25 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		}
 	}
 
+	private getPortAutoFallbackNumber(): number {
+		const fallbackAt = this.configurationService.inspect<number>(PORT_AUTO_FALLBACK_SETTING);
+		if ((fallbackAt.value !== undefined) && (fallbackAt.value === 0 || (fallbackAt.value !== fallbackAt.defaultValue))) {
+			return fallbackAt.value;
+		}
+		const inspectSource = this.configurationService.inspect(PORT_AUTO_SOURCE_SETTING);
+		if (inspectSource.applicationValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.userValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.userLocalValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.userRemoteValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.workspaceFolderValue === PORT_AUTO_SOURCE_SETTING_PROCESS ||
+			inspectSource.workspaceValue === PORT_AUTO_SOURCE_SETTING_PROCESS) {
+			return 0;
+		}
+		return fallbackAt.value ?? 20;
+	}
+
 	private listenForPorts() {
-		let fallbackAt = this.configurationService.getValue<number>(PORT_AUTO_FALLBACK_SETTING);
+		let fallbackAt = this.getPortAutoFallbackNumber();
 		if (fallbackAt === 0) {
 			this.portListener?.dispose();
 			return;
@@ -230,7 +243,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 
 		if (this.procForwarder && !this.portListener && (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS)) {
 			this.portListener = this._register(this.remoteExplorerService.tunnelModel.onForwardPort(async () => {
-				fallbackAt = this.configurationService.getValue<number>(PORT_AUTO_FALLBACK_SETTING);
+				fallbackAt = this.getPortAutoFallbackNumber();
 				if (fallbackAt === 0) {
 					this.portListener?.dispose();
 					return;
@@ -273,8 +286,10 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		this.outputForwarder?.dispose();
 		this.outputForwarder = undefined;
 		if (environment?.os !== OperatingSystem.Linux) {
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-				.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
+			if (this.configurationService.inspect<string>(PORT_AUTO_SOURCE_SETTING).default?.value !== PORT_AUTO_SOURCE_SETTING_OUTPUT) {
+				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+					.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
+			}
 			this.outputForwarder = this._register(new OutputAutomaticPortForwarding(this.terminalService, this.notificationService, this.openerService, this.externalOpenerService,
 				this.remoteExplorerService, this.configurationService, this.debugService, this.tunnelService, this.hostService, this.logService, this.contextKeyService, () => false));
 		} else {

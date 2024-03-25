@@ -20,6 +20,8 @@ import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInp
 import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target: { sessionId: string } | { providerId: string } | { data: ISerializableChatData };
@@ -37,13 +39,14 @@ export class ChatEditor extends EditorPane {
 	private _viewState: IChatViewState | undefined;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
-		super(ChatEditorInput.EditorID, telemetryService, themeService, storageService);
+		super(ChatEditorInput.EditorID, group, telemetryService, themeService, storageService);
 	}
 
 	public async clear() {
@@ -57,6 +60,7 @@ export class ChatEditor extends EditorPane {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
+				ChatAgentLocation.Panel,
 				{ resource: true },
 				{ supportsFileReferences: true },
 				{
@@ -81,7 +85,7 @@ export class ChatEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	override async setInput(input: ChatEditorInput, options: IChatEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, context, token);
 
 		const editorModel = await input.resolve();
@@ -93,7 +97,7 @@ export class ChatEditor extends EditorPane {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
-		this.updateModel(editorModel.model, options.viewState);
+		this.updateModel(editorModel.model, options?.viewState ?? input.options.viewState);
 	}
 
 	private updateModel(model: IChatModel, viewState?: IChatViewState): void {

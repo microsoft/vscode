@@ -25,7 +25,6 @@ import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContr
 import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
-
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
 
@@ -152,6 +151,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				? (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService)
 				: undefined,
 			extHostTerminalId,
+			forceShellIntegration: launchConfig.forceShellIntegration,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,

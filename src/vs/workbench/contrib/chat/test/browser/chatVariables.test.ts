@@ -12,8 +12,10 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { MockChatWidgetService } from 'vs/workbench/contrib/chat/test/browser/mockChatWidget';
+import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -30,7 +32,8 @@ suite('ChatVariables', function () {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IChatVariablesService, service);
-		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 	});
 
 	test('ChatVariables - resolveVariables', async function () {
@@ -42,7 +45,7 @@ suite('ChatVariables', function () {
 
 		const resolveVariables = async (text: string) => {
 			const result = parser.parseChatRequest('1', text);
-			return await service.resolveVariables(result, null!, CancellationToken.None);
+			return await service.resolveVariables(result, null!, () => { }, CancellationToken.None);
 		};
 
 		{

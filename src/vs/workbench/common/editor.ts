@@ -74,7 +74,7 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 	/**
 	 * Instantiates the editor pane using the provided services.
 	 */
-	instantiate(instantiationService: IInstantiationService): T;
+	instantiate(instantiationService: IInstantiationService, group: IEditorGroup): T;
 
 	/**
 	 * Whether the descriptor is for the provided editor pane.
@@ -107,6 +107,11 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeSelection?: Event<IEditorPaneSelectionChangeEvent>;
 
 	/**
+	 * An optional event to notify when the editor inside the pane scrolled
+	 */
+	readonly onDidChangeScroll?: Event<void>;
+
+	/**
 	 * The assigned input of this editor.
 	 */
 	readonly input: EditorInput | undefined;
@@ -119,7 +124,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	readonly group: IEditorGroup | undefined;
+	readonly group: IEditorGroup;
 
 	/**
 	 * The minimum width of this editor.
@@ -181,6 +186,22 @@ export interface IEditorPane extends IComposite {
 	 * selection as needed.
 	 */
 	getSelection?(): IEditorPaneSelection | undefined;
+
+	/**
+	 * An optional method to return the current scroll position
+	 * of an editor inside the pane.
+	 *
+	 * Clients of this method will typically react to the
+	 * `onDidChangeScroll` event to receive the current
+	 * scroll position as needed.
+	 */
+	getScrollPosition?(): IEditorPaneScrollPosition;
+
+	/**
+	 * An optional method to set the current scroll position
+	 * of an editor inside the pane.
+	 */
+	setScrollPosition?(scrollPosition: IEditorPaneScrollPosition): void;
 
 	/**
 	 * Finds out if this editor is visible or not.
@@ -305,6 +326,29 @@ export function isEditorPaneWithSelection(editorPane: IEditorPane | undefined): 
 	return !!candidate && typeof candidate.getSelection === 'function' && !!candidate.onDidChangeSelection;
 }
 
+export interface IEditorPaneWithScrolling extends IEditorPane {
+
+	readonly onDidChangeScroll: Event<void>;
+
+	getScrollPosition(): IEditorPaneScrollPosition;
+
+	setScrollPosition(position: IEditorPaneScrollPosition): void;
+}
+
+export function isEditorPaneWithScrolling(editorPane: IEditorPane | undefined): editorPane is IEditorPaneWithScrolling {
+	const candidate = editorPane as IEditorPaneWithScrolling | undefined;
+
+	return !!candidate && typeof candidate.getScrollPosition === 'function' && typeof candidate.setScrollPosition === 'function' && !!candidate.onDidChangeScroll;
+}
+
+/**
+ * Scroll position of a pane
+ */
+export interface IEditorPaneScrollPosition {
+	readonly scrollTop: number;
+	readonly scrollLeft?: number;
+}
+
 /**
  * Try to retrieve the view state for the editor pane that
  * has the provided editor input opened, if at all.
@@ -327,7 +371,6 @@ export function findViewStateForEditor(input: EditorInput, group: GroupIdentifie
  */
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: EditorInput;
-	readonly group: IEditorGroup;
 }
 
 /**
@@ -505,6 +548,11 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
 	 */
 	readonly resources?: IResourceDiffEditorInput[];
+
+	/**
+	 * Whether the editor should be serialized and stored for subsequent sessions.
+	 */
+	readonly isTransient?: boolean;
 }
 
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
@@ -559,7 +607,7 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 	return candidate?.original !== undefined && candidate.modified !== undefined;
 }
 
-export function isResourceDiffListEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
+export function isResourceMultiDiffEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
@@ -785,13 +833,7 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor cannot be in a dirty state
 	 * and may still have unsaved changes
 	 */
-	Scratchpad = 1 << 9,
-
-	/**
-	 * Signals that the editor does not support opening in
-	 * auxiliary windows yet.
-	 */
-	AuxWindowUnsupported = 1 << 10
+	Scratchpad = 1 << 9
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -1128,6 +1170,7 @@ export const enum GroupModelChangeKind {
 	EDITOR_LABEL,
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
+	EDITOR_TRANSIENT,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
 	EDITOR_WILL_DISPOSE
@@ -1305,7 +1348,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1374,7 +1417,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 

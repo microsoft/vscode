@@ -23,11 +23,12 @@ import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/termi
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange } from '@xterm/xterm';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -113,13 +114,17 @@ export interface IMarkTracker {
 	selectToNextMark(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
-	clearMarker(): void;
+	clear(): void;
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;
-	revealCommand(command: ITerminalCommand, position?: ScrollPosition): void;
+	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position?: ScrollPosition): void;
+	revealRange(range: IBufferRange): void;
 	registerTemporaryDecoration(marker: IMarker, endMarker: IMarker | undefined, showOutline: boolean): void;
 	showCommandGuide(command: ITerminalCommand | undefined): void;
+
+	saveScrollState(): void;
+	restoreScrollState(): void;
 }
 
 export interface ITerminalGroup {
@@ -262,6 +267,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 
 	// Multiplexed events
+	readonly onAnyInstanceData: Event<{ instance: ITerminalInstance; data: string }>;
 	readonly onAnyInstanceDataInput: Event<ITerminalInstance>;
 	readonly onAnyInstanceIconChange: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 	readonly onAnyInstanceMaximumDimensionsChange: Event<ITerminalInstance>;

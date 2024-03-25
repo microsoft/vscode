@@ -340,10 +340,11 @@ async function downloadArtifact(artifact, downloadPath) {
 }
 async function unzip(packagePath, outputPath) {
     return new Promise((resolve, reject) => {
-        yauzl.open(packagePath, { lazyEntries: true }, (err, zipfile) => {
+        yauzl.open(packagePath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
             if (err) {
                 return reject(err);
             }
+            const result = [];
             zipfile.on('entry', entry => {
                 if (/\/$/.test(entry.fileName)) {
                     zipfile.readEntry();
@@ -357,20 +358,21 @@ async function unzip(packagePath, outputPath) {
                         fs.mkdirSync(path.dirname(filePath), { recursive: true });
                         const ostream = fs.createWriteStream(filePath);
                         ostream.on('finish', () => {
-                            zipfile.close();
-                            resolve(filePath);
+                            result.push(filePath);
+                            zipfile.readEntry();
                         });
                         istream?.on('error', err => reject(err));
                         istream.pipe(ostream);
                     });
                 }
             });
+            zipfile.on('close', () => resolve(result));
             zipfile.readEntry();
         });
     });
 }
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product, os, arch, type) {
+function getPlatform(product, os, arch, type, isLegacy) {
     switch (os) {
         case 'win32':
             switch (product) {
@@ -421,9 +423,12 @@ function getPlatform(product, os, arch, type) {
                         case 'client':
                             return `linux-${arch}`;
                         case 'server':
-                            return `server-linux-${arch}`;
+                            return isLegacy ? `server-linux-legacy-${arch}` : `server-linux-${arch}`;
                         case 'web':
-                            return arch === 'standalone' ? 'web-standalone' : `server-linux-${arch}-web`;
+                            if (arch === 'standalone') {
+                                return 'web-standalone';
+                            }
+                            return isLegacy ? `server-linux-legacy-${arch}-web` : `server-linux-${arch}-web`;
                         default:
                             throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
                     }
@@ -476,7 +481,7 @@ function getRealType(type) {
 }
 async function processArtifact(artifact, artifactFilePath) {
     const log = (...args) => console.log(`[${artifact.name}]`, ...args);
-    const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
+    const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
     if (!match) {
         throw new Error(`Invalid artifact name: ${artifact.name}`);
     }
@@ -484,14 +489,15 @@ async function processArtifact(artifact, artifactFilePath) {
     const quality = e('VSCODE_QUALITY');
     const commit = e('BUILD_SOURCEVERSION');
     const { product, os, arch, unprocessedType } = match.groups;
-    const platform = getPlatform(product, os, arch, unprocessedType);
+    const isLegacy = artifact.name.includes('_legacy');
+    const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
     const type = getRealType(unprocessedType);
     const size = fs.statSync(artifactFilePath).size;
     const stream = fs.createReadStream(artifactFilePath);
     const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
     const url = await releaseAndProvision(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT_SUBJECT_NAME'), e('RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'), e('PROVISION_TENANT_ID'), e('PROVISION_AAD_USERNAME'), e('PROVISION_AAD_PASSWORD'), commit, quality, artifactFilePath);
     const asset = { platform, type, url, hash, sha256hash, size, supportsFastUpdate: true };
-    log('Creating asset...', JSON.stringify(asset));
+    log('Creating asset...', JSON.stringify(asset, undefined, 2));
     await (0, retry_1.retry)(async (attempt) => {
         log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
         const aadCredentials = new identity_1.ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
@@ -524,6 +530,9 @@ async function main() {
     }
     if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') {
         stages.add('Linux');
+    }
+    if (e('VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER') === 'True') {
+        stages.add('LinuxLegacyServer');
     }
     if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') {
         stages.add('Alpine');
@@ -568,12 +577,8 @@ async function main() {
                 const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
                 console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
             });
-            const artifactFilePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
-            const artifactSize = fs.statSync(artifactFilePath).size;
-            if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
-                console.log(`[${artifact.name}] Artifact size mismatch.Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize} `);
-                throw new Error(`Artifact size mismatch.`);
-            }
+            const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+            const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
             processing.add(artifact.name);
             const promise = new Promise((resolve, reject) => {
                 const worker = new node_worker_threads_1.Worker(__filename, { workerData: { artifact, artifactFilePath } });
@@ -595,7 +600,7 @@ async function main() {
             operations.push({ name: artifact.name, operation });
             resultPromise = Promise.allSettled(operations.map(o => o.operation));
         }
-        await new Promise(c => setTimeout(c, 10000));
+        await new Promise(c => setTimeout(c, 10_000));
     }
     console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
     const artifactsInProgress = operations.filter(o => processing.has(o.name));

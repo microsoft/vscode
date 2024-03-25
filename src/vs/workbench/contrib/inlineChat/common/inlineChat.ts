@@ -21,6 +21,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -116,7 +117,7 @@ export type IInlineChatFollowup = IInlineChatReplyFollowup | IInlineChatCommandF
 
 export interface IInlineChatSessionProvider {
 
-	debugName: string;
+	extensionId: ExtensionIdentifier;
 	label: string;
 	supportIssueReporting?: boolean;
 
@@ -156,7 +157,6 @@ export const CTX_INLINE_CHAT_INNER_CURSOR_FIRST = new RawContextKey<boolean>('in
 export const CTX_INLINE_CHAT_INNER_CURSOR_LAST = new RawContextKey<boolean>('inlineChatInnerCursorLast', false, localize('inlineChatInnerCursorLast', "Whether the cursor of the iteractive editor input is on the last line"));
 export const CTX_INLINE_CHAT_INNER_CURSOR_START = new RawContextKey<boolean>('inlineChatInnerCursorStart', false, localize('inlineChatInnerCursorStart', "Whether the cursor of the iteractive editor input is on the start of the input"));
 export const CTX_INLINE_CHAT_INNER_CURSOR_END = new RawContextKey<boolean>('inlineChatInnerCursorEnd', false, localize('inlineChatInnerCursorEnd', "Whether the cursor of the iteractive editor input is on the end of the input"));
-export const CTX_INLINE_CHAT_MESSAGE_CROP_STATE = new RawContextKey<'cropped' | 'not_cropped' | 'expanded'>('inlineChatMarkdownMessageCropState', 'not_cropped', localize('inlineChatMarkdownMessageCropState', "Whether the interactive editor message is cropped, not cropped or expanded"));
 export const CTX_INLINE_CHAT_OUTER_CURSOR_POSITION = new RawContextKey<'above' | 'below' | ''>('inlineChatOuterCursorPosition', '', localize('inlineChatOuterCursorPosition', "Whether the cursor of the outer editor is above or below the interactive editor input"));
 export const CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('inlineChatHasActiveRequest', false, localize('inlineChatHasActiveRequest', "Whether interactive editor has an active request"));
 export const CTX_INLINE_CHAT_HAS_STASHED_SESSION = new RawContextKey<boolean>('inlineChatHasStashedSession', false, localize('inlineChatHasStashedSession', "Whether interactive editor has kept a session for quick restore"));
@@ -179,9 +179,7 @@ export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 
 // --- menus
 
-export const MENU_INLINE_CHAT_INPUT = MenuId.for('inlineChatInput');
 export const MENU_INLINE_CHAT_WIDGET = MenuId.for('inlineChatWidget');
-export const MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE = MenuId.for('inlineChatWidget.markdownMessage');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
 export const MENU_INLINE_CHAT_WIDGET_FEEDBACK = MenuId.for('inlineChatWidget.feedback');
 export const MENU_INLINE_CHAT_WIDGET_DISCARD = MenuId.for('inlineChatWidget.undo');
@@ -209,9 +207,7 @@ export const overviewRulerInlineChatDiffRemoved = registerColor('editorOverviewR
 
 export const enum EditMode {
 	Live = 'live',
-	Preview = 'preview',
-	/** @deprecated */
-	LivePreview = 'livePreview',
+	Preview = 'preview'
 }
 
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
@@ -227,6 +223,7 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
+	AccessibleDiffView = 'inlineChat.accessibleDiffView'
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -257,6 +254,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
 			default: true,
 			type: 'boolean'
+		},
+		[InlineChatConfigKeys.AccessibleDiffView]: {
+			description: localize('accessibleDiffView', "Whether the inline chat also renders an accessible diff viewer for its changes."),
+			default: 'auto',
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			markdownEnumDescriptions: [
+				localize('accessibleDiffView.auto', "The accessible diff viewer is based screen reader mode being enabled."),
+				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
+				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
+			],
 		}
 	}
 });

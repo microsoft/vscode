@@ -24,7 +24,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		this.proxy = mainContext.getProxy(MainContext.MainThreadSpeech);
 	}
 
-	async $createSpeechToTextSession(handle: number, session: number): Promise<void> {
+	async $createSpeechToTextSession(handle: number, session: number, language?: string): Promise<void> {
 		const provider = this.providers.get(handle);
 		if (!provider) {
 			return;
@@ -35,7 +35,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
-		const speechToTextSession = disposables.add(provider.provideSpeechToTextSession(cts.token));
+		const speechToTextSession = disposables.add(provider.provideSpeechToTextSession(cts.token, language ? { language } : undefined));
 		disposables.add(speechToTextSession.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;

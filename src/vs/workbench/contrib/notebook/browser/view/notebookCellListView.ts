@@ -276,9 +276,14 @@ export class NotebookCellListView<T> extends ListView<T> {
 	insertWhitespace(afterPosition: number, size: number): string {
 		const scrollTop = this.scrollTop;
 		const id = `${++this._lastWhitespaceId}`;
+		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const elementPosition = this.elementTop(afterPosition);
+		const aboveScrollTop = scrollTop > elementPosition;
 		this.notebookRangeMap.insertWhitespace(id, afterPosition, size);
 
-		this._rerender(scrollTop, this.renderHeight, false);
+		const newScrolltop = aboveScrollTop ? scrollTop + size : scrollTop;
+		this.render(previousRenderRange, newScrolltop, this.lastRenderHeight, undefined, undefined, false);
+		this._rerender(newScrolltop, this.renderHeight, false);
 		this.eventuallyUpdateScrollDimensions();
 
 		return id;
@@ -290,8 +295,20 @@ export class NotebookCellListView<T> extends ListView<T> {
 	}
 
 	removeWhitespace(id: string): void {
-		this.notebookRangeMap.removeWhitespace(id);
-		this.eventuallyUpdateScrollDimensions();
+		const scrollTop = this.scrollTop;
+		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const currentPosition = this.notebookRangeMap.getWhitespacePosition(id);
+
+		if (currentPosition > scrollTop) {
+			this.notebookRangeMap.removeWhitespace(id);
+			this.render(previousRenderRange, scrollTop, this.lastRenderHeight, undefined, undefined, false);
+			this._rerender(scrollTop, this.renderHeight, false);
+			this.eventuallyUpdateScrollDimensions();
+		} else {
+			this.notebookRangeMap.removeWhitespace(id);
+			this.eventuallyUpdateScrollDimensions();
+		}
+
 	}
 
 	getWhitespacePosition(id: string): number {

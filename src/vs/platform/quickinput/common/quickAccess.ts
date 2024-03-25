@@ -6,7 +6,7 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 /**
@@ -22,6 +22,11 @@ export interface IQuickAccessProviderRunOptions {
  */
 export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
 	readonly includeHelp?: boolean;
+	/**
+	 * @deprecated - temporary for Dynamic Chat Variables (see usage) until it has built-in UX for file picking
+	 * Useful for adding items to the top of the list that might contain actions.
+	 */
+	readonly additionPicks?: QuickPickItem[];
 }
 
 export interface IQuickAccessOptions {

@@ -284,11 +284,11 @@ export class BrowserMain extends Disposable {
 		// Register them early because they are needed for the profiles initialization
 		await this.registerIndexedDBFileSystemProviders(environmentService, fileService, logService, loggerService, logsPath);
 
-		// Remote
+
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
 		const remoteResourceLoader = this.configuration.remoteResourceProvider ? new BrowserRemoteResourceLoader(fileService, this.configuration.remoteResourceProvider) : undefined;
 		const resourceUriProvider = this.configuration.resourceUriProvider ?? remoteResourceLoader?.getResourceUriProvider();
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, resourceUriProvider, productService, logService);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, resourceUriProvider, this.configuration.serverBasePath, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
@@ -476,7 +476,7 @@ export class BrowserMain extends Disposable {
 	}
 
 	private registerDeveloperActions(provider: IndexedDBFileSystemProvider): void {
-		registerAction2(class ResetUserDataAction extends Action2 {
+		this._register(registerAction2(class ResetUserDataAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.resetUserData',
@@ -511,7 +511,7 @@ export class BrowserMain extends Disposable {
 
 				hostService.reload();
 			}
-		});
+		}));
 	}
 
 	private async createStorageService(workspace: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfileService: IUserDataProfileService): Promise<IStorageService> {

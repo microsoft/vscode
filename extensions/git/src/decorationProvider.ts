@@ -163,10 +163,10 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 
 	constructor(private readonly repository: Repository) {
 		this.disposables.push(window.registerFileDecorationProvider(this));
-		repository.historyProvider.onDidChangeCurrentHistoryItemGroupBase(this.onDidChangeCurrentHistoryItemGroupBase, this, this.disposables);
+		repository.historyProvider.onDidChangeCurrentHistoryItemGroup(this.onDidChangeCurrentHistoryItemGroup, this, this.disposables);
 	}
 
-	private async onDidChangeCurrentHistoryItemGroupBase(): Promise<void> {
+	private async onDidChangeCurrentHistoryItemGroup(): Promise<void> {
 		const newDecorations = new Map<string, FileDecoration>();
 		await this.collectIncomingChangesFileDecorations(newDecorations);
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
@@ -181,35 +181,30 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 				case Status.INDEX_ADDED:
 					bucket.set(change.uri.toString(), {
 						badge: '↓A',
-						color: new ThemeColor('gitDecoration.incomingAddedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes (added)'),
 					});
 					break;
 				case Status.DELETED:
 					bucket.set(change.uri.toString(), {
 						badge: '↓D',
-						color: new ThemeColor('gitDecoration.incomingDeletedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes (deleted)'),
 					});
 					break;
 				case Status.INDEX_RENAMED:
 					bucket.set(change.originalUri.toString(), {
 						badge: '↓R',
-						color: new ThemeColor('gitDecoration.incomingRenamedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes (renamed)'),
 					});
 					break;
 				case Status.MODIFIED:
 					bucket.set(change.uri.toString(), {
 						badge: '↓M',
-						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes (modified)'),
 					});
 					break;
 				default: {
 					bucket.set(change.uri.toString(), {
 						badge: '↓~',
-						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes'),
 					});
 					break;

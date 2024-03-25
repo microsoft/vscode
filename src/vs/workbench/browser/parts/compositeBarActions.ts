@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { URI } from 'vs/base/common/uri';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 export interface ICompositeBar {
 
@@ -706,12 +706,12 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 	protected override updateChecked(): void {
 		if (this.action.checked) {
 			this.container.classList.add('checked');
-			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-label', this.getTooltip() ?? this.container.title);
 			this.container.setAttribute('aria-expanded', 'true');
 			this.container.setAttribute('aria-selected', 'true');
 		} else {
 			this.container.classList.remove('checked');
-			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-label', this.getTooltip() ?? this.container.title);
 			this.container.setAttribute('aria-expanded', 'false');
 			this.container.setAttribute('aria-selected', 'false');
 		}
