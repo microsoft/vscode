@@ -2444,9 +2444,9 @@ export namespace ChatResponseReferencePart {
 				kind: 'reference',
 				reference: {
 					variableName: part.value.variableName,
-					value: URI.isUri(part.value.value) ?
+					value: URI.isUri(part.value.value) || !part.value.value ?
 						part.value.value :
-						Location.from(<vscode.Location>part.value.value)
+						Location.from(part.value.value as vscode.Location)
 				}
 			};
 		}

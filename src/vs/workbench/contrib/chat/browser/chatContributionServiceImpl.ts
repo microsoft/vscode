@@ -91,6 +91,10 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					markdownDescription: localize('chatParticipantIsDefaultDescription', "**Only** allowed for extensions that have the `defaultChatParticipant` proposal."),
 					type: 'boolean',
 				},
+				isSticky: {
+					description: localize('chatCommandSticky', "Whether invoking the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message."),
+					type: 'boolean'
+				},
 				defaultImplicitVariables: {
 					markdownDescription: '**Only** allowed for extensions that have the `chatParticipantAdditions` proposal. The names of the variables that are invoked by default',
 					type: 'array',
@@ -116,15 +120,15 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 								type: 'string'
 							},
 							when: {
-								description: localize('chatCommandDescription', "A description of this command."),
+								description: localize('chatCommandWhen', "A condition which must be true to enable this command."),
 								type: 'string'
 							},
 							sampleRequest: {
-								description: localize('chatCommandDescription', "A description of this command."),
+								description: localize('chatCommandSampleRequest', "When the user clicks this command in `/help`, this text will be submitted to this participant."),
 								type: 'string'
 							},
 							isSticky: {
-								description: localize('chatCommandDescription', "A description of this command."),
+								description: localize('chatCommandSticky', "Whether invoking the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message."),
 								type: 'boolean'
 							},
 							defaultImplicitVariables: {
@@ -265,7 +269,9 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								extensionId: extension.description.identifier,
 								id: providerDescriptor.id,
 								description: providerDescriptor.description,
-								metadata: {},
+								metadata: {
+									isSticky: providerDescriptor.isSticky,
+								},
 								name: providerDescriptor.name,
 								isDefault: providerDescriptor.isDefault,
 								defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,

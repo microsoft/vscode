@@ -1237,12 +1237,19 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		const reference = data.reference;
 		templateData.label.element.style.display = 'flex';
 		if ('variableName' in reference) {
+			const variable = this.chatVariablesService.getVariable(reference.variableName);
 			if (reference.value) {
 				const uri = URI.isUri(reference.value) ? reference.value : reference.value.uri;
 				const title = this.labelService.getUriLabel(dirname(uri), { relative: true });
-				templateData.label.setResource({ resource: uri, name: basenameOrAuthority(uri), description: `#${reference.variableName}` }, { title });
+				templateData.label.setResource(
+					{
+						resource: uri,
+						name: basenameOrAuthority(uri),
+						description: `#${reference.variableName}`,
+						range: 'range' in reference.value ? reference.value.range : undefined
+					},
+					{ title, descriptionTitle: variable?.description });
 			} else {
-				const variable = this.chatVariablesService.getVariable(reference.variableName);
 				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: variable?.description });
 			}
 		} else {
