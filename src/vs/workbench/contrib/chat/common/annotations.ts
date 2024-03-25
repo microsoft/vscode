@@ -76,7 +76,7 @@ export function extractVulnerabilitiesFromText(text: string): { newText: string;
 	const vulnerabilities: IMarkdownVulnerability[] = [];
 	let newText = text;
 	let match: RegExpExecArray | null;
-	while ((match = /<vscode_annotation details=["'](.*?)["']>(.*?)<\/vscode_annotation>/ms.exec(newText)) !== null) {
+	while ((match = /<vscode_annotation details='(.*?)'>(.*?)<\/vscode_annotation>/ms.exec(newText)) !== null) {
 		const [full, details, content] = match;
 		const start = match.index;
 		const textBefore = newText.substring(0, start);
