@@ -38,7 +38,9 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 	async setVerboseLogging(enabled: boolean): Promise<void> {
 
 		// Log stats
-		this._onDidLogMessage.fire({ type: 'trace', message: computeStats(this.requests, this.recursiveWatcher, this.nonRecursiveWatcher) });
+		if (enabled && this.requests.length > 0) {
+			this._onDidLogMessage.fire({ type: 'trace', message: computeStats(this.requests, this.recursiveWatcher, this.nonRecursiveWatcher) });
+		}
 
 		// Forward to watchers
 		await Promises.settled([

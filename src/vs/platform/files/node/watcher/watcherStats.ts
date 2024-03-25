@@ -27,6 +27,7 @@ export function computeStats(
 	lines.push(`- Non-Recursive Requests: total: ${nonRecursiveRequests.length}, suspended: ${nonRecursiveRequestsStatus.suspended}, polling: ${nonRecursiveRequestsStatus.polling}`);
 	lines.push(`- Recursive Watchers:     total: ${recursiveWatcher.watchers.size}, active: ${recursiveWatcherStatus.active}, failed: ${recursiveWatcherStatus.failed}, stopped: ${recursiveWatcherStatus.stopped}`);
 	lines.push(`- Non-Recursive Watchers: total: ${nonRecursiveWatcher.watchers.size}, active: ${nonRecursiveWatcherStatus.active}, failed: ${nonRecursiveWatcherStatus.failed}, reusing: ${nonRecursiveWatcherStatus.reusing}`);
+	lines.push(`- I/O Handles Impact:     total: ${recursiveRequestsStatus.polling + nonRecursiveRequestsStatus.polling + recursiveWatcherStatus.active + nonRecursiveWatcherStatus.active}`);
 
 	lines.push(`\n[Recursive Requests (${recursiveRequests.length}, suspended: ${recursiveRequestsStatus.suspended}, polling: ${recursiveRequestsStatus.polling})]:`);
 	for (const request of recursiveRequests) {
@@ -148,16 +149,17 @@ function fillRequestStats(lines: string[], request: IUniversalWatchRequest, watc
 	const suspended = watcher.isSuspended(request);
 	if (suspended !== false) {
 		decorations.push('[SUSPENDED]');
-	}
-	if (suspended === 'polling') {
-		decorations.push('[POLLING]');
+
+		if (suspended === 'polling') {
+			decorations.push('[POLLING]');
+		}
 	}
 
 	lines.push(`- ${request.path}\t${decorations.length > 0 ? decorations.join(' ') + ' ' : ''}(${requestDetailsToString(request)})`);
 }
 
 function requestDetailsToString(request: IUniversalWatchRequest): string {
-	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
+	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}`;
 }
 
 function fillRecursiveRequestStats(lines: string[], recursiveWatcher: ParcelWatcher): void {
