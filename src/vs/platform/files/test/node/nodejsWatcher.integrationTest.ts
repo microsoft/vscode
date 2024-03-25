@@ -627,14 +627,18 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 
 		const folderPath = join(testDir, 'not-found');
-		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+		const request = { path: folderPath, excludes: [], recursive: false, correlationId: 1 };
+		await watcher.watch([request]);
 		await onDidWatchFail;
+		assert.strictEqual(watcher.isSuspended(request), 'polling');
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
 		let onDidWatch = Event.toPromise(watcher.onDidWatch);
 		await Promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
+
+		assert.strictEqual(watcher.isSuspended(request), false);
 
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath, undefined, 1);

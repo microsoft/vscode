@@ -188,6 +188,8 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		const instance = Array.from(watcher.watchers)[0];
 		assert.strictEqual(request, instance.request);
+		assert.strictEqual(instance.failed, false);
+		assert.strictEqual(instance.stopped, false);
 
 		const disposables = new DisposableStore();
 
@@ -774,6 +776,8 @@ export class TestParcelWatcher extends ParcelWatcher {
 		await Promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
+
+		assert.strictEqual(watcher.isSuspended(request), false);
 
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath, 1);
