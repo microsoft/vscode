@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
@@ -28,11 +28,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		return instance.getContribution<TerminalSuggestContribution>(TerminalSuggestContribution.ID);
 	}
 
-	private _addon: SuggestAddon | undefined;
+	private _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private _terminalSuggestWidgetContextKeys: IReadableSet<string> = new Set(TerminalContextKeys.suggestWidgetVisible.key);
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
-	get addon(): SuggestAddon | undefined { return this._addon; }
+	get addon(): SuggestAddon | undefined { return this._addon.value; }
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -64,22 +64,21 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	private _loadSuggestAddon(xterm: RawXtermTerminal): void {
 		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
 		if (sendingKeybindingsToShell) {
-			this._addon?.dispose();
-			this._addon = undefined;
+			this._addon.dispose();
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			this._addon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
-			xterm.loadAddon(this._addon);
-			this._addon?.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
-			this._addon?.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-			this.add(this._instance.onDidBlur(() => this._addon?.hideSuggestWidget()));
-			this.add(this._addon.onAcceptedCompletion(async text => {
+			this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
+			xterm.loadAddon(this._addon.value);
+			this._addon.value.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
+			this._addon.value.setScreen(xterm.element!.querySelector('.xterm-screen')!);
+			this.add(this._instance.onDidBlur(() => this._addon.value?.hideSuggestWidget()));
+			this.add(this._addon.value.onAcceptedCompletion(async text => {
 				this._instance.focus();
 				this._instance.sendText(text, false);
 			}));
 			this.add(this._instance.onDidSendText((text) => {
-				this._addon?.handleNonXtermData(text);
+				this._addon.value?.handleNonXtermData(text);
 			}));
 		}
 	}
