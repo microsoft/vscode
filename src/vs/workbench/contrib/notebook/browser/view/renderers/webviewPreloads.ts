@@ -194,11 +194,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 
-		if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
-			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true });
+		const id = lastFocusedOutput?.id;
+		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
-				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false });
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
 			}, { once: true });
 		}
 	};
@@ -286,6 +287,17 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	};
 
+	const selectInputContents = (cellOrOutputId: string) => {
+		const cellOutputContainer = window.document.getElementById(cellOrOutputId);
+		if (!cellOutputContainer) {
+			return;
+		}
+		const activeElement = window.document.activeElement;
+		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+			(activeElement as HTMLInputElement).select();
+		}
+	};
+
 	const onPageUpDownSelectionHandler = (e: KeyboardEvent) => {
 		if (!lastFocusedOutput?.id || !e.shiftKey) {
 			return;
@@ -297,6 +309,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		const outputContainer = window.document.getElementById(lastFocusedOutput.id);
 		const selection = window.getSelection();
 		if (!outputContainer || !selection?.anchorNode) {
+			return;
+		}
+		const activeElement = window.document.activeElement;
+		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+			// Leave for default behavior.
 			return;
 		}
 
@@ -322,6 +339,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		if (!lastFocusedOutput?.id) {
 			return;
 		}
+		const activeElement = window.document.activeElement;
+		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+			e.preventDefault(); // We will handle selection in editor code.
+			return;
+		}
+
 		if ((e.key === 'a' && e.ctrlKey) || (e.metaKey && e.key === 'a')) {
 			e.preventDefault(); // We will handle selection in editor code.
 			return;
@@ -644,13 +667,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (cellOutputContainer.contains(window.document.activeElement)) {
 				return;
 			}
-
+			const id = cellOutputContainer.id;
 			let focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
 			if (!focusableElement) {
 				focusableElement = cellOutputContainer;
 				focusableElement.tabIndex = -1;
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
+			} else {
+				const inputFocused = focusableElement.tagName === 'INPUT' || focusableElement.tagName === 'TEXTAREA';
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
+			lastFocusedOutput = cellOutputContainer;
+			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', { id: cellOutputContainer.id });
 			focusableElement.focus();
 		}
 	}
@@ -1705,6 +1734,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			case 'select-output-contents':
 				selectOutputContents(event.data.cellOrOutputId);
+				break;
+			case 'select-input-contents':
+				selectInputContents(event.data.cellOrOutputId);
 				break;
 			case 'decorations': {
 				let outputContainer = window.document.getElementById(event.data.cellId);

@@ -50,6 +50,7 @@ export interface IOutputBlurMessage extends BaseToWebviewMessage {
 export interface IOutputInputFocusMessage extends BaseToWebviewMessage {
 	readonly type: 'outputInputFocus';
 	readonly inputFocused: boolean;
+	readonly id: string;
 }
 
 export interface IScrollToRevealMessage extends BaseToWebviewMessage {
@@ -463,6 +464,10 @@ export interface ISelectOutputItemMessage {
 	readonly type: 'select-output-contents';
 	readonly cellOrOutputId: string;
 }
+export interface ISelectInputOutputItemMessage {
+	readonly type: 'select-input-contents';
+	readonly cellOrOutputId: string;
+}
 
 export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
 	readonly type: 'logRendererDebugMessage';
@@ -544,7 +549,8 @@ export type ToWebviewMessage = IClearMessage |
 	IFindUnHighlightCurrentMessage |
 	IFindStopMessage |
 	IReturnOutputItemMessage |
-	ISelectOutputItemMessage;
+	ISelectOutputItemMessage |
+	ISelectInputOutputItemMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
