@@ -14,7 +14,7 @@
 		"@xterm/addon-unicode11": "0.8.0-beta.12",
 		"@xterm/addon-webgl": "0.18.0-beta.12",
 		"@xterm/xterm": "5.5.0-beta.12",
-		"jschardet": "3.0.0",
+		"jschardet": "3.1.2",
 		"tas-client-umd": "0.1.8",
 		"vscode-oniguruma": "1.7.0",
 		"vscode-textmate": "9.0.0"
