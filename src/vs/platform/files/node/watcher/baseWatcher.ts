@@ -46,6 +46,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			//
 			// TODO@bpasero revisit this in the future to have a more general approach
 			// for suspend/resume and drop the `legacyMonitorRequest` in parcel.
+			// One issue is that we need to be able to uniquely identify a request and
+			// without correlation that is actually harder...
 
 			return;
 		}
