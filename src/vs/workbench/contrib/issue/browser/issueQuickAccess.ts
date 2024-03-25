@@ -16,7 +16,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 import { IssueSource } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { filter, filter } from 'vs/base/common/objects';
 
 export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
