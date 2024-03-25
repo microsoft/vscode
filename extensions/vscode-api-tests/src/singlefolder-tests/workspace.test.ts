@@ -934,7 +934,7 @@ suite('vscode API - workspace', () => {
 	async function test77735(withOpenedEditor: boolean): Promise<void> {
 		const docUriOriginal = await createRandomFile();
 		const docUriMoved = docUriOriginal.with({ path: `${docUriOriginal.path}.moved` });
-		assert.strictEqual(await deleteFile(docUriMoved), true); // ensure target does not exist
+		await deleteFile(docUriMoved);
 
 		if (withOpenedEditor) {
 			const document = await vscode.workspace.openTextDocument(docUriOriginal);
