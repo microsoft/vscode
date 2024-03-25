@@ -105,8 +105,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			return aLabel.localeCompare(bLabel);
 		});
 
-		const combinedIssuePicks = [...issuePicksConst, ...issuePicksParts];
-		return combinedIssuePicks;
+		return [...issuePicksConst, ...issuePicksParts];
 	}
 
 	private _createPick(filter: string, action?: MenuItemAction | SubmenuItemAction | undefined, extension?: IRelaxedExtensionDescription): IPickerQuickAccessItem | undefined {
