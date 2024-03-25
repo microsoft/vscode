@@ -9,7 +9,6 @@ import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IW
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { timeout } from 'vs/base/common/async';
 
 export abstract class BaseWatcher extends Disposable implements IWatcher {
 
@@ -135,7 +134,6 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			}
 
 			if (error) {
-				await timeout(100); // delay a bit to give recursive watcher a chance to restart in case needed
 				if (disposables.isDisposed) {
 					return;
 				}

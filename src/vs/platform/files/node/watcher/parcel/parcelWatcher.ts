@@ -26,7 +26,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 
 export class ParcelWatcherInstance extends Disposable {
 
-	private readonly _onDidStop = this._register(new Emitter<void>());
+	private readonly _onDidStop = this._register(new Emitter<{ joinRestart?: Promise<void> }>());
 	readonly onDidStop = this._onDidStop.event;
 
 	private readonly _onDidFail = this._register(new Emitter<void>());
@@ -127,13 +127,13 @@ export class ParcelWatcherInstance extends Disposable {
 		return Boolean(this.excludes?.some(exclude => exclude(path)));
 	}
 
-	async stop(): Promise<void> {
+	async stop(joinRestart: Promise<void> | undefined): Promise<void> {
 		this.didStop = true;
 
 		try {
 			await this.stopFn();
 		} finally {
-			this._onDidStop.fire();
+			this._onDidStop.fire({ joinRestart });
 		}
 
 		this.dispose();
@@ -655,15 +655,21 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				return; // return early when disposed
 			}
 
-			// Await the watcher having stopped, as this is
-			// needed to properly re-watch the same path
-			await this.stopWatching(watcher);
+			const restartPromise = new DeferredPromise<void>();
+			try {
 
-			// Start watcher again counting the restarts
-			if (watcher.request.pollingInterval) {
-				this.startPolling(watcher.request, watcher.request.pollingInterval, watcher.restarts + 1);
-			} else {
-				this.startWatching(watcher.request, watcher.restarts + 1);
+				// Await the watcher having stopped, as this is
+				// needed to properly re-watch the same path
+				await this.stopWatching(watcher, restartPromise.p);
+
+				// Start watcher again counting the restarts
+				if (watcher.request.pollingInterval) {
+					this.startPolling(watcher.request, watcher.request.pollingInterval, watcher.restarts + 1);
+				} else {
+					this.startWatching(watcher.request, watcher.restarts + 1);
+				}
+			} finally {
+				restartPromise.complete();
 			}
 		}, delay);
 
@@ -671,13 +677,13 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		watcher.token.onCancellationRequested(() => scheduler.dispose());
 	}
 
-	private async stopWatching(watcher: ParcelWatcherInstance): Promise<void> {
+	private async stopWatching(watcher: ParcelWatcherInstance, joinRestart?: Promise<void>): Promise<void> {
 		this.trace(`stopping file watcher`, watcher);
 
 		this.watchers.delete(watcher);
 
 		try {
-			await watcher.stop();
+			await watcher.stop(joinRestart);
 		} catch (error) {
 			this.error(`Unexpected error stopping watcher: ${toErrorMessage(error)}`, watcher);
 		}
@@ -795,7 +801,11 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			const disposables = new DisposableStore();
 
-			disposables.add(Event.once(Event.any(watcher.onDidStop, watcher.onDidFail))(() => callback(true /* error */)));
+			disposables.add(Event.once(Event.any(watcher.onDidStop))(async e => {
+				await e.joinRestart; // if we are restarting, await that so that we can possibly reuse this watcher again
+				callback(true /* error */);
+			}));
+			disposables.add(Event.once(watcher.onDidFail)(() => callback(true /* error */)));
 			disposables.add(watcher.subscribe(path, change => callback(false, change)));
 
 			return disposables;
