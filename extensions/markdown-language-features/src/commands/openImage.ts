@@ -24,7 +24,7 @@ export class OpenImageCommand implements Command {
 			this._currentPanel.reveal(columnToShowIn);
 		} else {
 			this._currentPanel = vscode.window.createWebviewPanel(
-				'opemImage',
+				'openImage',
 				'Image',
 				vscode.ViewColumn.Beside,
 				{}
