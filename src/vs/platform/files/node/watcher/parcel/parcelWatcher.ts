@@ -381,8 +381,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			this.onUnexpectedError(error, watcher);
 
 			instance.complete(undefined);
-			watcher.notifyWatchFailed();
 
+			watcher.notifyWatchFailed();
 			this._onDidWatchFail.fire(request);
 		});
 	}
@@ -565,18 +565,13 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		if (!this.isCorrelated(watcher.request)) {
 			// Do monitoring of the request path parent unless this request
 			// can be handled via suspend/resume in the super class
-			//
-			// TODO@bpasero we should remove this logic in favor of the
-			// support in the super class so that we have 1 consistent
-			// solution for handling this.
 			legacyMonitored = this.legacyMonitorRequest(watcher);
 		}
 
 		if (!legacyMonitored) {
 			watcher.notifyWatchFailed();
+			this._onDidWatchFail.fire(watcher.request);
 		}
-
-		this._onDidWatchFail.fire(watcher.request);
 	}
 
 	private legacyMonitorRequest(watcher: ParcelWatcherInstance): boolean {

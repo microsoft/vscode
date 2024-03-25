@@ -44,7 +44,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			// requires us to install polling watchers (via `fs.watchFile()`) and thus
 			// should be used sparingly.
 			//
-			// TODO@bpasero revisit this given this is more optimised with watcher reuse
+			// TODO@bpasero revisit this in the future to have a more general approach
+			// for suspend/resume and drop the `legacyMonitorRequest` in parcel.
 
 			return;
 		}
