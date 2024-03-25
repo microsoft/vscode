@@ -525,14 +525,8 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		});
 	}
 
-	openImage(id: string) {
-		this._webviewPanel.reveal();
-		this._preview.postMessage({
-			type: 'openImage',
-			source: this.resource.toString(),
-			id: id
-		});
-
+	async openImage(resource: string) {
+		await vscode.commands.executeCommand('vscode.open', resource);
 	}
 
 	private readonly _onDispose = this._register(new vscode.EventEmitter<void>());
@@ -690,13 +684,8 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		});
 	}
 
-	openImage(id: string) {
-		this._webviewPanel.reveal();
-		this._preview.postMessage({
-			type: 'openImage',
-			source: this.resource.toString(),
-			id: id
-		});
+	async openImage(resource: string) {
+		await vscode.commands.executeCommand('vscode.open', resource);
 	}
 
 	private readonly _onDisposeEmitter = this._register(new vscode.EventEmitter<void>());

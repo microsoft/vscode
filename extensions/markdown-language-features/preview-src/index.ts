@@ -171,7 +171,8 @@ async function copyImage(image: HTMLImageElement, retries = 5) {
 async function openImage(image: HTMLImageElement) {
 	vscode.postMessage({
 		type: 'openImage',
-		src: image.src
+		src: image.src,
+		id: image.id
 	});
 }
 
