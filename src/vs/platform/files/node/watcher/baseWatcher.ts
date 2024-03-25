@@ -9,6 +9,7 @@ import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IW
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { timeout } from 'vs/base/common/async';
 
 export abstract class BaseWatcher extends Disposable implements IWatcher {
 
@@ -123,12 +124,17 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	private doMonitorWithExistingWatcher(request: IWatchRequestWithCorrelation, disposables: DisposableStore): boolean {
-		const subscription = this.recursiveWatcher?.subscribe(request.path, (error, change) => {
+		const subscription = this.recursiveWatcher?.subscribe(request.path, async (error, change) => {
 			if (disposables.isDisposed) {
 				return; // return early if already disposed
 			}
 
 			if (error) {
+				await timeout(100); // delay a bit to give recursive watcher a chance to restart in case needed
+				if (disposables.isDisposed) {
+					return;
+				}
+
 				this.monitorSuspendedWatchRequest(request, disposables);
 			} else if (change?.type === FileChangeType.ADDED) {
 				this.onMonitoredPathAdded(request, change.resource);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { watch } from 'fs';
-import { RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
+import { RunOnceWorker, ThrottledWorker, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -155,6 +155,11 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			}
 
 			if (error) {
+				await timeout(100); // delay a bit to give recursive watcher a chance to restart in case needed
+				if (disposables.isDisposed) {
+					return;
+				}
+
 				const watchDisposable = await this.doWatch(realPath, isDirectory);
 				if (!disposables.isDisposed) {
 					disposables.add(watchDisposable);
