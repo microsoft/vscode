@@ -16,6 +16,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 import { IssueSource } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { filter, filter } from 'vs/base/common/objects';
 
 export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -41,13 +42,28 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		const marketPlaceLabel = localize("reportExtensionMarketplace", "Extension Marketplace");
 		const productFilter = matchesFuzzy(filter, productLabel, true);
 		const marketPlaceFilter = matchesFuzzy(filter, marketPlaceLabel, true);
-		if (productFilter || marketPlaceFilter) {
-			issuePicksConst.push(
-				{ label: productLabel, ariaLabel: productLabel, highlights: productFilter ? { label: productFilter } : undefined, accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.VSCode }) },
-				{ label: marketPlaceLabel, ariaLabel: marketPlaceLabel, highlights: marketPlaceFilter ? { label: marketPlaceFilter } : undefined, accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.Marketplace }) },
-				{ type: 'separator', label: localize('extensions', "Extensions") }
-			);
+
+		// Add product pick if product filter matches
+		if (productFilter) {
+			issuePicksConst.push({
+				label: productLabel,
+				ariaLabel: productLabel,
+				highlights: { label: productFilter },
+				accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.VSCode })
+			});
 		}
+
+		// Add marketplace pick if marketplace filter matches
+		if (marketPlaceFilter) {
+			issuePicksConst.push({
+				label: marketPlaceLabel,
+				ariaLabel: marketPlaceLabel,
+				highlights: { label: marketPlaceFilter },
+				accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.Marketplace })
+			});
+		}
+
+		issuePicksConst.push({ type: 'separator', label: localize('extensions', "Extensions") });
 
 
 		// creates menu from contributed
