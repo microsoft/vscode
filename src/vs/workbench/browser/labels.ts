@@ -574,7 +574,8 @@ class ResourceLabelWidget extends IconLabel {
 			separator: this.options?.separator,
 			domId: this.options?.domId,
 			disabledCommand: this.options?.disabledCommand,
-			labelEscapeNewLines: this.options?.labelEscapeNewLines
+			labelEscapeNewLines: this.options?.labelEscapeNewLines,
+			descriptionTitle: this.options?.descriptionTitle,
 		};
 
 		const resource = toResource(this.label);
