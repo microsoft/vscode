@@ -724,7 +724,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		assert.strictEqual(instance.isReusingRecursiveWatcher, true);
 		assert.strictEqual(recursiveInstance.subscriptionsCount, 1);
 
-		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId);
+		let changeFuture = awaitEvent(watcher, filePath, isMacintosh /* somehow fsevents seems to report still on the initial create from test setup */ ? FileChangeType.ADDED : FileChangeType.UPDATED, correlationId);
 		await Promises.writeFile(filePath, 'Hello World');
 		await changeFuture;
 
