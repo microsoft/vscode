@@ -39,11 +39,16 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		// Add default items
 		const productLabel = this.productService.nameLong;
 		const marketPlaceLabel = localize("reportExtensionMarketplace", "Extension Marketplace");
-		issuePicksConst.push(
-			{ label: productLabel, ariaLabel: productLabel, accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.VSCode }) },
-			{ label: marketPlaceLabel, ariaLabel: marketPlaceLabel, accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.Marketplace }) },
-			{ type: 'separator', label: localize('extensions', "Extensions") }
-		);
+		const productFilter = matchesFuzzy(filter, productLabel, true);
+		const marketPlaceFilter = matchesFuzzy(filter, marketPlaceLabel, true);
+		if (productFilter || marketPlaceFilter) {
+			issuePicksConst.push(
+				{ label: productLabel, ariaLabel: productLabel, highlights: productFilter ? { label: productFilter } : undefined, accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.VSCode }) },
+				{ label: marketPlaceLabel, ariaLabel: marketPlaceLabel, highlights: marketPlaceFilter ? { label: marketPlaceFilter } : undefined, accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.Marketplace }) },
+				{ type: 'separator', label: localize('extensions', "Extensions") }
+			);
+		}
+
 
 		// creates menu from contributed
 		const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
@@ -84,7 +89,8 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			return aLabel.localeCompare(bLabel);
 		});
 
-		return [...issuePicksConst, ...issuePicksParts];
+		const combinedIssuePicks = [...issuePicksConst, ...issuePicksParts];
+		return combinedIssuePicks;
 	}
 
 	private _createPick(filter: string, action?: MenuItemAction | SubmenuItemAction | undefined, extension?: IRelaxedExtensionDescription): IPickerQuickAccessItem | undefined {
