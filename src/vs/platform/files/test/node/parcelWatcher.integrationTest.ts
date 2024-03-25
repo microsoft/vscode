@@ -61,7 +61,8 @@ export class TestParcelWatcher extends ParcelWatcher {
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-flakySuite('File Watcher (parcel)', () => {
+((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
+
 	let testDir: string;
 	let watcher: TestParcelWatcher;
 

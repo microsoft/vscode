@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { ILogMessage, AbstractUniversalWatcherClient } from 'vs/platform/files/common/watcher';
 import { UniversalWatcherClient } from 'vs/workbench/services/files/electron-sandbox/watcherClient';
-import { ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 import { LogService } from 'vs/platform/log/common/logService';
 
@@ -150,10 +150,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	private get watcherLogService(): ILogService {
 		if (!this._watcherLogService) {
 			this._watcherLogService = new LogService(this.loggerService.createLogger('fileWatcher', { name: localize('fileWatcher', "File Watcher") }));
-
-			if (this.logService.getLevel() === LogLevel.Trace) {
-				this._watcherLogService.setLevel(LogLevel.Trace);
-			}
 		}
 
 		return this._watcherLogService;
@@ -163,7 +159,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		this.watcherLogService[msg.type](msg.message);
 
 		if (msg.type !== 'trace' && msg.type !== 'debug') {
-			super.logWatcherMessage(msg); // allow non-verbose log messages in main log
+			super.logWatcherMessage(msg); // allow non-verbose log messages in window log
 		}
 	}
 
