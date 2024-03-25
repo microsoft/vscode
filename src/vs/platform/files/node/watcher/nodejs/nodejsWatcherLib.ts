@@ -64,7 +64,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	constructor(
 		private readonly request: INonRecursiveWatchRequest,
-		protected readonly recursiveWatcher: IRecursiveWatcherWithSubscribe | undefined,
+		private readonly recursiveWatcher: IRecursiveWatcherWithSubscribe | undefined,
 		private readonly onDidFilesChange: (changes: IFileChange[]) => void,
 		private readonly onDidWatchFail?: () => void,
 		private readonly onLogMessage?: (msg: ILogMessage) => void,

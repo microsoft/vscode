@@ -709,7 +709,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		await recursiveWatcher.watch([{ path: testDir, excludes: [], recursive: true, correlationId: 1 }]);
 
 		const recursiveInstance = Array.from(recursiveWatcher.watchers)[0];
-		assert.strictEqual(recursiveInstance.subscriptionsCount(), 0);
+		assert.strictEqual(recursiveInstance.subscriptionsCount, 0);
 
 		await createWatcher(recursiveWatcher);
 
@@ -718,7 +718,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		const { instance } = Array.from(watcher.watchers)[0];
 		assert.strictEqual(instance.isReusingRecursiveWatcher, true);
-		assert.strictEqual(recursiveInstance.subscriptionsCount(), 1);
+		assert.strictEqual(recursiveInstance.subscriptionsCount, 1);
 
 		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId);
 		await Promises.writeFile(filePath, 'Hello World');

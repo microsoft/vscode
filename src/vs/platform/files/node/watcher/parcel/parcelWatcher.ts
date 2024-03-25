@@ -92,7 +92,7 @@ export class ParcelWatcherInstance extends Disposable {
 		});
 	}
 
-	subscriptionsCount(): number {
+	get subscriptionsCount(): number {
 		return this.subscriptions.size;
 	}
 
@@ -453,7 +453,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		for (const event of events) {
 
 			// Emit to instance subscriptions if any
-			if (watcher.subscriptionsCount() > 0) {
+			if (watcher.subscriptionsCount > 0) {
 				watcher.notifyFileChange(event.resource.fsPath, event);
 			}
 

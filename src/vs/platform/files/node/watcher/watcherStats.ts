@@ -176,8 +176,8 @@ function fillRecursiveWatcherStats(lines: string[], recursiveWatcher: ParcelWatc
 		if (watcher.stopped) {
 			decorations.push('[STOPPED]');
 		}
-		if (watcher.subscriptionsCount() > 0) {
-			decorations.push(`[SUBSCRIBED:${watcher.subscriptionsCount()}]`);
+		if (watcher.subscriptionsCount > 0) {
+			decorations.push(`[SUBSCRIBED:${watcher.subscriptionsCount}]`);
 		}
 		if (watcher.restarts > 0) {
 			decorations.push(`[RESTARTED:${watcher.restarts}]`);
