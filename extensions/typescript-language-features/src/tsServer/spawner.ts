@@ -271,6 +271,10 @@ export class TypeScriptServerSpawner {
 
 		args.push('--noGetErrOnBackgroundUpdate');
 
+		if (configuration.withIncrementalVerifier) {
+			args.push('--withIncrementalVerifier');
+		}
+
 		if (apiVersion.gte(API.v350) && configuration.useVsCodeWatcher) {
 			args.push('--canUseWatchEvents');
 		}

@@ -118,6 +118,7 @@ export interface TypeScriptServiceConfiguration {
 	readonly maxTsServerMemory: number;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
 	readonly useVsCodeWatcher: boolean;
+	readonly withIncrementalVerifier: boolean;
 	readonly watchOptions: Proto.WatchOptions | undefined;
 	readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 	readonly enableTsServerTracing: boolean;
@@ -156,6 +157,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			maxTsServerMemory: this.readMaxTsServerMemory(configuration),
 			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(configuration),
 			useVsCodeWatcher: this.readUseVsCodeWatcher(configuration),
+			withIncrementalVerifier: this.readWithIncrementalVerifier(configuration),
 			watchOptions: this.readWatchOptions(configuration),
 			includePackageJsonAutoImports: this.readIncludePackageJsonAutoImports(configuration),
 			enableTsServerTracing: this.readEnableTsServerTracing(configuration),
@@ -226,6 +228,10 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 
 	private readUseVsCodeWatcher(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.experimental.useVsCodeWatcher', true);
+	}
+
+	private readWithIncrementalVerifier(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.experimental.withIncrementalVerifier', true);
 	}
 
 	private readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
