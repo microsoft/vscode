@@ -64,6 +64,7 @@ export class InlineChatContentWidget implements IContentWidget {
 			ChatAgentLocation.Editor,
 			{ resource: true },
 			{
+				defaultElementHeight: 32,
 				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
 				renderStyle: 'compact',
 				renderInputOnTop: true,
