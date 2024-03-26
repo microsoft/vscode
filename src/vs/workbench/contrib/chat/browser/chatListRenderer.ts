@@ -25,7 +25,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { basenameOrAuthority } from 'vs/base/common/resources';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -42,7 +42,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FileKind, FileType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -815,7 +814,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							editorOptions: {
 								...e.editorOptions,
 								...{
-									selection: 'range' in e.element.reference ? e.element.reference.range : undefined
+									selection: uriOrLocation && 'range' in uriOrLocation ? uriOrLocation.range : undefined
 								}
 							}
 						});
@@ -1225,7 +1224,6 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	constructor(
 		private labels: ResourceLabels,
-		@ILabelService private readonly labelService: ILabelService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) { }
 
@@ -1239,19 +1237,17 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		const reference = data.reference;
 		templateData.label.element.style.display = 'flex';
 		if ('variableName' in reference) {
-			const variable = this.chatVariablesService.getVariable(reference.variableName);
 			if (reference.value) {
 				const uri = URI.isUri(reference.value) ? reference.value : reference.value.uri;
-				const title = this.labelService.getUriLabel(dirname(uri), { relative: true });
 				templateData.label.setResource(
 					{
 						resource: uri,
 						name: basenameOrAuthority(uri),
 						description: `#${reference.variableName}`,
 						range: 'range' in reference.value ? reference.value.range : undefined
-					},
-					{ title, descriptionTitle: variable?.description });
+					});
 			} else {
+				const variable = this.chatVariablesService.getVariable(reference.variableName);
 				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: variable?.description });
 			}
 		} else {
