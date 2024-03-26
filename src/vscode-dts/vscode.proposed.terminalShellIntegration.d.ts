@@ -84,10 +84,6 @@ declare module 'vscode' {
 		/**
 		 * Execute a command, sending ^C as necessary to interrupt any running command if needed.
 		 *
-		 * *Note* This is not guaranteed to work as [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration)
-		 * must be activated. Check whether {@link TerminalShellExecution.exitCode} is rejected to
-		 * verify whether it was successful.
-		 *
 		 * @param commandLine The command line to execute, this is the exact text that will be sent
 		 * to the terminal.
 		 *
