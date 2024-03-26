@@ -132,7 +132,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			if (this._supportsPreview && element.canPreview) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
 			} else {
-				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to pply"'] }, "{0} to Apply", actionTitle);
+				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to Apply"'] }, "{0} to Apply", actionTitle);
 			}
 		} else {
 			data.container.title = '';
