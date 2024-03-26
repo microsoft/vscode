@@ -114,13 +114,14 @@ export class OnEnterSupport {
 					const bracket = this._brackets[i];
 					// Otherwise we just indent the new next line, but do not outdent the line after
 					if (bracket.openRegExp.test(beforeEnterText)) {
+						console.log('return 3');
 						return { indentAction: IndentAction.Indent };
 					}
 				}
 			}
 		}
 
-		console.log('return 3');
+		console.log('return 4');
 		return null;
 	}
 

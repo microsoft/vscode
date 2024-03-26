@@ -393,7 +393,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 	// trigger only indents so that the original indentation is kept and only full indentation is generally changed
 	public trigger(range: Range): void {
 		console.log('trigger of AutoIndentOnPaste');
-		console.log('range : ', range);
+		console.log('range : ', JSON.stringify(range));
 
 		const selections = this.editor.getSelections();
 		if (selections === null || selections.length > 1) {
@@ -436,7 +436,9 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return;
 		}
 
+		console.log('startLineNumber : ', startLineNumber);
 		let firstLineText = model.getLineContent(startLineNumber);
+		console.log('firstLineText : ', firstLineText);
 
 		// we test if there are no non whitespace characters in the first line text
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
@@ -479,6 +481,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						// after pasting, the indentation of the first line is already correct
 						// the first line doesn't match any indentation rule
 						// then no-op.
+						console.log('early return');
 						return;
 					}
 				}

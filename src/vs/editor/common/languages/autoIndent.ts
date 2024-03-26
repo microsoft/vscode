@@ -269,6 +269,7 @@ export function getGoodIndentForLine(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
+	console.log('getGoodIndentForLine');
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
