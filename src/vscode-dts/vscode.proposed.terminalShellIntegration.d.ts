@@ -12,7 +12,7 @@ declare module 'vscode' {
 		/**
 		 * The {@link Terminal} the command was executed in.
 		 */
-		terminal: Terminal;
+		readonly terminal: Terminal;
 
 		/**
 		 * The full command line that was executed, including both the command and arguments.
@@ -26,7 +26,7 @@ declare module 'vscode' {
 		 * - It may be inaccurate if the shell integration does not support command line reporting
 		 *   via the [`OSC 633 ; E` sequence](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st).
 		 */
-		commandLine: string | undefined;
+		readonly commandLine: string | undefined;
 
 		/**
 		 * The working directory that was reported by the shell when this command executed. This
@@ -35,12 +35,12 @@ declare module 'vscode' {
 		 * reporting via the [`OSC 633 ; P`](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st)
 		 * or `OSC 1337 ; CurrentDir=<Cwd> ST` sequences.
 		 */
-		cwd: Uri | string | undefined;
+		readonly cwd: Uri | string | undefined;
 
 		/**
 		 * The exit code reported by the shell.
 		 */
-		exitCode: Thenable<number | undefined>;
+		readonly exitCode: Thenable<number | undefined>;
 
 		/**
 		 * Creates a stream of raw data (including escape sequences) that is written to the
@@ -65,8 +65,12 @@ declare module 'vscode' {
 		 * features for the terminal. This will always be undefined immediately after the terminal
 		 * is created. Listen to {@link window.onDidActivateTerminalShellIntegration} to be notified
 		 * when shell integration is activated for a terminal.
+		 *
+		 * Note that this object may remain undefined if shell integation never activates. For
+		 * example Command Prompt does not support shell integration and a user's shell setup could
+		 * conflict with the automatic shell integration activation.
 		 */
-		shellIntegration: TerminalShellIntegration | undefined;
+		readonly shellIntegration: TerminalShellIntegration | undefined;
 	}
 
 	export interface TerminalShellIntegration {
@@ -75,7 +79,7 @@ declare module 'vscode' {
 		 * The current working directory of the terminal. This will be a {@link Uri} if the string
 		 * reported by the shell can reliably be mapped to the connected machine.
 		 */
-		cwd: Uri | string | undefined;
+		readonly cwd: Uri | string | undefined;
 
 		/**
 		 * Execute a command, sending ^C as necessary to interrupt any running command if needed.
@@ -177,11 +181,11 @@ declare module 'vscode' {
 		/**
 		 * The terminal that shell integration has been activated in.
 		 */
-		terminal: Terminal;
+		readonly terminal: Terminal;
 		/**
 		 * The shell integration object.
 		 */
-		shellIntegration: TerminalShellIntegration;
+		readonly shellIntegration: TerminalShellIntegration;
 	}
 
 	export namespace window {
