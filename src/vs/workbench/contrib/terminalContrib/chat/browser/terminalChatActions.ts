@@ -91,7 +91,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.focusResponse();
+		contr?.chatWidget?.inlineChatWidget.chatWidget.focusLastMessage();
 	}
 });
 

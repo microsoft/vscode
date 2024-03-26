@@ -158,12 +158,6 @@ export class TerminalChatWidget extends Disposable {
 	focus(): void {
 		this._inlineChatWidget.focus();
 	}
-	focusResponse(): void {
-		const responseElement = this._inlineChatWidget.domNode.querySelector('.monaco-list');
-		if (responseElement instanceof HTMLElement) {
-			responseElement.focus();
-		}
-	}
 	hasFocus(): boolean {
 		return this._inlineChatWidget.hasFocus();
 	}
