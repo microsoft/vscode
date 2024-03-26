@@ -83,7 +83,7 @@ export const listHighlightForeground = registerColor('list.highlightForeground',
 	nls.localize('highlight', 'List/Tree foreground color of the match highlights when searching inside the list/tree.'));
 
 export const listFocusHighlightForeground = registerColor('list.focusHighlightForeground',
-	{ dark: listHighlightForeground, light: ifDefinedThenElse(listActiveSelectionBackground, listHighlightForeground, '#BBE7FF'), hcDark: listHighlightForeground, hcLight: listHighlightForeground },
+	{ dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground },
 	nls.localize('listFocusHighlightForeground', 'List/Tree foreground color of the match highlights on actively focused items when searching inside the list/tree.'));
 
 export const listInvalidItemForeground = registerColor('list.invalidItemForeground',
