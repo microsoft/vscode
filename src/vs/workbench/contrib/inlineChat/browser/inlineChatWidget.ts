@@ -54,6 +54,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 
 export interface InlineChatWidgetViewState {
@@ -174,7 +175,16 @@ export class InlineChatWidget {
 		this._store.add(this._progressBar);
 
 		let allowRequests = false;
-		this._chatWidget = _instantiationService.createInstance(
+
+
+		const scopedInstaService = _instantiationService.createChild(
+			new ServiceCollection([
+				IContextKeyService,
+				this._store.add(_contextKeyService.createScoped(this._elements.chatWidget))
+			])
+		);
+
+		this._chatWidget = scopedInstaService.createInstance(
 			ChatWidget,
 			location,
 			{ resource: true },
