@@ -53,6 +53,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -720,6 +721,8 @@ class BaseStopListeningAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
+		accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped, { allowManyInParallel: true });
 		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, this.target);
 	}
 }
