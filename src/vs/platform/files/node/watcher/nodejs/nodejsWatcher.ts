@@ -51,7 +51,6 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 			} else {
 				requestsToStart.push(request); // start watching
 			}
-
 		}
 
 		// Logging

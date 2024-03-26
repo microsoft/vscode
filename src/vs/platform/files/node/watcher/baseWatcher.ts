@@ -9,6 +9,7 @@ import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IW
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { DeferredPromise } from 'vs/base/common/async';
 
 export abstract class BaseWatcher extends Disposable implements IWatcher {
 
@@ -28,6 +29,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	private readonly suspendedWatchRequestsWithPolling = new Set<number /* correlation ID */>();
 
 	protected readonly suspendedWatchRequestPollingInterval: number = 5007; // node.js default
+
+	private joinWatch = new DeferredPromise<void>();
 
 	constructor() {
 		super();
@@ -59,27 +62,36 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
-		this.allCorrelatedWatchRequests.clear();
-		this.allNonCorrelatedWatchRequests.clear();
-
-		// Figure out correlated vs. non-correlated requests
-		for (const request of requests) {
-			if (this.isCorrelated(request)) {
-				this.allCorrelatedWatchRequests.set(request.correlationId, request);
-			} else {
-				this.allNonCorrelatedWatchRequests.add(request);
-			}
+		if (!this.joinWatch.isSettled) {
+			this.joinWatch.complete();
 		}
+		this.joinWatch = new DeferredPromise<void>();
 
-		// Remove all suspended correlated watch requests that are no longer watched
-		for (const [correlationId] of this.suspendedWatchRequests) {
-			if (!this.allCorrelatedWatchRequests.has(correlationId)) {
-				this.suspendedWatchRequests.deleteAndDispose(correlationId);
-				this.suspendedWatchRequestsWithPolling.delete(correlationId);
+		try {
+			this.allCorrelatedWatchRequests.clear();
+			this.allNonCorrelatedWatchRequests.clear();
+
+			// Figure out correlated vs. non-correlated requests
+			for (const request of requests) {
+				if (this.isCorrelated(request)) {
+					this.allCorrelatedWatchRequests.set(request.correlationId, request);
+				} else {
+					this.allNonCorrelatedWatchRequests.add(request);
+				}
 			}
-		}
 
-		return this.updateWatchers();
+			// Remove all suspended correlated watch requests that are no longer watched
+			for (const [correlationId] of this.suspendedWatchRequests) {
+				if (!this.allCorrelatedWatchRequests.has(correlationId)) {
+					this.suspendedWatchRequests.deleteAndDispose(correlationId);
+					this.suspendedWatchRequestsWithPolling.delete(correlationId);
+				}
+			}
+
+			return await this.updateWatchers();
+		} finally {
+			this.joinWatch.complete();
+		}
 	}
 
 	private updateWatchers(): Promise<void> {
@@ -97,13 +109,24 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		return this.suspendedWatchRequestsWithPolling.has(request.correlationId) ? 'polling' : this.suspendedWatchRequests.has(request.correlationId);
 	}
 
-	private suspendWatchRequest(request: IWatchRequestWithCorrelation): void {
+	private async suspendWatchRequest(request: IWatchRequestWithCorrelation): Promise<void> {
 		if (this.suspendedWatchRequests.has(request.correlationId)) {
 			return; // already suspended
 		}
 
 		const disposables = new DisposableStore();
 		this.suspendedWatchRequests.set(request.correlationId, disposables);
+
+		// It is possible that a watch request fails right during watch()
+		// phase while other requests succeed. To increase the chance of
+		// reusing another watcher for suspend/resume tracking, we await
+		// all watch requests having processed.
+
+		await this.joinWatch.p;
+
+		if (disposables.isDisposed) {
+			return;
+		}
 
 		this.monitorSuspendedWatchRequest(request, disposables);
 

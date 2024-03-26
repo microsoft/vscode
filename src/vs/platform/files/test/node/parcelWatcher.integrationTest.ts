@@ -828,4 +828,24 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		await basicCrudTest(filePath, 1);
 	}
+
+	test('watch request reuses another recursive watcher even when requests are coming in at the same time', async function () {
+		const folderPath1 = join(testDir, 'deep', 'not-existing1');
+		const folderPath2 = join(testDir, 'deep', 'not-existing2');
+		const folderPath3 = join(testDir, 'not-existing3');
+
+		const requests: IRecursiveWatchRequest[] = [
+			{ path: folderPath1, excludes: [], recursive: true, correlationId: 1 },
+			{ path: folderPath2, excludes: [], recursive: true, correlationId: 2 },
+			{ path: folderPath3, excludes: [], recursive: true, correlationId: 3 },
+			{ path: join(testDir, 'deep'), excludes: [], recursive: true }
+		];
+
+		await watcher.watch(requests);
+
+		assert.strictEqual(watcher.isSuspended(requests[0]), true);
+		assert.strictEqual(watcher.isSuspended(requests[1]), true);
+		assert.strictEqual(watcher.isSuspended(requests[2]), 'polling');
+		assert.strictEqual(watcher.isSuspended(requests[3]), false);
+	});
 });
