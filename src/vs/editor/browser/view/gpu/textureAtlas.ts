@@ -95,9 +95,14 @@ class GlyphRasterizer extends Disposable {
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
 		// TODO: Hot path: Reuse object
+		const boundingBox = this._findGlyphBoundingBox(imageData);
 		const result: IRasterizedGlyph = {
 			source: this._canvas,
-			boundingBox: this._findGlyphBoundingBox(imageData)
+			boundingBox,
+			originOffset: {
+				x: boundingBox.left - this._fontSize,
+				y: boundingBox.top - this._fontSize
+			}
 		};
 		return result;
 	}
@@ -183,6 +188,8 @@ export interface ITextureAtlasGlyph {
 	y: number;
 	w: number;
 	h: number;
+	originOffsetX: number;
+	originOffsetY: number;
 }
 
 export interface IBoundingBox {
@@ -195,4 +202,5 @@ export interface IBoundingBox {
 export interface IRasterizedGlyph {
 	source: CanvasImageSource;
 	boundingBox: IBoundingBox;
+	originOffset: { x: number; y: number };
 }

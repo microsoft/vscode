@@ -20,9 +20,10 @@ const enum Constants {
 }
 
 const enum SpriteInfoStorageBufferInfo {
-	Size = 2 + 2,
+	Size = 2 + 2 + 2,
 	Offset_TexturePosition = 0,
 	Offset_TextureSize = 2,
+	Offset_OriginPosition = 4,
 }
 const spriteInfoStorageBufferByteSize = SpriteInfoStorageBufferInfo.Size * Float32Array.BYTES_PER_ELEMENT;
 
@@ -48,6 +49,7 @@ struct TextureInfoUniform {
 struct SpriteInfo {
 	position: vec2f,
 	size: vec2f,
+	origin: vec2f,
 };
 
 struct Vertex {
@@ -83,7 +85,7 @@ struct VSOutput {
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position,
+		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position - ((spriteInfo.origin * 2) / uniforms.canvasDimensions),
 		0.0,
 		1.0
 	);
@@ -384,6 +386,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition + 1] = glyph.y;
 			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize] = glyph.w;
 			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize + 1] = glyph.h;
+			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_OriginPosition] = glyph.originOffsetX;
+			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_OriginPosition + 1] = glyph.originOffsetY;
 			entryOffset += SpriteInfoStorageBufferInfo.Size;
 		}
 		this._device.queue.writeBuffer(this._spriteInfoStorageBuffer, 0, values);
