@@ -139,12 +139,6 @@ export class TerminalProfileQuickpick {
 				if (context.item.profile.env) {
 					newConfigValue[name].env = context.item.profile.env;
 				}
-				if (context.item.profile.color) {
-					newConfigValue[name].color = context.item.profile.color;
-				}
-				if (context.item.profile.icon) {
-					newConfigValue[name].icon = context.item.profile.icon;
-				}
 				await this._configurationService.updateValue(profilesKey, newConfigValue, ConfigurationTarget.USER);
 			},
 			onKeyMods: mods => keyMods = mods
