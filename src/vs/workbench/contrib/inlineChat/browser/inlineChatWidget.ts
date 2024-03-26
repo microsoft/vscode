@@ -54,6 +54,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 
 export interface InlineChatWidgetViewState {
@@ -174,7 +175,16 @@ export class InlineChatWidget {
 		this._store.add(this._progressBar);
 
 		let allowRequests = false;
-		this._chatWidget = _instantiationService.createInstance(
+
+
+		const scopedInstaService = _instantiationService.createChild(
+			new ServiceCollection([
+				IContextKeyService,
+				this._store.add(_contextKeyService.createScoped(this._elements.chatWidget))
+			])
+		);
+
+		this._chatWidget = scopedInstaService.createInstance(
 			ChatWidget,
 			location,
 			{ resource: true },
@@ -365,14 +375,22 @@ export class InlineChatWidget {
 	get contentHeight(): number {
 		const data = {
 			followUpsHeight: getTotalHeight(this._elements.followUps),
-			chatWidgetHeight: this._chatWidget.contentHeight,
+			chatWidgetContentHeight: this._chatWidget.contentHeight,
 			progressHeight: getTotalHeight(this._elements.progress),
 			statusHeight: getTotalHeight(this._elements.status),
 			extraHeight: this._getExtraHeight()
 		};
-		const result = data.progressHeight + data.chatWidgetHeight + data.followUpsHeight + data.statusHeight + data.extraHeight;
-		// console.log(`InlineChat#contentHeight ${result}`, data);
+		const result = data.progressHeight + data.chatWidgetContentHeight + data.followUpsHeight + data.statusHeight + data.extraHeight;
 		return result;
+	}
+
+	get minHeight(): number {
+		// The chat widget is variable height and supports scrolling. It
+		// should be at least 100px high and at most the content height.
+		let value = this.contentHeight;
+		value -= this._chatWidget.contentHeight;
+		value += Math.min(100, this._chatWidget.contentHeight);
+		return value;
 	}
 
 	protected _getExtraHeight(): number {
@@ -535,9 +553,10 @@ export class InlineChatWidget {
 		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const statusLabel = this._elements.statusLabel.innerText;
+			const title = this._elements.statusLabel.dataset['title'];
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
-				this.updateStatus(statusLabel, { classes, keepMessage: true });
+				this.updateStatus(statusLabel, { classes, keepMessage: true, title });
 			}, ops.resetAfter);
 		}
 		const renderedMessage = renderLabelWithIcons(message);
@@ -550,7 +569,11 @@ export class InlineChatWidget {
 			delete this._elements.statusLabel.dataset['state'];
 		}
 
-		this._elements.statusLabel.dataset['title'] = ops.title;
+		if (ops.title) {
+			this._elements.statusLabel.dataset['title'] = ops.title;
+		} else {
+			delete this._elements.statusLabel.dataset['title'];
+		}
 		this._onDidChangeHeight.fire();
 	}
 

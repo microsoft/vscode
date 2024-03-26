@@ -84,7 +84,7 @@ export class DiffEditorGutter extends Disposable {
 				const currentDiff = this._currentDiff.read(reader);
 
 				return diffs.mappings.map(m => new DiffGutterItem(
-					m.lineRangeMapping,
+					m.lineRangeMapping.withInnerChangesFromLineRanges(),
 					m.lineRangeMapping === currentDiff?.lineRangeMapping,
 					MenuId.DiffEditorHunkToolbar,
 					undefined,

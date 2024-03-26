@@ -606,7 +606,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 			return false;
 		});
-		if (refer && slashCommandLike) {
+		if (refer && slashCommandLike && !this._session.lastExchange) {
 			this._log('[IE] seeing refer command, continuing outside editor', this._session.provider.extensionId);
 
 			// cancel this request
@@ -627,11 +627,7 @@ export class InlineChatController implements IEditorContribution {
 			// if agent has a refer command, massage the input to include the agent name
 			await this._instaService.invokeFunction(sendRequest, massagedInput);
 
-			if (!this._session.lastExchange) {
-				// DONE when there wasn't any exchange yet. We used the inline chat only as trampoline
-				return State.ACCEPT;
-			}
-			return State.WAIT_FOR_INPUT;
+			return State.ACCEPT;
 		}
 
 		this._session.addInput(new SessionPrompt(input, this._nextAttempt, this._nextWithIntentDetection));
