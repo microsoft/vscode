@@ -195,9 +195,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		const viewItems = this._viewItems.get();
 		let searchCallback: (item: VirtualizedViewItem) => boolean;
 		if ('original' in resource) {
-			searchCallback = (item) => item.viewModel.originalUri?.toString() === resource.original.toString();
+			searchCallback = (item) => item.viewModel.originalUri?.path === resource.original?.path;
 		} else {
-			searchCallback = (item) => item.viewModel.modifiedUri?.toString() === resource.modified.toString();
+			searchCallback = (item) => item.viewModel.modifiedUri?.path === resource.modified?.path;
 		}
 		const index = viewItems.findIndex(searchCallback);
 		let scrollTop = 0;

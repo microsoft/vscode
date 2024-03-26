@@ -350,7 +350,7 @@ export class BulkEditPane extends ViewPane {
 			...e.editorOptions,
 			viewState: {
 				revealData: {
-					resource: { original: fileElement.edit.uri },
+					resource: { modified: fileElement.edit.uri },
 					range: selection,
 				}
 			}
