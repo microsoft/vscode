@@ -22,3 +22,4 @@ export const CONTEXT_IN_CHAT_SESSION = new RawContextKey<boolean>('inChat', fals
 
 export const CONTEXT_PROVIDER_EXISTS = new RawContextKey<boolean>('hasChatProvider', false, { type: 'boolean', description: localize('hasChatProvider', "True when some chat provider has been registered.") });
 export const CONTEXT_CHAT_INPUT_CURSOR_AT_TOP = new RawContextKey<boolean>('chatCursorAtTop', false);
+export const CONTEXT_CHAT_INPUT_HAS_AGENT = new RawContextKey<boolean>('chatInputHasAgent', false);

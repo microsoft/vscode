@@ -320,6 +320,7 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	async render(data: ICodeBlockData, width: number, editable: boolean | undefined) {
+		this.currentCodeBlockData = data;
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}

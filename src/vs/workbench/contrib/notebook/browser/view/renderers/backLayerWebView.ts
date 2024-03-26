@@ -686,6 +686,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 						if (latestCell) {
 							latestCell.outputIsFocused = false;
+							latestCell.inputInOutputIsFocused = false;
 						}
 					}
 					break;
@@ -911,6 +912,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					break;
 				}
 				case 'outputInputFocus': {
+					const resolvedResult = this.resolveOutputId(data.id);
+					if (resolvedResult) {
+						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+						if (latestCell) {
+							latestCell.inputInOutputIsFocused = data.inputFocused;
+						}
+					}
 					this.notebookEditor.didFocusOutputInputChange(data.inputFocused);
 				}
 			}
@@ -1689,6 +1697,18 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const outputId = output ? this.insetMapping.get(output)?.outputId : undefined;
 		this._sendMessageToWebview({
 			type: 'select-output-contents',
+			cellOrOutputId: outputId || cell.id
+		});
+	}
+
+	selectInputContents(cell: ICellViewModel) {
+		if (this._disposed) {
+			return;
+		}
+		const output = cell.outputsViewModels.find(o => o.model.outputId === cell.focusedOutputId);
+		const outputId = output ? this.insetMapping.get(output)?.outputId : undefined;
+		this._sendMessageToWebview({
+			type: 'select-input-contents',
 			cellOrOutputId: outputId || cell.id
 		});
 	}
