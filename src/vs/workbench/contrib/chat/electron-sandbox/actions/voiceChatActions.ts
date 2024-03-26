@@ -104,6 +104,15 @@ class VoiceChatSessionControllerFactory {
 		// Currently Focused Context
 		if (context === 'focused') {
 
+			// Try with the terminal chat
+			const activeInstance = terminalService.activeInstance;
+			if (activeInstance) {
+				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+				if (terminalChat?.hasFocus()) {
+					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
+				}
+			}
+
 			// Try with the chat widget service, which currently
 			// only supports the chat view and quick chat
 			// https://github.com/microsoft/vscode/issues/191191
@@ -132,15 +141,6 @@ class VoiceChatSessionControllerFactory {
 				const inlineChat = InlineChatController.get(activeCodeEditor);
 				if (inlineChat?.hasFocus()) {
 					return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
-				}
-			}
-
-			// Try with the terminal chat
-			const activeInstance = terminalService.activeInstance;
-			if (activeInstance) {
-				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-				if (terminalChat?.hasFocus()) {
-					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
 				}
 			}
 		}
@@ -699,7 +699,6 @@ class BaseStopListeningAction extends Action2 {
 		private readonly target: 'inline' | 'terminal' | 'quick' | 'view' | 'editor' | undefined,
 		context: RawContextKey<boolean>,
 		menu: MenuId | undefined,
-		group: 'navigation' | 'main' = 'navigation'
 	) {
 		super({
 			...desc,
@@ -713,7 +712,7 @@ class BaseStopListeningAction extends Action2 {
 			menu: menu ? [{
 				id: menu,
 				when: ContextKeyExpr.and(CanVoiceChat, context),
-				group,
+				group: 'navigation',
 				order: -1
 			}] : undefined
 		});
@@ -765,7 +764,7 @@ export class StopListeningInTerminalChatAction extends BaseStopListeningAction {
 	static readonly ID = 'workbench.action.chat.stopListeningInTerminalChat';
 
 	constructor() {
-		super({ id: StopListeningInTerminalChatAction.ID, icon: spinningLoading }, 'terminal', CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS, MenuId.for('terminalChatInput'), 'main');
+		super({ id: StopListeningInTerminalChatAction.ID, icon: spinningLoading }, 'terminal', CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS, MenuId.for('terminalChatInput'));
 	}
 }
 
@@ -828,7 +827,7 @@ registerThemingParticipant((theme, collector) => {
 		}
 
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after,
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
+		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after,
 		.monaco-workbench:not(.reduce-motion) .terminal-inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
 			outline: 2px solid ${activeRecordingColor};
 			outline-offset: -1px;
@@ -836,7 +835,8 @@ registerThemingParticipant((theme, collector) => {
 		}
 
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
+		.monaco-workbench:not(.reduce-motion) .terminal-inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 			position: absolute;
 			outline: 1px solid ${activeRecordingColor};
 			outline-offset: 2px;
