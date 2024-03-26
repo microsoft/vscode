@@ -159,7 +159,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.focus();
 	}
 	focusResponse(): void {
-		const responseElement = this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseEditor) || this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseMessage);
+		const responseElement = this._inlineChatWidget.domNode.querySelector('.monaco-list');
 		if (responseElement instanceof HTMLElement) {
 			responseElement.focus();
 		}
@@ -190,7 +190,3 @@ export class TerminalChatWidget extends Disposable {
 	}
 }
 
-const enum ChatElementSelectors {
-	ResponseEditor = '.chatMessageContent textarea',
-	ResponseMessage = '.chatMessageContent',
-}
