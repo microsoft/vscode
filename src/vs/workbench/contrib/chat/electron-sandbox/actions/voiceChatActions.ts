@@ -52,7 +52,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
+import { TerminalChatController, TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -616,7 +616,7 @@ export class StartVoiceChatAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			icon: Codicon.mic,
-			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate()),
+			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate(), TerminalChatContextKeys.requestActive.negate()),
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),
