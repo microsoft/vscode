@@ -553,9 +553,10 @@ export class InlineChatWidget {
 		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const statusLabel = this._elements.statusLabel.innerText;
+			const title = this._elements.statusLabel.dataset['title'];
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
-				this.updateStatus(statusLabel, { classes, keepMessage: true });
+				this.updateStatus(statusLabel, { classes, keepMessage: true, title });
 			}, ops.resetAfter);
 		}
 		const renderedMessage = renderLabelWithIcons(message);
@@ -568,7 +569,11 @@ export class InlineChatWidget {
 			delete this._elements.statusLabel.dataset['state'];
 		}
 
-		this._elements.statusLabel.dataset['title'] = ops.title;
+		if (ops.title) {
+			this._elements.statusLabel.dataset['title'] = ops.title;
+		} else {
+			delete this._elements.statusLabel.dataset['title'];
+		}
 		this._onDidChangeHeight.fire();
 	}
 
