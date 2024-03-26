@@ -7,6 +7,10 @@
 	z-index: 3;
 }
 
+.monaco-workbench .zone-widget.inline-chat-widget .interactive-session {
+	max-width: unset;
+}
+
 .monaco-workbench .zone-widget-container.inside-selection {
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
