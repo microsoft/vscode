@@ -5,12 +5,12 @@
 
 import * as vscode from 'vscode';
 import { ExperimentationTelemetry } from './common/experimentationService';
-import { AuthProviderType, UriEventHandler } from './github';
+import { AuthProviderType, EnterpriseSettings, UriEventHandler } from './github';
 import { Log } from './common/logger';
-import { isSupportedClient, isSupportedTarget } from './common/env';
+import { getTarget, isSupportedClient, isSupportedTarget } from './common/env';
 import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
-import { ExtensionHost, GitHubTarget, getFlows } from './flows';
+import { ExtensionHost, getFlows } from './flows';
 import { CANCELLATION_ERROR, NETWORK_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 import { Config } from './config';
 import { base64Encode } from './node/buffer';
@@ -34,22 +34,27 @@ export class GitHubServer implements IGitHubServer {
 
 	private _redirectEndpoint: string | undefined;
 
+	private shouldUseBaseGithub() {
+		return this._type === AuthProviderType.github || this._enterpriseSettings?.ssoId;
+	}
+
 	constructor(
 		private readonly _logger: Log,
 		private readonly _telemetryReporter: ExperimentationTelemetry,
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _extensionKind: vscode.ExtensionKind,
-		private readonly _ghesUri?: vscode.Uri
+		private readonly _enterpriseSettings?: EnterpriseSettings
 	) {
-		this._type = _ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
-		this.friendlyName = this._type === AuthProviderType.github ? 'GitHub' : _ghesUri?.authority!;
+
+		this._type = _enterpriseSettings ? AuthProviderType.githubEnterprise : AuthProviderType.github;
+		this.friendlyName = this.shouldUseBaseGithub() ? 'GitHub' : _enterpriseSettings?.uri?.authority!;
 	}
 
 	get baseUri() {
-		if (this._type === AuthProviderType.github) {
+		if (this.shouldUseBaseGithub()) {
 			return vscode.Uri.parse('https://github.com/');
 		}
-		return this._ghesUri!;
+		return this._enterpriseSettings?.uri!;
 	}
 
 	private async getRedirectEndpoint(): Promise<string> {
@@ -111,19 +116,13 @@ export class GitHubServer implements IGitHubServer {
 		const nonce: string = crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), '');
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate?nonce=${encodeURIComponent(nonce)}`));
 
-		const supportedClient = isSupportedClient(callbackUri);
-		const supportedTarget = isSupportedTarget(this._type, this._ghesUri);
-
 		const flows = getFlows({
-			target: this._type === AuthProviderType.github
-				? GitHubTarget.DotCom
-				: supportedTarget ? GitHubTarget.HostedEnterprise : GitHubTarget.Enterprise,
+			target: getTarget(this._enterpriseSettings),
 			extensionHost: typeof navigator === 'undefined'
 				? this._extensionKind === vscode.ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
-			isSupportedClient: supportedClient
+			isSupportedClient: isSupportedClient(callbackUri)
 		});
-
 
 		for (const flow of flows) {
 			try {
@@ -137,9 +136,9 @@ export class GitHubServer implements IGitHubServer {
 					baseUri: this.baseUri,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
-					enterpriseUri: this._ghesUri,
 					redirectUri: vscode.Uri.parse(await this.getRedirectEndpoint()),
-					existingLogin
+					existingLogin: existingLogin,
+					enterpriseSettings: this._enterpriseSettings,
 				});
 			} catch (e) {
 				userCancelled = this.processLoginError(e);
@@ -164,7 +163,7 @@ export class GitHubServer implements IGitHubServer {
 			return;
 		}
 
-		if (!isSupportedTarget(this._type, this._ghesUri)) {
+		if (!isSupportedTarget(this._type, this._enterpriseSettings)) {
 			this._logger.trace('GitHub.com and GitHub hosted GitHub Enterprise are the only options that support deleting tokens on the server. Skipping.');
 			return;
 		}
@@ -204,7 +203,7 @@ export class GitHubServer implements IGitHubServer {
 	private getServerUri(path: string = '') {
 		const apiUri = this.baseUri;
 		// github.com and Hosted GitHub Enterprise instances
-		if (isSupportedTarget(this._type, this._ghesUri)) {
+		if (isSupportedTarget(this._type, this._enterpriseSettings)) {
 			return vscode.Uri.parse(`${apiUri.scheme}://api.${apiUri.authority}`).with({ path });
 		}
 		// GitHub Enterprise Server (aka on-prem)
@@ -312,7 +311,7 @@ export class GitHubServer implements IGitHubServer {
 	private async checkEnterpriseVersion(token: string): Promise<void> {
 		try {
 			let version: string;
-			if (!isSupportedTarget(this._type, this._ghesUri)) {
+			if (!isSupportedTarget(this._type, this._enterpriseSettings)) {
 				const result = await fetching(this.getServerUri('/meta').toString(), {
 					headers: {
 						Authorization: `token ${token}`,
