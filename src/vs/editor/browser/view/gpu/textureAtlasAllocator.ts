@@ -18,7 +18,7 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 	// TODO: Allow for multiple active rows
 	// public readonly fixedRows: ICharAtlasActiveRow[] = [];
 
-	private _nextId = 1;
+	private _nextIndex = 0;
 
 	constructor(
 		private readonly _canvas: OffscreenCanvas,
@@ -53,18 +53,19 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 			glyphHeight
 		);
 
-		// Shift current row
-		this._currentRow.x += glyphWidth;
-		this._currentRow.h = Math.max(this._currentRow.h, glyphHeight);
-
-		// Return glyph
-		const glyph = {
-			id: this._nextId++,
+		// Create glyph object
+		const glyph: ITextureAtlasGlyph = {
+			index: this._nextIndex++,
 			x: this._currentRow.x,
 			y: this._currentRow.y,
 			w: glyphWidth,
 			h: glyphHeight,
 		};
+
+		// Shift current row
+		this._currentRow.x += glyphWidth;
+		this._currentRow.h = Math.max(this._currentRow.h, glyphHeight);
+
 		return glyph;
 	}
 }

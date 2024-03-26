@@ -178,7 +178,7 @@ class GlyphRasterizer extends Disposable {
 }
 
 export interface ITextureAtlasGlyph {
-	id: number;
+	index: number;
 	x: number;
 	y: number;
 	w: number;

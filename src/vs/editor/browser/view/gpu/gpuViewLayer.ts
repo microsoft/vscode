@@ -57,7 +57,7 @@ struct Vertex {
 struct DynamicUnitInfo {
 	position: vec2f,
 	unused1: vec2f,
-	textureId: f32,
+	textureIndex: f32,
 	unused2: f32
 };
 
@@ -78,7 +78,7 @@ struct VSOutput {
 	@builtin(vertex_index) vertexIndex : u32
 ) -> VSOutput {
 	let dynamicUnitInfo = dynamicUnitInfoStructs[instanceIndex];
-	let spriteInfo = spriteInfo[u32(dynamicUnitInfo.textureId)];
+	let spriteInfo = spriteInfo[u32(dynamicUnitInfo.textureIndex)];
 
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
@@ -492,7 +492,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				dataBuffer[charCount * Constants.IndicesPerCell + 1] = -wgslY; // y
 				dataBuffer[charCount * Constants.IndicesPerCell + 2] = 0;
 				dataBuffer[charCount * Constants.IndicesPerCell + 3] = 0;
-				dataBuffer[charCount * Constants.IndicesPerCell + 4] = glyph.id;     // textureId
+				dataBuffer[charCount * Constants.IndicesPerCell + 4] = glyph.index;     // textureIndex
 				dataBuffer[charCount * Constants.IndicesPerCell + 5] = 0;
 
 				charCount++;
