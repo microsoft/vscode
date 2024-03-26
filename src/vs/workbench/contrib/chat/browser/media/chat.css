@@ -348,6 +348,10 @@
 	justify-content: space-between;
 }
 
+.interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
+	margin-bottom: 0;
+}
+
 .interactive-session .interactive-input-and-side-toolbar {
 	display: flex;
 	gap: 4px;
