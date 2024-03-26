@@ -189,10 +189,11 @@ export class InlineChatWidget {
 			location,
 			{ resource: true },
 			{
-				// TODO@jrieken support editable code blocks
+				defaultElementHeight: 32,
 				renderStyle: 'compact',
 				renderInputOnTop: true,
 				supportsFileReferences: true,
+				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
 				editableCodeBlocks: options.editableCodeBlocks,
 				menus: {
 					executeToolbar: options.inputMenuId,

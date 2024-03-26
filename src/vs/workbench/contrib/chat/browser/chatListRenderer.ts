@@ -1010,6 +1010,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 	constructor(
+		private readonly defaultElementHeight: number,
 		@ILogService private readonly logService: ILogService
 	) { }
 
@@ -1023,7 +1024,7 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 
 	getHeight(element: ChatTreeItem): number {
 		const kind = isRequestVM(element) ? 'request' : 'response';
-		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? 200;
+		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? this.defaultElementHeight;
 		this._traceLayout('getHeight', `${kind}, height=${height}`);
 		return height;
 	}
