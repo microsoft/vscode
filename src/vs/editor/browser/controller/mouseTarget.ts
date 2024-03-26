@@ -737,20 +737,6 @@ export class MouseTargetFactory {
 			return request.fulfillContentEmpty(new Position(lineCount, maxLineColumn), EMPTY_CONTENT_AFTER_LINES);
 		}
 
-		// Do the hit test (if not already done)
-		const hitTestResult = request.hitTestResult.value;
-
-		if (hitTestResult.type === HitTestResultType.Content) {
-			return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.spanNode, hitTestResult.position, hitTestResult.injectedText);
-		}
-
-		// We didn't hit content...
-		if (request.wouldBenefitFromHitTestTargetSwitch) {
-			// We actually hit something different... Give it one last change by trying again with this new target
-			request.switchToHitTestTarget();
-			return this._createMouseTarget(ctx, request);
-		}
-
 		// Check if we are hitting a view-line (can happen in the case of inline decorations on empty lines)
 		// See https://github.com/microsoft/vscode/issues/46942
 		if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
@@ -768,6 +754,20 @@ export class MouseTargetFactory {
 				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
 				return request.fulfillContentEmpty(pos, detail);
 			}
+		}
+
+		// Do the hit test (if not already done)
+		const hitTestResult = request.hitTestResult.value;
+
+		if (hitTestResult.type === HitTestResultType.Content) {
+			return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.spanNode, hitTestResult.position, hitTestResult.injectedText);
+		}
+
+		// We didn't hit content...
+		if (request.wouldBenefitFromHitTestTargetSwitch) {
+			// We actually hit something different... Give it one last change by trying again with this new target
+			request.switchToHitTestTarget();
+			return this._createMouseTarget(ctx, request);
 		}
 
 		// We have tried everything...
