@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { TextureAtlas, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/textureAtlas';
+import { getActiveDocument, getActiveWindow } from 'vs/base/browser/dom';
+import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { TextureAtlas } from 'vs/editor/browser/view/gpu/textureAtlas';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
@@ -17,6 +18,13 @@ interface IRendererContext<T extends IVisibleLine> {
 const enum Constants {
 	IndicesPerCell = 6
 }
+
+const enum SpriteInfoStorageBufferInfo {
+	Size = 2 + 2,
+	Offset_TexturePosition = 0,
+	Offset_TextureSize = 2,
+}
+const spriteInfoStorageBufferByteSize = SpriteInfoStorageBufferInfo.Size * Float32Array.BYTES_PER_ELEMENT;
 
 const enum BindingId {
 	// TODO: Improve names
@@ -122,8 +130,16 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _squareVertices!: { vertexData: Float32Array; numVertices: number };
 
 	private _textureAtlas!: TextureAtlas;
+	private _spriteInfoStorageBuffer!: GPUBuffer;
+	private _textureAtlasGpuTexture!: GPUTexture;
 
 	private _initialized = false;
+
+
+
+	private readonly _testCanvas: HTMLCanvasElement;
+	private readonly _testCtx: CanvasRenderingContext2D;
+
 
 	constructor(domNode: HTMLCanvasElement, host: IVisibleLinesHost<T>, viewportData: ViewportData) {
 		this.domNode = domNode;
@@ -132,6 +148,19 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		this._gpuCtx = this.domNode.getContext('webgpu')!;
 		this.initWebgpu();
+
+
+
+		this._testCanvas = document.createElement('canvas');
+		this._testCanvas.width = 2048;
+		this._testCanvas.height = 2048;
+		this._testCanvas.style.position = 'absolute';
+		this._testCanvas.style.top = '0';
+		this._testCanvas.style.left = '0';
+		this._testCanvas.style.zIndex = '10000';
+		this._testCanvas.style.pointerEvents = 'none';
+		this._testCtx = ensureNonNullable(this._testCanvas.getContext('2d'));
+		getActiveDocument().body.appendChild(this._testCanvas);
 	}
 
 	async initWebgpu() {
@@ -237,60 +266,34 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		}
 
 
-		const maxRenderedObjects = 10;
+		const maxRenderedObjects = 10000;
 
 		///////////////////
 		// Static buffer //
 		///////////////////
-		const enum SpriteInfoStorageBufferInfo {
-			Size = 2 + 2,
-			Offset_TexturePosition = 0,
-			Offset_TextureSize = 2,
-		}
-		const spriteInfoStorageBufferByteSize = SpriteInfoStorageBufferInfo.Size * Float32Array.BYTES_PER_ELEMENT;
-		const spriteInfoStorageBuffer = this._device.createBuffer({
+		this._spriteInfoStorageBuffer = this._device.createBuffer({
 			label: 'Entity static info buffer',
 			size: spriteInfoStorageBufferByteSize * maxRenderedObjects,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
-		{
-			const glyph = textureAtlas.getGlyph('ABC', 0);
-			const sprites: ITextureAtlasGlyph[] = [
-				glyph,
-				glyph
-				// { x: 0, y: 0, w: 50, h: 50 },
-			];
-			const bufferSize = spriteInfoStorageBufferByteSize * sprites.length;
-			const values = new Float32Array(bufferSize / 4);
-			let entryOffset = 0;
-			for (const t of sprites) {
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition] = t.x;
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition + 1] = t.y;
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize] = t.w;
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize + 1] = t.h;
-				entryOffset += SpriteInfoStorageBufferInfo.Size;
-			}
-			this._device.queue.writeBuffer(spriteInfoStorageBuffer, 0, values);
-		}
-
-
-
-
-
 
 		// Upload texture bitmap from atlas
-		const textureAtlasGpuTexture = this._device.createTexture({
+		this._textureAtlasGpuTexture = this._device.createTexture({
 			format: 'rgba8unorm',
 			size: { width: textureAtlas.source.width, height: textureAtlas.source.height },
 			usage: GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
 				GPUTextureUsage.RENDER_ATTACHMENT,
 		});
-		this._device.queue.copyExternalImageToTexture(
-			{ source: textureAtlas.source },
-			{ texture: textureAtlasGpuTexture },
-			{ width: textureAtlas.source.width, height: textureAtlas.source.height },
-		);
+
+
+		this._updateTextureAtlas();
+
+
+
+
+
+
 
 
 
@@ -318,10 +321,10 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			label: 'ViewLayer bind group',
 			layout: this._pipeline.getBindGroupLayout(0),
 			entries: [
-				{ binding: BindingId.SpriteInfo, resource: { buffer: spriteInfoStorageBuffer } },
+				{ binding: BindingId.SpriteInfo, resource: { buffer: this._spriteInfoStorageBuffer } },
 				{ binding: BindingId.DynamicUnitInfo, resource: { buffer: this._dataBindBuffer } },
 				{ binding: BindingId.TextureSampler, resource: sampler },
-				{ binding: BindingId.Texture, resource: textureAtlasGpuTexture.createView() },
+				{ binding: BindingId.Texture, resource: this._textureAtlasGpuTexture.createView() },
 				{ binding: BindingId.Uniforms, resource: { buffer: uniformBuffer } },
 				{ binding: BindingId.TextureInfoUniform, resource: { buffer: textureInfoUniformBuffer } },
 			],
@@ -371,6 +374,30 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		this.viewportData = viewportData;
 	}
 
+	private _updateTextureAtlas() {
+		// TODO: Dynamically set buffer size
+		const bufferSize = spriteInfoStorageBufferByteSize * 10000;
+		const values = new Float32Array(bufferSize / 4);
+		let entryOffset = 0;
+		for (const glyph of this._textureAtlas.glyphs) {
+			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition] = glyph.x;
+			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition + 1] = glyph.y;
+			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize] = glyph.w;
+			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize + 1] = glyph.h;
+			entryOffset += SpriteInfoStorageBufferInfo.Size;
+		}
+		this._device.queue.writeBuffer(this._spriteInfoStorageBuffer, 0, values);
+
+		this._device.queue.copyExternalImageToTexture(
+			{ source: this._textureAtlas.source },
+			{ texture: this._textureAtlasGpuTexture },
+			{ width: this._textureAtlas.source.width, height: this._textureAtlas.source.height },
+		);
+
+
+		this._testCtx.drawImage(this._textureAtlas.source, 0, 0);
+	}
+
 	public render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inContext.rendLineNumberStart,
@@ -394,6 +421,9 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		this._dataValuesBufferActiveIndex = (this._dataValuesBufferActiveIndex + 1) % 2;
 
+		// TODO: Only do this when needed
+		this._updateTextureAtlas();
+
 		const encoder = this._device.createCommandEncoder();
 
 		(this._renderPassDescriptor.colorAttachments as any)[0].view = this._gpuCtx.getCurrentTexture().createView();
@@ -416,7 +446,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 	// TODO: This update could be moved to an arbitrary task thread if expensive?
 	private _updateDataBuffer(dataBuffer: Float32Array, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
-		let chars: string = '';
+		// let chars: string = '';
 		let screenAbsoluteX: number = 0;
 		let screenAbsoluteY: number = 0;
 		let zeroToOneX: number = 0;
@@ -444,7 +474,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				}
 				// TODO: Handle tab
 
-				chars = content[x];
+				// chars = content[x];
 				const glyph = this._textureAtlas.getGlyph(content, x);
 
 				// TODO: Move math to gpu
@@ -462,7 +492,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				dataBuffer[charCount * Constants.IndicesPerCell + 1] = -wgslY; // y
 				dataBuffer[charCount * Constants.IndicesPerCell + 2] = 0;
 				dataBuffer[charCount * Constants.IndicesPerCell + 3] = 0;
-				dataBuffer[charCount * Constants.IndicesPerCell + 4] = glyph.id;     // textureIndex
+				dataBuffer[charCount * Constants.IndicesPerCell + 4] = glyph.id;     // textureId
 				dataBuffer[charCount * Constants.IndicesPerCell + 5] = 0;
 
 				charCount++;

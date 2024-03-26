@@ -6,16 +6,19 @@
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { ITextureAtlasAllocator, TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/textureAtlasAllocator';
 
 export class TextureAtlas extends Disposable {
-	private _canvas: OffscreenCanvas;
-	private _ctx: OffscreenCanvasRenderingContext2D;
+	private readonly _canvas: OffscreenCanvas;
+	private readonly _ctx: OffscreenCanvasRenderingContext2D;
 
-	private _glyphMap: Map<string, ITextureAtlasGlyph> = new Map();
+	private readonly _glyphMap: Map<string, ITextureAtlasGlyph> = new Map();
+	public get glyphs(): IterableIterator<ITextureAtlasGlyph> {
+		return this._glyphMap.values();
+	}
 
-	private _glyphRasterizer: GlyphRasterizer;
-
-	private _nextId = 0;
+	private readonly _glyphRasterizer: GlyphRasterizer;
+	private readonly _allocator: ITextureAtlasAllocator;
 
 	public get source(): OffscreenCanvas {
 		return this._canvas;
@@ -26,7 +29,9 @@ export class TextureAtlas extends Disposable {
 		super();
 
 		this._canvas = new OffscreenCanvas(maxTextureSize, maxTextureSize);
-		this._ctx = ensureNonNullable(this._canvas.getContext('2d'));
+		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
+			willReadFrequently: true
+		}));
 
 		const activeWindow = getActiveWindow();
 		const style = activeWindow.getComputedStyle(parentDomNode);
@@ -34,6 +39,7 @@ export class TextureAtlas extends Disposable {
 		this._ctx.font = `${fontSize}px ${style.fontFamily}`;
 
 		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
+		this._allocator = new TextureAtlasShelfAllocator(this._canvas, this._ctx);
 
 		// Reduce impact of a memory leak if this object is not released
 		this._register(toDisposable(() => {
@@ -50,33 +56,15 @@ export class TextureAtlas extends Disposable {
 			return glyph;
 		}
 		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars);
-		this._ctx.drawImage(
-			rasterizedGlyph.source,
-			// source
-			rasterizedGlyph.boundingBox.left,
-			rasterizedGlyph.boundingBox.top,
-			rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,
-			rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top,
-			// destination
-			0,
-			0,
-			rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,
-			rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top
-		);
-		// TODO: Implement allocation
-		glyph = {
-			// TODO: Set real id
-			id: 1, //this._nextId++,
-			x: 0,
-			y: 0,
-			w: rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left,
-			h: rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top
-		};
-		console.log('Allocating glyph', {
+		glyph = this._allocator.allocate(rasterizedGlyph);
+		this._glyphMap.set(chars, glyph);
+
+		console.log('New glyph', {
+			chars,
 			rasterizedGlyph,
 			glyph
 		});
-		this._glyphMap.set(chars, glyph);
+
 		return glyph;
 	}
 }
@@ -90,7 +78,9 @@ class GlyphRasterizer extends Disposable {
 		super();
 
 		this._canvas = new OffscreenCanvas(this._fontSize * 3, this._fontSize * 3);
-		this._ctx = ensureNonNullable(this._canvas.getContext('2d'));
+		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
+			willReadFrequently: true
+		}));
 		this._ctx.font = `${this._fontSize}px ${fontFamily}`;
 		this._ctx.fillStyle = '#FFFFFF';
 	}
@@ -195,14 +185,14 @@ export interface ITextureAtlasGlyph {
 	h: number;
 }
 
-interface IBoundingBox {
+export interface IBoundingBox {
 	left: number;
 	top: number;
 	right: number;
 	bottom: number;
 }
 
-interface IRasterizedGlyph {
+export interface IRasterizedGlyph {
 	source: CanvasImageSource;
 	boundingBox: IBoundingBox;
 }
