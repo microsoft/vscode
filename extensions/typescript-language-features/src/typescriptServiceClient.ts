@@ -992,7 +992,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					new vscode.RelativePattern(
 						vscode.Uri.file((event.body as Proto.CreateDirectoryWatcherEventBody).path),
 						(event.body as Proto.CreateDirectoryWatcherEventBody).recursive ? '**' : '*'
-					)
+					),
+					event.body.ignoreUpdate // TODO when typescript.d.ts gets updated update the type info
 				);
 				break;
 
@@ -1014,11 +1015,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private createFileSystemWatcher(
 		id: number,
-		pattern: vscode.RelativePattern
+		pattern: vscode.RelativePattern,
+		ignoreChangeEvents?: boolean,
 	) {
 		const disposable = new DisposableStore();
 
-		const watcher = disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes: [] /* TODO need to fill in excludes list */ }));
+		const watcher = disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes: [] /* TODO need to fill in excludes list */, ignoreChangeEvents }));
 
 		disposable.add(watcher.onDidChange(changeFile =>
 			this.executeWithoutWaitingForResponse('watchChange', { id, path: changeFile.fsPath, eventType: 'update' } satisfies Proto.WatchChangeRequestArgs)
