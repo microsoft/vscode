@@ -89,7 +89,7 @@ export class TerminalVoiceSession extends Disposable {
 		}, voiceTimeout));
 		this._cancellationTokenSource = new CancellationTokenSource();
 		this._register(toDisposable(() => this._cancellationTokenSource?.dispose(true)));
-		const session = await this._speechService.createSpeechToTextSession(this._cancellationTokenSource?.token);
+		const session = await this._speechService.createSpeechToTextSession(this._cancellationTokenSource?.token, 'terminal');
 
 		this._disposables.add(session.onDidChange((e) => {
 			if (this._cancellationTokenSource?.token.isCancellationRequested) {
