@@ -20,6 +20,8 @@ import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { Range } from 'vs/editor/common/core/range';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -45,11 +47,19 @@ export class InlineChatContentWidget implements IContentWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 
 		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, `inlineChatDefaultModel/editorContentWidgetPlaceholder`, undefined));
 
-		this._widget = instaService.createInstance(
+		const scopedInstaService = instaService.createChild(
+			new ServiceCollection([
+				IContextKeyService,
+				this._store.add(contextKeyService.createScoped(this._domNode))
+			])
+		);
+
+		this._widget = scopedInstaService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Editor,
 			{ resource: true },
