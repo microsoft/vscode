@@ -6,7 +6,8 @@
 import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
 import { getActiveWindow, getWindows } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
-import { ISandboxGlobals, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { IpcRendererEvent } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { IDevice, ISandboxGlobals, deviceAccess, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 
 export enum ApplyZoomTarget {
@@ -43,7 +44,7 @@ export function applyZoom(zoomLevel: number, target: ApplyZoomTarget | Window): 
 function getGlobals(win: Window): ISandboxGlobals | undefined {
 	if (win === mainWindow) {
 		// main window
-		return { ipcRenderer, webFrame };
+		return { ipcRenderer, webFrame, deviceAccess };
 	} else {
 		// auxiliary window
 		const auxiliaryWindow = win as unknown as { vscode: ISandboxGlobals };
@@ -61,4 +62,15 @@ export function zoomIn(target: ApplyZoomTarget | Window): void {
 
 export function zoomOut(target: ApplyZoomTarget | Window): void {
 	applyZoom(getZoomLevel(typeof target === 'number' ? getActiveWindow() : target) - 1, target);
+}
+
+export function registerDeviceAccessHandler(handler: (devices: IDevice[], type: string) => Promise<string | undefined>) {
+	const asyncHandler = async (event: IpcRendererEvent, type: string, devices: IDevice[]) => {
+		const id = await handler(devices, type);
+		event.sender.send(type, id);
+	};
+
+	for (const { window } of getWindows()) {
+		getGlobals(window)?.deviceAccess.handleDeviceAccess(asyncHandler);
+	}
 }

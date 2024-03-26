@@ -5,7 +5,7 @@
 
 import { INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { IpcRenderer, ProcessMemoryInfo, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { IpcRenderer, IpcRendererEvent, ProcessMemoryInfo, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 /**
  * In Electron renderers we cannot expose all of the `process` global of node.js
@@ -115,12 +115,22 @@ export interface ISandboxContext {
 	resolveConfiguration(): Promise<ISandboxConfiguration>;
 }
 
+export interface IDevice {
+	id: string;
+	label: string;
+}
+
+export interface IDeviceAccess {
+	handleDeviceAccess: (callback: (event: IpcRendererEvent, type: string, devices: IDevice[]) => void) => void;
+}
+
 const vscodeGlobal = (globalThis as any).vscode;
 export const ipcRenderer: IpcRenderer = vscodeGlobal.ipcRenderer;
 export const ipcMessagePort: IpcMessagePort = vscodeGlobal.ipcMessagePort;
 export const webFrame: WebFrame = vscodeGlobal.webFrame;
 export const process: ISandboxNodeProcess = vscodeGlobal.process;
 export const context: ISandboxContext = vscodeGlobal.context;
+export const deviceAccess: IDeviceAccess = vscodeGlobal.deviceAccess;
 
 /**
  * A set of globals that are available in all windows that either
@@ -129,4 +139,5 @@ export const context: ISandboxContext = vscodeGlobal.context;
 export interface ISandboxGlobals {
 	readonly ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send' | 'invoke'>;
 	readonly webFrame: import('vs/base/parts/sandbox/electron-sandbox/electronTypes').WebFrame;
+	readonly deviceAccess: IDeviceAccess;
 }

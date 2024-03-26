@@ -17,7 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { ApplyZoomTarget, applyZoom, registerDeviceAccessHandler } from 'vs/platform/window/electron-sandbox/window';
 import { setFullscreen, getZoomLevel, onDidChangeZoomLevel, getZoomFactor } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -72,6 +72,8 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
 import { mainWindow } from 'vs/base/browser/window';
+import { HidDeviceData, SerialPortData, UsbDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice } from 'vs/base/browser/deviceAccess';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { BaseWindow } from 'vs/workbench/browser/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
@@ -129,7 +131,8 @@ export class NativeWindow extends BaseWindow {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(mainWindow, undefined, hostService, nativeEnvironmentService);
 
@@ -662,7 +665,13 @@ export class NativeWindow extends BaseWindow {
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
 
-		// Zoom status
+		// Commands
+		this.registerCommands();
+
+		// Handlers
+		this.registerHandlers();
+
+    // Zoom status
 		for (const { window, disposables } of getWindows()) {
 			this.createWindowZoomStatusEntry(this.instantiationService, window.vscodeWindowId, disposables);
 		}
@@ -1043,7 +1052,34 @@ export class NativeWindow extends BaseWindow {
 		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
 	}
 
-	//#region Window Zoom
+	private registerCommands(): void {
+
+		// Allow extensions to request USB devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> => {
+			return requestUsbDevice(options);
+		});
+
+		// Allow extensions to request Serial devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestSerialPort', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<SerialPortData | undefined> => {
+			return requestSerialPort(options);
+		});
+
+		// Allow extensions to request HID devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestHidDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> => {
+			return requestHidDevice(options);
+		});
+	}
+
+	private registerHandlers(): void {
+
+		// Show a picker when a device is requested
+		registerDeviceAccessHandler(async devices => {
+			const device = await this.quickInputService.pick(devices, { title: `${this.productService.nameShort} wants to connect` });
+			return device?.id;
+		});
+  }
+
+  //#region Window Zoom
 
 	private readonly mapWindowIdToZoomStatusEntry = new Map<number, ZoomStatusEntry>();
 
