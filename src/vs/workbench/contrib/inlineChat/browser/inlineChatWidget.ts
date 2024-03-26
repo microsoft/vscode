@@ -375,14 +375,22 @@ export class InlineChatWidget {
 	get contentHeight(): number {
 		const data = {
 			followUpsHeight: getTotalHeight(this._elements.followUps),
-			chatWidgetHeight: this._chatWidget.contentHeight,
+			chatWidgetContentHeight: this._chatWidget.contentHeight,
 			progressHeight: getTotalHeight(this._elements.progress),
 			statusHeight: getTotalHeight(this._elements.status),
 			extraHeight: this._getExtraHeight()
 		};
-		const result = data.progressHeight + data.chatWidgetHeight + data.followUpsHeight + data.statusHeight + data.extraHeight;
-		// console.log(`InlineChat#contentHeight ${result}`, data);
+		const result = data.progressHeight + data.chatWidgetContentHeight + data.followUpsHeight + data.statusHeight + data.extraHeight;
 		return result;
+	}
+
+	get minHeight(): number {
+		// The chat widget is variable height and supports scrolling. It
+		// should be at least 100px high and at most the content height.
+		let value = this.contentHeight;
+		value -= this._chatWidget.contentHeight;
+		value += Math.min(100, this._chatWidget.contentHeight);
+		return value;
 	}
 
 	protected _getExtraHeight(): number {
