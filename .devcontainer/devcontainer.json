@@ -1,9 +1,9 @@
-{
-	"name": "Code - OSS",
+"ghcr.io/elanhasson/devcontainer-features/dotnet-aspire-daily:1": {}  {
+	"name": "Code - OSS",       
 	"build": {
 		"dockerfile": "Dockerfile"
 	},
-	"features": {
+	"features": {      
 		"ghcr.io/devcontainers/features/desktop-lite:1": {}
 	},
 	"containerEnv": {
