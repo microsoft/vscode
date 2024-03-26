@@ -222,7 +222,7 @@ export class SimpleSuggestWidget implements IDisposable {
 			return;
 		}
 
-		const visibleCount = this._completionModel?.items.length;
+		const visibleCount = this._completionModel?.items.length ?? 0;
 		const isEmpty = visibleCount === 0;
 		// this._ctxSuggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
