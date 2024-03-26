@@ -235,9 +235,9 @@
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
-.monaco-workbench .inline-chat-slash-command {
+.monaco-workbench .interactive-session .interactive-input-and-execute-toolbar .monaco-editor .inline-chat-slash-command {
 	background-color: var(--vscode-chat-slashCommandBackground);
-	color: var(--vscode-chat-slashCommandForeground);
+	color: var(--vscode-chat-slashCommandForeground); /* Overrides the foreground color rule in chat.css */
 	border-radius: 4px;
 	padding: 1px;
 }

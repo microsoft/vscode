@@ -166,6 +166,11 @@
 	background-color: var(--vscode-chat-list-background);
 }
 
+.interactive-item-container.interactive-request .header .monaco-toolbar {
+	/* Take the partially-transparent background color override for request rows */
+	background-color: inherit;
+}
+
 .interactive-item-container .header .monaco-toolbar .checked.action-label,
 .interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
