@@ -377,6 +377,10 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _updateTextureAtlas() {
+		if (!this._textureAtlas.hasChanges) {
+			return;
+		}
+		this._textureAtlas.hasChanges = false;
 		// TODO: Dynamically set buffer size
 		const bufferSize = spriteInfoStorageBufferByteSize * 10000;
 		const values = new Float32Array(bufferSize / 4);
@@ -465,7 +469,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			scrollTop = 0;
 		}
 		for (let lineNumber = startLineNumber; lineNumber <= stopLineNumber; lineNumber++) {
-			const y = Math.round((-scrollTop + deltaTop[lineNumber - startLineNumber]));
+			const y = Math.round(-scrollTop + deltaTop[lineNumber - startLineNumber]);
 			// Offscreen
 			if (y < 0) {
 				continue;
@@ -491,6 +495,10 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				zeroToOneY = screenAbsoluteY / this.domNode.height;
 				wgslX = zeroToOneX * 2 - 1;
 				wgslY = zeroToOneY * 2 - 1;
+
+				// TODO: We could upload the entire file as a grid, capping out lines at some reasonable amount (200?)
+				//       Optimize for the common case and fallback to a slower path for long line files
+				//       Doing the fast grid path would mean only the cell needs to change on data change, scrolling would simply change the start line index
 
 				dataBuffer[charCount * Constants.IndicesPerCell + 0] = wgslX; // x
 				dataBuffer[charCount * Constants.IndicesPerCell + 1] = -wgslY; // y

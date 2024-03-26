@@ -24,6 +24,8 @@ export class TextureAtlas extends Disposable {
 		return this._canvas;
 	}
 
+	public hasChanges = false;
+
 	// TODO: Should pull in the font size from config instead of random dom node
 	constructor(parentDomNode: HTMLElement, maxTextureSize: number) {
 		super();
@@ -58,6 +60,7 @@ export class TextureAtlas extends Disposable {
 		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars);
 		glyph = this._allocator.allocate(rasterizedGlyph);
 		this._glyphMap.set(chars, glyph);
+		this.hasChanges = true;
 
 		console.log('New glyph', {
 			chars,
@@ -82,6 +85,7 @@ class GlyphRasterizer extends Disposable {
 			willReadFrequently: true
 		}));
 		this._ctx.font = `${this._fontSize}px ${fontFamily}`;
+		this._ctx.textBaseline = 'alphabetic';
 		this._ctx.fillStyle = '#FFFFFF';
 	}
 
@@ -91,7 +95,7 @@ class GlyphRasterizer extends Disposable {
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
 		// TODO: Draw in middle using alphabetical baseline
-		this._ctx.fillText(chars, this._fontSize, this._fontSize);
+		this._ctx.fillText(chars, this._fontSize * 2, this._fontSize);
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
 		// TODO: Hot path: Reuse object
