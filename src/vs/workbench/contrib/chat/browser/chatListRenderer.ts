@@ -513,6 +513,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
+		dom.hide(templateData.referencesListContainer);
 
 		for (const item of element.content) {
 			if (Array.isArray(item)) {
