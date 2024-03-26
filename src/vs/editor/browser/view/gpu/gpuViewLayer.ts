@@ -499,6 +499,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				// TODO: We could upload the entire file as a grid, capping out lines at some reasonable amount (200?)
 				//       Optimize for the common case and fallback to a slower path for long line files
 				//       Doing the fast grid path would mean only the cell needs to change on data change, scrolling would simply change the start line index
+				//       Even better would be a grid for standard sized lines (~120?) and then another buffer that handles larger lines in a slower but more dynamic way
 
 				dataBuffer[charCount * Constants.IndicesPerCell + 0] = wgslX; // x
 				dataBuffer[charCount * Constants.IndicesPerCell + 1] = -wgslY; // y
