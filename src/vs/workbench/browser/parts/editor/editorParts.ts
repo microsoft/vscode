@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -21,6 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IRectangle } from 'vs/platform/window/common/window';
 import { getWindow } from 'vs/base/browser/dom';
 import { getZoomLevel } from 'vs/base/browser/browser';
+import { generateUuid } from 'vs/base/common/uuid';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -33,6 +34,11 @@ interface IAuxiliaryEditorPartState {
 	readonly zoomLevel?: number;
 }
 
+interface IEditorWorkingSetState extends IEditorWorkingSet {
+	readonly main: IEditorPartUIState;
+	readonly auxiliary: IEditorPartsUIState;
+}
+
 export class EditorParts extends MultiWindowParts<EditorPart> implements IEditorGroupsService, IEditorPartsView {
 
 	declare readonly _serviceBrand: undefined;
@@ -43,7 +49,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService
 	) {
 		super('workbench.editorParts', themeService, storageService);
@@ -336,6 +342,94 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		await this.restoreState(state);
 
 		return true;
+	}
+
+	//#endregion
+
+	//#region Working Sets
+
+	private static readonly EDITOR_WORKING_SETS_STORAGE_KEY = 'editor.workingSets';
+
+	private editorWorkingSets: IEditorWorkingSetState[] = (() => {
+		const workingSetsRaw = this.storageService.get(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (workingSetsRaw) {
+			return JSON.parse(workingSetsRaw);
+		}
+
+		return [];
+	})();
+
+	saveWorkingSet(name: string): IEditorWorkingSet {
+		const workingSet: IEditorWorkingSetState = {
+			id: generateUuid(),
+			name,
+			main: this.mainPart.createState(),
+			auxiliary: this.createState()
+		};
+
+		this.editorWorkingSets.push(workingSet);
+
+		this.saveWorkingSets();
+
+		return {
+			id: workingSet.id,
+			name: workingSet.name
+		};
+	}
+
+	getWorkingSets(): IEditorWorkingSet[] {
+		return this.editorWorkingSets.map(workingSet => ({ id: workingSet.id, name: workingSet.name }));
+	}
+
+	deleteWorkingSet(workingSet: IEditorWorkingSet): void {
+		const index = this.indexOfWorkingSet(workingSet);
+		if (typeof index === 'number') {
+			this.editorWorkingSets.splice(index, 1);
+
+			this.saveWorkingSets();
+		}
+	}
+
+	async applyWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> {
+		const workingSetState = this.editorWorkingSets[this.indexOfWorkingSet(workingSet) ?? -1];
+		if (!workingSetState) {
+			return false;
+		}
+
+		// Apply main state
+		let applied = await this.mainPart.applyState(workingSetState.main);
+		if (!applied) {
+			return false;
+		}
+
+		// Apply auxiliary state
+		applied = await this.applyState(workingSetState.auxiliary);
+		if (!applied) {
+			return false;
+		}
+
+		// Restore Focus
+		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+		if (mostRecentActivePart) {
+			await mostRecentActivePart.whenReady;
+			mostRecentActivePart.activeGroup.focus();
+		}
+
+		return true;
+	}
+
+	private indexOfWorkingSet(workingSet: IEditorWorkingSet): number | undefined {
+		for (let i = 0; i < this.editorWorkingSets.length; i++) {
+			if (this.editorWorkingSets[i].id === workingSet.id) {
+				return i;
+			}
+		}
+
+		return undefined;
+	}
+
+	private saveWorkingSets(): void {
+		this.storageService.store(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, JSON.stringify(this.editorWorkingSets), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	//#endregion
