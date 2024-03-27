@@ -454,10 +454,6 @@ export class AcceptChanges extends AbstractInlineChatAction {
 			keybinding: [{
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-			}, {
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: CTX_INLINE_CHAT_USER_DID_EDIT
 			}],
 			menu: {
 				when: ContextKeyExpr.and(CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.OnlyMessages)),
@@ -480,7 +476,7 @@ export class CancelSessionAction extends AbstractInlineChatAction {
 			id: 'inlineChat.cancel',
 			title: localize('cancel', 'Cancel'),
 			icon: Codicon.clearAll,
-			precondition: CTX_INLINE_CHAT_VISIBLE,
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Preview)),
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 1,
 				primary: KeyCode.Escape
@@ -510,7 +506,8 @@ export class CloseAction extends AbstractInlineChatAction {
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 1,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: CTX_INLINE_CHAT_USER_DID_EDIT.negate()
 			},
 			menu: {
 				id: MENU_INLINE_CHAT_WIDGET,
@@ -521,7 +518,7 @@ export class CloseAction extends AbstractInlineChatAction {
 	}
 
 	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		ctrl.finishExistingSession();
+		ctrl.cancelSession();
 	}
 }
 
