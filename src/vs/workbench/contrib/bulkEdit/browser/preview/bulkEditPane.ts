@@ -371,15 +371,16 @@ export class BulkEditPane extends ViewPane {
 		const computeDiffEditorInput = new CachedFunction<BulkFileOperation, Promise<IResourceDiffEditorInput>>(async (fileOperation) => {
 			const fileOperationUri = fileOperation.uri;
 			const previewUri = this._currentProvider!.asPreviewUri(fileOperationUri);
-			// delete -> show single editor
+			// delete
 			if (fileOperation.type & BulkFileOperationType.Delete) {
 				return {
 					original: { resource: undefined },
 					modified: { resource: URI.revive(previewUri) }
 				};
 
-			} else {
-				// rename, create, edits -> show diff editr
+			}
+			// rename, create, edits
+			else {
 				let leftResource: URI | undefined;
 				try {
 					(await this._textModelService.createModelReference(fileOperationUri)).dispose();
