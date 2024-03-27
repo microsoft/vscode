@@ -37,10 +37,122 @@ const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 const SOURCE_REGEX = /@source:\s*(user|default|system|extension)/i;
 const EXTENSION_REGEX = /@ext:\s*((".+")|([^\s]+))/i;
 
+type OptionalMapper<T, U> = ((value: T) => U) | undefined;
+interface IList<T> {
+	filter(fn: (value: T) => boolean): IList<T>;
+	toArray(): T[];
+	toArray<U>(mapFn?: OptionalMapper<T, U>): U[];
+	values(): IterableIterator<T>;
+}
+
+// A GroupedList holds n groups of sub-lists, each of which can be individually
+// filtered, mapped, and finally merged as one array via .toArray() method.
+abstract class GroupedList<T> implements IList<T> {
+	protected readonly _groups: T[][] = [];
+	constructor(numberOfGroups: number) {
+		for (let i = 0; i < numberOfGroups; i++) {
+			this._groups.push([]);
+		}
+	}
+	abstract push(value: T, groupId: number): void;
+	toArray(): T[];
+	toArray<U>(mapFn?: OptionalMapper<T, U>): U[];
+	toArray<U>(mapFn?: OptionalMapper<T, U>): any[] {
+		if (mapFn === undefined) {
+			return (<T[]>[]).concat(...this._groups);
+		}
+		const result = [];
+		for (const value of this.values()) {
+			result.push(mapFn(value));
+		}
+		return result;
+	}
+	*values(): IterableIterator<T> {
+		for (const group of this._groups) {
+			yield* group;
+		}
+	}
+	filter(fn: (value: T) => boolean): IList<T> {
+		return new GroupedListTransformer(this).filter(fn);
+	}
+	// .distinct() uniquifies elements across all groups
+	distinct<K>(keyFn: (value: T) => K) {
+		const seen = new Set<K>();
+		this._groups.forEach((group, groupId) => {
+			this._groups[groupId] = group.filter(value => {
+				const key = keyFn(value);
+				if (seen.has(key)) {
+					return false;
+				}
+				seen.add(key);
+				return true;
+			});
+		});
+	}
+}
+
+class GroupedListTransformer<T> implements IList<T> {
+	private readonly _filters: ((value: T) => boolean)[] = [];
+	constructor(private readonly _list: GroupedList<T>) { }
+	filter(fn: (value: T) => boolean): IList<T> {
+		this._filters.push(fn);
+		return this;
+	}
+	toArray(): T[];
+	toArray<U>(mapFn?: OptionalMapper<T, U>): U[];
+	toArray<U>(mapFn?: OptionalMapper<T, U>): any[] {
+		if (!this._filters.length) {
+			return this._list.toArray(mapFn);
+		}
+		const result = [];
+		for (const value of this.values()) {
+			result.push(mapFn ? mapFn(value) : value);
+		}
+		return result;
+	}
+	*values(): IterableIterator<T> {
+		if (!this._filters.length) {
+			yield* this._list.values();
+			return;
+		}
+		next_value:
+		for (const value of this._list.values()) {
+			for (const filter of this._filters) {
+				if (!filter(value)) {
+					continue next_value;
+				}
+			}
+			yield value;
+		}
+	}
+}
+
+// KeybindingItemList maintains two groups of keybindings, with the first one for those
+// modified, and the second for those unmodified.
+// When calling .toArray(), elements in the first group comes before those in the second group.
+class KeybindingItemList extends GroupedList<IKeybindingItem> {
+	constructor() { super(2); }
+	override push(value: IKeybindingItem): void {
+		if (value.keybindingItem.isDefault) {
+			this._groups[1].push(value);
+		} else {
+			this._groups[0].push(value);
+		}
+	}
+	// First copy all groups, then sort within each group respectively.
+	copyAndSort(cmp: (a: IKeybindingItem, b: IKeybindingItem) => number): KeybindingItemList {
+		const other = new KeybindingItemList;
+		this._groups.forEach((group, groupId) => {
+			other._groups[groupId] = group.slice(0).sort(cmp);
+		});
+		return other;
+	}
+}
+
 export class KeybindingsEditorModel extends EditorModel {
 
-	private _keybindingItems: IKeybindingItem[];
-	private _keybindingItemsSortedByPrecedence: IKeybindingItem[];
+	private _keybindingItems: KeybindingItemList;
+	private _keybindingItemsSortedByPrecedence: KeybindingItemList;
 	private modifierLabels: ModifierLabels;
 
 	constructor(
@@ -49,8 +161,8 @@ export class KeybindingsEditorModel extends EditorModel {
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
-		this._keybindingItems = [];
-		this._keybindingItemsSortedByPrecedence = [];
+		this._keybindingItems = new KeybindingItemList();
+		this._keybindingItemsSortedByPrecedence = new KeybindingItemList();
 		this.modifierLabels = {
 			ui: UILabelProvider.modifierLabels[os],
 			aria: AriaLabelProvider.modifierLabels[os],
@@ -59,12 +171,12 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
-		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
+		let keybindingItems: IList<IKeybindingItem> = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
 
 		const commandIdMatches = /@command:\s*(.+)/i.exec(searchValue);
 		if (commandIdMatches && commandIdMatches[1]) {
 			return keybindingItems.filter(k => k.command === commandIdMatches[1])
-				.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+				.toArray(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 		}
 
 		if (SOURCE_REGEX.test(searchValue)) {
@@ -86,13 +198,13 @@ export class KeybindingsEditorModel extends EditorModel {
 
 		searchValue = searchValue.trim();
 		if (!searchValue) {
-			return keybindingItems.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+			return keybindingItems.toArray(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 		}
 
 		return this.filterByText(keybindingItems, searchValue);
 	}
 
-	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItem[] {
+	private filterBySource(keybindingItems: IList<IKeybindingItem>, searchValue: string): IList<IKeybindingItem> {
 		if (/@source:\s*default/i.test(searchValue) || /@source:\s*system/i.test(searchValue)) {
 			return keybindingItems.filter(k => k.source === SOURCE_SYSTEM);
 		}
@@ -105,12 +217,12 @@ export class KeybindingsEditorModel extends EditorModel {
 		return keybindingItems;
 	}
 
-	private filterByExtension(keybindingItems: IKeybindingItem[], extension: string): IKeybindingItem[] {
+	private filterByExtension(keybindingItems: IList<IKeybindingItem>, extension: string): IList<IKeybindingItem> {
 		extension = extension.toLowerCase().trim();
 		return keybindingItems.filter(k => !isString(k.source) && (ExtensionIdentifier.equals(k.source.identifier, extension) || k.source.displayName?.toLowerCase() === extension.toLowerCase()));
 	}
 
-	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItemEntry[] {
+	private filterByText(keybindingItems: IList<IKeybindingItem>, searchValue: string): IKeybindingItemEntry[] {
 		const quoteAtFirstChar = searchValue.charAt(0) === '"';
 		const quoteAtLastChar = searchValue.charAt(searchValue.length - 1) === '"';
 		const completeMatch = quoteAtFirstChar && quoteAtLastChar;
@@ -125,7 +237,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		const result: IKeybindingItemEntry[] = [];
 		const words = searchValue.split(' ');
 		const keybindingWords = this.splitKeybindingWords(words);
-		for (const keybindingItem of keybindingItems) {
+		for (const keybindingItem of keybindingItems.values()) {
 			const keybindingMatches = new KeybindingItemMatches(this.modifierLabels, keybindingItem, searchValue, words, keybindingWords, completeMatch);
 			if (keybindingMatches.commandIdMatches
 				|| keybindingMatches.commandLabelMatches
@@ -168,7 +280,7 @@ export class KeybindingsEditorModel extends EditorModel {
 			extensions.set(extension.identifier, extension);
 		}
 
-		this._keybindingItemsSortedByPrecedence = [];
+		this._keybindingItemsSortedByPrecedence = new KeybindingItemList();
 		const boundCommands: Map<string, boolean> = new Map<string, boolean>();
 		for (const keybinding of this.keybindingsService.getKeybindings()) {
 			if (keybinding.command) { // Skip keybindings without commands
@@ -182,8 +294,8 @@ export class KeybindingsEditorModel extends EditorModel {
 			const keybindingItem = new ResolvedKeybindingItem(undefined, command, null, undefined, commandsWithDefaultKeybindings.indexOf(command) === -1, null, false);
 			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, actionLabels, extensions));
 		}
-		this._keybindingItemsSortedByPrecedence = distinct(this._keybindingItemsSortedByPrecedence, keybindingItem => KeybindingsEditorModel.getId(keybindingItem));
-		this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
+		this._keybindingItemsSortedByPrecedence.distinct(KeybindingsEditorModel.getId);
+		this._keybindingItems = this._keybindingItemsSortedByPrecedence.copyAndSort(KeybindingsEditorModel.compareKeybindingData);
 
 		return super.resolve();
 	}
