@@ -279,6 +279,8 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
 	$tryInsertSnippet(id: string, modelVersionId: number, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
 	$getDiffInformation(id: string): Promise<IChange[]>;
+	$tryGetEncoding(id: string): Promise<string | undefined>;
+	$trySetEncoding(id: string, encoding: string): Promise<void>;
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
