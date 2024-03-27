@@ -500,7 +500,7 @@ class UnixPtyHeuristics extends Disposable {
 }
 
 const enum AdjustCommandStartMarkerConstants {
-	MaxCheckLineCount = 5,
+	MaxCheckLineCount = 10,
 	Interval = 20,
 	MaximumPollCount = 50,
 }
@@ -892,6 +892,16 @@ class WindowsPtyHeuristics extends Disposable {
 		if (customPrompt) {
 			const adjustedPrompt = this._adjustPrompt(customPrompt, lineText, '\u276f');
 			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
+		}
+
+		// Bash Prompt
+		const bashPrompt = lineText.match(/^(?<prompt>.*\$)/)?.groups?.prompt;
+		if (bashPrompt) {
+			const adjustedPrompt = this._adjustPrompt(bashPrompt, lineText, '$');
+			if (adjustedPrompt) {
+				this._logService.debug('CommandDetectionCapability#_getWindowsPrompt adjusted bash prompt', adjustedPrompt);
 				return adjustedPrompt;
 			}
 		}

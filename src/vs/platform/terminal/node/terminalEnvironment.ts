@@ -161,6 +161,20 @@ export function getShellIntegrationInjection(
 				envMixin['VSCODE_SUGGEST'] = '1';
 			}
 			return { newArgs, envMixin };
+		} else if (shell === 'bash.exe') {
+			if (!originalArgs || originalArgs.length === 0) {
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
+			} else if (areZshBashLoginArgs(originalArgs)) {
+				envMixin['VSCODE_SHELL_LOGIN'] = '1';
+				addEnvMixinPathPrefix(options, envMixin);
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
+			}
+			if (!newArgs) {
+				return undefined;
+			}
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 		return undefined;
@@ -310,16 +324,18 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit',
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
-const loginArgs = ['-login', '-l'];
+const pwshLoginArgs = ['-login', '-l'];
+const shLoginArgs = ['--login', '-l'];
+const shInteractiveArgs = ['-i', '--interactive'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
 
 function arePwshLoginArgs(originalArgs: string | string[]): boolean {
 	if (typeof originalArgs === 'string') {
-		return loginArgs.includes(originalArgs.toLowerCase());
+		return pwshLoginArgs.includes(originalArgs.toLowerCase());
 	} else {
-		return originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase()) ||
+		return originalArgs.length === 1 && pwshLoginArgs.includes(originalArgs[0].toLowerCase()) ||
 			(originalArgs.length === 2 &&
-				(((loginArgs.includes(originalArgs[0].toLowerCase())) || loginArgs.includes(originalArgs[1].toLowerCase())))
+				(((pwshLoginArgs.includes(originalArgs[0].toLowerCase())) || pwshLoginArgs.includes(originalArgs[1].toLowerCase())))
 				&& ((pwshImpliedArgs.includes(originalArgs[0].toLowerCase())) || pwshImpliedArgs.includes(originalArgs[1].toLowerCase())));
 	}
 }
@@ -333,6 +349,9 @@ function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
 }
 
 function areZshBashLoginArgs(originalArgs: string | string[]): boolean {
-	return originalArgs === 'string' && loginArgs.includes(originalArgs.toLowerCase())
-		|| typeof originalArgs !== 'string' && originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase());
+	if (typeof originalArgs !== 'string') {
+		originalArgs = originalArgs.filter(arg => !shInteractiveArgs.includes(arg.toLowerCase()));
+	}
+	return originalArgs === 'string' && shLoginArgs.includes(originalArgs.toLowerCase())
+		|| typeof originalArgs !== 'string' && originalArgs.length === 1 && shLoginArgs.includes(originalArgs[0].toLowerCase());
 }
