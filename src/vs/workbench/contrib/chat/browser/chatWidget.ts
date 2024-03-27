@@ -97,6 +97,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidAcceptInput = this._register(new Emitter<void>());
 	readonly onDidAcceptInput = this._onDidAcceptInput.event;
 
+	private _onDidChangeParsedInput = this._register(new Emitter<void>());
+	readonly onDidChangeParsedInput = this._onDidChangeParsedInput.event;
+
 	private _onDidChangeHeight = this._register(new Emitter<number>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
@@ -225,7 +228,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
 	set lastSelectedAgent(agent: IChatAgentData | undefined) {
+		this.parsedChatRequest = undefined;
 		this._lastSelectedAgent = agent;
+		this._onDidChangeParsedInput.fire();
 	}
 
 	get lastSelectedAgent(): IChatAgentData | undefined {
