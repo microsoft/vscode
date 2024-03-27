@@ -374,8 +374,8 @@ export class BulkEditPane extends ViewPane {
 			// delete
 			if (fileOperation.type & BulkFileOperationType.Delete) {
 				return {
-					original: { resource: undefined },
-					modified: { resource: URI.revive(previewUri) }
+					original: { resource: URI.revive(previewUri) },
+					modified: { resource: undefined }
 				};
 
 			}
