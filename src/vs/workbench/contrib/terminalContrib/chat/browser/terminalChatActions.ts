@@ -91,7 +91,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.focusResponse();
+		contr?.chatWidget?.inlineChatWidget.chatWidget.focusLastMessage();
 	}
 });
 
@@ -100,7 +100,8 @@ registerActiveXtermAction({
 	title: localize2('focusTerminalInput', 'Focus Terminal Input'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-		when: TerminalChatContextKeys.focused,
+		secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, CTX_INLINE_CHAT_FOCUSED.toNegated()),
 		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	f1: true,

@@ -261,6 +261,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				throw new Error('Could not start chat session');
 			}
 		}
+		this._messages.fire(Message.ACCEPT_INPUT);
 		const model = this._model.value;
 
 		this._lastInput = this._chatWidget?.value?.input();
@@ -276,8 +277,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				return;
 			}
 
-			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
+			if (progress.kind === 'content') {
 				responseContent += progress.content;
+			} else if (progress.kind === 'markdownContent') {
+				responseContent += progress.content.value;
 			}
 			if (this._currentRequest) {
 				model.acceptResponseProgress(this._currentRequest, progress);
@@ -326,7 +329,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				this._chatWidget?.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: this._currentRequest.id, providerId: 'terminal' }, false, containsCode);
 				this._responseContainsCodeBlockContextKey.set(containsCode);
 				this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
-				this._messages.fire(Message.ACCEPT_INPUT);
 			}
 			const supportIssueReporting = this._currentRequest?.response?.agent?.metadata?.supportIssueReporting;
 			if (supportIssueReporting !== undefined) {

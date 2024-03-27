@@ -158,12 +158,6 @@ export class TerminalChatWidget extends Disposable {
 	focus(): void {
 		this._inlineChatWidget.focus();
 	}
-	focusResponse(): void {
-		const responseElement = this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseEditor) || this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseMessage);
-		if (responseElement instanceof HTMLElement) {
-			responseElement.focus();
-		}
-	}
 	hasFocus(): boolean {
 		return this._inlineChatWidget.hasFocus();
 	}
@@ -190,7 +184,3 @@ export class TerminalChatWidget extends Disposable {
 	}
 }
 
-const enum ChatElementSelectors {
-	ResponseEditor = '.chatMessageContent textarea',
-	ResponseMessage = '.chatMessageContent',
-}

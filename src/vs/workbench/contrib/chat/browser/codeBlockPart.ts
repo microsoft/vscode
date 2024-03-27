@@ -44,6 +44,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IMarkdownVulnerability } from '../common/annotations';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 
 const $ = dom.$;
 
@@ -320,6 +321,7 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	async render(data: ICodeBlockData, width: number, editable: boolean | undefined) {
+		this.currentCodeBlockData = data;
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
@@ -333,6 +335,10 @@ export class CodeBlockPart extends Disposable {
 		await this.updateEditor(data);
 
 		this.layout(width);
+		if (editable) {
+			this._register(this.editor.onDidFocusEditorWidget(() => TabFocus.setTabFocusMode(true)));
+			this._register(this.editor.onDidBlurEditorWidget(() => TabFocus.setTabFocusMode(false)));
+		}
 		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1), readOnly: !editable });
 
 		if (data.hideToolbar) {
