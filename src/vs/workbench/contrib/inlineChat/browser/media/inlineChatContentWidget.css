@@ -15,6 +15,10 @@
 	display: none;
 }
 
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-session {
+	max-width: unset;
+}
+
 .monaco-workbench .inline-chat-content-widget.interactive-session .interactive-input-part .interactive-execute-toolbar {
 	margin-bottom: 1px;
 }

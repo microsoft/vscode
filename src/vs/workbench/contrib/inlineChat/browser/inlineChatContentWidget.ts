@@ -131,10 +131,10 @@ export class InlineChatContentWidget implements IContentWidget {
 	beforeRender(): IDimension | null {
 
 		const contentWidth = this._editor.getLayoutInfo().contentWidth;
-		const minWidth = Math.round(contentWidth * 0.38);
-		const maxWidth = Math.round(contentWidth * 0.82);
+		const minWidth = Math.max(260, Math.round(contentWidth * 0.38));
+		const maxWidth = Math.min(520, Math.round(contentWidth * 0.82));
 
-		const width = clamp(220, minWidth, maxWidth);
+		const width = clamp(360, minWidth, maxWidth);
 
 		const inputEditorHeight = this._widget.inputEditor.getContentHeight();
 		this._widget.inputEditor.layout(new dom.Dimension(width, inputEditorHeight));
