@@ -1292,9 +1292,9 @@ export class QuickInputTree extends Disposable {
 
 					if (e.element instanceof QuickPickSeparatorElement) {
 						foundSeparatorAsItem = true;
-						// If the separator is visible, then we should just focus it.
+						// If the separator is visible, then we should just reveal its first child so it's not as jarring.
 						if (this._separatorRenderer.isSeparatorVisible(e.element)) {
-							this._tree.reveal(e.element);
+							this._tree.reveal(e.element.children[0]);
 						} else {
 							// If the separator is not visible, then we should
 							// push it up to the top of the list.
