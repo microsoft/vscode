@@ -5,7 +5,7 @@
 
 import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -33,6 +33,7 @@ import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/con
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
 import { getActiveElement } from 'vs/base/browser/dom';
+import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSets';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -118,6 +119,12 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
+
+registerWorkbenchContribution2(
+	SCMWorkingSetController.ID,
+	SCMWorkingSetController,
+	WorkbenchPhase.AfterRestored
+);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
@@ -329,7 +336,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: localize('scm.showChangesSummary', "Controls whether the All Changes entry is shown for incoming/outgoing changes in the Source Control view."),
 			default: true
-		}
+		},
+		'scm.workingSets.enabled': {
+			type: 'boolean',
+			description: localize('scm.workingSets.enabled', "Controls whether to store editor working sets when switching between source control history item groups."),
+			default: false
+		},
 	}
 });
 
