@@ -114,9 +114,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const chatContentHeight = this.widget.contentHeight;
 		const editorHeight = this.editor.getLayoutInfo().height;
 
-		const contentHeight = Math.min(chatContentHeight, editorHeight * 0.42);
+		const contentHeight = Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
 		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
-		// console.log('ZONE#_computeHeightInLines', { chatContentHeight, editorHeight, contentHeight, heightInLines });
 		return heightInLines;
 	}
 
@@ -133,14 +132,14 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
 
-		this._setWidgetMargins(position);
 		super.show(position, this._computeHeightInLines());
+		this._setWidgetMargins(position);
 		this.widget.focus();
 	}
 
 	override updatePositionAndHeight(position: Position): void {
-		this._setWidgetMargins(position);
 		super.updatePositionAndHeight(position, this._computeHeightInLines());
+		this._setWidgetMargins(position);
 	}
 
 	protected override _getWidth(info: EditorLayoutInfo): number {
@@ -158,12 +157,17 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		if (!viewModel) {
 			return 0;
 		}
+
 		const visibleRange = viewModel.getCompletelyVisibleViewRange();
-		const startLineVisibleRange = visibleRange.startLineNumber;
-		const positionLine = position.lineNumber;
-		let indentationLineNumber: number | undefined;
-		let indentationLevel: number | undefined;
-		for (let lineNumber = positionLine; lineNumber >= startLineVisibleRange; lineNumber--) {
+		if (!visibleRange.containsPosition(position)) {
+			// this is needed because `getOffsetForColumn` won't work when the position
+			// isn't visible/rendered
+			return 0;
+		}
+
+		let indentationLevel = viewModel.getLineFirstNonWhitespaceColumn(position.lineNumber);
+		let indentationLineNumber = position.lineNumber;
+		for (let lineNumber = position.lineNumber; lineNumber >= visibleRange.startLineNumber; lineNumber--) {
 			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
 			if (currentIndentationLevel !== 0) {
 				indentationLineNumber = lineNumber;
@@ -171,7 +175,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				break;
 			}
 		}
-		return this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
+
+		return Math.max(0, this.editor.getOffsetForColumn(indentationLineNumber, indentationLevel)); // double-guard against invalie getOffsetForColumn-calls
 	}
 
 	private _setWidgetMargins(position: Position): void {

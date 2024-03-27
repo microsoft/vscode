@@ -117,7 +117,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
-		this._options = new DiffEditorOptions(options);
+		this._options = this._instantiationService.createInstance(DiffEditorOptions, options);
 		this._register(autorun(reader => {
 			this._options.setWidth(this._rootSizeObserver.width.read(reader));
 		}));

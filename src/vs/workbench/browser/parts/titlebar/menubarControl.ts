@@ -25,7 +25,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
-import { Direction } from 'vs/base/browser/ui/menu/menu';
+import { HorizontalDirection, IMenuDirection, VerticalDirection } from 'vs/base/browser/ui/menu/menu';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isFullscreen, onDidChangeFullscreen } from 'vs/base/browser/browser';
@@ -41,6 +41,7 @@ import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { defaultMenuStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { mainWindow } from 'vs/base/browser/window';
+import { ActivityBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -536,14 +537,19 @@ export class CustomMenubarControl extends MenubarControl {
 		return enableMenuBarMnemonics && (!isWeb || isFullscreen(mainWindow));
 	}
 
-	private get currentCompactMenuMode(): Direction | undefined {
+	private get currentCompactMenuMode(): IMenuDirection | undefined {
 		if (this.currentMenubarVisibility !== 'compact') {
 			return undefined;
 		}
 
 		// Menu bar lives in activity bar and should flow based on its location
 		const currentSidebarLocation = this.configurationService.getValue<string>('workbench.sideBar.location');
-		return currentSidebarLocation === 'right' ? Direction.Left : Direction.Right;
+		const horizontalDirection = currentSidebarLocation === 'right' ? HorizontalDirection.Left : HorizontalDirection.Right;
+
+		const activityBarLocation = this.configurationService.getValue<string>('workbench.activityBar.location');
+		const verticalDirection = activityBarLocation === ActivityBarPosition.BOTTOM ? VerticalDirection.Above : VerticalDirection.Below;
+
+		return { horizontal: horizontalDirection, vertical: verticalDirection };
 	}
 
 	private onDidVisibilityChange(visible: boolean): void {
