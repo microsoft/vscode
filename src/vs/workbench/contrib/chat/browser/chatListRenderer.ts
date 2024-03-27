@@ -25,7 +25,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { basenameOrAuthority } from 'vs/base/common/resources';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -33,7 +33,7 @@ import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widge
 import { Range } from 'vs/editor/common/core/range';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -42,7 +42,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FileKind, FileType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -269,12 +268,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				menuOptions: {
 					shouldForwardArgs: true
 				},
+				toolbarOptions: {
+					shouldInlineSubmenu: submenu => submenu.actions.length <= 1
+				},
 				actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 					if (action instanceof MenuItemAction && (action.item.id === 'workbench.action.chat.voteDown' || action.item.id === 'workbench.action.chat.voteUp')) {
 						return scopedInstantiationService.createInstance(ChatVoteButton, action, options as IMenuEntryActionViewItemOptions);
 					}
-
-					return undefined;
+					return createActionViewItem(scopedInstantiationService, action, options);
 				}
 			}));
 		}
@@ -495,7 +496,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 			if (madeChanges) {
-				dom.append(templateData.value, $('.interactive-edits-summary', undefined, localize('editsSummary', "Made text edits")));
+				dom.append(templateData.value, $('.interactive-edits-summary', undefined, localize('editsSummary', "Made changes.")));
 			}
 		}
 
@@ -513,6 +514,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
+		dom.hide(templateData.referencesListContainer);
 
 		for (const item of element.content) {
 			if (Array.isArray(item)) {
@@ -814,7 +816,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							editorOptions: {
 								...e.editorOptions,
 								...{
-									selection: 'range' in e.element.reference ? e.element.reference.range : undefined
+									selection: uriOrLocation && 'range' in uriOrLocation ? uriOrLocation.range : undefined
 								}
 							}
 						});
@@ -916,17 +918,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
-					const modelEntry = this.codeBlockModelCollection.get(sessionId, element, index);
-					if (!modelEntry) {
-						console.error('Trying to render code block without model', element.id, index);
-						return $('div');
-					}
+					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
 					vulns = modelEntry.vulns;
 					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: templateData.contextKeyService, vulns });
+				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: templateData.contextKeyService, vulns }, text);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
@@ -973,9 +971,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderCodeBlock(data: ICodeBlockData): IDisposableReference<CodeBlockPart> {
+	private renderCodeBlock(data: ICodeBlockData, text: string): IDisposableReference<CodeBlockPart> {
 		const ref = this._editorPool.get();
 		const editorInfo = ref.object;
+		if (isResponseVM(data.element)) {
+			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId });
+		}
+
 		editorInfo.render(data, this._currentLayoutWidth, this.rendererOptions.editableCodeBlock);
 
 		return ref;
@@ -1010,6 +1012,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 	constructor(
+		private readonly defaultElementHeight: number,
 		@ILogService private readonly logService: ILogService
 	) { }
 
@@ -1023,7 +1026,7 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 
 	getHeight(element: ChatTreeItem): number {
 		const kind = isRequestVM(element) ? 'request' : 'response';
-		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? 200;
+		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? this.defaultElementHeight;
 		this._traceLayout('getHeight', `${kind}, height=${height}`);
 		return height;
 	}
@@ -1223,7 +1226,6 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	constructor(
 		private labels: ResourceLabels,
-		@ILabelService private readonly labelService: ILabelService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) { }
 
@@ -1237,19 +1239,17 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		const reference = data.reference;
 		templateData.label.element.style.display = 'flex';
 		if ('variableName' in reference) {
-			const variable = this.chatVariablesService.getVariable(reference.variableName);
 			if (reference.value) {
 				const uri = URI.isUri(reference.value) ? reference.value : reference.value.uri;
-				const title = this.labelService.getUriLabel(dirname(uri), { relative: true });
 				templateData.label.setResource(
 					{
 						resource: uri,
 						name: basenameOrAuthority(uri),
 						description: `#${reference.variableName}`,
 						range: 'range' in reference.value ? reference.value.range : undefined
-					},
-					{ title, descriptionTitle: variable?.description });
+					});
 			} else {
+				const variable = this.chatVariablesService.getVariable(reference.variableName);
 				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: variable?.description });
 			}
 		} else {

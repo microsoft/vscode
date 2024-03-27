@@ -53,6 +53,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { TerminalChatController, TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
+import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -461,22 +462,18 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 
 	const holdMode = keybindingService.enableKeybindingHoldMode(id);
 
-	let session: IVoiceChatSession | undefined = undefined;
+	const controller = await VoiceChatSessionControllerFactory.create(accessor, target);
+	if (!controller) {
+		return;
+	}
+
+	const session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 
 	let acceptVoice = false;
 	const handle = disposableTimeout(() => {
 		acceptVoice = true;
 		session?.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for VOICE_KEY_HOLD_THRESHOLD
 	}, VOICE_KEY_HOLD_THRESHOLD);
-
-	const controller = await VoiceChatSessionControllerFactory.create(accessor, target);
-	if (!controller) {
-		handle.dispose();
-		return;
-	}
-
-	session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
-
 	await holdMode;
 	handle.dispose();
 
@@ -524,7 +521,8 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
 					FocusInChatInput.negate(),			// when already in chat input, disable this action and prefer to start voice chat directly
-					EditorContextKeys.focus.negate() 	// do not steal the inline-chat keybinding
+					EditorContextKeys.focus.negate(), 	// do not steal the inline-chat keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate()	// do not steal the notebook keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			}
@@ -607,6 +605,7 @@ export class StartVoiceChatAction extends Action2 {
 				when: ContextKeyExpr.and(
 					FocusInChatInput,					// scope this action to chat input fields only
 					EditorContextKeys.focus.negate(), 	// do not steal the inline-chat keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate(),	// do not steal the notebook keybinding
 					CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(),
 					CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(),
 					CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate(),

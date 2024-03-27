@@ -316,8 +316,8 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	run(index: number, input: string | undefined, autoSend: boolean | undefined): void {
 		if (this._widget) {
 			if (this._widget.afterModelPosition !== index) {
-				this._disposeWidget();
 				const window = getWindow(this._widget.domNode);
+				this._disposeWidget();
 
 				scheduleAtNextAnimationFrame(window, () => {
 					this._createWidget(index, input, autoSend, undefined);

@@ -189,10 +189,11 @@ export class InlineChatWidget {
 			location,
 			{ resource: true },
 			{
-				// TODO@jrieken support editable code blocks
+				defaultElementHeight: 32,
 				renderStyle: 'compact',
 				renderInputOnTop: true,
 				supportsFileReferences: true,
+				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
 				editableCodeBlocks: options.editableCodeBlocks,
 				menus: {
 					executeToolbar: options.inputMenuId,
@@ -259,6 +260,9 @@ export class InlineChatWidget {
 			this._onDidChangeHeight.fire();
 		}));
 
+		this._store.add(this.chatWidget.onDidChangeContentHeight(() => {
+			this._onDidChangeHeight.fire();
+		}));
 
 		// context keys
 		this._ctxResponseFocused = CTX_INLINE_CHAT_RESPONSE_FOCUSED.bindTo(this._contextKeyService);
@@ -267,8 +271,8 @@ export class InlineChatWidget {
 		this._store.add(tracker.onDidFocus(() => this._ctxResponseFocused.set(true)));
 
 		this._ctxInputEditorFocused = CTX_INLINE_CHAT_FOCUSED.bindTo(_contextKeyService);
-		this._chatWidget.inputEditor.onDidFocusEditorWidget(() => this._ctxInputEditorFocused.set(true));
-		this._chatWidget.inputEditor.onDidBlurEditorWidget(() => this._ctxInputEditorFocused.set(false));
+		this._store.add(this._chatWidget.inputEditor.onDidFocusEditorWidget(() => this._ctxInputEditorFocused.set(true)));
+		this._store.add(this._chatWidget.inputEditor.onDidBlurEditorWidget(() => this._ctxInputEditorFocused.set(false)));
 
 		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;

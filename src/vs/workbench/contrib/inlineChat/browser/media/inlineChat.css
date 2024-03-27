@@ -50,11 +50,11 @@
 /* status */
 
 .monaco-workbench .inline-chat .status {
-	padding-top: 4px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 }
+
 
 .monaco-workbench .inline-chat .status .actions.hidden {
 	display: none;
@@ -64,7 +64,7 @@
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
-	align-self: baseline;
+	padding-top: 4px;
 	padding-left: 10px;
 	display: inline-flex;
 }
@@ -130,6 +130,7 @@
 
 .monaco-workbench .inline-chat .status .actions {
 	display: flex;
+	padding-top: 4px;
 }
 
 .monaco-workbench .inline-chat .status .actions > .monaco-button,
@@ -234,9 +235,9 @@
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
-.monaco-workbench .inline-chat-slash-command {
+.monaco-workbench .interactive-session .interactive-input-and-execute-toolbar .monaco-editor .inline-chat-slash-command {
 	background-color: var(--vscode-chat-slashCommandBackground);
-	color: var(--vscode-chat-slashCommandForeground);
+	color: var(--vscode-chat-slashCommandForeground); /* Overrides the foreground color rule in chat.css */
 	border-radius: 4px;
 	padding: 1px;
 }

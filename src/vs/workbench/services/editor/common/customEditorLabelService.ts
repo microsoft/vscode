@@ -74,11 +74,16 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		this.enabled = this.configurationService.getValue<boolean>(CustomEditorLabelService.SETTING_ID_ENABLED);
 	}
 
+	private _templateRegexValidation: RegExp = /[a-zA-Z0-9]/;
 	private storeCustomPatterns(): void {
 		this.patterns = [];
 		const customLabelPatterns = this.configurationService.getValue<ICustomEditorLabelObject>(CustomEditorLabelService.SETTING_ID_PATTERNS);
 		for (const pattern in customLabelPatterns) {
 			const template = customLabelPatterns[pattern];
+
+			if (!this._templateRegexValidation.test(template)) {
+				continue;
+			}
 
 			const isAbsolutePath = isAbsolute(pattern);
 			const parsedPattern = parseGlob(pattern);
