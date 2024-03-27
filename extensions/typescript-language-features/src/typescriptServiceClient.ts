@@ -1020,16 +1020,19 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	) {
 		const disposable = new DisposableStore();
 
+		// TODO:: not sure whwere we check typescript version but this has to be 5.4+ or 5.5 depeneding on which version of typescript the protocol changes go into
+
 		const watcher = disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes: [] /* TODO need to fill in excludes list */, ignoreChangeEvents }));
 
+		// TODO:: Batch these together
 		disposable.add(watcher.onDidChange(changeFile =>
-			this.executeWithoutWaitingForResponse('watchChange', { id, path: changeFile.fsPath, eventType: 'update' } satisfies Proto.WatchChangeRequestArgs)
+			this.executeWithoutWaitingForResponse('watchChange', { id, updated: [changeFile.fsPath] })
 		));
 		disposable.add(watcher.onDidCreate(createFile =>
-			this.executeWithoutWaitingForResponse('watchChange', { id, path: createFile.fsPath, eventType: 'create' } satisfies Proto.WatchChangeRequestArgs)
+			this.executeWithoutWaitingForResponse('watchChange', { id, created: [createFile.fsPath] })
 		));
 		disposable.add(watcher.onDidDelete(deletedFile =>
-			this.executeWithoutWaitingForResponse('watchChange', { id, path: deletedFile.fsPath, eventType: 'delete' } satisfies Proto.WatchChangeRequestArgs)
+			this.executeWithoutWaitingForResponse('watchChange', { id, deleted: [deletedFile.fsPath] }) // TODO:: add satifies for all of these when we publish
 		));
 
 		if (this.watches.has(id)) {
