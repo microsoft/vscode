@@ -193,7 +193,7 @@ export function registerChatCodeBlockActions() {
 					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()), accessibleViewInCodeBlock),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
-					weight: KeybindingWeight.WorkbenchContrib
+					weight: KeybindingWeight.ExternalExtension + 1
 				},
 			});
 		}

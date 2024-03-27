@@ -853,17 +853,21 @@ export class GettingStartedPage extends EditorPane {
 			if (gettingStartedList.itemCount) {
 				this.container.classList.remove('noWalkthroughs');
 				if (videoList?.itemCount > 0) {
+					this.container.classList.remove('noVideos');
 					reset(rightColumn, videoList?.getDomElement(), gettingStartedList.getDomElement());
 				} else {
+					this.container.classList.add('noVideos');
 					reset(rightColumn, gettingStartedList.getDomElement());
 				}
 			}
 			else {
 				this.container.classList.add('noWalkthroughs');
 				if (videoList?.itemCount > 0) {
+					this.container.classList.remove('noVideos');
 					reset(rightColumn, videoList?.getDomElement());
 				}
 				else {
+					this.container.classList.add('noVideos');
 					reset(rightColumn);
 				}
 			}
@@ -872,7 +876,7 @@ export class GettingStartedPage extends EditorPane {
 		};
 
 		const layoutRecentList = () => {
-			if (this.container.classList.contains('noWalkthroughs') && videoList?.itemCount === 0) {
+			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noVideos')) {
 				recentList.setLimit(10);
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());

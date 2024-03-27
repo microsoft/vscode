@@ -4027,14 +4027,23 @@ export class TestTag implements vscode.TestTag {
 //#region Test Coverage
 export class TestCoverageCount implements vscode.TestCoverageCount {
 	constructor(public covered: number, public total: number) {
+		validateTestCoverageCount(this);
 	}
 }
 
-const validateCC = (cc?: vscode.TestCoverageCount) => {
-	if (cc && cc.covered > cc.total) {
+export function validateTestCoverageCount(cc?: vscode.TestCoverageCount) {
+	if (!cc) {
+		return;
+	}
+
+	if (cc.covered > cc.total) {
 		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
 	}
-};
+
+	if (cc.total < 0) {
+		throw new Error(`The number of covered items (${cc.total}) cannot be negative`);
+	}
+}
 
 export class FileCoverage implements vscode.FileCoverage {
 	public static fromDetails(uri: vscode.Uri, details: vscode.FileCoverageDetail[]): vscode.FileCoverage {
@@ -4077,9 +4086,6 @@ export class FileCoverage implements vscode.FileCoverage {
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
 	) {
-		validateCC(statementCoverage);
-		validateCC(branchCoverage);
-		validateCC(declarationCoverage);
 	}
 }
 
