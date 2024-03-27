@@ -433,6 +433,7 @@ export function derivedObservableWithWritableCache<T>(owner: object, computeFn: 
  * When the items array changes, referential equal items are not mapped again.
  */
 export function mapObservableArrayCached<TIn, TOut, TKey = TIn>(owner: Owner, items: IObservable<readonly TIn[]>, map: (input: TIn, store: DisposableStore) => TOut, keySelector?: (input: TIn) => TKey): IObservable<readonly TOut[]> {
+	console.log('mapObservableArrayCached');
 	let m = new ArrayMap(map, keySelector);
 	const self = derivedOpts({
 		debugReferenceFn: map,
@@ -442,7 +443,9 @@ export function mapObservableArrayCached<TIn, TOut, TKey = TIn>(owner: Owner, it
 			m = new ArrayMap(map);
 		}
 	}, (reader) => {
-		m.setItems(items.read(reader));
+		const _items = items.read(reader);
+		console.log('_items : ', _items);
+		m.setItems(_items);
 		return m.getItems();
 	});
 	return self;

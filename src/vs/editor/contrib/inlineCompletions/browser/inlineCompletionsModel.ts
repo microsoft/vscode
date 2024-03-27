@@ -180,8 +180,12 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	public readonly selectedInlineCompletion = derived<InlineCompletionWithUpdatedRange | undefined>(this, (reader) => {
+		console.log('selectedInlineCompletion');
 		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
+		console.log('filteredCompletions : ', filteredCompletions);
 		const idx = this.selectedInlineCompletionIndex.read(reader);
+		console.log('idx : ', idx);
+		console.log('filteredCompletions[idx] : ', filteredCompletions[idx]);
 		return filteredCompletions[idx];
 	});
 
@@ -214,12 +218,16 @@ export class InlineCompletionsModel extends Disposable {
 		const model = this.textModel;
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
+		console.log('suggestItem : ', suggestItem);
 		if (suggestItem) {
 			const suggestCompletionEdit = singleTextRemoveCommonPrefix(suggestItem.toSingleTextEdit(), model);
 			const augmentation = this._computeAugmentation(suggestCompletionEdit, reader);
 
 			const isSuggestionPreviewEnabled = this._suggestPreviewEnabled.read(reader);
-			if (!isSuggestionPreviewEnabled && !augmentation) { return undefined; }
+			if (!isSuggestionPreviewEnabled && !augmentation) {
+				console.log('return because !isSuggestionPreviewEnabled && !augmentation');
+				return undefined;
+			}
 
 			const fullEdit = augmentation?.edit ?? suggestCompletionEdit;
 			const fullEditPreviewLength = augmentation ? augmentation.edit.text.length - suggestCompletionEdit.text.length : 0;
@@ -227,24 +235,43 @@ export class InlineCompletionsModel extends Disposable {
 			const mode = this._suggestPreviewMode.read(reader);
 			const positions = this._positions.read(reader);
 			const edits = [fullEdit, ...getSecondaryEdits(this.textModel, positions, fullEdit)];
+			console.log('edits : ', edits);
+			console.log('edits.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], fullEditPreviewLength)) : ', edits
+				.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], fullEditPreviewLength)));
 			const ghostTexts = edits
 				.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], fullEditPreviewLength))
 				.filter(isDefined);
 			const primaryGhostText = ghostTexts[0] ?? new GhostText(fullEdit.range.endLineNumber, []);
 			return { edits, primaryGhostText, ghostTexts, inlineCompletion: augmentation?.completion, suggestItem };
 		} else {
-			if (!this._isActive.read(reader)) { return undefined; }
+			if (!this._isActive.read(reader)) {
+				console.log('!this._isActive.read(reader)');
+				return undefined;
+			}
 			const inlineCompletion = this.selectedInlineCompletion.read(reader);
-			if (!inlineCompletion) { return undefined; }
+			console.log('inlineCompletion : ', inlineCompletion);
+			if (!inlineCompletion) {
+				console.log('!inlineCompletion return');
+				return undefined;
+			}
 
 			const replacement = inlineCompletion.toSingleTextEdit(reader);
 			const mode = this._inlineSuggestMode.read(reader);
 			const positions = this._positions.read(reader);
 			const edits = [replacement, ...getSecondaryEdits(this.textModel, positions, replacement)];
+			console.log('mode : ', mode);
+			console.log('edits : ', edits);
+
+			console.log('const ghostTexts = edits.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], 0)) : ', edits
+				.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], 0)));
 			const ghostTexts = edits
 				.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], 0))
 				.filter(isDefined);
-			if (!ghostTexts[0]) { return undefined; }
+			console.log('ghostTexts : ', ghostTexts);
+			if (!ghostTexts[0]) {
+				console.log('!ghostTexts[0] return');
+				return undefined;
+			}
 			return { edits, primaryGhostText: ghostTexts[0], ghostTexts, inlineCompletion, suggestItem: undefined };
 		}
 	});
@@ -270,7 +297,9 @@ export class InlineCompletionsModel extends Disposable {
 		equalityComparer: ghostTextsOrReplacementsEqual
 	}, reader => {
 		const v = this.state.read(reader);
+		console.log('v : ', v);
 		if (!v) { return undefined; }
+		console.log('v.ghostTexts : ', v.ghostTexts);
 		return v.ghostTexts;
 	});
 

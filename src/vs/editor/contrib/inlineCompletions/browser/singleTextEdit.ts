@@ -13,15 +13,22 @@ import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 
 export function singleTextRemoveCommonPrefix(edit: SingleTextEdit, model: ITextModel, validModelRange?: Range): SingleTextEdit {
+	console.log('singleTextRemoveCommonPrefix');
 	const modelRange = validModelRange ? edit.range.intersectRanges(validModelRange) : edit.range;
+	console.log('modelRange : ', modelRange);
 	if (!modelRange) {
 		return edit;
 	}
 	const valueToReplace = model.getValueInRange(modelRange, EndOfLinePreference.LF);
+	console.log('valueToReplace : ', valueToReplace);
 	const commonPrefixLen = commonPrefixLength(valueToReplace, edit.text);
+	console.log('commonPrefixLen : ', commonPrefixLen);
 	const start = TextLength.ofText(valueToReplace.substring(0, commonPrefixLen)).addToPosition(edit.range.getStartPosition());
+	console.log('start : ', start);
 	const text = edit.text.substring(commonPrefixLen);
+	console.log('text : ', text);
 	const range = Range.fromPositions(start, edit.range.getEndPosition());
+	console.log('range : ', range);
 	return new SingleTextEdit(range, text);
 }
 
@@ -41,10 +48,13 @@ export function computeGhostText(
 	cursorPosition?: Position,
 	previewSuffixLength = 0
 ): GhostText | undefined {
+	console.log('computeGhostText');
 	let e = singleTextRemoveCommonPrefix(edit, model);
+	console.log('initial e : ', e);
 
 	if (e.range.endLineNumber !== e.range.startLineNumber) {
 		// This edit might span multiple lines, but the first lines must be a common prefix.
+		console.log('return 1');
 		return undefined;
 	}
 
@@ -90,6 +100,7 @@ export function computeGhostText(
 
 	if (!changes) {
 		// No ghost text in case the diff would be too slow to compute
+		console.log('return 2');
 		return undefined;
 	}
 
@@ -101,21 +112,30 @@ export function computeGhostText(
 		const filteredChanges = changes.filter(c => c.originalLength === 0);
 		if (filteredChanges.length > 1 || filteredChanges.length === 1 && filteredChanges[0].originalStart !== valueToBeReplaced.length) {
 			// Prefixes only have a single change.
+			console.log('return 3');
 			return undefined;
 		}
 	}
 
 	const previewStartInCompletionText = e.text.length - previewSuffixLength;
 
+	console.log('changes : ', changes);
 	for (const c of changes) {
+		console.log('c : ', c);
 		const insertColumn = e.range.startColumn + c.originalStart + c.originalLength;
+
+		console.log('cursorPosition : ', cursorPosition);
+		console.log('e : ', e);
+		console.log('insertColumn : ', insertColumn);
 
 		if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === e.range.startLineNumber && insertColumn < cursorPosition.column) {
 			// No ghost text before cursor
+			console.log('return 4');
 			return undefined;
 		}
 
 		if (c.originalLength > 0) {
+			console.log('return 5');
 			return undefined;
 		}
 
@@ -136,6 +156,8 @@ export function computeGhostText(
 		}
 	}
 
+
+	console.log('return 6');
 	return new GhostText(lineNumber, parts);
 }
 

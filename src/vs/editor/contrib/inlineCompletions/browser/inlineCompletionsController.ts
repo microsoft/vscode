@@ -59,12 +59,17 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly _ghostTexts = derived(this, (reader) => {
 		const model = this.model.read(reader);
-		return model?.ghostTexts.read(reader) ?? [];
+		const ret = model?.ghostTexts.read(reader) ?? [];
+		console.log('ret : ', ret);
+		return ret;
 	});
 
 	private readonly _stablizedGhostTexts = convertItemsToStableObservables(this._ghostTexts, this._store);
 
 	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) => {
+		console.log('this._stablizedGhostTexts : ', this._stablizedGhostTexts);
+		console.log('_ghostTextWidgets');
+		console.log('ghostText', ghostText);
 		return store.add(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
 			ghostText: ghostText,
 			minReservedLineCount: constObservable(0),
@@ -294,13 +299,20 @@ export class InlineCompletionsController extends Disposable {
 }
 
 function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, store: DisposableStore): IObservable<IObservable<T>[]> {
+	console.log('convertItemsToStableObservables');
+
 	const result = observableValue<IObservable<T>[]>('result', []);
 	const innerObservables: ISettableObservable<T>[] = [];
 
 	store.add(autorun(reader => {
 		const itemsValue = items.read(reader);
+		console.log('itemsValue : ', itemsValue);
 
 		transaction(tx => {
+			console.log('itemsValue.length : ', itemsValue.length);
+			console.log('innerObservables.length : ', innerObservables.length);
+			console.log('innerObservables before change: ', innerObservables);
+
 			if (itemsValue.length !== innerObservables.length) {
 				innerObservables.length = itemsValue.length;
 				for (let i = 0; i < innerObservables.length; i++) {
@@ -308,11 +320,14 @@ function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, st
 						innerObservables[i] = observableValue<T>('item', itemsValue[i]);
 					}
 				}
+				console.log('before result set');
 				result.set([...innerObservables], tx);
 			}
 			innerObservables.forEach((o, i) => o.set(itemsValue[i], tx));
+			console.log('innerObservables after change : ', innerObservables);
 		});
 	}));
 
+	console.log('result : ', result);
 	return result;
 }
