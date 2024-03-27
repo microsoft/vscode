@@ -496,7 +496,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 			if (madeChanges) {
-				dom.append(templateData.value, $('.interactive-edits-summary', undefined, localize('editsSummary', "Made text edits")));
+				dom.append(templateData.value, $('.interactive-edits-summary', undefined, localize('editsSummary', "Made changes.")));
 			}
 		}
 
