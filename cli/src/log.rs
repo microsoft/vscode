@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 use chrono::Local;
-use opentelemetry::{
-	sdk::trace::{Tracer, TracerProvider},
-	trace::{SpanBuilder, Tracer as TraitTracer, TracerProvider as TracerProviderTrait},
+use opentelemetry::trace::{
+	SpanBuilder, Tracer as TraitTracer, TracerProvider as TracerProviderTrait,
 };
+use opentelemetry_sdk::trace::{Tracer, TracerProvider};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::{
