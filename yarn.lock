@@ -1266,10 +1266,10 @@
   resolved "https://registry.yarnpkg.com/@types/vscode-notebook-renderer/-/vscode-notebook-renderer-1.72.0.tgz#8943dc3cef0ced2dfb1e04c0a933bd289e7d5199"
   integrity sha512-5iTjb39DpLn03ULUwrDR3L2Dy59RV4blSUHy0oLdQuIY11PhgWO4mXIcoFS0VxY1GZQ4IcjSf3ooT2Jrrcahnw==
 
-"@types/webpack@^5.28.1":
-  version "5.28.1"
-  resolved "https://registry.yarnpkg.com/@types/webpack/-/webpack-5.28.1.tgz#c369baeff31abe54b45f7f29997e1623604198d6"
-  integrity sha512-qw1MqGZclCoBrpiSe/hokSgQM/su8Ocpl3L/YHE0L6moyaypg4+5F7Uzq7NgaPKPxUxUbQ4fLPLpDWdR27bCZw==
+"@types/webpack@^5.28.5":
+  version "5.28.5"
+  resolved "https://registry.yarnpkg.com/@types/webpack/-/webpack-5.28.5.tgz#0e9d9a15efa09bbda2cef41356ca4ac2031ea9a2"
+  integrity sha512-wR87cgvxj3p6D0Crt1r5avwqffqPXUkNlnQ1mjU93G7gCuFjufZR4I6j8cz5g1F1tTYpfOOFvly+cmIQwL9wvw==
   dependencies:
     "@types/node" "*"
     tapable "^2.2.0"
