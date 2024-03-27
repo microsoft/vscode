@@ -14,6 +14,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import 'vs/css!./link';
 import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export interface ILinkDescriptor {
 	readonly label: string | HTMLElement;
@@ -24,6 +25,7 @@ export interface ILinkDescriptor {
 
 export interface ILinkOptions {
 	readonly opener?: (href: string) => void;
+	readonly hoverDelegate?: IHoverDelegate;
 	readonly textLinkForeground?: string;
 }
 
@@ -31,6 +33,7 @@ export class Link extends Disposable {
 
 	private el: HTMLAnchorElement;
 	private hover?: ICustomHover;
+	private hoverDelegate: IHoverDelegate;
 
 	private _enabled: boolean = true;
 
@@ -90,6 +93,7 @@ export class Link extends Disposable {
 			href: _link.href,
 		}, _link.label));
 
+		this.hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
 		this.setTooltip(_link.title);
 
 		this.el.setAttribute('role', 'button');
@@ -122,8 +126,10 @@ export class Link extends Disposable {
 	}
 
 	private setTooltip(title: string | undefined): void {
-		if (!this.hover && title) {
-			this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.el, title));
+		if (this.hoverDelegate.showNativeHover) {
+			this.el.title = title ?? '';
+		} else if (!this.hover && title) {
+			this.hover = this._register(setupCustomHover(this.hoverDelegate, this.el, title));
 		} else if (this.hover) {
 			this.hover.update(title);
 		}
