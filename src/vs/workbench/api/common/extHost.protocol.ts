@@ -1502,6 +1502,7 @@ export interface SCMHistoryItemDto {
 	readonly parentIds: string[];
 	readonly label: string;
 	readonly description?: string;
+	readonly tooltip?: string | IMarkdownString;
 	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 	readonly timestamp?: number;
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable, EventEmitter } from 'vscode';
+import { Event, Disposable, EventEmitter, MarkdownString, l10n, env } from 'vscode';
 import { dirname, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
@@ -378,6 +378,24 @@ export function isUndefinedOrNull(obj: unknown): obj is undefined | null {
  */
 export function isUndefined(obj: unknown): obj is undefined {
 	return (typeof obj === 'undefined');
+}
+
+export function itemTooltip(author: string | undefined, email: string | undefined, date: Date | undefined, message: string): MarkdownString {
+	const tooltip = new MarkdownString('', true);
+
+	if (email && author) {
+		const emailTitle = l10n.t('Email');
+		tooltip.appendMarkdown(`$(account) [**${author}**](mailto:${email} "${emailTitle} ${author}")\n\n`);
+	} else if (author) {
+		tooltip.appendMarkdown(`$(account) **${author}**\n\n`);
+	}
+
+	if (date) {
+		const dateFormatter = new Intl.DateTimeFormat(env.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+		tooltip.appendMarkdown(`$(history) ${dateFormatter.format(date)}\n\n`);
+	}
+	tooltip.appendMarkdown(message);
+	return tooltip;
 }
 
 interface ILimitedTaskFactory<T> {

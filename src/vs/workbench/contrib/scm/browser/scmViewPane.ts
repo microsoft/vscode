@@ -106,6 +106,9 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { clamp } from 'vs/base/common/numbers';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITooltipMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -901,13 +904,23 @@ interface HistoryItemTemplate {
 
 class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTreeElement, void, HistoryItemTemplate> {
 
+	private _hoverDelegate: IHoverDelegate;
+
 	static readonly TEMPLATE_ID = 'history-item';
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
 
 	constructor(
 		private actionRunner: IActionRunner,
 		private actionViewItemProvider: IActionViewItemProvider,
-		@ISCMViewService private scmViewService: ISCMViewService) { }
+		@ISCMViewService private scmViewService: ISCMViewService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		this._hoverDelegate = {
+			showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
+			delay: <number>this.configurationService.getValue('workbench.hover.delay')
+		};
+	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
 		// hack
@@ -915,7 +928,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 
 		const element = append(container, $('.history-item'));
 
-		const iconLabel = new IconLabel(element, { supportIcons: true });
+		const iconLabel = new IconLabel(element, { supportIcons: true, hoverDelegate: this._hoverDelegate });
 		const iconContainer = prepend(iconLabel.element, $('.icon-container'));
 
 		const disposables = new DisposableStore();
@@ -939,7 +952,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 			templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItem.icon));
 		}
 
-		templateData.label.setLabel(historyItem.label, historyItem.description);
+		const title: ITooltipMarkdownString = { markdown: historyItem.tooltip, markdownNotSupportedFallback: historyItem.description ? `${historyItem.label} (${historyItem.description})` : historyItem.label };
+		templateData.label.setLabel(historyItem.label, historyItem.description, { title });
 
 		templateData.actionBar.clear();
 		templateData.actionBar.context = historyItem;
