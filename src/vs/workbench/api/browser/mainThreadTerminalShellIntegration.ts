@@ -29,7 +29,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			return Event.map(
 				Event.filter(instance.capabilities.onDidAddCapabilityType, e => {
 					return e === TerminalCapability.CommandDetection;
-				}, this._store), () => instance
+				}), () => instance
 			);
 		});
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
