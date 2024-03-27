@@ -14,11 +14,11 @@ export class OpenImageCommand implements Command {
 		private _currentPanel: vscode.WebviewPanel | undefined = undefined
 	) { }
 
-	public execute(args: { id: string; resource: string }) {
+	public execute(args: { src: string; id: string }) {
 		const columnToShowIn = vscode.window.activeTextEditor
 			? vscode.window.activeTextEditor.viewColumn
 			: undefined;
-		const source = vscode.Uri.parse(args.resource);
+		const source = vscode.Uri.parse(args.src);
 		if (this._currentPanel) {
 			// If we already have a panel, show it in the target column
 			this._currentPanel.reveal(columnToShowIn);
@@ -26,12 +26,12 @@ export class OpenImageCommand implements Command {
 			this._currentPanel = vscode.window.createWebviewPanel(
 				'openImage',
 				'Image',
-				vscode.ViewColumn.Beside,
+				vscode.ViewColumn.Active,
 				{}
 			);
 		}
-		console.log(source);
-		this._webviewManager.findPreview(source)?.openImage(args.resource);
+
+		this._webviewManager.findPreview(source)?.openImage(args.src);
 
 	}
 }
