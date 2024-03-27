@@ -259,6 +259,10 @@
           "when": "false"
         },
         {
+          "command": "_markdown.openImage",
+          "when": "false"
+        },
+        {
           "command": "markdown.showPreview",
           "when": "editorLangId == markdown && !notebookEditorFocused",
           "group": "navigation"

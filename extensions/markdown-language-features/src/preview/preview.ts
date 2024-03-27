@@ -443,7 +443,7 @@ export interface IManagedMarkdownPreview {
 	readonly onDidChangeViewState: vscode.Event<vscode.WebviewPanelOnDidChangeViewStateEvent>;
 
 	copyImage(id: string): void;
-	openImage(id: string): void;
+	openImage(resource: string): void;
 	dispose(): void;
 	refresh(): void;
 	updateConfiguration(): void;
@@ -525,8 +525,9 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		});
 	}
 
-	async openImage(resource: string) {
-		await vscode.commands.executeCommand('vscode.open', resource);
+	async openImage() {
+		const uri = this.resource.toString;
+		await vscode.commands.executeCommand('vscode.open', uri);
 	}
 
 	private readonly _onDispose = this._register(new vscode.EventEmitter<void>());
@@ -684,9 +685,11 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		});
 	}
 
-	async openImage(resource: string) {
-		await vscode.commands.executeCommand('vscode.open', resource);
+	async openImage() {
+		const uri = this.resource.toString;
+		await vscode.commands.executeCommand('vscode.open', uri);
 	}
+
 
 	private readonly _onDisposeEmitter = this._register(new vscode.EventEmitter<void>());
 	public readonly onDispose = this._onDisposeEmitter.event;
