@@ -32,7 +32,7 @@ import { ChatListDelegate, ChatListItemRenderer, IChatListItemRendererOptions, I
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, extractAgentAndCommand } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -178,6 +178,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
+		CONTEXT_CHAT_LOCATION.bindTo(contextKeyService).set(location);
 		this.agentInInput = CONTEXT_CHAT_INPUT_HAS_AGENT.bindTo(contextKeyService);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 

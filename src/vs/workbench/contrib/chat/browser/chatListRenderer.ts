@@ -33,7 +33,7 @@ import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widge
 import { Range } from 'vs/editor/common/core/range';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -268,12 +268,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				menuOptions: {
 					shouldForwardArgs: true
 				},
+				toolbarOptions: {
+					shouldInlineSubmenu: submenu => submenu.actions.length <= 1
+				},
 				actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 					if (action instanceof MenuItemAction && (action.item.id === 'workbench.action.chat.voteDown' || action.item.id === 'workbench.action.chat.voteUp')) {
 						return scopedInstantiationService.createInstance(ChatVoteButton, action, options as IMenuEntryActionViewItemOptions);
 					}
-
-					return undefined;
+					return createActionViewItem(scopedInstantiationService, action, options);
 				}
 			}));
 		}
