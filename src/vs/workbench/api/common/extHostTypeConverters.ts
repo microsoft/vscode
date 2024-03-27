@@ -2024,6 +2024,10 @@ export namespace TestCoverage {
 	}
 
 	export function fromDetails(coverage: vscode.FileCoverageDetail): CoverageDetails.Serialized {
+		if (typeof coverage.executed === 'number' && coverage.executed < 0) {
+			throw new Error(`Invalid coverage count ${coverage.executed}`);
+		}
+
 		if ('branches' in coverage) {
 			return {
 				count: coverage.executed,
@@ -2044,6 +2048,10 @@ export namespace TestCoverage {
 	}
 
 	export function fromFile(id: string, coverage: vscode.FileCoverage): IFileCoverage.Serialized {
+		types.validateTestCoverageCount(coverage.statementCoverage);
+		types.validateTestCoverageCount(coverage.branchCoverage);
+		types.validateTestCoverageCount(coverage.declarationCoverage);
+
 		return {
 			id,
 			uri: coverage.uri,

@@ -128,6 +128,7 @@ export interface IGenericCellViewModel {
 	metadata: NotebookCellMetadata;
 	outputIsHovered: boolean;
 	outputIsFocused: boolean;
+	inputInOutputIsFocused: boolean;
 	outputsViewModels: ICellOutputViewModel[];
 	getOutputOffset(index: number): number;
 	updateOutputHeight(index: number, height: number, source?: string): void;
@@ -587,6 +588,11 @@ export interface INotebookEditor {
 	 * Implementation of Ctrl+A for an output item.
 	 */
 	selectOutputContent(cell: ICellViewModel): void;
+	/**
+	 * Select the active input element of the first focused output of the cell.
+	 * Implementation of Ctrl+A for an input element in an output item.
+	 */
+	selectInputContents(cell: ICellViewModel): void;
 
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 

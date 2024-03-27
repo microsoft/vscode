@@ -147,6 +147,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 		const sessionStart = Date.now();
 		let sessionRecognized = false;
+		let sessionContentLength = 0;
 
 		const disposables = new DisposableStore();
 
@@ -163,16 +164,22 @@ export class SpeechService extends Disposable implements ISpeechService {
 					context: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Context of the session.' };
 					sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Duration of the session.' };
 					sessionRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If speech was recognized.' };
+					sessionContentLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length of the recognized text.' };
+					sessionLanguage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured language for the session.' };
 				};
 				type SpeechToTextSessionEvent = {
 					context: string;
 					sessionDuration: number;
 					sessionRecognized: boolean;
+					sessionContentLength: number;
+					sessionLanguage: string;
 				};
 				this.telemetryService.publicLog2<SpeechToTextSessionEvent, SpeechToTextSessionClassification>('speechToTextSession', {
 					context,
 					sessionDuration: Date.now() - sessionStart,
-					sessionRecognized
+					sessionRecognized,
+					sessionContentLength,
+					sessionLanguage: language
 				});
 			}
 
@@ -194,8 +201,12 @@ export class SpeechService extends Disposable implements ISpeechService {
 					}
 					break;
 				case SpeechToTextStatus.Recognizing:
-				case SpeechToTextStatus.Recognized:
 					sessionRecognized = true;
+					break;
+				case SpeechToTextStatus.Recognized:
+					if (typeof e.text === 'string') {
+						sessionContentLength += e.text.length;
+					}
 					break;
 				case SpeechToTextStatus.Stopped:
 					onSessionStoppedOrCanceled();
