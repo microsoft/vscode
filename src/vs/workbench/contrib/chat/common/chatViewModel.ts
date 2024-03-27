@@ -241,7 +241,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private onAddResponse(responseModel: IChatResponseModel) {
 		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel);
 		this._register(response.onDidChange(() => {
-			this.updateCodeBlockTextModels(response);
+			// this.updateCodeBlockTextModels(response);
 			return this._onDidChange.fire(null);
 		}));
 		this._items.push(response);

@@ -918,17 +918,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
-					const modelEntry = this.codeBlockModelCollection.get(sessionId, element, index);
-					if (!modelEntry) {
-						console.error('Trying to render code block without model', element.id, index);
-						return $('div');
-					}
+					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
+					// if (!modelEntry) {
+					// 	console.error('Trying to render code block without model', element.id, index);
+					// 	return $('div');
+					// }
 					vulns = modelEntry.vulns;
 					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: templateData.contextKeyService, vulns });
+				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: templateData.contextKeyService, vulns }, text);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
@@ -975,9 +975,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderCodeBlock(data: ICodeBlockData): IDisposableReference<CodeBlockPart> {
+	private renderCodeBlock(data: ICodeBlockData, text: string): IDisposableReference<CodeBlockPart> {
 		const ref = this._editorPool.get();
 		const editorInfo = ref.object;
+		this.codeBlockModelCollection.update((data.element as IChatResponseViewModel).sessionId, data.element as IChatResponseViewModel, data.codeBlockIndex, { text, languageId: data.languageId });
 		editorInfo.render(data, this._currentLayoutWidth, this.rendererOptions.editableCodeBlock);
 
 		return ref;
