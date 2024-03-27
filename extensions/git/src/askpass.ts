@@ -109,6 +109,11 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			return await window.showInputBox(options) || '';
 		}
 
+		// FIDO/U2F key physical presence prompt
+		if (/user/i.test(request)) {
+			return '';
+		}
+
 		// authenticity
 		const options: QuickPickOptions = {
 			canPickMany: false,
