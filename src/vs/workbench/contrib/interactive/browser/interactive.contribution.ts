@@ -253,7 +253,7 @@ class InteractiveWindowWorkingCopyEditorHandler extends Disposable implements IW
 	}
 }
 
-registerWorkbenchContribution2(InteractiveDocumentContribution.ID, InteractiveDocumentContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(InteractiveDocumentContribution.ID, InteractiveDocumentContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(InteractiveInputContentProvider.ID, InteractiveInputContentProvider, {
 	editorTypeId: INTERACTIVE_WINDOW_EDITOR_ID
 });
