@@ -859,6 +859,15 @@ export class IssueReporter extends Disposable {
 			return;
 		}
 
+		if (fileOnExtension && selectedExtension?.id.toLowerCase() === 'github.copilot') {
+			hide(titleTextArea);
+			hide(descriptionTextArea);
+			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
+			reset(descriptionSubtitle, localize('elsewhereDescription', "The '{0}' extension prefers to use an external issue reporter. To be taken to that issue reporting experience, click the button below.", selectedExtension.displayName));
+			this.previewButton.label = localize('openIssueReporter', "Open External Issue Reporter");
+			return;
+		}
+
 		if (fileOnExtension && selectedExtension?.hasIssueDataProviders) {
 			const data = this.getExtensionData();
 			if (data) {
@@ -986,7 +995,7 @@ export class IssueReporter extends Disposable {
 
 	private async createIssue(): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		const hasUri = selectedExtension?.hasIssueUriRequestHandler;
+		const hasUri = selectedExtension?.hasIssueUriRequestHandler || selectedExtension?.id.toLowerCase() === 'github.copilot';
 		const hasData = selectedExtension?.hasIssueDataProviders;
 		// Short circuit if the extension provides a custom issue handler
 		if (hasUri && !hasData) {
