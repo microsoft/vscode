@@ -151,16 +151,12 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	private doMonitorWithExistingWatcher(request: IWatchRequestWithCorrelation, disposables: DisposableStore): boolean {
-		const subscription = this.recursiveWatcher?.subscribe(request.path, async (error, change) => {
+		const subscription = this.recursiveWatcher?.subscribe(request.path, (error, change) => {
 			if (disposables.isDisposed) {
 				return; // return early if already disposed
 			}
 
 			if (error) {
-				if (disposables.isDisposed) {
-					return;
-				}
-
 				this.monitorSuspendedWatchRequest(request, disposables);
 			} else if (change?.type === FileChangeType.ADDED) {
 				this.onMonitoredPathAdded(request);
