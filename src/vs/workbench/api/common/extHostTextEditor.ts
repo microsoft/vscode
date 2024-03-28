@@ -519,7 +519,7 @@ export class ExtHostTextEditor {
 				}
 				return _proxy.$tryInsertSnippet(id, document.value.version, snippet.value, ranges, options);
 			},
-			setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
+			setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): Promise<boolean> {
 				const willBeEmpty = (ranges.length === 0);
 				if (willBeEmpty && !that._hasDecorationsForKey.has(decorationType.key)) {
 					// avoid no-op call to the renderer
@@ -530,29 +530,29 @@ export class ExtHostTextEditor {
 				} else {
 					that._hasDecorationsForKey.add(decorationType.key);
 				}
-				that._runOnProxy(() => {
-					if (TypeConverters.isDecorationOptionsArr(ranges)) {
-						return _proxy.$trySetDecorations(
-							id,
-							decorationType.key,
-							TypeConverters.fromRangeOrRangeWithMessage(ranges)
-						);
-					} else {
-						const _ranges: number[] = new Array<number>(4 * ranges.length);
-						for (let i = 0, len = ranges.length; i < len; i++) {
-							const range = ranges[i];
-							_ranges[4 * i] = range.start.line + 1;
-							_ranges[4 * i + 1] = range.start.character + 1;
-							_ranges[4 * i + 2] = range.end.line + 1;
-							_ranges[4 * i + 3] = range.end.character + 1;
-						}
-						return _proxy.$trySetDecorationsFast(
-							id,
-							decorationType.key,
-							_ranges
-						);
+				if (TypeConverters.isDecorationOptionsArr(ranges)) {
+					return _proxy.$trySetDecorations(
+						id,
+						document.value.version,
+						decorationType.key,
+						TypeConverters.fromRangeOrRangeWithMessage(ranges)
+					);
+				} else {
+					const _ranges: number[] = new Array<number>(4 * ranges.length);
+					for (let i = 0, len = ranges.length; i < len; i++) {
+						const range = ranges[i];
+						_ranges[4 * i] = range.start.line + 1;
+						_ranges[4 * i + 1] = range.start.character + 1;
+						_ranges[4 * i + 2] = range.end.line + 1;
+						_ranges[4 * i + 3] = range.end.character + 1;
 					}
-				});
+					return _proxy.$trySetDecorationsFast(
+						id,
+						document.value.version,
+						decorationType.key,
+						_ranges
+					);
+				}
 			},
 			revealRange(range: Range, revealType: vscode.TextEditorRevealType): void {
 				that._runOnProxy(() => _proxy.$tryRevealRange(
