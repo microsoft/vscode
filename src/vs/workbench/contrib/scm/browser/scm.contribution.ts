@@ -33,7 +33,7 @@ import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/con
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
 import { getActiveElement } from 'vs/base/browser/dom';
-import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSets';
+import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSet';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
