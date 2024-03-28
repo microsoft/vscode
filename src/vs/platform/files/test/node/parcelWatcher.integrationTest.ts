@@ -736,7 +736,6 @@ export class TestParcelWatcher extends ParcelWatcher {
 		await onDidWatchFail;
 		await changeFuture;
 		assert.strictEqual(failed, true);
-		assert.strictEqual(instance.include(folderPath), false); // failing watcher should no longer include the path
 		assert.strictEqual(instance.failed, true);
 	});
 

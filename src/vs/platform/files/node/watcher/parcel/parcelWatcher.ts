@@ -112,10 +112,6 @@ export class ParcelWatcherInstance extends Disposable {
 	}
 
 	include(path: string): boolean {
-		if (this.didFail) {
-			return false; // never pretend to include anything if we failed
-		}
-
 		if (!this.includes || this.includes.length === 0) {
 			return true; // no specific includes defined, include all
 		}
@@ -134,9 +130,8 @@ export class ParcelWatcherInstance extends Disposable {
 			await this.stopFn();
 		} finally {
 			this._onDidStop.fire({ joinRestart });
+			this.dispose();
 		}
-
-		this.dispose();
 	}
 }
 
@@ -788,6 +783,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	subscribe(path: string, callback: (error: boolean, change?: IFileChange) => void): IDisposable | undefined {
 		for (const watcher of this.watchers) {
+			if (watcher.failed) {
+				continue; // watcher has already failed
+			}
+
 			if (!isEqualOrParent(path, watcher.request.path, !isLinux)) {
 				continue; // watcher does not consider this path
 			}
@@ -801,8 +800,12 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			const disposables = new DisposableStore();
 
-			disposables.add(Event.once(Event.any(watcher.onDidStop))(async e => {
+			disposables.add(Event.once(watcher.onDidStop)(async e => {
 				await e.joinRestart; // if we are restarting, await that so that we can possibly reuse this watcher again
+				if (disposables.isDisposed) {
+					return;
+				}
+
 				callback(true /* error */);
 			}));
 			disposables.add(Event.once(watcher.onDidFail)(() => callback(true /* error */)));

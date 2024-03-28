@@ -59,8 +59,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	private _isReusingRecursiveWatcher = false;
 	get isReusingRecursiveWatcher(): boolean { return this._isReusingRecursiveWatcher; }
 
-	private _didFail = false;
-	get failed(): boolean { return this._didFail; }
+	private didFail = false;
+	get failed(): boolean { return this.didFail; }
 
 	constructor(
 		private readonly request: INonRecursiveWatchRequest,
@@ -100,7 +100,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	private notifyWatchFailed(): void {
-		this._didFail = true;
+		this.didFail = true;
 
 		this.onDidWatchFail?.();
 	}
