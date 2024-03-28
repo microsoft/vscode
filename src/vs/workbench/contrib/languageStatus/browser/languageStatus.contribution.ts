@@ -324,7 +324,7 @@ class LanguageStatus {
 				href: URI.from({
 					scheme: 'command', path: command.id, query: command.arguments && JSON.stringify(command.arguments)
 				}).toString()
-			}, undefined, this._openerService));
+			}, { hoverDelegate: nativeHoverDelegate }, this._openerService));
 		}
 
 		// -- pin

@@ -83,7 +83,7 @@ export interface IInlineChatWidgetConstructionOptions {
 	/**
 	 * The men that rendered in the lower right corner, use for feedback
 	 */
-	feedbackMenuId: MenuId;
+	feedbackMenuId?: MenuId;
 
 	/**
 	 * @deprecated
@@ -157,19 +157,6 @@ export class InlineChatWidget {
 		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
 		@IChatService private readonly _chatService: IChatService,
 	) {
-		// Share hover delegates between toolbars to support instant hover between both
-		// TODO@jrieken move into chat widget
-		// const hoverDelegate = this._store.add(createInstantHoverDelegate());
-
-		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
-				this._updateAriaLabel();
-				// TODO@jrieken	FIX THIS
-				// this._chatWidget.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
-				this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
-			}
-		}));
-
 		// toolbars
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
@@ -260,6 +247,9 @@ export class InlineChatWidget {
 			this._onDidChangeHeight.fire();
 		}));
 
+		this._store.add(this.chatWidget.onDidChangeContentHeight(() => {
+			this._onDidChangeHeight.fire();
+		}));
 
 		// context keys
 		this._ctxResponseFocused = CTX_INLINE_CHAT_RESPONSE_FOCUSED.bindTo(this._contextKeyService);
@@ -268,8 +258,8 @@ export class InlineChatWidget {
 		this._store.add(tracker.onDidFocus(() => this._ctxResponseFocused.set(true)));
 
 		this._ctxInputEditorFocused = CTX_INLINE_CHAT_FOCUSED.bindTo(_contextKeyService);
-		this._chatWidget.inputEditor.onDidFocusEditorWidget(() => this._ctxInputEditorFocused.set(true));
-		this._chatWidget.inputEditor.onDidBlurEditorWidget(() => this._ctxInputEditorFocused.set(false));
+		this._store.add(this._chatWidget.inputEditor.onDidFocusEditorWidget(() => this._ctxInputEditorFocused.set(true)));
+		this._store.add(this._chatWidget.inputEditor.onDidBlurEditorWidget(() => this._ctxInputEditorFocused.set(false)));
 
 		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
@@ -287,14 +277,22 @@ export class InlineChatWidget {
 			}
 		};
 
-		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
-		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-		this._store.add(feedbackToolbar);
+		if (options.feedbackMenuId) {
+			const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+			this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+			this._store.add(feedbackToolbar);
+		}
 
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
+				this._updateAriaLabel();
+			}
+		}));
 
+		this._elements.root.tabIndex = 0;
 		this._elements.followUps.tabIndex = 0;
-		this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 		this._elements.statusLabel.tabIndex = 0;
+		this._updateAriaLabel();
 
 		// this._elements.status
 		this._store.add(setupCustomHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
@@ -316,15 +314,19 @@ export class InlineChatWidget {
 	}
 
 	private _updateAriaLabel(): void {
-		if (!this._accessibilityService.isScreenReaderOptimized()) {
-			return;
+
+		this._elements.root.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			let label = defaultAriaLabel;
+			if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
+				const kbLabel = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+				label = kbLabel
+					? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel)
+					: localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
+			}
+			this._chatWidget.inputEditor.updateOptions({ ariaLabel: label });
 		}
-		let label = defaultAriaLabel;
-		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
-			const kbLabel = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
-			label = kbLabel ? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel) : localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
-		}
-		this._chatWidget.inputEditor.updateOptions({ ariaLabel: label });
 	}
 
 	dispose(): void {
@@ -523,7 +525,9 @@ export class InlineChatWidget {
 			}
 		};
 	}
-
+	/**
+	 * @deprecated use `setChatModel` instead
+	 */
 	updateFollowUps(items: IInlineChatFollowup[], onFollowup: (followup: IInlineChatFollowup) => void): void;
 	updateFollowUps(items: undefined): void;
 	updateFollowUps(items: IInlineChatFollowup[] | undefined, onFollowup?: ((followup: IInlineChatFollowup) => void)) {
@@ -537,10 +541,11 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-
+	/**
+	 * @deprecated use `setChatModel` instead
+	 */
 	updateSlashCommands(commands: IInlineChatSlashCommand[]) {
-		// this._inputWidget.updateSlashCommands(commands);
-		// TODO@jrieken
+
 	}
 
 	updateInfo(message: string): void {

@@ -243,8 +243,8 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
-		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
-		const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
+		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout, this._toDispose);
+		const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr, this._toDispose);
 		const onOutput = Event.any(
 			Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -258,7 +258,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		}, 100);
 
 		// Print out extension host output
-		onDebouncedOutput(output => {
+		this._toDispose.add(onDebouncedOutput(output => {
 			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
 			if (inspectorUrlMatch) {
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
@@ -275,7 +275,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 					console.groupEnd();
 				}
 			}
-		});
+		}));
 
 		// Lifecycle
 
@@ -521,7 +521,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		this._onExit.fire([code, signal]);
 	}
 
-	private _handleProcessOutputStream(stream: Event<string>) {
+	private _handleProcessOutputStream(stream: Event<string>, store: DisposableStore) {
 		let last = '';
 		let isOmitting = false;
 		const event = new Emitter<string>();
@@ -549,7 +549,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 					event.fire(line + '\n');
 				}
 			}
-		});
+		}, undefined, store);
 
 		return event;
 	}
