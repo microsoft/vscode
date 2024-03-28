@@ -1148,6 +1148,33 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test.skip('issue #67678: indent on typing curly brace', () => {
+
+		// https://github.com/microsoft/vscode/issues/67678
+
+		const model = createTextModel([
+			'if (true) {',
+			'console.log("a")',
+			'console.log("b")',
+			'',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(4, 1, 4, 1));
+			viewModel.type("}", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if (true) {',
+				'    console.log("a")',
+				'    console.log("b")',
+				'}',
+			].join('\n'));
+		});
+	});
+
+
 	// Add tests for:
 	// https://github.com/microsoft/vscode/issues/88638
 	// https://github.com/microsoft/vscode/issues/63388
@@ -1344,6 +1371,28 @@ suite('Auto Indent On Type - CPP', () => {
 				'    int nshowcmd) {',
 				'    ',
 				'}'
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #118929: incorrect indent when // follows curly brace', () => {
+
+		// https://github.com/microsoft/vscode/issues/118929
+
+		const model = createTextModel([
+			'if (true) { // jaja',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.CPP, disposables);
+			editor.setSelection(new Selection(1, 20, 1, 20));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if (true) { // jaja',
+				'    ',
+				'}',
 			].join('\n'));
 		});
 	});
