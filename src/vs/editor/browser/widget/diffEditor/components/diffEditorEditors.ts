@@ -32,7 +32,7 @@ export class DiffEditorEditors extends Disposable {
 	public readonly modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => /** @description modified.model */ this.modified.getModel());
 
 	public readonly modifiedSelections = observableFromEvent(this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
-	public readonly modifiedCursor = derivedOpts({ owner: this, equalityComparer: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
+	public readonly modifiedCursor = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
 
 	public readonly originalCursor = observableFromEvent(this.original.onDidChangeCursorPosition, () => this.original.getPosition() ?? new Position(1, 1));
 

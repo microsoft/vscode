@@ -30,7 +30,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
-import { ISettableObservable } from 'vs/base/common/observableInternal/base';
+import { ISettableObservable, observableValueOpts } from 'vs/base/common/observableInternal/base';
+import { itemsEquals, itemEquals } from 'vs/base/common/equals';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -41,7 +42,7 @@ export class InlineCompletionsController extends Disposable {
 
 	public readonly model = this._register(disposableObservableValue<InlineCompletionsModel | undefined>('inlineCompletionModel', undefined));
 	private readonly _textModelVersionId = observableValue<number, VersionIdChangeReason>(this, -1);
-	private readonly _positions = observableValue<readonly Position[]>(this, [new Position(1, 1)]);
+	private readonly _positions = observableValueOpts<readonly Position[]>({ owner: this, equalsFn: itemsEquals(itemEquals()) }, [new Position(1, 1)]);
 	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
 		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
