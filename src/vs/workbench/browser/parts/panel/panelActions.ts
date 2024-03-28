@@ -99,6 +99,7 @@ const PositionPanelActionId = {
 	LEFT: 'workbench.action.positionPanelLeft',
 	RIGHT: 'workbench.action.positionPanelRight',
 	BOTTOM: 'workbench.action.positionPanelBottom',
+	TOP: 'workbench.action.positionPanelTop'
 };
 
 const AlignPanelActionId = {
@@ -139,6 +140,7 @@ const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
 	createPositionPanelActionConfig(PositionPanelActionId.LEFT, localize2('positionPanelLeft', "Move Panel Left"), localize('positionPanelLeftShort', "Left"), Position.LEFT),
 	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, localize2('positionPanelRight', "Move Panel Right"), localize('positionPanelRightShort', "Right"), Position.RIGHT),
 	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, localize2('positionPanelBottom', "Move Panel To Bottom"), localize('positionPanelBottomShort', "Bottom"), Position.BOTTOM),
+	createPositionPanelActionConfig(PositionPanelActionId.TOP, localize2('positionPanelTop', "Move Panel To Top"), localize('positionPanelTopShort', "Top"), Position.TOP)
 ];
 
 
