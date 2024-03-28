@@ -23,6 +23,9 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { QuickInputListFocus, QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { Codicon } from 'vs/base/common/codicons';
+import { defaultCheckboxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = dom.$;
 
@@ -119,18 +122,20 @@ export class QuickInputController extends Disposable {
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
-		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
-		checkAll.type = 'checkbox';
-		checkAll.setAttribute('aria-label', localize('quickInput.checkAll', "Toggle all checkboxes"));
-		this._register(dom.addStandardDisposableListener(checkAll, dom.EventType.CHANGE, e => {
-			const checked = checkAll.checked;
-			list.setAllVisibleChecked(checked);
+		const checkAll = new Toggle({
+			inputActiveOptionBackground: defaultCheckboxStyles.checkboxBackground,
+			inputActiveOptionBorder: defaultCheckboxStyles.checkboxBorder,
+			inputActiveOptionForeground: defaultCheckboxStyles.checkboxForeground,
+			isChecked: false,
+			title: localize('quickInput.checkAll', "Toggle all checkboxes"),
+			hoverDelegate: this.options.hoverDelegate,
+			icon: Codicon.checkAll
+		});
+		this._register(checkAll);
+		this._register(checkAll.onChange(_ => {
+			list.setAllVisibleChecked(checkAll.checked);
 		}));
-		this._register(dom.addDisposableListener(checkAll, dom.EventType.CLICK, e => {
-			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
-				inputBox.setFocus();
-			}
-		}));
+		dom.append(headerContainer, checkAll.domNode);
 
 		const description2 = dom.append(headerContainer, $('.quick-input-description'));
 		const inputContainer = dom.append(headerContainer, $('.quick-input-and-message'));
@@ -246,7 +251,7 @@ export class QuickInputController extends Disposable {
 						];
 
 						if (container.classList.contains('show-checkboxes')) {
-							selectors.push('input');
+							selectors.push('.quick-input-list-label > .monaco-checkbox');
 						} else {
 							selectors.push('input[type=text]');
 						}
@@ -580,7 +585,7 @@ export class QuickInputController extends Disposable {
 		ui.title.style.display = visibilities.title ? '' : 'none';
 		ui.description1.style.display = visibilities.description && (visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.description2.style.display = visibilities.description && !(visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
-		ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
+		ui.checkAll.domNode.style.display = visibilities.checkAll ? '' : 'none';
 		ui.inputContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
@@ -604,7 +609,11 @@ export class QuickInputController extends Disposable {
 			for (const item of this.getUI().rightActionBar.viewItems) {
 				(item as ActionViewItem).action.enabled = enabled;
 			}
-			this.getUI().checkAll.disabled = !enabled;
+			if (enabled) {
+				this.getUI().checkAll.enable();
+			} else {
+				this.getUI().checkAll.disable();
+			}
 			this.getUI().inputBox.enabled = enabled;
 			this.getUI().ok.enabled = enabled;
 			this.getUI().list.enabled = enabled;
