@@ -38,11 +38,6 @@ declare module 'vscode' {
 		readonly cwd: Uri | string | undefined;
 
 		/**
-		 * The exit code reported by the shell.
-		 */
-		readonly exitCode: Thenable<number | undefined>;
-
-		/**
 		 * Creates a stream of raw data (including escape sequences) that is written to the
 		 * terminal. This will only include data that was written after `stream` was called for the
 		 * first time, ie. you must call `dataStream` immediately after the command is executed via
@@ -184,6 +179,17 @@ declare module 'vscode' {
 		readonly shellIntegration: TerminalShellIntegration;
 	}
 
+	export interface TerminalShellExecutionEndEvent {
+		/**
+		 * The terminal shell execution that has ended.
+		 */
+		readonly execution: TerminalShellExecution;
+		/**
+		 * The exit code reported by the shell.
+		 */
+		readonly exitCode: number | undefined;
+	}
+
 	export namespace window {
 		/**
 		 * Fires when shell integration activates or one of its properties changes in a terminal.
@@ -202,6 +208,6 @@ declare module 'vscode' {
 		 * [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) is
 		 * activated for the terminal.
 		 */
-		export const onDidEndTerminalShellExecution: Event<TerminalShellExecution>;
+		export const onDidEndTerminalShellExecution: Event<TerminalShellExecutionEndEvent>;
 	}
 }
