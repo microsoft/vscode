@@ -206,6 +206,7 @@ extends:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
       - stage: CompileCLI
         dependsOn: []
