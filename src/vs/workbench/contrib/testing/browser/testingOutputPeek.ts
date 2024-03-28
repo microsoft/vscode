@@ -816,7 +816,7 @@ class TestResultsViewContent extends Disposable {
 			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, this.editor, messageContainer)),
 		];
 
-		this.messageContextKeyService = this._register(this.contextKeyService.createScoped(this.messageContainer));
+		this.messageContextKeyService = this._register(this.contextKeyService.createScoped(containerElement));
 		this.contextKeyTestMessage = TestingContextKeys.testMessageContext.bindTo(this.messageContextKeyService);
 		this.contextKeyResultOutdated = TestingContextKeys.testResultOutdated.bindTo(this.messageContextKeyService);
 
