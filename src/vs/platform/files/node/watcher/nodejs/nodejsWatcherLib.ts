@@ -156,10 +156,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			}
 
 			if (error) {
-				if (disposables.isDisposed) {
-					return;
-				}
-
 				const watchDisposable = await this.doWatch(realPath, isDirectory);
 				if (!disposables.isDisposed) {
 					disposables.add(watchDisposable);
