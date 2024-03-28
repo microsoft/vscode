@@ -58,6 +58,8 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 
 suite('InteractiveChatController', function () {
 	class TestController extends InlineChatController {
@@ -136,6 +138,7 @@ suite('InteractiveChatController', function () {
 			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
+			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
 					// noop
