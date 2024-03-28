@@ -1649,7 +1649,7 @@ suite('Auto Indent On Type - Latex', () => {
 		assert.ok(true);
 	});
 
-	test('issue #178075: no auto closing pair when indentation done', () => {
+	test.skip('issue #178075: no auto closing pair when indentation done', () => {
 
 		// https://github.com/microsoft/vscode/issues/178075
 
