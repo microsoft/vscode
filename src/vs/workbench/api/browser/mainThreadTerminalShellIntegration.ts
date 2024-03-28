@@ -25,13 +25,13 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalShellIntegration);
 
 		// onDidChangeTerminalShellIntegration
-		const onDidAddCommandDetection = this._terminalService.createOnInstanceEvent(instance => {
+		const onDidAddCommandDetection = this._store.add(this._terminalService.createOnInstanceEvent(instance => {
 			return Event.map(
 				Event.filter(instance.capabilities.onDidAddCapabilityType, e => {
 					return e === TerminalCapability.CommandDetection;
-				}, this._store), () => instance
+				}), () => instance
 			);
-		});
+		})).event;
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
 
 		// onDidStartTerminalShellExecution
