@@ -44,8 +44,11 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 
 	private _onDidChangeConfiguration(): void {
 		if (!this.configurationService.getValue<boolean>('scm.workingSets.enabled')) {
+			this.storageService.remove('scm.workingSets', StorageScope.WORKSPACE);
+
 			this._scmServiceDisposables.clear();
 			this._repositoryDisposables.clearAndDisposeAll();
+
 			return;
 		}
 
