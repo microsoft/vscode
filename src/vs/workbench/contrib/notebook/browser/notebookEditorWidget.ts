@@ -1970,7 +1970,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	onWillHide() {
 		this._isVisible = false;
 		this._editorFocus.set(false);
-		this._overflowContainer.inert = true;
+		this._overlayContainer.inert = true;
 		this._overlayContainer.style.visibility = 'hidden';
 		this._overlayContainer.style.left = '-50000px';
 		this._notebookTopToolbarContainer.style.display = 'none';
