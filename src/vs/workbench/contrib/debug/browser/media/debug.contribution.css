@@ -56,8 +56,6 @@
 
 .debug-var-hover-pre {
 	margin: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
 }
 
 /* Do not push text with inline decoration when decoration on start of line */

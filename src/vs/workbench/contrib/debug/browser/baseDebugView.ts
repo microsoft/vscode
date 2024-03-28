@@ -109,29 +109,23 @@ export function renderExpressionValue(expressionOrValue: IExpressionValue | stri
 
 	if (options.hover) {
 		const { store, commands, commandService } = options.hover instanceof DisposableStore ? { store: options.hover, commands: [], commandService: undefined } : options.hover;
-		const hover = store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), container, () => {
+		store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), container, () => {
 			const container = dom.$('div');
-
 			const markdownHoverElement = dom.$('div.hover-row');
 			const hoverContentsElement = dom.append(markdownHoverElement, dom.$('div.hover-contents'));
 			const hoverContentsPre = dom.append(hoverContentsElement, dom.$('pre.debug-var-hover-pre'));
 			hoverContentsPre.textContent = value;
 			container.appendChild(markdownHoverElement);
-
-			for (const msg of commands) {
-				const hoverRow = dom.$('div.hover-row.markdown-hover');
-				const hoverContents = dom.append(hoverRow, dom.$('div.hover-contents'));
-				const link = dom.append(hoverContents, dom.$('a.monaco-link'));
-				const description = CommandsRegistry.getCommand(msg.id)?.metadata?.description;
-				link.textContent = typeof description === 'string' ? description : description ? description.value : msg.id;
-				store.add(dom.addDisposableListener(link, dom.EventType.CLICK, () => {
-					commandService!.executeCommand(msg.id, ...msg.args);
-					hover.hide();
-				}));
-				container.appendChild(hoverRow);
-			}
-
 			return container;
+		}, {
+			actions: commands.map(({ id, args }) => {
+				const description = CommandsRegistry.getCommand(id)?.metadata?.description;
+				return {
+					label: typeof description === 'string' ? description : description ? description.value : id,
+					commandId: id,
+					run: () => commandService!.executeCommand(id, ...args),
+				};
+			})
 		}));
 	}
 }
