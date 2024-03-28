@@ -31,3 +31,12 @@ export const htmlIndentationRules = {
 	increaseIndentPattern: /<(?!\?|(?:area|base|br|col|frame|hr|html|img|input|keygen|link|menuitem|meta|param|source|track|wbr)\b|[^>]*\/>)([-_\.A-Za-z0-9]+)(?=\s|>)\b[^>]*>(?!.*<\/\1>)|<!--(?!.*-->)|\{[^}"']*$/,
 };
 
+export const latexIndentationRules = {
+	decreaseIndentPattern: /^\s*\\end{(?!document)/,
+	increaseIndentPattern: /\\begin{(?!document)([^}]*)}(?!.*\\end{\1})/,
+};
+
+export const luaIndentationRules = {
+	decreaseIndentPattern: /^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))/,
+	increaseIndentPattern: /^((?!(\-\-)).)*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b).)*)|(\{\s*))$/,
+};

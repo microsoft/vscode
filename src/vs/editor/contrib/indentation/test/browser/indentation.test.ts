@@ -18,9 +18,11 @@ import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/browser/indentation';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
+import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, latexIndentationRules, luaIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
 import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
+import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
+import { latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
 
 enum Language {
 	TypeScript,
@@ -28,7 +30,10 @@ enum Language {
 	PHP,
 	Go,
 	CPP,
-	HTML
+	HTML,
+	VB,
+	Latex,
+	Lua
 }
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
@@ -51,12 +56,7 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	switch (language) {
 		case Language.TypeScript:
 			disposables.add(languageConfigurationService.register(languageId, {
-				brackets: [
-					['${', '}'],
-					['{', '}'],
-					['[', ']'],
-					['(', ')']
-				],
+				brackets: typescriptBracketRules,
 				comments: {
 					lineComment: '//',
 					blockComment: ['/*', '*/']
@@ -67,54 +67,52 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 			break;
 		case Language.Ruby:
 			disposables.add(languageConfigurationService.register(languageId, {
-				brackets: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')']
-				],
+				brackets: rubyBracketRules,
 				indentationRules: rubyIndentationRules,
 			}));
 			break;
 		case Language.PHP:
 			disposables.add(languageConfigurationService.register(languageId, {
-				brackets: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')']
-				],
+				brackets: phpBracketRules,
 				indentationRules: phpIndentationRules,
 				onEnterRules: phpOnEnterRules
 			}));
 			break;
 		case Language.Go:
 			disposables.add(languageConfigurationService.register(languageId, {
-				brackets: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')']
-				],
+				brackets: goBracketRules,
 				indentationRules: goIndentationRules
 			}));
 			break;
 		case Language.CPP:
 			disposables.add(languageConfigurationService.register(languageId, {
-				brackets: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')']
-				],
+				brackets: cppBracketRules,
 				onEnterRules: cppOnEnterRules
 			}));
 			break;
 		case Language.HTML:
 			disposables.add(languageConfigurationService.register(languageId, {
-				brackets: [
-					['<!--', '-->'],
-					['{', '}'],
-					['(', ')']
-				],
+				brackets: htmlBracketRules,
 				indentationRules: htmlIndentationRules,
 				onEnterRules: htmlOnEnterRules
+			}));
+			break;
+		case Language.VB:
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: vbBracketRules,
+			}));
+			break;
+		case Language.Latex:
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: latexBracketRules,
+				autoClosingPairs: latexAutoClosingPairsRules,
+				indentationRules: latexIndentationRules
+			}));
+			break;
+		case Language.Lua:
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: luaBracketRules,
+				indentationRules: luaIndentationRules
 			}));
 			break;
 	}
@@ -1278,6 +1276,27 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test.skip('issue #125261: typing closing brace does not keep the current indentation', () => {
+
+		// https://github.com/microsoft/vscode/issues/125261
+
+		const model = createTextModel([
+			'foo {',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "keep" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type("}", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'foo {',
+				'}',
+			].join('\n'));
+		});
+	});
+
 	// Add tests for:
 	// https://github.com/microsoft/vscode/issues/88638
 	// https://github.com/microsoft/vscode/issues/63388
@@ -1562,6 +1581,131 @@ suite('Auto Indent On Type - HTML', () => {
 				'  foo //I press <Enter> at the end of this line',
 				'  ',
 				'</pre>',
+			].join('\n'));
+		});
+	});
+});
+
+suite('Auto Indent On Type - Visual Basic', () => {
+
+	const languageId = "vb-test";
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('temp issue because there should be at least one passing test in a suite', () => {
+		assert.ok(true);
+	});
+
+	test.skip('issue #118932: no indentation in visual basic files', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'if True then',
+			'    Some code',
+			'    end i',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.VB, disposables);
+			editor.setSelection(new Selection(3, 10, 3, 10));
+			viewModel.type("f", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if True then',
+				'    Some code',
+				'end if',
+			].join('\n'));
+		});
+	});
+});
+
+
+suite('Auto Indent On Type - Latex', () => {
+
+	const languageId = "latex-test";
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('temp issue because there should be at least one passing test in a suite', () => {
+		assert.ok(true);
+	});
+
+	test('issue #178075: no auto closing pair when indentation done', () => {
+
+		// https://github.com/microsoft/vscode/issues/178075
+
+		const model = createTextModel([
+			'\\begin{theorem}',
+			'    \\end',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.Latex, disposables);
+			editor.setSelection(new Selection(2, 9, 2, 9));
+			viewModel.type("{", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'\\begin{theorem}',
+				'\\end{}',
+			].join('\n'));
+		});
+	});
+});
+
+suite('Auto Indent On Type - Lua', () => {
+
+	const languageId = "lua-test";
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('temp issue because there should be at least one passing test in a suite', () => {
+		assert.ok(true);
+	});
+
+	test.skip('issue #178075: no auto closing pair when indentation done', () => {
+
+		// https://github.com/microsoft/vscode/issues/178075
+
+		const model = createTextModel([
+			'print("asdf function asdf")',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.Lua, disposables);
+			editor.setSelection(new Selection(1, 28, 1, 28));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'print("asdf function asdf")',
+				''
 			].join('\n'));
 		});
 	});
