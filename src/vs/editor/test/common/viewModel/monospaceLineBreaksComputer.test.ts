@@ -66,7 +66,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(text, null, previousLineBreakDataClone);
-	return lineBreaksComputer.finalize()[0];
+	return lineBreaksComputer.finalize([])[0];
 }
 
 function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None, wordBreak: 'normal' | 'keepAll' = 'normal'): ModelLineProjectionData | null {

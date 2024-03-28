@@ -313,7 +313,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						}
 					}
 				}
-				const lineBreaks = lineBreaksComputer.finalize();
+				const lineBreaks = lineBreaksComputer.finalize(this.model.getAllDecorations());
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
 
 				for (const change of changes) {
@@ -467,6 +467,8 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._register(this.model.onDidChangeDecorations((e) => {
 			this._decorations.onModelDecorationsChanged();
+			this._lines.onModelDecorationsChanged();
+			this.viewLayout.onFlushed(this._lines.getViewLineCount());
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
 			this._eventDispatcher.emitOutgoingEvent(new ModelDecorationsChangedEvent(e));
 		}));

@@ -28,6 +28,7 @@ export interface IViewModelLines extends IDisposable {
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
+	onModelDecorationsChanged(): void;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
 	onModelLinesInserted(versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (ModelLineProjectionData | null)[]): viewEvents.ViewLinesInsertedEvent | null;
@@ -124,7 +125,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		}
 
 		const linesContent = this.model.getLinesContent();
-		const injectedTextDecorations = this.model.getInjectedTextDecorations(this._editorId);
+		const injectedTextDecorations = this.model.getAllDecorations(this._editorId);
 		const lineCount = linesContent.length;
 		const lineBreaksComputer = this.createLineBreaksComputer();
 
@@ -133,7 +134,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
 			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
-		const linesBreaks = lineBreaksComputer.finalize();
+		const linesBreaks = lineBreaksComputer.finalize(injectedTextDecorations);
 
 		const values: number[] = [];
 
@@ -310,6 +311,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				: this._monospaceLineBreaksComputerFactory
 		);
 		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak);
+	}
+
+	public onModelDecorationsChanged(): void {
+		const previousLineBreaks: (ModelLineProjectionData | null)[] = [];
+		for (let i = 0, len = this.modelLineProjections.length; i < len; i++) {
+			previousLineBreaks[i] = this.modelLineProjections[i].getProjectionData();
+		}
+		this._constructLines(/*resetHiddenAreas*/false, previousLineBreaks);
 	}
 
 	public onModelFlushed(): void {
@@ -1149,6 +1158,9 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 				return result;
 			}
 		};
+	}
+
+	onModelDecorationsChanged(): void {
 	}
 
 	public onModelFlushed(): void {

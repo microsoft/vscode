@@ -7,7 +7,7 @@ import { assertNever } from 'vs/base/common/assert';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Position } from 'vs/editor/common/core/position';
-import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
+import { IModelDecoration, InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
 import { LineInjectedText } from 'vs/editor/common/textModelEvents';
 
 /**
@@ -337,5 +337,5 @@ export interface ILineBreaksComputer {
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
 	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
-	finalize(): (ModelLineProjectionData | null)[];
+	finalize(decorations: IModelDecoration[]): (ModelLineProjectionData | null)[];
 }
