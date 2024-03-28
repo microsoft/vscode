@@ -353,8 +353,9 @@ class Widget {
 
 		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
 		const elDocument = this._viewDomNode.domNode.ownerDocument;
-		const absoluteAboveTop = aboveTop - window.scrollY;
-		const absoluteBelowTop = belowTop - window.scrollY;
+		const elWindow = elDocument.defaultView;
+		const absoluteAboveTop = aboveTop - (elWindow?.scrollY ?? 0);
+		const absoluteBelowTop = belowTop - (elWindow?.scrollY ?? 0);
 
 		const windowSize = dom.getClientArea(elDocument.body);
 		const [left, absoluteAboveLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, anchor.left - ctx.scrollLeft + this._contentLeft, width);
