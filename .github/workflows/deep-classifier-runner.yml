@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: main
     steps:
-      - uses: azure/login@v1
+      - uses: azure/login@v2
         with:
             client-id: ${{ vars.AZURE_CLIENT_ID }}
             tenant-id: ${{ vars.AZURE_TENANT_ID }}
