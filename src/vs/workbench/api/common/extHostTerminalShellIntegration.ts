@@ -18,7 +18,7 @@ export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIn
 
 	readonly onDidChangeTerminalShellIntegration: Event<vscode.TerminalShellIntegrationChangeEvent>;
 	readonly onDidStartTerminalShellExecution: Event<vscode.TerminalShellExecution>;
-	readonly onDidEndTerminalShellExecution: Event<vscode.TerminalShellExecution>;
+	readonly onDidEndTerminalShellExecution: Event<vscode.TerminalShellExecutionEndEvent>;
 }
 export const IExtHostTerminalShellIntegration = createDecorator<IExtHostTerminalShellIntegration>('IExtHostTerminalShellIntegration');
 
@@ -34,7 +34,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	readonly onDidChangeTerminalShellIntegration = this._onDidChangeTerminalShellIntegration.event;
 	protected readonly _onDidStartTerminalShellExecution = new Emitter<vscode.TerminalShellExecution>();
 	readonly onDidStartTerminalShellExecution = this._onDidStartTerminalShellExecution.event;
-	protected readonly _onDidEndTerminalShellExecution = new Emitter<vscode.TerminalShellExecution>();
+	protected readonly _onDidEndTerminalShellExecution = new Emitter<vscode.TerminalShellExecutionEndEvent>();
 	readonly onDidEndTerminalShellExecution = this._onDidEndTerminalShellExecution.event;
 
 	constructor(
@@ -91,7 +91,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 			this._activeShellIntegrations.set(instanceId, shellIntegration);
 			shellIntegration.store.add(terminal.onWillDispose(() => this._activeShellIntegrations.get(instanceId)?.dispose()));
 			shellIntegration.store.add(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(instanceId, commandLine)));
-			shellIntegration.store.add(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e.value)));
+			shellIntegration.store.add(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e)));
 			shellIntegration.store.add(shellIntegration.onDidRequestChangeShellIntegration(e => this._onDidChangeTerminalShellIntegration.fire(e)));
 			terminal.shellIntegration = shellIntegration.value;
 		}
@@ -144,7 +144,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	readonly onDidRequestChangeShellIntegration = this._onDidRequestChangeShellIntegration.event;
 	protected readonly _onDidRequestShellExecution = this._register(new Emitter<string>());
 	readonly onDidRequestShellExecution = this._onDidRequestShellExecution.event;
-	protected readonly _onDidRequestEndExecution = this._register(new Emitter<InternalTerminalShellExecution>());
+	protected readonly _onDidRequestEndExecution = this._register(new Emitter<vscode.TerminalShellExecutionEndEvent>());
 	readonly onDidRequestEndExecution = this._onDidRequestEndExecution.event;
 
 	constructor(
@@ -173,7 +173,7 @@ class InternalTerminalShellIntegration extends Disposable {
 		} else {
 			if (this._currentExecution) {
 				this._currentExecution.endExecution(undefined, undefined);
-				this._onDidRequestEndExecution.fire(this._currentExecution);
+				this._onDidRequestEndExecution.fire({ execution: this._currentExecution.value, exitCode: undefined });
 			}
 			this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
 			this._onDidStartTerminalShellExecution.fire(this._currentExecution.value);
@@ -188,7 +188,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	endShellExecution(commandLine: string | undefined, exitCode: number | undefined): void {
 		if (this._currentExecution) {
 			this._currentExecution.endExecution(commandLine, exitCode);
-			this._onDidRequestEndExecution.fire(this._currentExecution);
+			this._onDidRequestEndExecution.fire({ execution: this._currentExecution.value, exitCode });
 			this._currentExecution = undefined;
 		}
 	}
@@ -212,8 +212,7 @@ class InternalTerminalShellIntegration extends Disposable {
 class InternalTerminalShellExecution {
 	private _dataStream: ShellExecutionDataStream | undefined;
 
-	private readonly _exitCode: Promise<number | undefined>;
-	private _exitCodeResolve: ((exitCode: number | undefined) => void) | undefined;
+	private _ended: boolean = false;
 
 	readonly value: vscode.TerminalShellExecution;
 
@@ -222,10 +221,6 @@ class InternalTerminalShellExecution {
 		private _commandLine: string | undefined,
 		readonly cwd: URI | string | undefined,
 	) {
-		this._exitCode = new Promise<number | undefined>(resolve => {
-			this._exitCodeResolve = resolve;
-		});
-
 		const that = this;
 		this.value = {
 			get terminal(): vscode.Terminal {
@@ -237,9 +232,6 @@ class InternalTerminalShellExecution {
 			get cwd(): URI | string | undefined {
 				return cwd;
 			},
-			get exitCode(): Promise<number | undefined> {
-				return that._exitCode;
-			},
 			createDataStream(): AsyncIterable<string> {
 				return that._createDataStream();
 			}
@@ -248,7 +240,7 @@ class InternalTerminalShellExecution {
 
 	private _createDataStream(): AsyncIterable<string> {
 		if (!this._dataStream) {
-			if (this._exitCodeResolve === undefined) {
+			if (this._ended) {
 				return AsyncIterableObject.EMPTY;
 			}
 			this._dataStream = new ShellExecutionDataStream();
@@ -266,8 +258,7 @@ class InternalTerminalShellExecution {
 		}
 		this._dataStream?.endExecution();
 		this._dataStream = undefined;
-		this._exitCodeResolve?.(exitCode);
-		this._exitCodeResolve = undefined;
+		this._ended = true;
 	}
 }
 
