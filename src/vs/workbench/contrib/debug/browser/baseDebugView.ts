@@ -18,8 +18,10 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { COPY_EVALUATE_PATH_ID, COPY_VALUE_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { IDebugService, IExpression, IExpressionValue } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -34,7 +36,12 @@ const $ = dom.$;
 export interface IRenderValueOptions {
 	showChanged?: boolean;
 	maxValueLength?: number;
-	showHover?: boolean;
+	/** If set, a hover will be shown on the element. Requires a disposable store for usage. */
+	hover?: DisposableStore | {
+		store: DisposableStore;
+		commands: { id: string; args: unknown[] }[];
+		commandService: ICommandService;
+	};
 	colorize?: boolean;
 	linkDetector?: LinkDetector;
 }
@@ -99,12 +106,31 @@ export function renderExpressionValue(expressionOrValue: IExpressionValue | stri
 	} else {
 		container.textContent = value;
 	}
-	if (options.showHover) {
-		container.title = value || '';
+
+	if (options.hover) {
+		const { store, commands, commandService } = options.hover instanceof DisposableStore ? { store: options.hover, commands: [], commandService: undefined } : options.hover;
+		store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), container, () => {
+			const container = dom.$('div');
+			const markdownHoverElement = dom.$('div.hover-row');
+			const hoverContentsElement = dom.append(markdownHoverElement, dom.$('div.hover-contents'));
+			const hoverContentsPre = dom.append(hoverContentsElement, dom.$('pre.debug-var-hover-pre'));
+			hoverContentsPre.textContent = value;
+			container.appendChild(markdownHoverElement);
+			return container;
+		}, {
+			actions: commands.map(({ id, args }) => {
+				const description = CommandsRegistry.getCommand(id)?.metadata?.description;
+				return {
+					label: typeof description === 'string' ? description : description ? description.value : id,
+					commandId: id,
+					run: () => commandService!.executeCommand(id, ...args),
+				};
+			})
+		}));
 	}
 }
 
-export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
+export function renderVariable(store: DisposableStore, commandService: ICommandService, variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
 	if (variable.available) {
 		let text = variable.name;
 		if (variable.value && typeof variable.name === 'string') {
@@ -118,10 +144,17 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 	}
 
 	data.expression.classList.toggle('lazy', !!variable.presentationHint?.lazy);
+	const commands = [
+		{ id: COPY_VALUE_ID, args: [variable, [variable]] as unknown[] }
+	];
+	if (variable.evaluateName) {
+		commands.push({ id: COPY_EVALUATE_PATH_ID, args: [{ variable }] });
+	}
+
 	renderExpressionValue(variable, data.value, {
 		showChanged,
 		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-		showHover: true,
+		hover: { store, commands, commandService },
 		colorize: true,
 		linkDetector
 	});
