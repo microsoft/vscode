@@ -84,7 +84,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
-	private readonly legacyIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService)); // to be removed once migration completed
 	private readonly remoteIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarRemoteIndicatorMenu, this.contextKeyService));
 
 	private remoteMenuActionsGroups: ActionGroup[] | undefined;
@@ -247,7 +246,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			this.updateRemoteStatusIndicator();
 		};
 
-		this._register(this.legacyIndicatorMenu.onDidChange(updateRemoteActions));
 		this._register(this.remoteIndicatorMenu.onDidChange(updateRemoteActions));
 
 		// Update indicator when formatter changes as it may have an impact on the remote label
@@ -463,7 +461,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private validatedGroup(group: string) {
-		if (!group.match(/^(remote|virtualfs)_(\d\d)_(([a-z][a-z0-9+.-]*)_(.*))$/)) {
+		if (!group.match(/^(remote|virtualfs)_(\d\d)_(([a-z][a-z0-9+.-]*)_(.*))$/) && !group.startsWith('z-general_')) {
 			if (!this.loggedInvalidGroupNames[group]) {
 				this.loggedInvalidGroupNames[group] = true;
 				this.logService.warn(`Invalid group name used in "statusBar/remoteIndicator" menu contribution: ${group}. Entries ignored. Expected format: 'remote_$ORDER_$REMOTENAME_$GROUPING or 'virtualfs_$ORDER_$FILESCHEME_$GROUPING.`);
@@ -475,7 +473,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private getRemoteMenuActions(doNotUseCache?: boolean): ActionGroup[] {
 		if (!this.remoteMenuActionsGroups || doNotUseCache) {
-			this.remoteMenuActionsGroups = this.remoteIndicatorMenu.getActions().filter(a => this.validatedGroup(a[0])).concat(this.legacyIndicatorMenu.getActions());
+			this.remoteMenuActionsGroups = this.remoteIndicatorMenu.getActions().filter(a => this.validatedGroup(a[0]));
 		}
 		return this.remoteMenuActionsGroups;
 	}
@@ -816,9 +814,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		});
 
 		// refresh the items when actions change
-		const legacyItemUpdater = this.legacyIndicatorMenu.onDidChange(() => quickPick.items = computeItems());
-		quickPick.onDidHide(legacyItemUpdater.dispose);
-
 		const itemUpdater = this.remoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems());
 		quickPick.onDidHide(itemUpdater.dispose);
 
