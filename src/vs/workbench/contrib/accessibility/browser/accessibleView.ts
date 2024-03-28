@@ -320,10 +320,10 @@ export class AccessibleView extends Disposable {
 
 		if (position) {
 			// Context view takes time to show up, so we need to wait for it to show up before we can set the position
-			setTimeout(() => {
+			queueMicrotask(() => {
 				this._editorWidget.revealLine(position.lineNumber);
 				this._editorWidget.setSelection({ startLineNumber: position.lineNumber, startColumn: position.column, endLineNumber: position.lineNumber, endColumn: position.column });
-			}, 10);
+			});
 		}
 
 		if (symbol && this._currentProvider) {
@@ -675,14 +675,14 @@ export class AccessibleView extends Disposable {
 			onClose: () => {
 				this._contextViewService.hideContextView();
 				// HACK: Delay to allow the context view to hide #207638
-				setTimeout(() => this.show(lastProvider), 100);
+				queueMicrotask(() => this.show(lastProvider));
 			},
 			options: { type: AccessibleViewType.Help },
 			verbositySettingKey: lastProvider.verbositySettingKey
 		};
 		this._contextViewService.hideContextView();
 		// HACK: Delay to allow the context view to hide #186514
-		setTimeout(() => this.show(accessibleViewHelpProvider, undefined, true), 100);
+		queueMicrotask(() => this.show(accessibleViewHelpProvider, undefined, true));
 	}
 
 	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
