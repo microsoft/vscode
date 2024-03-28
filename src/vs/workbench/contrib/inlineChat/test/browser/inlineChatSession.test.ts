@@ -60,6 +60,8 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { TestExtensionService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IChatAgentService, ChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { MockChatContributionService } from 'vs/workbench/contrib/chat/test/common/mockChatContributionService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 
 
 suite('ReplyResponse', function () {
@@ -134,6 +136,7 @@ suite('InlineChatSession', function () {
 			[IContextKeyService, contextKeyService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
+			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
 					// noop
