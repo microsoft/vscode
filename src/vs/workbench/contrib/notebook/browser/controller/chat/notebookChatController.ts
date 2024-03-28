@@ -5,11 +5,13 @@
 
 import { Dimension, IFocusTracker, WindowIntervalTimer, getWindow, scheduleAtNextAnimationFrame, trackFocus } from 'vs/base/browser/dom';
 import { CancelablePromise, Queue, createCancelablePromise, disposableTimeout, raceCancellationError } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
+import { Mimes } from 'vs/base/common/mime';
 import { Schemas } from 'vs/base/common/network';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -47,7 +49,7 @@ import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/brows
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 class NotebookChatWidget extends Disposable implements INotebookViewZone {
@@ -1010,6 +1012,101 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	}
 }
 
+export class NotebookPromptCellController extends Disposable implements INotebookEditorContribution {
+	static id: string = 'workbench.notebook.promptCellController';
+	static counter: number = 0;
+
+	public static get(editor: INotebookEditor): NotebookPromptCellController | null {
+		return editor.getContribution<NotebookPromptCellController>(NotebookPromptCellController.id);
+	}
+
+	private _sessionMap = new Map<string, Session>();
+
+	constructor(
+		private readonly _notebookEditor: INotebookEditor,
+		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,) {
+		super();
+	}
+
+	async acquireSession(editor: IActiveCodeEditor): Promise<Session | undefined> {
+		const key = editor.getModel().uri.toString();
+		if (this._sessionMap.has(key)) {
+			const session = this._sessionMap.get(key);
+			return session;
+		}
+
+		const session = await this._inlineChatSessionService.createSession(
+			editor,
+			{ editMode: EditMode.Live },
+			CancellationToken.None
+		);
+
+		if (!session) {
+			return;
+		}
+
+		this._sessionMap.set(key, session);
+		return session;
+	}
+
+	async acceptInput(cell: ICellViewModel) {
+		const key = cell.uri.toString();
+		const session = this._sessionMap.get(key);
+		if (!session) {
+			return;
+		}
+
+		const input = cell.model.getValue();
+		session.addInput(new SessionPrompt(input, 0, true));
+
+		const request: IInlineChatRequest = {
+			requestId: generateUuid(),
+			prompt: input,
+			attempt: session.lastInput?.attempt ?? 0,
+			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
+			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+			live: true,
+			previewDocument: cell.uri,
+			withIntentDetection: true, // TODO: don't hard code but allow in corresponding UI to run without intent detection?
+		};
+		const activeRequestCts = new CancellationTokenSource();
+		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
+			const index = this._notebookEditor.getCellIndex(cell);
+			if (data.message && index !== undefined) {
+				this._notebookEditor.textModel?.applyEdits([
+					{
+						editType: CellEditType.Output, index: index, outputs: [
+							{
+								outputId: 'append1',
+								outputs: [{ mime: Mimes.markdown, data: VSBuffer.fromString(data.message) }]
+							}
+						]
+					}
+				], true, undefined, () => undefined, undefined, false);
+			}
+		});
+
+		const task = session.provider.provideResponse(session.session, request, progress, activeRequestCts.token);
+		const reply = await raceCancellationError(Promise.resolve(task), activeRequestCts.token);
+		if (!reply) {
+			return;
+		}
+		const index = this._notebookEditor.getCellIndex(cell);
+		if (index !== undefined) {
+			this._notebookEditor.textModel?.applyEdits([
+				{
+					editType: CellEditType.Output, index: index, outputs: [
+						{
+							outputId: 'append1',
+							outputs: [{ mime: Mimes.markdown, data: VSBuffer.fromString(reply.message?.value ?? '') }]
+						}
+					]
+				}
+			], true, undefined, () => undefined, undefined, false);
+		}
+	}
+}
+
 export class EditStrategy {
 	private _editCount: number = 0;
 
@@ -1085,3 +1182,4 @@ export class EditStrategy {
 
 
 registerNotebookContribution(NotebookChatController.id, NotebookChatController);
+registerNotebookContribution(NotebookPromptCellController.id, NotebookPromptCellController);
