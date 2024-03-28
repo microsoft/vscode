@@ -561,7 +561,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	let lastTimeScrolled: number | undefined;
 	function flagRecentlyScrolled(node: Element, deltaY?: number) {
 		scrolledElement = node;
-		if (!deltaY) {
+		if (deltaY === undefined) {
 			lastTimeScrolled = Date.now();
 			previousDelta = undefined;
 			node.setAttribute('recentlyScrolled', 'true');

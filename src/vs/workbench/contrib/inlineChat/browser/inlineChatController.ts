@@ -934,7 +934,15 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.updatePositionAndHeight(widgetPosition);
 
 		} else if (initialRender) {
-			widgetPosition = this._editor.getSelection().getStartPosition();
+			const selection = this._editor.getSelection();
+			widgetPosition = selection.getStartPosition();
+			// TODO@jrieken we are not ready for this
+			// widgetPosition = selection.getEndPosition();
+			// if (Range.spansMultipleLines(selection) && widgetPosition.column === 1) {
+			// 	// selection ends on "nothing" -> move up to match the
+			// 	// rendered/visible part of the selection
+			// 	widgetPosition = this._editor.getModel().validatePosition(widgetPosition.delta(-1, Number.MAX_SAFE_INTEGER));
+			// }
 			this._input.value.show(widgetPosition);
 
 		} else {

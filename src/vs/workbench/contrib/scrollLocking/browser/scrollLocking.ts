@@ -97,7 +97,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 			}
 
 			if (!isEditorPaneWithScrolling(pane)) {
-				return;
+				continue;
 			}
 
 			const initialOffset = this.paneInitialScrollTop.get(pane);
@@ -105,10 +105,17 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 				throw new Error('Could not find initial offset for pane');
 			}
 
-			pane.setScrollPosition({
+			const currentPanePosition = pane.getScrollPosition();
+			const newPaneScrollPosition = {
 				scrollTop: initialOffset.scrollTop + scrolledFromInitial.scrollTop,
 				scrollLeft: initialOffset.scrollLeft !== undefined && scrolledFromInitial.scrollLeft !== undefined ? initialOffset.scrollLeft + scrolledFromInitial.scrollLeft : undefined,
-			});
+			};
+
+			if (currentPanePosition.scrollTop === newPaneScrollPosition.scrollTop && currentPanePosition.scrollLeft === newPaneScrollPosition.scrollLeft) {
+				continue;
+			}
+
+			pane.setScrollPosition(newPaneScrollPosition);
 		}
 	}
 

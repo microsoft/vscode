@@ -37,8 +37,9 @@ import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
 import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
-import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
+import { IMultiDiffEditorOptions, IMultiDiffResourceId } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { IRange } from 'vs/editor/common/core/range';
+import { CachedFunction, LRUCachedFunction } from 'vs/base/common/cache';
 
 const enum State {
 	Data = 'data',
@@ -70,8 +71,6 @@ export class BulkEditPane extends ViewPane {
 	private _currentResolve?: (edit?: ResourceEdit[]) => void;
 	private _currentInput?: BulkFileOperations;
 	private _currentProvider?: BulkEditPreviewProvider;
-	private _fileOperations?: BulkFileOperation[];
-	private _resources?: IResourceDiffEditorInput[];
 
 	constructor(
 		options: IViewletViewOptions,
@@ -345,12 +344,13 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		const resources = await this._resolveResources(fileOperations);
+		const result = await this._computeResourceDiffEditorInputs.get(fileOperations);
+		const resourceId = await result.getResourceDiffEditorInputIdOfOperation(fileElement.edit);
 		const options: Mutable<IMultiDiffEditorOptions> = {
 			...e.editorOptions,
 			viewState: {
 				revealData: {
-					resource: { original: fileElement.edit.uri },
+					resource: resourceId,
 					range: selection,
 				}
 			}
@@ -359,49 +359,56 @@ export class BulkEditPane extends ViewPane {
 		const label = 'Refactor Preview';
 		this._editorService.openEditor({
 			multiDiffSource,
-			resources,
 			label,
 			options,
 			isTransient: true,
-			description: label
+			description: label,
+			resources: result.resources
 		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	private async _resolveResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
-		if (this._fileOperations === fileOperations && this._resources) {
-			return this._resources;
-		}
-		const sortedFileOperations = fileOperations.sort(compareBulkFileOperations);
-		const resources: IResourceDiffEditorInput[] = [];
-		for (const operation of sortedFileOperations) {
-			const operationUri = operation.uri;
-			const previewUri = this._currentProvider!.asPreviewUri(operationUri);
-			// delete -> show single editor
-			if (operation.type & BulkFileOperationType.Delete) {
-				resources.push({
-					original: { resource: undefined },
-					modified: { resource: URI.revive(previewUri) }
-				});
+	private readonly _computeResourceDiffEditorInputs = new LRUCachedFunction(async (fileOperations: BulkFileOperation[]) => {
+		const computeDiffEditorInput = new CachedFunction<BulkFileOperation, Promise<IResourceDiffEditorInput>>(async (fileOperation) => {
+			const fileOperationUri = fileOperation.uri;
+			const previewUri = this._currentProvider!.asPreviewUri(fileOperationUri);
+			// delete
+			if (fileOperation.type & BulkFileOperationType.Delete) {
+				return {
+					original: { resource: URI.revive(previewUri) },
+					modified: { resource: undefined }
+				};
 
-			} else {
-				// rename, create, edits -> show diff editr
+			}
+			// rename, create, edits
+			else {
 				let leftResource: URI | undefined;
 				try {
-					(await this._textModelService.createModelReference(operationUri)).dispose();
-					leftResource = operationUri;
+					(await this._textModelService.createModelReference(fileOperationUri)).dispose();
+					leftResource = fileOperationUri;
 				} catch {
 					leftResource = BulkEditPreviewProvider.emptyPreview;
 				}
-				resources.push({
+				return {
 					original: { resource: URI.revive(leftResource) },
 					modified: { resource: URI.revive(previewUri) }
-				});
+				};
 			}
+		});
+
+		const sortedFileOperations = fileOperations.slice().sort(compareBulkFileOperations);
+		const resources: IResourceDiffEditorInput[] = [];
+		for (const operation of sortedFileOperations) {
+			resources.push(await computeDiffEditorInput.get(operation));
 		}
-		this._fileOperations = fileOperations;
-		this._resources = resources;
-		return resources;
-	}
+		const getResourceDiffEditorInputIdOfOperation = async (operation: BulkFileOperation): Promise<IMultiDiffResourceId> => {
+			const resource = await computeDiffEditorInput.get(operation);
+			return { original: resource.original.resource, modified: resource.modified.resource };
+		};
+		return {
+			resources,
+			getResourceDiffEditorInputIdOfOperation
+		};
+	}, key => key);
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
 
