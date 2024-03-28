@@ -184,7 +184,10 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 						mnemonicTitle: localize({ key: 'miToggleLockedScrolling', comment: ['&& denotes a mnemonic'] }, "Locked Scrolling"),
 					},
 					category: Categories.View,
-					f1: true
+					f1: true,
+					metadata: {
+						description: localize('synchronizeScrolling', "Synchronize Scrolling Editors"),
+					}
 				});
 			}
 
