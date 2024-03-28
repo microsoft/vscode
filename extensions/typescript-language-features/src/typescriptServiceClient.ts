@@ -1020,20 +1020,48 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	) {
 		const disposable = new DisposableStore();
 
-		// TODO:: not sure whwere we check typescript version but this has to be 5.4+ or 5.5 depeneding on which version of typescript the protocol changes go into
+		const events = { updated: new Set<string>(), created: new Set<string>(), deleted: new Set<string>() };
 
-		const watcher = disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes: [] /* TODO need to fill in excludes list */, ignoreChangeEvents }));
+		let timeout: NodeJS.Timeout | undefined;
+		disposable.add({ dispose: () => clearTimeout(timeout) });
 
-		// TODO:: Batch these together
-		disposable.add(watcher.onDidChange(changeFile =>
-			this.executeWithoutWaitingForResponse('watchChange', { id, updated: [changeFile.fsPath] })
-		));
-		disposable.add(watcher.onDidCreate(createFile =>
-			this.executeWithoutWaitingForResponse('watchChange', { id, created: [createFile.fsPath] })
-		));
-		disposable.add(watcher.onDidDelete(deletedFile =>
-			this.executeWithoutWaitingForResponse('watchChange', { id, deleted: [deletedFile.fsPath] }) // TODO:: add satifies for all of these when we publish
-		));
+		const executeWatchChangeRequest = () => {
+			try {
+				// TODO:: not sure whwere we check typescript version but this has to be 5.4+ or 5.5 depeneding on which version of typescript the protocol changes go into
+				this.executeWithoutWaitingForResponse('watchChange', {
+					id,
+					updated: events.updated.size > 0 ? Array.from(events.updated) : undefined,
+					created: events.created.size > 0 ? Array.from(events.created) : undefined,
+					deleted: events.deleted.size > 0 ? Array.from(events.deleted) : undefined
+				});
+			} finally {
+				events.updated.clear();
+				events.created.clear();
+				events.deleted.clear();
+
+				timeout = undefined;
+			}
+		};
+
+		const scheduleExecuteWatchChangeRequest = () => {
+			if (!timeout) {
+				timeout = setTimeout(() => executeWatchChangeRequest(), 100 /* aggregate events over 100ms to reduce client<->server IPC overhead */);
+			}
+		};
+
+		const watcher = disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes: [] /* TODO:: need to fill in excludes list */, ignoreChangeEvents }));
+		disposable.add(watcher.onDidChange(changeFile => {
+			events.updated.add(changeFile.fsPath);
+			scheduleExecuteWatchChangeRequest();
+		}));
+		disposable.add(watcher.onDidCreate(createFile => {
+			events.created.add(createFile.fsPath);
+			scheduleExecuteWatchChangeRequest();
+		}));
+		disposable.add(watcher.onDidDelete(deletedFile => {
+			events.deleted.add(deletedFile.fsPath);
+			scheduleExecuteWatchChangeRequest();
+		}));
 
 		if (this.watches.has(id)) {
 			this.closeFileSystemWatcher(id);
