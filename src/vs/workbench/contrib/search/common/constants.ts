@@ -50,6 +50,7 @@ export const enum SearchCommandIds {
 	RestrictSearchToFolderId = 'search.action.restrictSearchToFolder',
 	FindInFolderId = 'filesExplorer.findInFolder',
 	FindInWorkspaceId = 'filesExplorer.findInWorkspace',
+	ExpandSelectedTreeActionId = 'search.action.expandSelected',
 }
 
 export const SearchContext = {
