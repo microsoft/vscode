@@ -124,7 +124,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		}
 		return {
 			position: this._position,
-			preference: [ContentWidgetPositionPreference.BELOW]
+			preference: [ContentWidgetPositionPreference.ABOVE]
 		};
 	}
 
