@@ -1049,7 +1049,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
-		if (this.configuration.data.githubAccessToken && gitHubDetails && !this.nonGitHubIssueUrl) {
+		if (this.configuration.data.githubAccessToken && gitHubDetails) {
 			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 
