@@ -214,12 +214,6 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		this._kernels.set(kernel.id, new KernelInfo(kernel));
 		this._onDidAddKernel.fire(kernel);
 
-		// auto associate the new kernel to existing notebooks it was
-		// associated to in the past.
-		for (const notebook of this._notebookService.getNotebookTextModels()) {
-			this._tryAutoBindNotebook(notebook, kernel);
-		}
-
 		return toDisposable(() => {
 			if (this._kernels.delete(kernel.id)) {
 				this._onDidRemoveKernel.fire(kernel);
@@ -230,6 +224,14 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 				}
 			}
 		});
+	}
+
+	tryAutoBindKernel(kernel: INotebookKernel): void {
+		// auto associate the new kernel to existing notebooks it was
+		// associated to in the past.
+		for (const notebook of this._notebookService.getNotebookTextModels()) {
+			this._tryAutoBindNotebook(notebook, kernel);
+		}
 	}
 
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult {

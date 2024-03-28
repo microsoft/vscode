@@ -119,6 +119,7 @@ export interface INotebookKernelService {
 	readonly onDidChangeNotebookAffinity: Event<void>;
 	readonly onDidNotebookVariablesUpdate: Event<URI>;
 	registerKernel(kernel: INotebookKernel): IDisposable;
+	tryAutoBindKernel(kernel: INotebookKernel): void;
 
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
 
