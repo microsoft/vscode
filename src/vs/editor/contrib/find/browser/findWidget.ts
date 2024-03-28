@@ -518,6 +518,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					this._toggleSelectionFind.checked = isSelectionMultipleLine;
 					break;
 				}
+				case 'selection': {
+					const doesSelectionExist = !!selection &&
+						(selection.startLineNumber !== selection.endLineNumber ||
+							selection.startColumn !== selection.endColumn);
+					this._toggleSelectionFind.checked = doesSelectionExist;
+					break;
+				}
 				default:
 					break;
 			}
