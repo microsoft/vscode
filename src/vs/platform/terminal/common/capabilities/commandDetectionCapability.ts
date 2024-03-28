@@ -281,6 +281,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandStart(options?: IHandleCommandOptions): void {
 		this._handleCommandStartOptions = options;
+		this._currentCommand.cwd = this._cwd;
 		// Only update the column if the line has already been set
 		this._currentCommand.commandStartMarker = options?.marker || this._currentCommand.commandStartMarker;
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
