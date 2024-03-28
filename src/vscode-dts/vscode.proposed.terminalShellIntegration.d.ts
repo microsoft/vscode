@@ -51,12 +51,12 @@ declare module 'vscode' {
 		 * @example
 		 * // Log all data written to the terminal for a command
 		 * const command = term.shellIntegration.executeCommand({ commandLine: 'echo "Hello world"' });
-		 * const stream = command.createDataStream();
+		 * const stream = command.readData();
 		 * for await (const data of stream) {
 		 *   console.log(data);
 		 * }
 		 */
-		createDataStream(): AsyncIterable<string>;
+		readData(): AsyncIterable<string>;
 	}
 
 	export interface Terminal {
