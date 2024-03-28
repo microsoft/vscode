@@ -337,9 +337,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return task._label;
 		});
-		this._lifecycleService.onBeforeShutdown(e => {
+		this._register(this._lifecycleService.onBeforeShutdown(e => {
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
-		});
+		}));
 		this._register(this.onDidStateChange(e => {
 			this._log(nls.localize('taskEvent', 'Task Event kind: {0}', e.kind), true);
 			if (e.kind === TaskEventKind.Changed) {
