@@ -29,7 +29,8 @@ rmp-serde = "1.1.1"
 uuid = { version = "1.4", features = ["serde", "v4"] }
 dirs = "5.0.1"
 rand = "0.8.5"
-opentelemetry = { version = "0.19.0", features = ["rt-tokio"] }
+opentelemetry = { version = "0.22.0" }
+opentelemetry_sdk = { version = "0.22.0", features = ["rt-tokio"] }
 serde_bytes = "0.11.9"
 chrono = { version = "0.4.26", features = ["serde", "std", "clock"], default-features = false }
 gethostname = "0.4.3"
