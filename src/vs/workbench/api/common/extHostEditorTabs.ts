@@ -264,14 +264,22 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 						return this._closeTabs(tabsOrTabGroups as vscode.Tab[], preserveFocus);
 					}
 				},
-				// move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean) => {
-				// 	const extHostTab = this._findExtHostTabFromApi(tab);
-				// 	if (!extHostTab) {
-				// 		throw new Error('Invalid tab');
-				// 	}
-				// 	this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preserveFocus);
-				// 	return;
-				// }
+				reveal: async (tab: vscode.Tab, preserveFocus?: boolean) => {
+					const extHostTab = this._findExtHostTabFromApi(tab);
+					if (!extHostTab) {
+						throw new Error('Invalid tab');
+					}
+					this._proxy.$revealTab(extHostTab.tabId, preserveFocus);
+					return;
+				},
+				move: async (tab: vscode.Tab, viewColumn: vscode.ViewColumn, index?: number, preserveFocus?: boolean) => {
+					const extHostTab = this._findExtHostTabFromApi(tab);
+					if (!extHostTab) {
+						throw new Error('Invalid tab');
+					}
+					this._proxy.$moveTab(extHostTab.tabId, index ?? -1, typeConverters.ViewColumn.from(viewColumn), preserveFocus);
+					return;
+				}
 			};
 			this._apiObject = Object.freeze(obj);
 		}

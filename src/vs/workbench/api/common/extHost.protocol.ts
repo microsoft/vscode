@@ -786,6 +786,7 @@ export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | Mu
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
 	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean): void;
+	$revealTab(tabId: string, preserveFocus?: boolean): void;
 	$closeTab(tabIds: string[], preserveFocus?: boolean): Promise<boolean>;
 	$closeGroup(groupIds: number[], preservceFocus?: boolean): Promise<boolean>;
 }
