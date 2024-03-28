@@ -20,6 +20,7 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
 import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
+import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 
 enum Language {
 	TypeScript,
@@ -314,6 +315,78 @@ suite('Change Indentation to Tabs -  TypeScript/Javascript', () => {
 			],
 			new Selection(1, 6, 1, 6)
 		);
+	});
+});
+
+suite('Indent With Tab - TypeScript/JavaScript', () => {
+
+	const languageId = 'ts-test';
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('temp issue because there should be at least one passing test in a suite', () => {
+		assert.ok(true);
+	});
+
+	test.skip('issue #63388: perserve correct indentation on tab 1', () => {
+
+		// https://github.com/microsoft/vscode/issues/63388
+
+		const model = createTextModel([
+			'/*',
+			' * Comment',
+			' * /',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(1, 1, 3, 5));
+			editor.executeCommands('editor.action.indentLines', TypeOperations.indent(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
+			assert.strictEqual(model.getValue(), [
+				'    /*',
+				'     * Comment',
+				'     * /',
+			].join('\n'));
+		});
+	});
+
+	test.skip('issue #63388: perserve correct indentation on tab 2', () => {
+
+		// https://github.com/microsoft/vscode/issues/63388
+
+		const model = createTextModel([
+			'switch (something) {',
+			'  case 1:',
+			'    whatever();',
+			'    break;',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(1, 1, 5, 2));
+			editor.executeCommands('editor.action.indentLines', TypeOperations.indent(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
+			assert.strictEqual(model.getValue(), [
+				'    switch (something) {',
+				'        case 1:',
+				'            whatever();',
+				'            break;',
+				'    }',
+			].join('\n'));
+		});
 	});
 });
 
@@ -637,8 +710,8 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 2));
 			assert.strictEqual(model.getValue(), [
 				'function makeSub(a,b) {',
-				'    subsent = sent.substring(a,b);',
-				'    return subsent;',
+				'subsent = sent.substring(a,b);',
+				'return subsent;',
 				'}',
 			].join('\n'));
 		});
@@ -1174,11 +1247,40 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test.skip('issue #46401: outdent when encountering bracket on line - allman style indentation', () => {
+
+		// https://github.com/microsoft/vscode/issues/46401
+
+		const model = createTextModel([
+			'if (true)',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.TypeScript, disposables);
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type("{}", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if (true)',
+				'{}',
+			].join('\n'));
+
+			editor.setSelection(new Selection(2, 2, 2, 2));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if (true)',
+				'{',
+				'    ',
+				'}'
+			].join('\n'));
+		});
+	});
 
 	// Add tests for:
 	// https://github.com/microsoft/vscode/issues/88638
 	// https://github.com/microsoft/vscode/issues/63388
-	// https://github.com/microsoft/vscode/issues/46401
 	// https://github.com/microsoft/vscode/issues/174044
 });
 
@@ -1396,6 +1498,29 @@ suite('Auto Indent On Type - CPP', () => {
 			].join('\n'));
 		});
 	});
+
+	test.skip('issue #111265: auto indentation set to "none" still changes the indentation', () => {
+
+		// https://github.com/microsoft/vscode/issues/111265
+
+		const model = createTextModel([
+			'int func() {',
+			'		',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "none" }, (editor, viewModel, instantiationService) => {
+
+			registerLanguage(instantiationService, languageId, Language.CPP, disposables);
+			editor.setSelection(new Selection(2, 3, 2, 3));
+			viewModel.type("}", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'int func() {',
+				'		}',
+			].join('\n'));
+		});
+	});
+
 });
 
 suite('Auto Indent On Type - HTML', () => {
