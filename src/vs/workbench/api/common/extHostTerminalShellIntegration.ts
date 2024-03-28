@@ -240,7 +240,7 @@ class InternalTerminalShellExecution {
 			get exitCode(): Promise<number | undefined> {
 				return that._exitCode;
 			},
-			createDataStream(): AsyncIterable<string> {
+			readData(): AsyncIterable<string> {
 				return that._createDataStream();
 			}
 		};
