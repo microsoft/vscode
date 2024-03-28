@@ -2063,6 +2063,10 @@ export interface IEditorHoverOptions {
 	 * Defaults to false.
 	 */
 	above?: boolean;
+	/**
+	 * Enable locking of the hover
+	 */
+	enableLocking?: boolean;
 }
 
 /**
@@ -2079,6 +2083,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			hidingDelay: 300,
 			sticky: true,
 			above: true,
+			enableLocking: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -2111,6 +2116,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.above,
 					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
 				},
+				'editor.hover.enableLocking': {
+					type: 'boolean',
+					default: defaults.enableLocking,
+					description: nls.localize('editor.hover.enableLocking', "Enable the locking of the hover. If enabled, the value of `editor.multiCursorModifier` will be used for locking.")
+				},
 			}
 		);
 	}
@@ -2126,6 +2136,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
+			enableLocking: boolean(input.enableLocking, this.defaultValue.enableLocking),
 		};
 	}
 }
@@ -5816,7 +5827,7 @@ export const EditorOptions = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition and Open Link mouse gestures will adapt such that they do not conflict with the [multicursor modifier](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
+			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition, Open Link mouse and Lock Hover gestures will adapt such that they do not conflict with the [multicursor modifier](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
 		}
 	)),
 	multiCursorPaste: register(new EditorStringEnumOption(
