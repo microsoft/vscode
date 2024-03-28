@@ -54,6 +54,7 @@ export class IssueReporter extends Disposable {
 	private selectedExtension = '';
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
+	private nonGitHubIssueUrl = false;
 
 	constructor(
 		private readonly configuration: IssueReporterWindowConfiguration,
@@ -535,6 +536,9 @@ export class IssueReporter extends Disposable {
 			issueRepoName.removeAttribute('style');
 			hide(issueRepoName);
 		}
+
+		// Initial check when first opened.
+		this.parseGitHubUrl(this.getIssueUrl());
 	}
 
 	private isPreviewEnabled() {
@@ -850,7 +854,7 @@ export class IssueReporter extends Disposable {
 			show(extensionSelector);
 		}
 
-		if (fileOnExtension && selectedExtension?.hasIssueUriRequestHandler && !selectedExtension.hasIssueDataProviders) {
+		if (fileOnExtension && (selectedExtension && this.nonGitHubIssueUrl) || (selectedExtension?.hasIssueUriRequestHandler && !selectedExtension.hasIssueDataProviders)) {
 			hide(titleTextArea);
 			hide(descriptionTextArea);
 			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
@@ -859,14 +863,6 @@ export class IssueReporter extends Disposable {
 			return;
 		}
 
-		if (fileOnExtension && selectedExtension?.id.toLowerCase() === 'github.copilot') {
-			hide(titleTextArea);
-			hide(descriptionTextArea);
-			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
-			reset(descriptionSubtitle, localize('elsewhereDescription', "The '{0}' extension prefers to use an external issue reporter. To be taken to that issue reporting experience, click the button below.", selectedExtension.displayName));
-			this.previewButton.label = localize('openIssueReporter', "Open External Issue Reporter");
-			return;
-		}
 
 		if (fileOnExtension && selectedExtension?.hasIssueDataProviders) {
 			const data = this.getExtensionData();
@@ -995,7 +991,7 @@ export class IssueReporter extends Disposable {
 
 	private async createIssue(): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		const hasUri = selectedExtension?.hasIssueUriRequestHandler || selectedExtension?.id.toLowerCase() === 'github.copilot';
+		const hasUri = selectedExtension?.hasIssueUriRequestHandler || this.nonGitHubIssueUrl;
 		const hasData = selectedExtension?.hasIssueDataProviders;
 		// Short circuit if the extension provides a custom issue handler
 		if (hasUri && !hasData) {
@@ -1053,7 +1049,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
-		if (this.configuration.data.githubAccessToken && gitHubDetails) {
+		if (this.configuration.data.githubAccessToken && gitHubDetails && !this.nonGitHubIssueUrl) {
 			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 
@@ -1095,13 +1091,15 @@ export class IssueReporter extends Disposable {
 	private parseGitHubUrl(url: string): undefined | { repositoryName: string; owner: string } {
 		// Assumes a GitHub url to a particular repo, https://github.com/repositoryName/owner.
 		// Repository name and owner cannot contain '/'
-		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);
+		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)$/.exec(url);
 		if (match && match.length) {
+			this.nonGitHubIssueUrl = false;
 			return {
 				owner: match[1],
 				repositoryName: match[2]
 			};
 		} else {
+			this.nonGitHubIssueUrl = true;
 			console.error('No GitHub match');
 		}
 
@@ -1404,6 +1402,7 @@ export class IssueReporter extends Disposable {
 		this.searchExtensionIssues(title);
 
 		this.updatePreviewButtonState();
+		this.parseGitHubUrl(this.getIssueUrl());
 		this.renderBlocks();
 	}
 
