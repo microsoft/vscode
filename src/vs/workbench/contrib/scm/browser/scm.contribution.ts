@@ -342,6 +342,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.workingSets.enabled', "Controls whether to store editor working sets when switching between source control history item groups."),
 			default: false
 		},
+		'scm.workingSets.default': {
+			type: 'string',
+			enum: ['empty', 'current'],
+			enumDescriptions: [
+				localize('scm.workingSets.default.empty', "Use an empty working set when switching to a source control history item group that does not have a working set."),
+				localize('scm.workingSets.default.current', "Use the current working set when switching to a source control history item group that does not have a working set.")
+			],
+			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
+			default: 'current'
+		}
 	}
 });
 

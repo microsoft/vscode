@@ -26,7 +26,7 @@ interface ISCMRepositoryWorkingSet {
 export class SCMWorkingSetController implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.scmWorkingSets';
 
-	private readonly _workingSets: Map<string, ISCMRepositoryWorkingSet>;
+	private _workingSets!: Map<string, ISCMRepositoryWorkingSet>;
 	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();
 	private readonly _scmServiceDisposables = new DisposableStore();
 	private readonly _disposables = new DisposableStore();
@@ -37,8 +37,6 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 		@ISCMService private readonly scmService: ISCMService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
-		this._workingSets = this._loadWorkingSets();
-
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.workingSets.enabled'), this._disposables);
 		this._disposables.add(Event.runAndSubscribe(onDidChangeConfiguration, () => this._onDidChangeConfiguration()));
 	}
@@ -52,6 +50,8 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 
 			return;
 		}
+
+		this._workingSets = this._loadWorkingSets();
 
 		this.scmService.onDidAddRepository(this._onDidAddRepository, this, this._scmServiceDisposables);
 		this.scmService.onDidRemoveRepository(this._onDidRemoveRepository, this, this._scmServiceDisposables);
@@ -69,7 +69,11 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 				return;
 			}
 
-			disposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(async () => {
+			disposables.add(Event.runAndSubscribe(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup, async () => {
+				if (this.scmService.repositoryCount > 1) {
+					return;
+				}
+
 				if (!repository.provider.historyProvider?.currentHistoryItemGroup?.id) {
 					return;
 				}
@@ -144,8 +148,7 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 		const editorWorkingSetId = workingSets.editorWorkingSets.get(currentHistoryItemGroupId);
 		if (editorWorkingSetId) {
 			await this.editorGroupsService.applyWorkingSet(editorWorkingSetId);
-		} else {
-			// TODO@lszomoru - use setting to control this behaviour
+		} else if (this.configurationService.getValue<'empty' | 'current'>('scm.workingSets.default') === 'empty') {
 			await Promise.all(this.editorGroupsService.groups.map(group => group.closeAllEditors()));
 		}
 	}
