@@ -183,6 +183,9 @@ __vsc_continuation_end() {
 }
 
 __vsc_command_complete() {
+	if [[ -z "$__vsc_first_prompt" ]]; then
+		builtin return
+	fi
 	if [ "$__vsc_current_command" = "" ]; then
 		builtin printf '\e]633;D\a'
 	else
@@ -213,6 +216,7 @@ __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
 	__vsc_update_prompt
+	__vsc_first_prompt=1
 }
 
 __vsc_preexec() {
