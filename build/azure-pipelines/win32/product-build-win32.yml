@@ -157,18 +157,19 @@ steps:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Build client
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
-          mv ..\vscode-reh-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH) # TODO@joaomoreno
-          echo "##vso[task.setvariable variable=BUILT_SERVER]true"
-          echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)"
-        env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        displayName: Build server
-        condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
+        mv ..\vscode-reh-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH) # TODO@joaomoreno
+        echo "##vso[task.setvariable variable=BUILT_SERVER]true"
+        echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)"
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Build server
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
+    - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
