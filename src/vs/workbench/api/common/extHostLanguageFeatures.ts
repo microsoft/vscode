@@ -16,6 +16,7 @@ import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { assertType, isObject } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { generateUuid } from 'vs/base/common/uuid';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
@@ -255,27 +256,48 @@ class TypeDefinitionAdapter {
 
 class HoverAdapter {
 
+	private _hoverMap = new Map<string, vscode.Hover>();
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	async provideHover(resource: URI, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
+	async provideHover(resource: URI, position: IPosition, context: languages.HoverContext | undefined, token: CancellationToken): Promise<languages.Hover | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		const value = await this._provider.provideHover(doc, pos, token);
+		let value: vscode.Hover | null | undefined;
+		if (context && context.hover && context.action) {
+			const previousHover = this._hoverMap.get(context.hover.id);
+			if (!previousHover) {
+				throw new Error(`Hover with id ${context.hover.id} not found`);
+			}
+			value = await this._provider.provideHover(doc, pos, token, { action: context.action, previousHover });
+		} else {
+			value = await this._provider.provideHover(doc, pos, token);
+		}
+
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}
+		const id = generateUuid();
+		this._hoverMap.set(id, value);
 		if (!value.range) {
 			value.range = doc.getWordRangeAtPosition(pos);
 		}
 		if (!value.range) {
 			value.range = new Range(pos, pos);
 		}
-		return typeConvert.Hover.from(value);
+		return {
+			...typeConvert.Hover.from(value),
+			id
+		};
+	}
+
+	releaseHover(id: string): void {
+		this._hoverMap.delete(id);
 	}
 }
 
@@ -2224,8 +2246,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
-		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token), undefined, token);
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext | undefined, token: CancellationToken,): Promise<languages.Hover | undefined> {
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, context, token), undefined, token);
+	}
+
+	$releaseHover(handle: number, id: string): void {
+		this._withAdapter(handle, HoverAdapter, adapter => Promise.resolve(adapter.releaseHover(id)), undefined, undefined);
 	}
 
 	// --- debug hover

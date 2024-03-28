@@ -26,6 +26,9 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
+import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnums';
 
 const $ = dom.$;
 
@@ -36,6 +39,7 @@ export class ContentHoverController extends Disposable {
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
+	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	constructor(
@@ -50,7 +54,11 @@ export class ContentHoverController extends Disposable {
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
-			this._participants.push(this._instantiationService.createInstance(participant, this._editor));
+			const participantInstance = this._instantiationService.createInstance(participant, this._editor);
+			if (participantInstance instanceof MarkdownHoverParticipant && !(participantInstance instanceof InlayHintsHover)) {
+				this._markdownHoverParticipant = participantInstance;
+			}
+			this._participants.push(participantInstance);
 		}
 		this._participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
 
@@ -212,6 +220,7 @@ export class ContentHoverController extends Disposable {
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
+			disposables,
 			setColorPicker: (widget) => colorPicker = widget,
 			onContentsChanged: () => this._widget.onContentsChanged(),
 			setMinimumDimensions: (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions),
@@ -221,7 +230,10 @@ export class ContentHoverController extends Disposable {
 		for (const participant of this._participants) {
 			const hoverParts = messages.filter(msg => msg.owner === participant);
 			if (hoverParts.length > 0) {
-				disposables.add(participant.renderHoverParts(context, hoverParts));
+				const participantDisposables = participant.renderHoverParts(context, hoverParts);
+				if (participantDisposables) {
+					disposables.add(participantDisposables);
+				}
 			}
 		}
 
@@ -351,6 +363,10 @@ export class ContentHoverController extends Disposable {
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
+	}
+
+	public async updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
+		this._markdownHoverParticipant?.updateFocusedMarkdownHoverVerbosityLevel(action);
 	}
 
 	public getWidgetContent(): string | undefined {
@@ -976,6 +992,7 @@ export class EditorHoverStatusBar extends Disposable implements IEditorHoverStat
 	) {
 		super();
 		this.hoverElement = $('div.hover-row.status-bar');
+		this.hoverElement.tabIndex = 0;
 		this.actionsElement = dom.append(this.hoverElement, $('div.actions'));
 	}
 

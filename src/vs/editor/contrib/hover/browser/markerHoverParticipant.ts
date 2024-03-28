@@ -103,6 +103,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 	private renderMarkerHover(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {
 		const hoverElement = $('div.hover-row');
+		hoverElement.tabIndex = 0;
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
 		const { source, message, code, relatedInformation } = markerHover.marker;
 

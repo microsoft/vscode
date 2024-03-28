@@ -30,6 +30,7 @@ import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineComp
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
 
@@ -325,7 +326,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 		const mightTriggerFocus = (
 			resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded ||
 			(resolvedKeyboardEvent.kind === ResultKind.KbFound
-				&& resolvedKeyboardEvent.commandId === 'editor.action.showHover'
+				&& (resolvedKeyboardEvent.commandId === 'editor.action.showHover'
+					|| resolvedKeyboardEvent.commandId === 'editor.action.increaseHoverVerbosityLevel'
+					|| resolvedKeyboardEvent.commandId === 'editor.action.decreaseHoverVerbosityLevel')
 				&& this._contentWidget?.isVisible
 			)
 		);
@@ -391,6 +394,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 	): void {
 		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
+	}
+
+	public updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): void {
+		this._getOrCreateContentWidget().updateFocusedMarkdownHoverVerbosityLevel(action);
 	}
 
 	public focus(): void {
@@ -825,6 +832,54 @@ class GoToBottomHoverAction extends EditorAction {
 	}
 }
 
+class IncreaseHoverVerbosityLevel extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.increaseHoverVerbosityLevel',
+			label: nls.localize({
+				key: 'increaseHoverVerbosityLevel',
+				comment: ['Label for action that will increase the hover verbosity level.']
+			}, "Increase Hover Verbosity Level"),
+			alias: 'Increase Hover Verbosity Level',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Increase);
+	}
+}
+
+class DecreaseHoverVerbosityLevel extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.decreaseHoverVerbosityLevel',
+			label: nls.localize({
+				key: 'decreaseHoverVerbosityLevel',
+				comment: ['Label for action that will decrease the hover verbosity level.']
+			}, "Decrease Hover Verbosity Level"),
+			alias: 'Decrease Hover Verbosity Level',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Decrease);
+	}
+}
+
 registerEditorContribution(HoverController.ID, HoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
@@ -836,6 +891,8 @@ registerEditorAction(PageUpHoverAction);
 registerEditorAction(PageDownHoverAction);
 registerEditorAction(GoToTopHoverAction);
 registerEditorAction(GoToBottomHoverAction);
+registerEditorAction(IncreaseHoverVerbosityLevel);
+registerEditorAction(DecreaseHoverVerbosityLevel);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 

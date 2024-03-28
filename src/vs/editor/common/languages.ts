@@ -156,7 +156,13 @@ export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | 
  * A hover represents additional information for a symbol or word. Hovers are
  * rendered in a tooltip-like widget.
  */
-export interface Hover {
+export interface Hover extends IDisposable {
+
+	/**
+	 * ID of the hover
+	 */
+	id: string;
+
 	/**
 	 * The contents of this hover.
 	 */
@@ -168,6 +174,16 @@ export interface Hover {
 	 * current position itself.
 	 */
 	range?: IRange;
+
+	/**
+	 * Can increase the verbosity of the hover
+	 */
+	canIncreaseVerbosity?: boolean;
+
+	/**
+	 * Can decrease the verbosity of the hover
+	 */
+	canDecreaseVerbosity?: boolean;
 }
 
 /**
@@ -176,11 +192,33 @@ export interface Hover {
  */
 export interface HoverProvider {
 	/**
-	 * Provide a hover for the given position and document. Multiple hovers at the same
+	 * Provide a hover for the given position, context and document. Multiple hovers at the same
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext): ProviderResult<Hover>;
+}
+
+export interface HoverContext {
+	/**
+	 * Whether to increase or decrease the hover's verbosity
+	 */
+	action?: HoverVerbosityAction;
+	/**
+	 * The previous hover for the same position
+	 */
+	hover?: Hover;
+}
+
+export enum HoverVerbosityAction {
+	/**
+	 * Increase the verbosity of the hover
+	 */
+	Increase,
+	/**
+	 * Decrease the verbosity of the hover
+	 */
+	Decrease
 }
 
 /**

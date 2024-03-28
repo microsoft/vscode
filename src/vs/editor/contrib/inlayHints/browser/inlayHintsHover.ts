@@ -14,7 +14,7 @@ import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getHover } from 'vs/editor/contrib/hover/browser/getHover';
-import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { MarkdownHover, MarkdownHoverParticipant, VerboseMarkdownHover } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { RenderedInlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -24,6 +24,7 @@ import { localize } from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(
@@ -44,11 +45,12 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		editor: ICodeEditor,
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly _resolverService: ITextModelService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(editor, languageService, openerService, configurationService, languageFeaturesService);
+		super(editor, languageService, openerService, configurationService, languageFeaturesService, keybindingService);
 	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
@@ -143,7 +145,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		});
 	}
 
-	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
+	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<VerboseMarkdownHover>> {
 		if (!part.part.location) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -154,9 +156,9 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			if (!this._languageFeaturesService.hoverProvider.has(model)) {
 				return AsyncIterableObject.EMPTY;
 			}
-			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
+			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), undefined, token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal));
+				.map(item => new VerboseMarkdownHover(item.hover, item.provider, this, part.item.anchor.range, false, 2 + item.ordinal));
 		} finally {
 			ref.dispose();
 		}
