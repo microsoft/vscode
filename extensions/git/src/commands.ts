@@ -2501,6 +2501,9 @@ export class CommandCenter {
 
 		const disposables: Disposable[] = [];
 		const quickPick = window.createQuickPick();
+		// GitHub PRs have a copy button for their head branch. If it's a fork, it contains the username as a prefix, e.g.
+		// `username:branchname`. This filters the first part out.
+		quickPick.filterPattern = /[^:]*$/;
 		quickPick.busy = true;
 		quickPick.sortByLabel = false;
 		quickPick.placeholder = opts?.detached
