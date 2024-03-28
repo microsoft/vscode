@@ -5,6 +5,7 @@
 
 .colorpicker-widget {
 	height: 190px;
+	max-width: 400px;
 	user-select: none;
 	-webkit-user-select: none;
 }
