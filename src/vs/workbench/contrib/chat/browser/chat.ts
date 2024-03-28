@@ -98,6 +98,7 @@ export interface IChatWidgetViewOptions {
 		inputSideToolbar?: MenuId;
 		telemetrySource?: string;
 	};
+	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
 }
 
@@ -115,6 +116,7 @@ export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
+	readonly onDidChangeParsedInput: Event<void>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;

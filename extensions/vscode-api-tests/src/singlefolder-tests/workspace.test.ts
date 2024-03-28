@@ -934,7 +934,7 @@ suite('vscode API - workspace', () => {
 	async function test77735(withOpenedEditor: boolean): Promise<void> {
 		const docUriOriginal = await createRandomFile();
 		const docUriMoved = docUriOriginal.with({ path: `${docUriOriginal.path}.moved` });
-		await deleteFile(docUriMoved); // ensure target does not exist
+		await deleteFile(docUriMoved);
 
 		if (withOpenedEditor) {
 			const document = await vscode.workspace.openTextDocument(docUriOriginal);
@@ -967,8 +967,9 @@ suite('vscode API - workspace', () => {
 			const document = await vscode.workspace.openTextDocument(newUri);
 			assert.strictEqual(document.isDirty, true);
 
-			await document.save();
-			assert.strictEqual(document.isDirty, false);
+			const result = await document.save();
+			assert.strictEqual(result, true, `save failed in iteration: ${i} (docUriOriginal: ${docUriOriginal.fsPath})`);
+			assert.strictEqual(document.isDirty, false, `document still dirty in iteration: ${i} (docUriOriginal: ${docUriOriginal.fsPath})`);
 
 			assert.strictEqual(document.getText(), expected);
 

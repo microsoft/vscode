@@ -27,7 +27,6 @@ export class SimpleCompletionItem {
 
 	// sorting, filtering
 	score: FuzzyScore = FuzzyScore.Default;
-	distance: number = 0;
 	idx?: number;
 	word?: string;
 

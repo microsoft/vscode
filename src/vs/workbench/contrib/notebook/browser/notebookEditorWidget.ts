@@ -1961,6 +1961,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._webview?.selectOutputContents(cell);
 	}
 
+	selectInputContents(cell: ICellViewModel) {
+		this._webview?.selectInputContents(cell);
+	}
+
 	onWillHide() {
 		this._isVisible = false;
 		this._editorFocus.set(false);
@@ -2402,12 +2406,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			const focusElementId = options?.outputId ?? cell.id;
+			const firstOutputId = cell.outputsViewModels.find(o => o.model.alternativeOutputId)?.model.alternativeOutputId;
+			const focusElementId = options?.outputId ?? firstOutputId ?? cell.id;
 			this._webview.focusOutput(focusElementId, options?.altOutputId, options?.outputWebviewFocused || this._webviewFocused);
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;
 			cell.focusedOutputId = options?.outputId;
+			this._outputFocus.set(true);
 			if (!options?.skipReveal) {
 				this.revealInCenterIfOutsideViewport(cell);
 			}

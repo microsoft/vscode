@@ -66,6 +66,7 @@ class InputEditorDecorations extends Disposable {
 
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
+		this._register(this.widget.onDidChangeParsedInput(() => this.updateInputEditorDecorations()));
 		this._register(this.widget.onDidChangeViewModel(() => {
 			this.registerViewModelListeners();
 			this.previouslyUsedAgents.clear();
@@ -211,7 +212,9 @@ class InputEditorDecorations extends Disposable {
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
-			const agentHover = `(${agentPart.agent.name}) ${agentPart.agent.description}`;
+			const isDupe = !!this.chatAgentService.getAgents().find(other => other.name === agentPart.agent.name && other.id !== agentPart.agent.id);
+			const id = isDupe ? `(${agentPart.agent.id}) ` : '';
+			const agentHover = `${id}${agentPart.agent.description}`;
 			textDecorations.push({ range: agentPart.editorRange, hoverMessage: new MarkdownString(agentHover) });
 			if (agentSubcommandPart) {
 				textDecorations.push({ range: agentSubcommandPart.editorRange, hoverMessage: new MarkdownString(agentSubcommandPart.command.description) });
@@ -445,7 +448,7 @@ class AgentCompletions extends Disposable {
 					.map(agent => {
 						const isDupe = !!agents.find(other => other.name === agent.name && other.id !== agent.id);
 						const detail = agent.description;
-						const agentLabel = `${chatAgentLeader}${agent.name} (${agent.id})`;
+						const agentLabel = `${chatAgentLeader}${agent.name}`;
 
 						return {
 							label: isDupe ?
@@ -456,7 +459,8 @@ class AgentCompletions extends Disposable {
 							insertText: `${agentLabel} `,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text,
-							sortText: `${chatSubcommandLeader}${agent.name}`,
+							sortText: `${chatSubcommandLeader}${agent.id}`,
+							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 						};
 					});
 
@@ -473,7 +477,8 @@ class AgentCompletions extends Disposable {
 								detail: `(${agentLabel}) ${c.description ?? ''}`,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
-								sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
+								sortText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+								command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 							} satisfies CompletionItem;
 						})))
 				};

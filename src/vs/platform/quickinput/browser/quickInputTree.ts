@@ -707,6 +707,10 @@ export class QuickInputTree extends Disposable {
 	// Elements that apply to the current set of elements
 	private _elementDisposable = this._register(new DisposableStore());
 	private _lastHover: IHoverWidget | undefined;
+	// This is used to prevent setting the checked state of a single element from firing the checked events
+	// so that we can batch them together. This can probably be improved by handling events differently,
+	// but this works for now. An observable would probably be ideal for this.
+	private _shouldFireCheckedEvents = true;
 
 	constructor(
 		private parent: HTMLElement,
@@ -1056,12 +1060,18 @@ export class QuickInputTree extends Disposable {
 	}
 
 	setAllVisibleChecked(checked: boolean) {
-		this._itemElements.forEach(element => {
-			if (!element.hidden && !element.checkboxDisabled) {
-				element.checked = checked;
-			}
-		});
-		this._fireCheckedEvents();
+		try {
+			this._shouldFireCheckedEvents = false;
+			this._itemElements.forEach(element => {
+				if (!element.hidden && !element.checkboxDisabled) {
+					// Would fire an event if we didn't have the flag set
+					element.checked = checked;
+				}
+			});
+		} finally {
+			this._shouldFireCheckedEvents = true;
+			this._fireCheckedEvents();
+		}
 	}
 
 	setElements(inputElements: QuickPickItem[]): void {
@@ -1185,14 +1195,20 @@ export class QuickInputTree extends Disposable {
 	}
 
 	setCheckedElements(items: IQuickPickItem[]) {
-		const checked = new Set();
-		for (const item of items) {
-			checked.add(item);
+		try {
+			this._shouldFireCheckedEvents = false;
+			const checked = new Set();
+			for (const item of items) {
+				checked.add(item);
+			}
+			for (const element of this._itemElements) {
+				// Would fire an event if we didn't have the flag set
+				element.checked = checked.has(element.item);
+			}
+		} finally {
+			this._shouldFireCheckedEvents = true;
+			this._fireCheckedEvents();
 		}
-		for (const element of this._itemElements) {
-			element.checked = checked.has(element.item);
-		}
-		this._fireCheckedEvents();
 	}
 
 	focus(what: QuickInputListFocus): void {
@@ -1276,9 +1292,9 @@ export class QuickInputTree extends Disposable {
 
 					if (e.element instanceof QuickPickSeparatorElement) {
 						foundSeparatorAsItem = true;
-						// If the separator is visible, then we should just focus it.
+						// If the separator is visible, then we should just reveal its first child so it's not as jarring.
 						if (this._separatorRenderer.isSeparatorVisible(e.element)) {
-							this._tree.reveal(e.element);
+							this._tree.reveal(e.element.children[0]);
 						} else {
 							// If the separator is not visible, then we should
 							// push it up to the top of the list.
@@ -1498,14 +1514,20 @@ export class QuickInputTree extends Disposable {
 	}
 
 	toggleCheckbox() {
-		const elements = this._tree.getFocus().filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement);
-		const allChecked = this._allVisibleChecked(elements);
-		for (const element of elements) {
-			if (!element.checkboxDisabled) {
-				element.checked = !allChecked;
+		try {
+			this._shouldFireCheckedEvents = false;
+			const elements = this._tree.getFocus().filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement);
+			const allChecked = this._allVisibleChecked(elements);
+			for (const element of elements) {
+				if (!element.checkboxDisabled) {
+					// Would fire an event if we didn't have the flag set
+					element.checked = !allChecked;
+				}
 			}
+		} finally {
+			this._shouldFireCheckedEvents = true;
+			this._fireCheckedEvents();
 		}
-		this._fireCheckedEvents();
 	}
 
 	display(display: boolean) {
@@ -1565,6 +1587,9 @@ export class QuickInputTree extends Disposable {
 	}
 
 	private _fireCheckedEvents() {
+		if (!this._shouldFireCheckedEvents) {
+			return;
+		}
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
 		this._onChangedCheckedCount.fire(this.getCheckedCount());
 		this._onChangedCheckedElements.fire(this.getCheckedElements());

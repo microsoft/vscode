@@ -2024,6 +2024,10 @@ export namespace TestCoverage {
 	}
 
 	export function fromDetails(coverage: vscode.FileCoverageDetail): CoverageDetails.Serialized {
+		if (typeof coverage.executed === 'number' && coverage.executed < 0) {
+			throw new Error(`Invalid coverage count ${coverage.executed}`);
+		}
+
 		if ('branches' in coverage) {
 			return {
 				count: coverage.executed,
@@ -2044,6 +2048,10 @@ export namespace TestCoverage {
 	}
 
 	export function fromFile(id: string, coverage: vscode.FileCoverage): IFileCoverage.Serialized {
+		types.validateTestCoverageCount(coverage.statementCoverage);
+		types.validateTestCoverageCount(coverage.branchCoverage);
+		types.validateTestCoverageCount(coverage.declarationCoverage);
+
 		return {
 			id,
 			uri: coverage.uri,
@@ -2444,9 +2452,9 @@ export namespace ChatResponseReferencePart {
 				kind: 'reference',
 				reference: {
 					variableName: part.value.variableName,
-					value: URI.isUri(part.value.value) ?
+					value: URI.isUri(part.value.value) || !part.value.value ?
 						part.value.value :
-						Location.from(<vscode.Location>part.value.value)
+						Location.from(part.value.value as vscode.Location)
 				}
 			};
 		}

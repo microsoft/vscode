@@ -154,8 +154,6 @@
 							"src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts",
 							"src/vs/editor/test/common/services/languageService.test.ts",
 							"src/vs/editor/test/node/classification/typescript.test.ts",
-							"src/vs/editor/test/node/diffing/defaultLinesDiffComputer.test.ts",
-							"src/vs/editor/test/node/diffing/fixtures.test.ts",
 							"src/vs/platform/configuration/test/common/configuration.test.ts",
 							"src/vs/platform/extensions/test/common/extensionValidator.test.ts",
 							"src/vs/platform/opener/test/common/opener.test.ts",
