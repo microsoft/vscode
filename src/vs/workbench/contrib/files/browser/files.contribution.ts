@@ -203,6 +203,17 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only {0} is respected.", '`#files.encoding#`'),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
+		'files.candidateGuessEncodings': {
+			'type': 'array',
+			'items': {
+				'type': 'string',
+				'enum': Object.keys(SUPPORTED_ENCODINGS).filter(key => SUPPORTED_ENCODINGS[key].jscardetEncodigName),
+				'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).filter(key => SUPPORTED_ENCODINGS[key].jscardetEncodigName).map(key => SUPPORTED_ENCODINGS[key].labelLong),
+			},
+			'default': [],
+			'markdownDescription': nls.localize('candidateGuessEncodings', "List of character set encodings that the editor should attempt to guess in the order they are listed. In case it cannot be determined, {0} is respected", '`#files.encoding#`'),
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+		},
 		'files.eol': {
 			'type': 'string',
 			'enum': [
