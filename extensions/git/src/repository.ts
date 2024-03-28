@@ -1599,21 +1599,6 @@ export class Repository implements Disposable {
 		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
 	}
 
-	async getDiff(): Promise<string[]> {
-		const diff: string[] = [];
-		if (this.indexGroup.resourceStates.length !== 0) {
-			for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-				diff.push(await this.diffIndexWithHEAD(file));
-			}
-		} else {
-			for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-				diff.push(await this.diffWithHEAD(file));
-			}
-		}
-
-		return diff;
-	}
-
 	async revParse(ref: string): Promise<string | undefined> {
 		return await this.run(Operation.RevParse, () => this.repository.revParse(ref));
 	}
