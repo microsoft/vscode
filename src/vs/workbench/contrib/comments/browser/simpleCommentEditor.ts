@@ -6,13 +6,14 @@
 import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorAction, EditorContributionInstantiation, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Allowed Editor Contributions:
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { EditorDictation } from 'vs/workbench/contrib/codeEditor/browser/dictation/editorDictation';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
@@ -62,6 +63,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 				{ id: SuggestController.ID, ctor: SuggestController, instantiation: EditorContributionInstantiation.Eager },
 				{ id: SnippetController2.ID, ctor: SnippetController2, instantiation: EditorContributionInstantiation.Lazy },
 				{ id: TabCompletionController.ID, ctor: TabCompletionController, instantiation: EditorContributionInstantiation.Eager }, // eager because it needs to define a context key
+				{ id: EditorDictation.ID, ctor: EditorDictation, instantiation: EditorContributionInstantiation.Lazy }
 			]
 		};
 
@@ -121,7 +123,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 export function calculateEditorHeight(parentEditor: LayoutableEditor, editor: ICodeEditor, currentHeight: number): number {
 	const layoutInfo = editor.getLayoutInfo();
 	const lineHeight = editor.getOption(EditorOption.lineHeight);
-	const contentHeight = (editor.getModel()?.getLineCount()! * lineHeight) ?? editor.getContentHeight(); // Can't just call getContentHeight() because it returns an incorrect, large, value when the editor is first created.
+	const contentHeight = (editor._getViewModel()?.getLineCount()! * lineHeight) ?? editor.getContentHeight(); // Can't just call getContentHeight() because it returns an incorrect, large, value when the editor is first created.
 	if ((contentHeight > layoutInfo.height) ||
 		(contentHeight < layoutInfo.height && currentHeight > MIN_EDITOR_HEIGHT)) {
 		const linesToAdd = Math.ceil((contentHeight - layoutInfo.height) / lineHeight);

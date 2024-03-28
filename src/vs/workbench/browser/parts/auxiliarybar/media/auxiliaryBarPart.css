@@ -14,8 +14,41 @@
 	background-color: var(--vscode-sideBar-background);
 }
 
+.monaco-workbench .part.auxiliarybar .title-actions .actions-container {
+	justify-content: flex-end;
+}
+
+.monaco-workbench .part.auxiliarybar .title-actions .action-item {
+	margin-right: 4px;
+}
+
+.monaco-workbench .part.auxiliarybar > .title > .title-label {
+	flex: 1;
+}
+
+.monaco-workbench .part.auxiliarybar > .title > .title-label h2 {
+	text-transform: uppercase;
+}
+
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container {
 	flex: 1;
+}
+
+.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus,
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus {
+	outline: 0 !important; /* activity bar indicates focus custom */
+}
+
+.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	border-radius: 0px;
+	outline-offset: 2px;
+}
+
+.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before,
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before {
+	position: absolute;
+	left: 6px; /* place icon in center */
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
@@ -23,21 +56,34 @@
 	border-top-color: var(--vscode-panelTitle-activeBorder) !important;
 }
 
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+	border-top-color: var(--vscode-activityBarTop-activeBorder) !important;
+}
+
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label {
 	color: var(--vscode-sideBarTitle-foreground) !important;
 }
 
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label {
+	color: var(--vscode-activityBarTop-foreground) !important;
+}
+
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label {
 	outline: var(--vscode-contrastActiveBorder, unset) solid 1px !important;
 }
 
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover .action-label,
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover .action-label {
 	outline: var(--vscode-contrastActiveBorder, unset) dashed 1px !important;
 }
 
-.monaco-workbench .auxiliarybar.part.pane-composite-part > .composite.title.has-composite-bar > .title-actions {
+.monaco-workbench .auxiliarybar.part.pane-composite-part > .composite.title > .title-actions {
 	flex: inherit;
 }
 

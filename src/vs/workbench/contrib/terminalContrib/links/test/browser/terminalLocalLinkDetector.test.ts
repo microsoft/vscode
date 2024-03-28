@@ -138,6 +138,10 @@ const supportedFallbackLinkFormats: LinkFormatInfo[] = [
 	// Python style error: File "<path>", line <line>
 	{ urlFormat: 'File "{0}"', linkCellStartOffset: 5 },
 	{ urlFormat: 'File "{0}", line {1}', line: '5', linkCellStartOffset: 5 },
+	// Unknown tool #200166: FILE  <path>:<line>:<col>
+	{ urlFormat: ' FILE  {0}', linkCellStartOffset: 7 },
+	{ urlFormat: ' FILE  {0}:{1}', line: '5', linkCellStartOffset: 7 },
+	{ urlFormat: ' FILE  {0}:{1}:{2}', line: '5', column: '3', linkCellStartOffset: 7 },
 	// Some C++ compile error formats
 	{ urlFormat: '{0}({1}) :', line: '5', linkCellEndOffset: -2 },
 	{ urlFormat: '{0}({1},{2}) :', line: '5', column: '3', linkCellEndOffset: -2 },

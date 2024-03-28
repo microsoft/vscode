@@ -51,7 +51,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		titleContainer.appendChild(labelContainer);
 
 		// Editor Label
-		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, undefined)).element;
+		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, { hoverDelegate: this.getHoverDelegate() })).element;
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
@@ -304,11 +304,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 				description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
 			}
 
-			let title = editor.getTitle(Verbosity.LONG);
-			if (description === title) {
-				title = ''; // dont repeat what is already shown
-			}
-
 			editorLabel.setResource(
 				{
 					resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
@@ -316,7 +311,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 					description
 				},
 				{
-					title,
+					title: this.getHoverTitle(editor),
 					italic: !isEditorPinned,
 					extraClasses: ['single-tab', 'title-label'].concat(editor.getLabelExtraClasses()),
 					fileDecorations: {

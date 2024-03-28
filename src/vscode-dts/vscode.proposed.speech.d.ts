@@ -7,11 +7,16 @@ declare module 'vscode' {
 
 	// todo@bpasero work in progress speech API
 
+	export interface SpeechToTextOptions {
+		readonly language?: string;
+	}
+
 	export enum SpeechToTextStatus {
 		Started = 1,
 		Recognizing = 2,
 		Recognized = 3,
-		Stopped = 4
+		Stopped = 4,
+		Error = 5
 	}
 
 	export interface SpeechToTextEvent {
@@ -38,7 +43,7 @@ declare module 'vscode' {
 	}
 
 	export interface SpeechProvider {
-		provideSpeechToTextSession(token: CancellationToken): SpeechToTextSession;
+		provideSpeechToTextSession(token: CancellationToken, options?: SpeechToTextOptions): SpeechToTextSession;
 		provideKeywordRecognitionSession(token: CancellationToken): KeywordRecognitionSession;
 	}
 

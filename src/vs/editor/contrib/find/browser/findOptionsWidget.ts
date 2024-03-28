@@ -13,6 +13,7 @@ import { FIND_IDS } from 'vs/editor/contrib/find/browser/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
@@ -52,9 +53,12 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
 		};
 
+		const hoverDelegate = this._register(createInstantHoverDelegate());
+
 		this.caseSensitive = this._register(new CaseSensitiveToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
 			isChecked: this._state.matchCase,
+			hoverDelegate,
 			...toggleStyles
 		}));
 		this._domNode.appendChild(this.caseSensitive.domNode);
@@ -67,6 +71,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this.wholeWords = this._register(new WholeWordsToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			isChecked: this._state.wholeWord,
+			hoverDelegate,
 			...toggleStyles
 		}));
 		this._domNode.appendChild(this.wholeWords.domNode);
@@ -79,6 +84,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this.regex = this._register(new RegexToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			isChecked: this._state.isRegex,
+			hoverDelegate,
 			...toggleStyles
 		}));
 		this._domNode.appendChild(this.regex.domNode);

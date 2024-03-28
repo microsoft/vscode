@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault, focusWindow } from 'vs/base/browser/dom';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -47,6 +47,9 @@ import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/v
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -64,6 +67,8 @@ export interface IViewPaneOptions extends IPaneOptions {
 	readonly showActions?: ViewPaneShowActions;
 	readonly titleMenuId?: MenuId;
 	readonly donotForwardArgs?: boolean;
+	// The title of the container pane when it is merged with the view container
+	readonly singleViewPaneContainerTitle?: string;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -116,9 +121,10 @@ class ViewWelcomeController {
 		@IOpenerService protected openerService: IOpenerService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		this.delegate.onDidChangeViewWelcomeState(this.onDidChangeViewWelcomeState, this, this.disposables);
-		this.onDidChangeViewWelcomeState();
+		this.disposables.add(Event.runAndSubscribe(this.delegate.onDidChangeViewWelcomeState, () => this.onDidChangeViewWelcomeState()));
+		this.disposables.add(lifecycleService.onWillShutdown(() => this.dispose())); // Fixes https://github.com/microsoft/vscode/issues/208878
 	}
 
 	layout(height: number, width: number) {
@@ -331,6 +337,11 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
+	private _singleViewPaneContainerTitle: string | undefined;
+	public get singleViewPaneContainerTitle(): string | undefined {
+		return this._singleViewPaneContainerTitle;
+	}
+
 	readonly menuActions: CompositeMenuActions;
 
 	private progressBar!: ProgressBar;
@@ -340,8 +351,11 @@ export abstract class ViewPane extends Pane implements IView {
 	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
+	private titleContainerHover?: ICustomHover;
 	private titleDescriptionContainer?: HTMLElement;
+	private titleDescriptionContainerHover?: ICustomHover;
 	private iconContainer?: HTMLElement;
+	private iconContainerHover?: ICustomHover;
 	protected twistiesContainer?: HTMLElement;
 	private viewWelcomeController!: ViewWelcomeController;
 
@@ -364,6 +378,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.id = options.id;
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
+		this._singleViewPaneContainerTitle = options.singleViewPaneContainerTitle;
 		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
 
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
@@ -432,7 +447,7 @@ export abstract class ViewPane extends Pane implements IView {
 		actions.classList.toggle('show-expanded', this.showActions === ViewPaneShowActions.WhenExpanded);
 		this.toolbar = this.instantiationService.createInstance(WorkbenchToolBar, actions, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionViewItemProvider: action => this.getActionViewItem(action),
+			actionViewItemProvider: (action, options) => this.getActionViewItem(action, options),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			renderDropdownAsChildElement: true,
@@ -519,13 +534,14 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		const calculatedTitle = this.calculateTitle(title);
-		this.titleContainer = append(container, $('h3.title', { title: calculatedTitle }, calculatedTitle));
+		this.titleContainer = append(container, $('h3.title', {}, calculatedTitle));
+		this.titleContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
 
 		if (this._titleDescription) {
 			this.setTitleDescription(this._titleDescription);
 		}
 
-		this.iconContainer.title = calculatedTitle;
+		this.iconContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
 		this.iconContainer.setAttribute('aria-label', calculatedTitle);
 	}
 
@@ -533,11 +549,11 @@ export abstract class ViewPane extends Pane implements IView {
 		const calculatedTitle = this.calculateTitle(title);
 		if (this.titleContainer) {
 			this.titleContainer.textContent = calculatedTitle;
-			this.titleContainer.setAttribute('title', calculatedTitle);
+			this.titleContainerHover?.update(calculatedTitle);
 		}
 
 		if (this.iconContainer) {
-			this.iconContainer.title = calculatedTitle;
+			this.iconContainerHover?.update(calculatedTitle);
 			this.iconContainer.setAttribute('aria-label', calculatedTitle);
 		}
 
@@ -548,10 +564,11 @@ export abstract class ViewPane extends Pane implements IView {
 	private setTitleDescription(description: string | undefined) {
 		if (this.titleDescriptionContainer) {
 			this.titleDescriptionContainer.textContent = description ?? '';
-			this.titleDescriptionContainer.setAttribute('title', description ?? '');
+			this.titleDescriptionContainerHover?.update(description ?? '');
 		}
 		else if (description && this.titleContainer) {
-			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', { title: description }, description));
+			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', {}, description));
+			this.titleDescriptionContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
 		}
 	}
 
@@ -576,7 +593,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected renderBody(container: HTMLElement): void {
-		this.viewWelcomeController = this._register(new ViewWelcomeController(container, this, this.instantiationService, this.openerService, this.telemetryService, this.contextKeyService));
+		this.viewWelcomeController = this._register(this.instantiationService.createInstance(ViewWelcomeController, container, this));
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -596,12 +613,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (this.progressIndicator === undefined) {
 			const that = this;
-			this.progressIndicator = new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
+			this.progressIndicator = this._register(new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
 				constructor() {
 					super(that.id, that.isBodyVisible());
 					this._register(that.onDidChangeBodyVisibility(isVisible => isVisible ? this.onScopeOpened(that.id) : this.onScopeClosed(that.id)));
 				}
-			}());
+			}()));
 		}
 		return this.progressIndicator;
 	}
@@ -623,8 +640,6 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	focus(): void {
-		focusWindow(this.element);
-
 		if (this.viewWelcomeController.enabled) {
 			this.viewWelcomeController.focus();
 		} else if (this.element) {

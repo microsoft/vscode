@@ -13,7 +13,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
 import 'vs/css!./markersViewActions';
 
@@ -145,10 +145,12 @@ export class QuickFixAction extends Action {
 
 export class QuickFixActionViewItem extends ActionViewItem {
 
-	constructor(action: QuickFixAction,
+	constructor(
+		action: QuickFixAction,
+		options: IActionViewItemOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
-		super(null, action, { icon: true, label: false });
+		super(null, action, { ...options, icon: true, label: false });
 	}
 
 	public override onClick(event: DOM.EventLike): void {

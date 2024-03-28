@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -492,11 +492,6 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
 
 	/**
-	 * Provides access to the currently active editor part.
-	 */
-	readonly activePart: IEditorPart;
-
-	/**
 	 * Provides access to the main window editor part.
 	 */
 	readonly mainPart: IEditorPart;
@@ -576,12 +571,6 @@ export interface IEditorGroup {
 	 * a different group.
 	 */
 	readonly onWillMoveEditor: Event<IEditorWillMoveEvent>;
-
-	/**
-	 * An event that is fired when an editor is about to be opened
-	 * in the group.
-	 */
-	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
 
 	/**
 	 * A unique identifier of this group that remains identical even if the
@@ -734,6 +723,11 @@ export interface IEditorGroup {
 	isSticky(editorOrIndex: EditorInput | number): boolean;
 
 	/**
+	 * Find out if the provided editor or index of editor is transient in the group.
+	 */
+	isTransient(editorOrIndex: EditorInput | number): boolean;
+
+	/**
 	 * Find out if the provided editor is active in the group.
 	 */
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
@@ -748,13 +742,17 @@ export interface IEditorGroup {
 
 	/**
 	 * Move an editor from this group either within this group or to another group.
+	 *
+	 * @returns whether the editor was moved or not.
 	 */
-	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
+	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): boolean;
 
 	/**
 	 * Move editors from this group either within this group or to another group.
+	 *
+	 * @returns whether all editors were moved or not.
 	 */
-	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): void;
+	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): boolean;
 
 	/**
 	 * Copy an editor from this group to another group.

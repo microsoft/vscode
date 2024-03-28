@@ -33,18 +33,23 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 export type TelemetryData = {
 	extension: string;
 	rounds: string;
 	undos: string;
-	edits: boolean;
 	unstashed: number;
+	edits: number;
 	finishedByEdit: boolean;
 	startTime: string;
 	endTime: string;
 	editMode: string;
+	acceptedHunks: number;
+	discardedHunks: number;
+	responseTypes: string;
 };
 
 export type TelemetryDataClassification = {
@@ -59,13 +64,11 @@ export type TelemetryDataClassification = {
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
 	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
+	acceptedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of accepted hunks' };
+	discardedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of discarded hunks' };
+	responseTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma separated list of response types like edits, message, mixed' };
 };
 
-export enum ExpansionState {
-	EXPANDED = 'expanded',
-	CROPPED = 'cropped',
-	NOT_CROPPED = 'not_cropped'
-}
 
 export class SessionWholeRange {
 
@@ -136,11 +139,10 @@ export class SessionWholeRange {
 export class Session {
 
 	private _lastInput: SessionPrompt | undefined;
-	private _lastExpansionState: ExpansionState | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
-	private readonly _teldata: Partial<TelemetryData>;
+	private readonly _teldata: TelemetryData;
 
 	readonly textModelNAltVersion: number;
 	private _textModelNSnapshotAltVersion: number | undefined;
@@ -163,17 +165,22 @@ export class Session {
 		readonly session: IInlineChatSession,
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
+		readonly chatModel: ChatModel,
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
-			extension: provider.debugName,
+			extension: ExtensionIdentifier.toKey(provider.extensionId),
 			startTime: this._startTime.toISOString(),
-			edits: false,
+			endTime: this._startTime.toISOString(),
+			edits: 0,
 			finishedByEdit: false,
 			rounds: '',
 			undos: '',
 			editMode,
-			unstashed: 0
+			unstashed: 0,
+			acceptedHunks: 0,
+			discardedHunks: 0,
+			responseTypes: ''
 		};
 	}
 
@@ -194,14 +201,6 @@ export class Session {
 		this._isUnstashed = true;
 	}
 
-	get lastExpansionState(): ExpansionState | undefined {
-		return this._lastExpansionState;
-	}
-
-	set lastExpansionState(state: ExpansionState) {
-		this._lastExpansionState = state;
-	}
-
 	get textModelNSnapshotAltVersion(): number | undefined {
 		return this._textModelNSnapshotAltVersion;
 	}
@@ -214,6 +213,7 @@ export class Session {
 		this._isUnstashed = false;
 		const newLen = this._exchange.push(exchange);
 		this._teldata.rounds += `${newLen}|`;
+		this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
 	}
 
 	get exchanges(): Iterable<SessionExchange> {
@@ -244,15 +244,25 @@ export class Session {
 	}
 
 	recordExternalEditOccurred(didFinish: boolean) {
-		this._teldata.edits = true;
+		this._teldata.edits += 1;
 		this._teldata.finishedByEdit = didFinish;
 	}
 
 	asTelemetryData(): TelemetryData {
-		return <TelemetryData>{
-			...this._teldata,
-			endTime: new Date().toISOString(),
-		};
+
+		for (const item of this.hunkData.getInfo()) {
+			switch (item.getState()) {
+				case HunkState.Accepted:
+					this._teldata.acceptedHunks += 1;
+					break;
+				case HunkState.Rejected:
+					this._teldata.discardedHunks += 1;
+					break;
+			}
+		}
+
+		this._teldata.endTime = new Date().toISOString();
+		return this._teldata;
 	}
 
 	asRecording(): Recording {
@@ -274,21 +284,11 @@ export class Session {
 
 export class SessionPrompt {
 
-	private _attempt: number = 0;
-
 	constructor(
 		readonly value: string,
+		readonly attempt: number,
+		readonly withIntentDetection: boolean,
 	) { }
-
-	get attempt() {
-		return this._attempt;
-	}
-
-	retry() {
-		const result = new SessionPrompt(this.value);
-		result._attempt = this._attempt + 1;
-		return result;
-	}
 }
 
 export class SessionExchange {
@@ -702,7 +702,9 @@ export class HunkData {
 	discardAll() {
 		const edits: ISingleEditOperation[][] = [];
 		for (const item of this.getInfo()) {
-			edits.push(this._discardEdits(item));
+			if (item.getState() !== HunkState.Rejected) {
+				edits.push(this._discardEdits(item));
+			}
 		}
 		const undoEdits: IValidEditOperation[][] = [];
 		this._textModelN.pushEditOperations(null, edits.flat(), (_undoEdits) => {

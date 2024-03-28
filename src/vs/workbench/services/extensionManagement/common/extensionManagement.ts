@@ -5,10 +5,11 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, InstallVSIXOptions, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtension, ExtensionType, IExtensionManifest, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess } from 'vs/base/common/network';
+import { localize } from 'vs/nls';
 
 export type DidChangeProfileEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
 
@@ -41,6 +42,14 @@ export interface IExtensionManagementServerService {
 
 export const DefaultIconPath = FileAccess.asBrowserUri('vs/workbench/services/extensionManagement/common/media/defaultIcon.png').toString(true);
 
+export interface IResourceExtension {
+	readonly identifier: IExtensionIdentifier;
+	readonly location: URI;
+	readonly manifest: IExtensionManifest;
+	readonly readmeUri?: URI;
+	readonly changelogUri?: URI;
+}
+
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
 export type UninstallExtensionOnServerEvent = UninstallExtensionEvent & { server: IExtensionManagementServer };
 export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
@@ -55,11 +64,25 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 	onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
+	onDidEnableExtensions: Event<IExtension[]>;
 
-	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallVSIXOptions): Promise<ILocalExtension>;
+	isWorkspaceExtensionsSupported(): boolean;
+	getExtensions(locations: URI[]): Promise<IResourceExtension[]>;
+	getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]>;
+
+	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	installFromLocation(location: URI): Promise<ILocalExtension>;
+	installResourceExtension(extension: IResourceExtension, installOptions: InstallOptions): Promise<ILocalExtension>;
+
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 }
+
+export const extensionsConfigurationNodeBase = {
+	id: 'extensions',
+	order: 30,
+	title: localize('extensionsConfigurationTitle', "Extensions"),
+	type: 'object'
+};
 
 export const enum EnablementState {
 	DisabledByTrustRequirement,

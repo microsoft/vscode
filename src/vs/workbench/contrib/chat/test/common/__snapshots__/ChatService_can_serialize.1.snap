@@ -1,0 +1,102 @@
+{
+  requesterUsername: "test",
+  requesterAvatarIconUri: undefined,
+  responderUsername: "test",
+  responderAvatarIconUri: undefined,
+  welcomeMessage: undefined,
+  requests: [
+    {
+      message: {
+        parts: [
+          {
+            kind: "agent",
+            range: {
+              start: 0,
+              endExclusive: 28
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 1,
+              endLineNumber: 1,
+              endColumn: 29
+            },
+            agent: {
+              id: "ChatProviderWithUsedContext",
+              name: "ChatProviderWithUsedContext",
+              description: undefined,
+              metadata: {
+                requester: { name: "test" },
+                fullName: "test"
+              }
+            }
+          },
+          {
+            range: {
+              start: 28,
+              endExclusive: 41
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 29,
+              endLineNumber: 1,
+              endColumn: 42
+            },
+            text: " test request",
+            kind: "text"
+          }
+        ],
+        text: "@ChatProviderWithUsedContext test request"
+      },
+      variableData: { variables: [  ] },
+      response: [  ],
+      result: { metadata: { metadataKey: "value" } },
+      followups: undefined,
+      isCanceled: false,
+      vote: undefined,
+      agent: {
+        id: "ChatProviderWithUsedContext",
+        name: "ChatProviderWithUsedContext",
+        description: undefined,
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        metadata: {
+          requester: { name: "test" },
+          fullName: "test"
+        },
+        slashCommands: [  ],
+        locations: [ "panel" ],
+        isDefault: undefined
+      },
+      slashCommand: undefined,
+      usedContext: {
+        documents: [
+          {
+            uri: {
+              scheme: "file",
+              authority: "",
+              path: "/test/path/to/file",
+              query: "",
+              fragment: "",
+              _formatted: null,
+              _fsPath: null
+            },
+            version: 3,
+            ranges: [
+              {
+                startLineNumber: 1,
+                startColumn: 1,
+                endLineNumber: 2,
+                endColumn: 2
+              }
+            ]
+          }
+        ],
+        kind: "usedContext"
+      },
+      contentReferences: [  ]
+    }
+  ],
+  providerId: "testProvider"
+}

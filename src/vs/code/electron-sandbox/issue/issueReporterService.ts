@@ -15,6 +15,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { URI } from 'vs/base/common/uri';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-sandbox/issue/issueReporterModel';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
@@ -48,6 +49,9 @@ export class IssueReporter extends Disposable {
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
+	private openReporter = false;
+	private loadingExtensionData = false;
+	private selectedExtension = '';
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
 
@@ -70,10 +74,18 @@ export class IssueReporter extends Disposable {
 			selectedExtension: targetExtension
 		});
 
+		const fileOnMarketplace = configuration.data.issueSource === IssueSource.Marketplace;
+		const fileOnProduct = configuration.data.issueSource === IssueSource.VSCode;
+		this.issueReporterModel.update({ fileOnMarketplace, fileOnProduct });
+
 		//TODO: Handle case where extension is not activated
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
+			const issueRepoName = document.createElement('a');
+			issueReporterElement.appendChild(issueRepoName);
+			issueRepoName.id = 'show-repo-name';
+			issueRepoName.classList.add('hidden');
 			this.updatePreviewButtonState();
 		}
 
@@ -115,7 +127,7 @@ export class IssueReporter extends Disposable {
 		codiconStyleSheet.id = 'codiconStyles';
 
 		// TODO: Is there a way to use the IThemeService here instead
-		const iconsStyleSheet = getIconsStyleSheet(undefined);
+		const iconsStyleSheet = this._register(getIconsStyleSheet(undefined));
 		function updateAll() {
 			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}
@@ -134,7 +146,7 @@ export class IssueReporter extends Disposable {
 		this.updateUnsupportedMode(configuration.data.isUnsupported);
 
 		// Handle case where extension is pre-selected through the command
-		if (configuration.data.command && targetExtension) {
+		if ((configuration.data.data || configuration.data.uri) && targetExtension) {
 			this.updateExtensionStatus(targetExtension);
 		}
 	}
@@ -154,6 +166,7 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	// TODO @justschen: After migration to Aux Window, switch to dedicated css.
 	private applyStyles(styles: IssueReporterStyles) {
 		const styleTag = document.createElement('style');
 		const content: string[] = [];
@@ -248,8 +261,9 @@ export class IssueReporter extends Disposable {
 
 	private async updateIssueReporterUri(extension: IssueReporterExtensionData): Promise<void> {
 		try {
-			if (extension.command?.uri) {
-				extension.bugsUrl = extension.command.uri;
+			if (extension.uri) {
+				const uri = URI.revive(extension.uri);
+				extension.bugsUrl = uri.toString();
 			} else {
 				const uri = await this.issueMainService.$getIssueReporterUri(extension.id);
 				extension.bugsUrl = uri.toString(true);
@@ -294,6 +308,16 @@ export class IssueReporter extends Disposable {
 		} catch (e) {
 			console.error(e);
 			return [false, false];
+		}
+	}
+
+	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
+		try {
+			const data = await this.issueMainService.$sendReporterMenu(extension.id, extension.name);
+			return data;
+		} catch (e) {
+			console.error(e);
+			return undefined;
 		}
 	}
 
@@ -486,12 +510,41 @@ export class IssueReporter extends Disposable {
 			this.previewButton.enabled = false;
 			this.previewButton.label = localize('loadingData', "Loading data...");
 		}
+
+		const issueRepoName = this.getElementById('show-repo-name')! as HTMLAnchorElement;
+		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
+		if (selectedExtension && selectedExtension.uri) {
+			const urlString = URI.revive(selectedExtension.uri).toString();
+			issueRepoName.href = urlString;
+			issueRepoName.addEventListener('click', (e) => this.openLink(e));
+			issueRepoName.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
+			const gitHubInfo = this.parseGitHubUrl(urlString);
+			issueRepoName.textContent = gitHubInfo ? gitHubInfo.owner + '/' + gitHubInfo.repositoryName : urlString;
+			Object.assign(issueRepoName.style, {
+				alignSelf: 'flex-end',
+				display: 'block',
+				fontSize: '13px',
+				marginBottom: '10px',
+				padding: '4px 0px',
+				textDecoration: 'none',
+				width: 'auto'
+			});
+			show(issueRepoName);
+		} else {
+			// clear styles
+			issueRepoName.removeAttribute('style');
+			hide(issueRepoName);
+		}
 	}
 
 	private isPreviewEnabled() {
 		const issueType = this.issueReporterModel.getData().issueType;
 
 		if (this.issueReporterModel.getData().selectedExtension?.hasIssueDataProviders && !this.receivedExtensionData) {
+			return false;
+		}
+
+		if (this.loadingExtensionData) {
 			return false;
 		}
 
@@ -724,12 +777,16 @@ export class IssueReporter extends Disposable {
 
 	private setSourceOptions(): void {
 		const sourceSelect = this.getElementById('issue-source')! as HTMLSelectElement;
-		const { issueType, fileOnExtension, selectedExtension } = this.issueReporterModel.getData();
+		const { issueType, fileOnExtension, selectedExtension, fileOnMarketplace, fileOnProduct } = this.issueReporterModel.getData();
 		let selected = sourceSelect.selectedIndex;
 		if (selected === -1) {
 			if (fileOnExtension !== undefined) {
 				selected = fileOnExtension ? 2 : 1;
 			} else if (selectedExtension?.isBuiltin) {
+				selected = 1;
+			} else if (fileOnMarketplace) {
+				selected = 3;
+			} else if (fileOnProduct) {
 				selected = 1;
 			}
 		}
@@ -811,11 +868,22 @@ export class IssueReporter extends Disposable {
 			show(extensionDataBlock);
 		}
 
-		if (fileOnExtension && selectedExtension?.command?.data) {
-			const data = selectedExtension?.command?.data;
+		if (fileOnExtension && selectedExtension?.data) {
+			const data = selectedExtension?.data;
 			(extensionDataTextArea as HTMLElement).innerText = data.toString();
 			(extensionDataTextArea as HTMLTextAreaElement).readOnly = true;
 			show(extensionDataBlock);
+		}
+
+		// only if we know comes from the open reporter command
+		if (fileOnExtension && this.openReporter) {
+			(extensionDataTextArea as HTMLTextAreaElement).readOnly = true;
+			setTimeout(() => {
+				// delay to make sure from command or not
+				if (this.openReporter) {
+					show(extensionDataBlock);
+				}
+			}, 100);
 		}
 
 		if (issueType === IssueType.Bug) {
@@ -856,13 +924,24 @@ export class IssueReporter extends Disposable {
 	private validateInput(inputId: string): boolean {
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
 		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
+		const descriptionShortMessage = this.getElementById(`description-short-error`);
 		if (!inputElement.value) {
 			inputElement.classList.add('invalid-input');
 			inputValidationMessage?.classList.remove('hidden');
+			descriptionShortMessage?.classList.add('hidden');
 			return false;
-		} else {
+		} else if (inputId === 'description' && inputElement.value.length < 10) {
+			inputElement.classList.add('invalid-input');
+			descriptionShortMessage?.classList.remove('hidden');
+			inputValidationMessage?.classList.add('hidden');
+			return false;
+		}
+		else {
 			inputElement.classList.remove('invalid-input');
 			inputValidationMessage?.classList.add('hidden');
+			if (inputId === 'description') {
+				descriptionShortMessage?.classList.add('hidden');
+			}
 			return true;
 		}
 	}
@@ -896,6 +975,7 @@ export class IssueReporter extends Disposable {
 
 		const response = await fetch(url, init);
 		if (!response.ok) {
+			console.error('Invalid GitHub URL provided.');
 			return false;
 		}
 		const result = await response.json();
@@ -954,11 +1034,13 @@ export class IssueReporter extends Disposable {
 
 		let issueUrl = hasUri ? this.getExtensionBugsUrl() : this.getIssueUrl();
 		if (!issueUrl) {
+			console.error('No issue url found');
 			return false;
 		}
 
-		if (selectedExtension?.command?.uri) {
-			issueUrl = selectedExtension.command.uri;
+		if (selectedExtension?.uri) {
+			const uri = URI.revive(selectedExtension.uri);
+			issueUrl = uri.toString();
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
@@ -973,6 +1055,7 @@ export class IssueReporter extends Disposable {
 			try {
 				url = await this.writeToClipboard(baseUrl, issueBody);
 			} catch (_) {
+				console.error('Writing to clipboard failed');
 				return false;
 			}
 		}
@@ -1009,6 +1092,8 @@ export class IssueReporter extends Disposable {
 				owner: match[1],
 				repositoryName: match[2]
 			};
+		} else {
+			console.error('No GitHub match');
 		}
 
 		return undefined;
@@ -1165,19 +1250,48 @@ export class IssueReporter extends Disposable {
 			this.addEventListener('extension-selector', 'change', async (e: Event) => {
 				this.clearExtensionData();
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
+				this.selectedExtension = selectedExtensionId;
 				const extensions = this.issueReporterModel.getData().allExtensions;
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
 					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 					if (selectedExtension) {
-						selectedExtension.command = undefined;
+						const iconElement = document.createElement('span');
+						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+						this.setLoading(iconElement);
+						const openReporterData = await this.sendReporterMenu(selectedExtension);
+						if (openReporterData) {
+							if (this.selectedExtension === selectedExtensionId) {
+								this.removeLoading(iconElement, true);
+								this.configuration.data = openReporterData;
+							} else if (this.selectedExtension !== selectedExtensionId) {
+							}
+						}
+						else {
+							if (!this.loadingExtensionData) {
+								iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+							}
+							this.removeLoading(iconElement);
+							// if not using command, should have no configuration data in fields we care about and check later.
+							this.clearExtensionData();
+
+							// case when previous extension was opened from normal openIssueReporter command
+							selectedExtension.data = undefined;
+							selectedExtension.uri = undefined;
+						}
+						if (this.selectedExtension === selectedExtensionId) {
+							// repopulates the fields with the new data given the selected extension.
+							this.updateExtensionStatus(matches[0]);
+							this.openReporter = false;
+						}
+					} else {
+						this.issueReporterModel.update({ selectedExtension: undefined });
+						this.clearSearchResults();
+						this.clearExtensionData();
+						this.validateSelectedExtension();
+						this.updateExtensionStatus(matches[0]);
 					}
-					this.updateExtensionStatus(matches[0]);
-				} else {
-					this.issueReporterModel.update({ selectedExtension: undefined });
-					this.clearSearchResults();
-					this.validateSelectedExtension();
 				}
 			});
 		}
@@ -1189,33 +1303,39 @@ export class IssueReporter extends Disposable {
 
 	private clearExtensionData(): void {
 		this.issueReporterModel.update({ extensionData: undefined });
-		this.configuration.data.command = undefined;
+		this.configuration.data.issueBody = undefined;
+		this.configuration.data.data = undefined;
+		this.configuration.data.uri = undefined;
 	}
 
 	private async updateExtensionStatus(extension: IssueReporterExtensionData) {
 		this.issueReporterModel.update({ selectedExtension: extension });
-		if (this.configuration.data.command) {
-			const template = this.configuration.data.command.template;
-			if (template) {
-				const descriptionTextArea = this.getElementById('description')!;
-				const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
-				if (descriptionText === '' || !descriptionText.includes(template.toString())) {
-					const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template.toString();
-					(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
-					this.issueReporterModel.update({ issueDescription: fullTextArea });
-				}
-			}
-			const data = this.configuration.data.command.data;
-			if (data) {
-				const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
-				show(extensionDataBlock);
-				this.issueReporterModel.update({ extensionData: data });
-			}
 
-			const uri = this.configuration.data.command.uri;
-			if (uri) {
-				this.updateIssueReporterUri(extension);
+		// uses this.configuuration.data to ensure that data is coming from `openReporter` command.
+		const template = this.configuration.data.issueBody;
+		if (template) {
+			const descriptionTextArea = this.getElementById('description')!;
+			const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
+			if (descriptionText === '' || !descriptionText.includes(template.toString())) {
+				const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template.toString();
+				(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
+				this.issueReporterModel.update({ issueDescription: fullTextArea });
 			}
+		}
+
+		const data = this.configuration.data.data;
+		if (data) {
+			this.issueReporterModel.update({ extensionData: data });
+			extension.data = data;
+			const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
+			show(extensionDataBlock);
+			this.renderBlocks();
+		}
+
+		const uri = this.configuration.data.uri;
+		if (uri) {
+			extension.uri = uri;
+			this.updateIssueReporterUri(extension);
 		}
 
 		// if extension does not have provider/handles, will check for either. If extension is already active, IPC will return [false, false] and will proceed as normal.
@@ -1223,7 +1343,6 @@ export class IssueReporter extends Disposable {
 			const toActivate = await this.getReporterStatus(extension);
 			extension.hasIssueDataProviders = toActivate[0];
 			extension.hasIssueUriRequestHandler = toActivate[1];
-			this.renderBlocks();
 		}
 
 		if (extension.hasIssueUriRequestHandler && extension.hasIssueDataProviders) {
@@ -1269,12 +1388,11 @@ export class IssueReporter extends Disposable {
 			this.setLoading(iconElement);
 			await this.getIssueDataFromExtension(extension);
 			this.removeLoading(iconElement);
-		} else {
-			this.validateSelectedExtension();
-			this.issueReporterModel.update({ extensionData: extension.command?.data ?? undefined });
-			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-			this.searchExtensionIssues(title);
 		}
+
+		this.validateSelectedExtension();
+		const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
+		this.searchExtensionIssues(title);
 
 		this.updatePreviewButtonState();
 		this.renderBlocks();
@@ -1292,6 +1410,10 @@ export class IssueReporter extends Disposable {
 			return;
 		}
 
+		if (this.loadingExtensionData) {
+			return;
+		}
+
 		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
 		if (hasValidGitHubUrl || (extension.hasIssueUriRequestHandler && !extension.hasIssueDataProviders)) {
 			this.previewButton.enabled = true;
@@ -1304,6 +1426,8 @@ export class IssueReporter extends Disposable {
 	private setLoading(element: HTMLElement) {
 		// Show loading
 		this.receivedExtensionData = false;
+		this.openReporter = true;
+		this.loadingExtensionData = true;
 		this.updatePreviewButtonState();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
@@ -1314,12 +1438,17 @@ export class IssueReporter extends Disposable {
 
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
+		while (showLoading.firstChild) {
+			showLoading.removeChild(showLoading.firstChild);
+		}
 		showLoading.append(element);
 
 		this.renderBlocks();
 	}
 
-	private removeLoading(element: HTMLElement) {
+	private removeLoading(element: HTMLElement, fromReporter: boolean = false) {
+		this.openReporter = fromReporter;
+		this.loadingExtensionData = false;
 		this.updatePreviewButtonState();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
@@ -1330,7 +1459,10 @@ export class IssueReporter extends Disposable {
 
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
-		hideLoading.removeChild(element);
+		if (hideLoading.firstChild) {
+			hideLoading.removeChild(element);
+		}
+		this.renderBlocks();
 	}
 
 	private setExtensionValidationMessage(): void {

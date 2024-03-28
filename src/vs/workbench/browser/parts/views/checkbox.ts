@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -81,8 +81,7 @@ export class TreeItemCheckbox extends Disposable {
 	private setHover(checkbox: ITreeItemCheckboxState) {
 		if (this.toggle) {
 			if (!this.hover) {
-				this.hover = setupCustomHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox));
-				this._register(this.hover);
+				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox)));
 			} else {
 				this.hover.update(checkbox.tooltip);
 			}

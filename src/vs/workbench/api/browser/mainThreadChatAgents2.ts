@@ -13,23 +13,24 @@ import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
-type AgentData = {
+interface AgentData {
 	dispose: () => void;
-	name: string;
-	hasSlashCommands?: boolean;
+	id: string;
+	extensionId: ExtensionIdentifier;
 	hasFollowups?: boolean;
-};
+}
 
 @extHostNamedCustomer(MainContext.MainThreadChatAgents2)
 export class MainThreadChatAgents2 extends Disposable implements MainThreadChatAgentsShape2 {
@@ -57,11 +58,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._register(this._chatService.onDidPerformUserAction(e => {
 			if (typeof e.agentId === 'string') {
 				for (const [handle, agent] of this._agents) {
-					if (agent.name === e.agentId) {
+					if (agent.id === e.agentId) {
 						if (e.action.kind === 'vote') {
-							this._proxy.$acceptFeedback(handle, e.sessionId, e.requestId, e.action.direction);
+							this._proxy.$acceptFeedback(handle, e.result ?? {}, e.action.direction);
 						} else {
-							this._proxy.$acceptAction(handle, e.sessionId, e.requestId, e);
+							this._proxy.$acceptAction(handle, e.result || {}, e);
 						}
 						break;
 					}
@@ -74,10 +75,19 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.deleteAndDispose(handle);
 	}
 
-	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void {
-		const d = this._chatAgentService.registerAgent({
-			id: name,
-			metadata: revive(metadata),
+	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: { name: string; description: string } | undefined): void {
+		const staticAgentRegistration = this._chatAgentService.getAgent(id);
+		if (!staticAgentRegistration && !dynamicProps) {
+			if (this._chatAgentService.getAgentsByName(id).length) {
+				// Likely some extension authors will not adopt the new ID, so give a hint if they register a
+				// participant by name instead of ID.
+				throw new Error(`chatParticipant must be declared with an ID in package.json. The "id" property may be missing! "${id}"`);
+			}
+
+			throw new Error(`chatParticipant must be declared in package.json: ${id}`);
+		}
+
+		const impl: IChatAgentImplementation = {
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
 				try {
@@ -86,24 +96,42 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					this._pendingProgress.delete(request.requestId);
 				}
 			},
-			provideFollowups: async (sessionId, token): Promise<IChatFollowup[]> => {
+			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(handle, sessionId, token);
+				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
 			},
-			provideSlashCommands: async (token) => {
-				if (!this._agents.get(handle)?.hasSlashCommands) {
-					return []; // save an IPC call
-				}
-				return this._proxy.$provideSlashCommands(handle, token);
+			provideWelcomeMessage: (token: CancellationToken) => {
+				return this._proxy.$provideWelcomeMessage(handle, token);
+			},
+			provideSampleQuestions: (token: CancellationToken) => {
+				return this._proxy.$provideSampleQuestions(handle, token);
 			}
-		});
+		};
+
+		let disposable: IDisposable;
+		if (!staticAgentRegistration && dynamicProps) {
+			disposable = this._chatAgentService.registerDynamicAgent(
+				{
+					id,
+					name: dynamicProps.name,
+					description: dynamicProps.description,
+					extensionId: extension,
+					metadata: revive(metadata),
+					slashCommands: [],
+					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
+				},
+				impl);
+		} else {
+			disposable = this._chatAgentService.registerAgentImplementation(id, impl);
+		}
+
 		this._agents.set(handle, {
-			name,
-			dispose: d.dispose,
-			hasSlashCommands: metadata.hasSlashCommands,
+			id: id,
+			extensionId: extension,
+			dispose: disposable.dispose,
 			hasFollowups: metadata.hasFollowups
 		});
 	}
@@ -113,9 +141,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		if (!data) {
 			throw new Error(`No agent with handle ${handle} registered`);
 		}
-		data.hasSlashCommands = metadataUpdate.hasSlashCommands;
 		data.hasFollowups = metadataUpdate.hasFollowups;
-		this._chatAgentService.updateAgent(data.name, revive(metadataUpdate));
+		this._chatAgentService.updateAgent(data.id, revive(metadataUpdate));
 	}
 
 	async $handleProgressChunk(requestId: string, progress: IChatProgressDto): Promise<number | void> {
@@ -141,10 +168,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 				}
 
-				const parsedRequest = (await this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
+				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue()).parts;
 				const agentPart = parsedRequest.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
-				const thisAgentName = this._agents.get(handle)?.name;
-				if (agentPart?.agent.id !== thisAgentName) {
+				const thisAgentId = this._agents.get(handle)?.id;
+				if (agentPart?.agent.id !== thisAgentId) {
 					return;
 				}
 

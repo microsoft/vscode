@@ -30,7 +30,7 @@ suite('ChatModel', () => {
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
-		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 	});
 
 	test('Waits for initialization', async () => {
@@ -111,7 +111,7 @@ suite('ChatModel', () => {
 		model.startInitialize();
 		model.initialize({} as any, undefined);
 		const text = 'hello';
-		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { message: text, variables: {} });
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] });
 		const requests = model.getRequests();
 		assert.strictEqual(requests.length, 1);
 

@@ -24,10 +24,7 @@ export function registerQuickChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.quickchat.openInChatView',
-				title: {
-					value: localize('chat.openInChatView.label', "Open in Chat View"),
-					original: 'Open in Chat View'
-				},
+				title: localize2('chat.openInChatView.label', "Open in Chat View"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.commentDiscussion,
@@ -49,10 +46,7 @@ export function registerQuickChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.quickchat.close',
-				title: {
-					value: localize('chat.closeQuickChat.label', "Close Quick Chat"),
-					original: 'Close Quick Chat'
-				},
+				title: localize2('chat.closeQuickChat.label', "Close Quick Chat"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.close,
@@ -74,10 +68,7 @@ export function registerQuickChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.quickchat.launchInlineChat',
-				title: {
-					value: localize('chat.launchInlineChat.label', "Launch Inline Chat"),
-					original: 'Launch Inline Chat'
-				},
+				title: localize2('chat.launchInlineChat.label', "Launch Inline Chat"),
 				f1: false,
 				category: CHAT_CATEGORY
 			});
@@ -180,14 +171,17 @@ export function getQuickChatActionForProvider(id: string, label: string) {
 			super({
 				id: `workbench.action.openQuickChat.${id}`,
 				category: CHAT_CATEGORY,
-				title: { value: localize('interactiveSession.open', "Open Quick Chat ({0})", label), original: `Open Quick Chat (${label})` },
+				title: localize2('interactiveSession.open', "Open Quick Chat ({0})", label),
 				f1: true
 			});
 		}
 
 		override run(accessor: ServicesAccessor, query?: string): void {
 			const quickChatService = accessor.get(IQuickChatService);
-			quickChatService.toggle(id, query ? { query } : undefined);
+			quickChatService.toggle(id, query ? {
+				query,
+				selection: new Selection(1, query.length + 1, 1, query.length + 1)
+			} : undefined);
 		}
 	};
 }

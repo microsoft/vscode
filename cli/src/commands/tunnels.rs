@@ -53,6 +53,7 @@ use crate::{
 		app_lock::AppMutex,
 		command::new_std_command,
 		errors::{wrap, AnyError, CodeError},
+		machine::canonical_exe,
 		prereqs::PreReqChecker,
 	},
 };
@@ -230,8 +231,7 @@ pub async fn service(
 			// likewise for license consent
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
-			let current_exe =
-				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+			let current_exe = canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 
 			manager
 				.register(
@@ -407,7 +407,8 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
-	let csa = (&args).into();
+	let mut csa = (&args).into();
+	gateway_args.apply_to_server_args(&mut csa);
 	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
 	drop(no_sleep);
 

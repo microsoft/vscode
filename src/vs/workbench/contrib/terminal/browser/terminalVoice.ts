@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
@@ -77,7 +77,7 @@ export class TerminalVoiceSession extends Disposable {
 		this._disposables = this._register(new DisposableStore());
 	}
 
-	start(): void {
+	async start(): Promise<void> {
 		this.stop();
 		let voiceTimeout = this.configurationService.getValue<number>(AccessibilityVoiceSettingId.SpeechTimeout);
 		if (!isNumber(voiceTimeout) || voiceTimeout < 0) {
@@ -87,8 +87,9 @@ export class TerminalVoiceSession extends Disposable {
 			this._sendText();
 			this.stop();
 		}, voiceTimeout));
-		this._cancellationTokenSource = this._register(new CancellationTokenSource());
-		const session = this._disposables.add(this._speechService.createSpeechToTextSession(this._cancellationTokenSource!.token));
+		this._cancellationTokenSource = new CancellationTokenSource();
+		this._register(toDisposable(() => this._cancellationTokenSource?.dispose(true)));
+		const session = await this._speechService.createSpeechToTextSession(this._cancellationTokenSource?.token, 'terminal');
 
 		this._disposables.add(session.onDidChange((e) => {
 			if (this._cancellationTokenSource?.token.isCancellationRequested) {
@@ -96,7 +97,6 @@ export class TerminalVoiceSession extends Disposable {
 			}
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
-					// TODO: play start audio cue
 					if (!this._decoration) {
 						this._createDecoration();
 					}
@@ -116,7 +116,6 @@ export class TerminalVoiceSession extends Disposable {
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
-					// TODO: play stop audio cue
 					this.stop();
 					break;
 			}

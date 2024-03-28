@@ -102,7 +102,7 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 				engines: { vscode: '*' },
 			},
 			extension,
-			{ profileLocation: userDataProfilesService.defaultProfile.extensionsResource },
+			{ profileLocation: userDataProfilesService.defaultProfile.extensionsResource, productVersion: { version: '' } },
 			extensionDownloader,
 			new TestExtensionsScanner(),
 			uriIdentityService,
@@ -110,6 +110,7 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 			extensionsScannerService,
 			extensionsProfileScannerService,
 			logService,
+			NullTelemetryService
 		);
 	}
 

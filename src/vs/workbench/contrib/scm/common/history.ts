@@ -10,8 +10,8 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
-	readonly incomingHistoryItemGroupMenu: IMenu;
-	readonly outgoingHistoryItemGroupMenu: IMenu;
+	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
+	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
 }

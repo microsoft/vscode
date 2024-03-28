@@ -6,23 +6,22 @@
 /*
  * Replace with "microphone" icon.
  */
-.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
-.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 	content: "\ec1c";
+	font-family: 'codicon';
 }
 
 /*
  * Clear animation styles when reduced motion is enabled.
  */
-.monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
-.monaco-workbench.reduce-motion .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
+.monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
 	animation: none;
 }
 
 /*
  * Replace with "stop" icon when reduced motion is enabled.
  */
-.monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
-.monaco-workbench.reduce-motion .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+.monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 	content: "\ead7";
+	font-family: 'codicon';
 }

@@ -26,7 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -118,6 +118,7 @@ const shellIntegrationSupportedShellTypes = [
 	PosixShellType.Bash,
 	PosixShellType.Zsh,
 	PosixShellType.PowerShell,
+	PosixShellType.Python,
 	WindowsShellType.PowerShell
 ];
 
@@ -363,7 +364,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
@@ -720,7 +721,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
 
-		const disableShellIntegrationReporting = (this.shellLaunchConfig.hideFromUser || this.shellLaunchConfig.executable === undefined || this.shellType === undefined) || !shellIntegrationSupportedShellTypes.includes(this.shellType);
+		const disableShellIntegrationReporting = (this.shellLaunchConfig.executable === undefined || this.shellType === undefined) || !shellIntegrationSupportedShellTypes.includes(this.shellType);
 		const xterm = this._scopedInstantiationService.createInstance(
 			XtermTerminal,
 			Terminal,
@@ -753,7 +754,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// starts up or reconnects
 		disposableTimeout(() => {
 			this._register(xterm.raw.onBell(() => {
-				if (this._configHelper.config.enableBell) {
+				if (this._configurationService.getValue(TerminalSettingId.EnableBell) || this._configurationService.getValue(TerminalSettingId.EnableVisualBell)) {
 					this.statusList.add({
 						id: TerminalStatus.Bell,
 						severity: Severity.Warning,
@@ -761,7 +762,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						tooltip: nls.localize('bellStatus', "Bell")
 					}, this._configHelper.config.bellDuration);
 				}
-				this._audioCueService.playAudioCue(AudioCue.terminalBell);
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalBell);
 			}));
 		}, 1000, this._store);
 		this._register(xterm.raw.onSelectionChange(async () => this._onSelectionChange()));
@@ -823,10 +824,29 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
+		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+
+		// Await command detection if the terminal is starting up
+		if (!commandDetection && (this._processManager.processState === ProcessState.Uninitialized || this._processManager.processState === ProcessState.Launching)) {
+			const store = new DisposableStore();
+			await Promise.race([
+				new Promise<void>(r => {
+					store.add(this.capabilities.onDidAddCapabilityType(e => {
+						if (e === TerminalCapability.CommandDetection) {
+							commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+							r();
+						}
+					}));
+				}),
+				timeout(2000),
+			]);
+			store.dispose();
+		}
+
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
 		// there is no content in the prompt
-		if (this.capabilities.get(TerminalCapability.CommandDetection)?.hasInput !== false) {
+		if (commandDetection?.hasInput !== false) {
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
@@ -1458,21 +1478,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
-		const messageId = ++this._latestXtermWriteData;
 		if (ev.trackCommit) {
-			ev.writePromise = new Promise<void>(r => {
-				this.xterm?.raw.write(ev.data, () => {
-					this._latestXtermParseData = messageId;
-					this._processManager.acknowledgeDataEvent(ev.data.length);
-					r();
-				});
-			});
+			ev.writePromise = new Promise<void>(r => this._writeProcessData(ev, r));
 		} else {
-			this.xterm?.raw.write(ev.data, () => {
-				this._latestXtermParseData = messageId;
-				this._processManager.acknowledgeDataEvent(ev.data.length);
-			});
+			this._writeProcessData(ev);
 		}
+	}
+
+	private _writeProcessData(ev: IProcessDataEvent, cb?: () => void) {
+		const messageId = ++this._latestXtermWriteData;
+		this.xterm?.raw.write(ev.data, () => {
+			this._latestXtermParseData = messageId;
+			this._processManager.acknowledgeDataEvent(ev.data.length);
+			cb?.();
+		});
 	}
 
 	/**

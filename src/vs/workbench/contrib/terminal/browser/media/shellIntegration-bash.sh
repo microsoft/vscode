@@ -22,7 +22,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		if [ -r /etc/profile ]; then
 			. /etc/profile
 		fi
-		# exceute the first that exists
+		# execute the first that exists
 		if [ -r ~/.bash_profile ]; then
 			. ~/.bash_profile
 		elif [ -r ~/.bash_login ]; then
@@ -50,7 +50,7 @@ if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="$VALUE"
 	done
 	builtin unset VSCODE_ENV_REPLACE
@@ -59,7 +59,7 @@ if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="$VALUE${!VARNAME}"
 	done
 	builtin unset VSCODE_ENV_PREPEND
@@ -68,7 +68,7 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="${!VARNAME}$VALUE"
 	done
 	builtin unset VSCODE_ENV_APPEND

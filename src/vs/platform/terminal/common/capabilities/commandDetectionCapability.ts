@@ -74,7 +74,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandFinished = this._onCommandFinished.event;
-	private readonly _onCommandExecuted = this._register(new Emitter<void>());
+	private readonly _onCommandExecuted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandExecuted = this._onCommandExecuted.event;
 	private readonly _onCommandInvalidated = this._register(new Emitter<ITerminalCommand[]>());
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
@@ -303,9 +303,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		this._ptyHeuristics.value.handleCommandExecuted(options);
+		this._currentCommand.markExecutedTime();
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
+		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
 
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, options?.marker?.line, this._currentCommand.command, this._currentCommand);
@@ -406,7 +408,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 interface ICommandDetectionHeuristicsHooks {
 	readonly onCurrentCommandInvalidatedEmitter: Emitter<ICommandInvalidationRequest>;
 	readonly onCommandStartedEmitter: Emitter<ITerminalCommand>;
-	readonly onCommandExecutedEmitter: Emitter<void>;
+	readonly onCommandExecutedEmitter: Emitter<ITerminalCommand>;
 	readonly dimensions: ITerminalDimensions;
 	readonly isCommandStorageDisabled: boolean;
 
@@ -493,7 +495,7 @@ class UnixPtyHeuristics extends Disposable {
 		if (y === commandExecutedLine) {
 			currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, currentCommand.commandExecutedX) || '';
 		}
-		this._hooks.onCommandExecutedEmitter.fire();
+		this._hooks.onCommandExecutedEmitter.fire(currentCommand as ITerminalCommand);
 	}
 }
 
@@ -513,8 +515,6 @@ class WindowsPtyHeuristics extends Disposable {
 
 	private _onCursorMoveListener = this._register(new MutableDisposable());
 
-	private _recentlyPerformedCsiJ = false;
-
 	private _tryAdjustCommandStartMarkerScheduler?: RunOnceScheduler;
 	private _tryAdjustCommandStartMarkerScannedLineCount: number = 0;
 	private _tryAdjustCommandStartMarkerPollCount: number = 0;
@@ -528,8 +528,8 @@ class WindowsPtyHeuristics extends Disposable {
 		super();
 
 		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			// Clear commands when the viewport is cleared
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				this._recentlyPerformedCsiJ = true;
 				this._hooks.clearCommandsInViewport();
 			}
 			// We don't want to override xterm.js' default behavior, just augment it
@@ -537,11 +537,6 @@ class WindowsPtyHeuristics extends Disposable {
 		}));
 
 		this._register(this._capability.onBeforeCommandFinished(command => {
-			if (this._recentlyPerformedCsiJ) {
-				this._recentlyPerformedCsiJ = false;
-				return;
-			}
-
 			// For older Windows backends we cannot listen to CSI J, instead we assume running clear
 			// or cls will clear all commands in the viewport. This is not perfect but it's right
 			// most of the time.
@@ -738,7 +733,7 @@ class WindowsPtyHeuristics extends Disposable {
 		this._onCursorMoveListener.clear();
 		this._evaluateCommandMarkers();
 		this._capability.currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
-		this._hooks.onCommandExecutedEmitter.fire();
+		this._hooks.onCommandExecutedEmitter.fire(this._capability.currentCommand as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._capability.currentCommand.commandExecutedX, this._capability.currentCommand.commandExecutedMarker?.line);
 	}
 
@@ -832,7 +827,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 		this._capability.currentCommand.commandExecutedMarker = this._hooks.commandMarkers[this._hooks.commandMarkers.length - 1];
 		// Fire this now to prevent issues like #197409
-		this._hooks.onCommandExecutedEmitter.fire();
+		this._hooks.onCommandExecutedEmitter.fire(this._capability.currentCommand as ITerminalCommand);
 	}
 
 	private _cursorOnNextLine(): boolean {
@@ -899,6 +894,15 @@ class WindowsPtyHeuristics extends Disposable {
 			if (adjustedPrompt) {
 				return adjustedPrompt;
 			}
+		}
+
+		// Python Prompt
+		const pythonPrompt = lineText.match(/^(?<prompt>>>> )/g)?.groups?.prompt;
+		if (pythonPrompt) {
+			return {
+				prompt: pythonPrompt,
+				likelySingleLine: true
+			};
 		}
 
 		// Command Prompt

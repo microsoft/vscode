@@ -10,8 +10,8 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IActiveNotebookEditor, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IActiveNotebookEditor, ICellViewModel, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { OutlineEntry } from './OutlineEntry';
@@ -70,7 +70,11 @@ export class NotebookCellOutlineProvider {
 		);
 
 		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
+			if (e.affectsConfiguration(NotebookSetting.outlineShowMarkdownHeadersOnly) ||
+				e.affectsConfiguration(NotebookSetting.outlineShowCodeCells) ||
+				e.affectsConfiguration(NotebookSetting.outlineShowCodeCellSymbols) ||
+				e.affectsConfiguration(NotebookSetting.breadcrumbsShowCodeCells)
+			) {
 				this._recomputeState();
 			}
 		}));
@@ -136,17 +140,20 @@ export class NotebookCellOutlineProvider {
 		}
 
 		let includeCodeCells = true;
-		if (this._target === OutlineTarget.OutlinePane) {
-			includeCodeCells = this._configurationService.getValue<boolean>('notebook.outline.showCodeCells');
-		} else if (this._target === OutlineTarget.Breadcrumbs) {
+		if (this._target === OutlineTarget.Breadcrumbs) {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
+		let notebookCells: ICellViewModel[];
+		if (this._target === OutlineTarget.Breadcrumbs) {
+			notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
+		} else {
+			notebookCells = notebookEditorWidget.getViewModel().viewCells;
+		}
 
 		const entries: OutlineEntry[] = [];
 		for (const cell of notebookCells) {
-			entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, entries.length));
+			entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, this._target, entries.length));
 			// send an event whenever any of the cells change
 			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
 				this._recomputeState();
@@ -261,8 +268,6 @@ export class NotebookCellOutlineProvider {
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}
 	}
-
-
 
 	get isEmpty(): boolean {
 		return this._entries.length === 0;

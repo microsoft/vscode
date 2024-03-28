@@ -92,7 +92,7 @@ suite('Files - TextFileService', () => {
 		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.resolve();
-		model!.textEditorModel!.setValue('foo');
+		model.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		await accessor.textFileService.revert(model.resource);
@@ -104,7 +104,7 @@ suite('Files - TextFileService', () => {
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.resolve();
-		model!.textEditorModel!.setValue('foo');
+		model.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		let eventCounter = 0;

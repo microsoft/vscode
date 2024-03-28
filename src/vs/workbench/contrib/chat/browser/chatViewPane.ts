@@ -23,6 +23,7 @@ import { SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IChatViewPane } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -45,6 +46,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	private memento: Memento;
 	private readonly viewState: IViewPaneState;
 	private didProviderRegistrationFail = false;
+	private didUnregisterProvider = false;
 
 	constructor(
 		private readonly chatViewOptions: IChatViewOptions,
@@ -78,10 +80,18 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 				try {
 					this._widget.setVisible(false);
 					this.updateModel(model);
+					this.didProviderRegistrationFail = false;
+					this.didUnregisterProvider = false;
 					this._onDidChangeViewWelcomeState.fire();
 				} finally {
 					this.widget.setVisible(true);
 				}
+			}
+		}));
+		this._register(this.chatService.onDidUnregisterProvider(({ providerId }) => {
+			if (providerId === this.chatViewOptions.providerId) {
+				this.didUnregisterProvider = true;
+				this._onDidChangeViewWelcomeState.fire();
 			}
 		}));
 	}
@@ -102,7 +112,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 
 	override shouldShowWelcome(): boolean {
 		const noPersistedSessions = !this.chatService.hasSessions(this.chatViewOptions.providerId);
-		return !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail);
+		return this.didUnregisterProvider || !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail);
 	}
 
 	private getSessionId() {
@@ -124,6 +134,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 
 			this._widget = this._register(scopedInstantiationService.createInstance(
 				ChatWidget,
+				ChatAgentLocation.Panel,
 				{ viewId: this.id },
 				{ supportsFileReferences: true },
 				{

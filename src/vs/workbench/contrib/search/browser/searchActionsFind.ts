@@ -54,15 +54,12 @@ export interface IFindInFilesArgs {
 registerAction2(class RestrictSearchToFolderAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.RestrictSearchToFolderId,
-			title: {
-				value: nls.localize('restrictResultsToFolder', "Restrict Search to Folder"),
-				original: 'Restrict Search to Folder'
-			},
+			id: Constants.SearchCommandIds.RestrictSearchToFolderId,
+			title: nls.localize2('restrictResultsToFolder', "Restrict Search to Folder"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ResourceFolderFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.ResourceFolderFocusKey),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF,
 			},
 			menu: [
@@ -70,7 +67,7 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 					id: MenuId.SearchContext,
 					group: 'search',
 					order: 3,
-					when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
+					when: ContextKeyExpr.and(Constants.SearchContext.ResourceFolderFocusKey)
 				}
 			]
 		});
@@ -83,18 +80,15 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ExcludeFolderFromSearchId,
-			title: {
-				value: nls.localize('excludeFolderFromSearch', "Exclude Folder from Search"),
-				original: 'Exclude Folder from Search'
-			},
+			id: Constants.SearchCommandIds.ExcludeFolderFromSearchId,
+			title: nls.localize2('excludeFolderFromSearch', "Exclude Folder from Search"),
 			category,
 			menu: [
 				{
 					id: MenuId.SearchContext,
 					group: 'search',
 					order: 4,
-					when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
+					when: ContextKeyExpr.and(Constants.SearchContext.ResourceFolderFocusKey)
 				}
 			]
 		});
@@ -109,15 +103,12 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.RevealInSideBarForSearchResults,
-			title: {
-				value: nls.localize('revealInSideBar', "Reveal in Explorer View"),
-				original: 'Reveal in Explorer View'
-			},
+			id: Constants.SearchCommandIds.RevealInSideBarForSearchResults,
+			title: nls.localize2('revealInSideBar', "Reveal in Explorer View"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
-				when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
+				when: ContextKeyExpr.and(Constants.SearchContext.FileFocusKey, Constants.SearchContext.HasSearchResults),
 				group: 'search_3',
 				order: 1
 			}]
@@ -167,11 +158,10 @@ registerAction2(class FindInFilesAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.FindInFilesActionId,
+			id: Constants.SearchCommandIds.FindInFilesActionId,
 			title: {
-				value: nls.localize('findInFiles', "Find in Files"),
+				...nls.localize2('findInFiles', "Find in Files"),
 				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"),
-				original: 'Find in Files'
 			},
 			metadata: {
 				description: nls.localize('findInFiles.description', "Open a workspace search"),
@@ -221,11 +211,8 @@ registerAction2(class FindInFolderAction extends Action2 {
 	// from explorer
 	constructor() {
 		super({
-			id: Constants.FindInFolderId,
-			title: {
-				value: nls.localize('findInFolder', "Find in Folder..."),
-				original: 'Find in Folder...'
-			},
+			id: Constants.SearchCommandIds.FindInFolderId,
+			title: nls.localize2('findInFolder', "Find in Folder..."),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -251,11 +238,8 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 	// from explorer
 	constructor() {
 		super({
-			id: Constants.FindInWorkspaceId,
-			title: {
-				value: nls.localize('findInWorkspace', "Find in Workspace..."),
-				original: 'Find in Workspace...'
-			},
+			id: Constants.SearchCommandIds.FindInWorkspaceId,
+			title: nls.localize2('findInWorkspace', "Find in Workspace..."),
 			category,
 			menu: [
 				{

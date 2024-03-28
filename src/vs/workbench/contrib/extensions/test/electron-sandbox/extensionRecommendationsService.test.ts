@@ -17,7 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestProductService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestExtensionTipsService, TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -63,6 +63,11 @@ import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+
+const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -207,6 +212,13 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(ILifecycleService, disposableStore.add(new TestLifecycleService()));
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(ILogService, NullLogService);
+		const fileService = new FileService(instantiationService.get(ILogService));
+		instantiationService.stub(IFileService, disposableStore.add(fileService));
+		const fileSystemProvider = disposableStore.add(new InMemoryFileSystemProvider());
+		disposableStore.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+		instantiationService.stub(IUriIdentityService, disposableStore.add(new UriIdentityService(instantiationService.get(IFileService))));
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IWorkbenchExtensionManagementService, {
@@ -219,7 +231,8 @@ suite('ExtensionRecommendationsService Test', () => {
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
-			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
+			async getTargetPlatform() { return getTargetPlatform(platform, arch); },
+			isWorkspaceExtensionsSupported() { return false; },
 		});
 		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,
@@ -274,6 +287,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			},
 		});
 
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		instantiationService.stub(IExtensionTipsService, disposableStore.add(instantiationService.createInstance(TestExtensionTipsService)));
 
@@ -309,12 +323,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	}
 
 	async function setUpFolder(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
-		const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
-		const logService = new NullLogService();
-		const fileService = disposableStore.add(new FileService(logService));
-		const fileSystemProvider = disposableStore.add(new InMemoryFileSystemProvider());
-		disposableStore.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
-
+		const fileService = instantiationService.get(IFileService);
 		const folderDir = joinPath(ROOT, folderName);
 		const workspaceSettingsDir = joinPath(folderDir, '.vscode');
 		await fileService.createFolder(workspaceSettingsDir);

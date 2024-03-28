@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, Metadata, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallExtensionInfo, IProductVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier, ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionManagementChannelClient as BaseExtensionManagementChannelClient, ExtensionEventResult } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
@@ -62,7 +62,7 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		}
 	}
 
-	override async install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<ILocalExtension> {
+	override async install(vsix: URI, installOptions?: InstallOptions): Promise<ILocalExtension> {
 		installOptions = { ...installOptions, profileLocation: await this.getProfileLocation(installOptions?.profileLocation) };
 		return super.install(vsix, installOptions);
 	}
@@ -89,8 +89,8 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		return super.uninstall(extension, options);
 	}
 
-	override async getInstalled(type: ExtensionType | null = null, extensionsProfileResource?: URI): Promise<ILocalExtension[]> {
-		return super.getInstalled(type, await this.getProfileLocation(extensionsProfileResource));
+	override async getInstalled(type: ExtensionType | null = null, extensionsProfileResource?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {
+		return super.getInstalled(type, await this.getProfileLocation(extensionsProfileResource), productVersion);
 	}
 
 	override async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, extensionsProfileResource?: URI): Promise<ILocalExtension> {

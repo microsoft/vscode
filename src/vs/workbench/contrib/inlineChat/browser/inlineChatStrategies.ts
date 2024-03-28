@@ -28,14 +28,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Progress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
+import { InlineChatFileCreatePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatFileCreationWidget';
 import { HunkInformation, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { InlineChatZoneWidget } from './inlineChatZoneWidget';
+import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { HunkState } from './inlineChatSession';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEditObserver {
 	start(): void;
@@ -123,6 +125,8 @@ export abstract class EditModeStrategy {
 
 	abstract renderChanges(response: ReplyResponse): Promise<Position | undefined>;
 
+	move?(next: boolean): void;
+
 	abstract hasFocus(): boolean;
 
 	getWholeRangeDecoration(): IModelDeltaDecoration[] {
@@ -136,6 +140,7 @@ export abstract class EditModeStrategy {
 export class PreviewStrategy extends EditModeStrategy {
 
 	private readonly _ctxDocumentChanged: IContextKey<boolean>;
+	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 
 	constructor(
 		session: Session,
@@ -143,6 +148,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
 
@@ -154,10 +160,13 @@ export class PreviewStrategy extends EditModeStrategy {
 				this._ctxDocumentChanged.set(session.hasChangedText);
 			}
 		}, undefined, this._store);
+
+		this._previewZone = new Lazy(() => instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
 	}
 
 	override dispose(): void {
 		this._ctxDocumentChanged.reset();
+		this._previewZone.rawValue?.dispose();
 		super.dispose();
 	}
 
@@ -209,10 +218,10 @@ export class PreviewStrategy extends EditModeStrategy {
 			this._zone.widget.hideEditsPreview();
 		}
 
-		if (response.untitledTextModel) {
-			this._zone.widget.showCreatePreview(response.untitledTextModel);
+		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
+			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
-			this._zone.widget.hideCreatePreview();
+			this._previewZone.rawValue?.hide();
 		}
 	}
 
@@ -227,166 +236,7 @@ export interface ProgressingEditsOptions {
 	token: CancellationToken;
 }
 
-export class LivePreviewStrategy extends EditModeStrategy {
 
-	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
-	private readonly _diffZonePool: InlineChatLivePreviewWidget[] = [];
-
-	constructor(
-		session: Session,
-		editor: ICodeEditor,
-		zone: InlineChatZoneWidget,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-	) {
-		super(session, editor, zone);
-
-		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
-	}
-
-	override dispose(): void {
-		for (const zone of this._diffZonePool) {
-			zone.hide();
-			zone.dispose();
-		}
-		this._previewZone.rawValue?.hide();
-		this._previewZone.rawValue?.dispose();
-		super.dispose();
-	}
-
-	async apply() {
-		if (this._editCount > 0) {
-			this._editor.pushUndoStop();
-		}
-		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
-			return;
-		}
-		const { untitledTextModel } = this._session.lastExchange.response;
-		if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
-			await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
-		}
-	}
-
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
-		this._updateDiffZones();
-	}
-
-	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
-		return this._makeChanges(edits, obs, undefined, undefined);
-	}
-
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
-		await this._makeChanges(edits, obs, opts, new Progress<any>(() => {
-			this._updateDiffZones();
-		}));
-	}
-
-	override async renderChanges(response: ReplyResponse): Promise<Position | undefined> {
-
-		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
-		} else {
-			this._previewZone.value.hide();
-		}
-
-		return this._updateDiffZones();
-	}
-
-
-	protected _updateSummaryMessage(hunkCount: number) {
-		let message: string;
-		if (hunkCount === 0) {
-			message = localize('change.0', "Nothing changed");
-		} else if (hunkCount === 1) {
-			message = localize('change.1', "1 change");
-		} else {
-			message = localize('lines.NM', "{0} changes", hunkCount);
-		}
-		this._zone.widget.updateStatus(message);
-	}
-
-
-	private _updateDiffZones(): Position | undefined {
-
-		const { hunkData } = this._session;
-		const hunks = hunkData.getInfo().filter(hunk => hunk.getState() === HunkState.Pending);
-
-		if (hunks.length === 0) {
-			for (const zone of this._diffZonePool) {
-				zone.hide();
-			}
-
-			if (hunkData.getInfo().find(hunk => hunk.getState() === HunkState.Accepted)) {
-				this._onDidAccept.fire();
-			} else {
-				this._onDidDiscard.fire();
-			}
-
-			return;
-		}
-
-		this._updateSummaryMessage(hunks.length);
-
-		// create enough zones
-		const handleDiff = () => this._updateDiffZones();
-
-		type Data = { position: Position; distance: number; accept: Function; discard: Function };
-		let nearest: Data | undefined;
-
-		// create enough zones
-		while (hunks.length > this._diffZonePool.length) {
-			this._diffZonePool.push(this._instaService.createInstance(InlineChatLivePreviewWidget, this._editor, this._session, {}, this._diffZonePool.length === 0 ? handleDiff : undefined));
-		}
-
-		for (let i = 0; i < hunks.length; i++) {
-			const hunk = hunks[i];
-			this._diffZonePool[i].showForChanges(hunk);
-
-			const modifiedRange = hunk.getRangesN()[0];
-			const zoneLineNumber = this._zone.position!.lineNumber;
-			const distance = zoneLineNumber <= modifiedRange.startLineNumber
-				? modifiedRange.startLineNumber - zoneLineNumber
-				: zoneLineNumber - modifiedRange.endLineNumber;
-
-			if (!nearest || nearest.distance > distance) {
-				nearest = {
-					position: modifiedRange.getStartPosition().delta(-1),
-					distance,
-					accept: () => {
-						hunk.acceptChanges();
-						handleDiff();
-					},
-					discard: () => {
-						hunk.discardChanges();
-						handleDiff();
-					}
-				};
-			}
-
-		}
-		// hide unused zones
-		for (let i = hunks.length; i < this._diffZonePool.length; i++) {
-			this._diffZonePool[i].hide();
-		}
-
-		this.acceptHunk = async () => nearest?.accept();
-		this.discardHunk = async () => nearest?.discard();
-
-		if (nearest) {
-			this._zone.updatePositionAndHeight(nearest.position);
-			this._editor.revealPositionInCenterIfOutsideViewport(nearest.position);
-		}
-
-		return nearest?.position;
-	}
-
-	override hasFocus(): boolean {
-		return this._zone.widget.hasFocus()
-			|| Boolean(this._previewZone.rawValue?.hasFocus())
-			|| this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
-	}
-}
 
 type HunkDisplayData = {
 
@@ -401,6 +251,9 @@ type HunkDisplayData = {
 	discardHunk: () => void;
 	toggleDiff?: () => any;
 	remove(): void;
+	move: (next: boolean) => void;
+
+	hunk: HunkInformation;
 };
 
 
@@ -429,7 +282,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
 
-
 	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
 	override discardHunk: () => Promise<void> = () => super.discardHunk();
 
@@ -439,6 +291,8 @@ export class LiveStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
@@ -526,7 +380,7 @@ export class LiveStrategy extends EditModeStrategy {
 		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
 			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
-			this._previewZone.value.hide();
+			this._previewZone.rawValue?.hide();
 		}
 
 		this._progressiveEditingDecorations.clear();
@@ -599,7 +453,7 @@ export class LiveStrategy extends EditModeStrategy {
 									data.viewZoneId = undefined;
 								}
 							});
-							this._ctxCurrentChangeShowsDiff.set(typeof data?.viewZoneId === 'number');
+							this._ctxCurrentChangeShowsDiff.set(typeof data?.viewZoneId === 'string');
 							scrollState.restore(this._editor);
 						};
 
@@ -617,12 +471,40 @@ export class LiveStrategy extends EditModeStrategy {
 							});
 						};
 
+						const move = (next: boolean) => {
+							assertType(widgetData);
+
+							const candidates: Position[] = [];
+							for (const item of this._session.hunkData.getInfo()) {
+								if (item.getState() === HunkState.Pending) {
+									candidates.push(item.getRangesN()[0].getStartPosition().delta(-1));
+								}
+							}
+							if (candidates.length < 2) {
+								return;
+							}
+							for (let i = 0; i < candidates.length; i++) {
+								if (candidates[i].equals(widgetData.position)) {
+									let newPos: Position;
+									if (next) {
+										newPos = candidates[(i + 1) % candidates.length];
+									} else {
+										newPos = candidates[(i + candidates.length - 1) % candidates.length];
+									}
+									this._zone.updatePositionAndHeight(newPos);
+									renderHunks();
+									break;
+								}
+							}
+						};
+
 						const zoneLineNumber = this._zone.position!.lineNumber;
 						const myDistance = zoneLineNumber <= hunkRanges[0].startLineNumber
 							? hunkRanges[0].startLineNumber - zoneLineNumber
 							: zoneLineNumber - hunkRanges[0].endLineNumber;
 
 						data = {
+							hunk: hunkData,
 							decorationIds,
 							viewZoneId: '',
 							viewZone: viewZoneData,
@@ -632,6 +514,7 @@ export class LiveStrategy extends EditModeStrategy {
 							discardHunk,
 							toggleDiff: !hunkData.isInsertion() ? toggleDiff : undefined,
 							remove,
+							move,
 						};
 
 						this._hunkDisplayData.set(hunkData, data);
@@ -668,12 +551,19 @@ export class LiveStrategy extends EditModeStrategy {
 				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
 				const remainingHunks = this._session.hunkData.pending;
-				this._updateSummaryMessage(remainingHunks);
+				this._updateSummaryMessage(remainingHunks, this._session.hunkData.size);
+
+
+				const mode = this._configService.getValue<'on' | 'off' | 'auto'>(InlineChatConfigKeys.AccessibleDiffView);
+				if (mode === 'on' || mode === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
+					this._zone.widget.showAccessibleHunk(this._session, widgetData.hunk);
+				}
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
 				this.toggleDiff = widgetData.toggleDiff;
 				this.acceptHunk = async () => widgetData!.acceptHunk();
 				this.discardHunk = async () => widgetData!.discardHunk();
+				this.move = next => widgetData!.move(next);
 
 			} else if (this._hunkDisplayData.size > 0) {
 				// everything accepted or rejected
@@ -697,16 +587,28 @@ export class LiveStrategy extends EditModeStrategy {
 		return renderHunks()?.position;
 	}
 
-	protected _updateSummaryMessage(hunkCount: number) {
+	private _updateSummaryMessage(remaining: number, total: number) {
+
+		const needsReview = this._configService.getValue<boolean>(InlineChatConfigKeys.AcceptedOrDiscardBeforeSave);
 		let message: string;
-		if (hunkCount === 0) {
-			message = localize('change.0', "Nothing changed");
-		} else if (hunkCount === 1) {
-			message = localize('change.1', "1 change");
+		if (total === 0) {
+			message = localize('change.0', "Nothing changed.");
+		} else if (remaining === 1) {
+			message = needsReview
+				? localize('review.1', "$(info) Accept or Discard 1 change.")
+				: localize('change.1', "1 change");
 		} else {
-			message = localize('lines.NM', "{0} changes", hunkCount);
+			message = needsReview
+				? localize('review.N', "$(info) Accept or Discard {0} changes.", remaining)
+				: localize('change.N', "{0} changes", total);
 		}
-		this._zone.widget.updateStatus(message);
+
+		let title: string | undefined;
+		if (needsReview) {
+			title = localize('review', "Review (accept or discard) all changes before continuing.");
+		}
+
+		this._zone.widget.updateStatus(message, { title });
 	}
 
 	hasFocus(): boolean {
