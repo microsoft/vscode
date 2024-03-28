@@ -74,7 +74,9 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		// 	console.log('*** onDidEndTerminalShellExecution', e);
 		// });
 		// setTimeout(() => {
+		// 	console.log('before executeCommand(\"echo hello\")');
 		// 	Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
+		// 	console.log('after executeCommand(\"echo hello\")');
 		// }, 4000);
 	}
 
@@ -160,14 +162,16 @@ class InternalTerminalShellIntegration extends Disposable {
 			},
 			executeCommand(commandLine): vscode.TerminalShellExecution {
 				that._onDidRequestShellExecution.fire(commandLine);
-				const execution = that.startShellExecution(commandLine, that._cwd).value;
+				// Fire the event in a microtask to allow the extension to use the execution before
+				// the start event fires
+				const execution = that.startShellExecution(commandLine, that._cwd, true).value;
 				that._ignoreNextExecution = true;
 				return execution;
 			}
 		};
 	}
 
-	startShellExecution(commandLine: string, cwd: URI | string | undefined): InternalTerminalShellExecution {
+	startShellExecution(commandLine: string, cwd: URI | string | undefined, fireEventInMicrotask?: boolean): InternalTerminalShellExecution {
 		if (this._ignoreNextExecution && this._currentExecution) {
 			this._ignoreNextExecution = false;
 		} else {
@@ -175,8 +179,12 @@ class InternalTerminalShellIntegration extends Disposable {
 				this._currentExecution.endExecution(undefined, undefined);
 				this._onDidRequestEndExecution.fire({ execution: this._currentExecution.value, exitCode: undefined });
 			}
-			this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
-			this._onDidStartTerminalShellExecution.fire(this._currentExecution.value);
+			const currentExecution = this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
+			if (fireEventInMicrotask) {
+				queueMicrotask(() => this._onDidStartTerminalShellExecution.fire(currentExecution.value));
+			} else {
+				this._onDidStartTerminalShellExecution.fire(this._currentExecution.value);
+			}
 		}
 		return this._currentExecution;
 	}
