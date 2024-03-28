@@ -67,7 +67,7 @@ export namespace TerminalChatContextKeys {
 	/** The type of chat response, if any */
 	export const responseContainsCodeBlock = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseContainsCodeBlock, false, localize('chatResponseContainsCodeBlockContextKey', "Whether the chat response contains a code block."));
 
-	/** The type of chat response, if any */
+	/** The chat response contains multiple code blocks */
 	export const responseContainsMultipleCodeBlocks = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseContainsMultipleCodeBlocks, false, localize('chatResponseContainsMultipleCodeBlocksContextKey', "Whether the chat response contains multiple code blocks."));
 
 	/** Whether the response supports issue reporting */
