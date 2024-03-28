@@ -917,8 +917,28 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					editorsByGroup.add(editor.editor);
 				}
 
-				openEditorsPromise = Promise.all(Array.from(mapEditorsToGroup).map(async ([groupId, editors]) => {
+				openEditorsPromise = Promise.all(Array.from(mapEditorsToGroup).map(async ([groupId, editorSet]) => {
+					const editors = Array.from(editorSet);
+					const editorOverrides = new Set<string>();
+					for (const editor of editors) {
+						const override = editor.options?.override;
+						if (typeof override === 'string') {
+							editorOverrides.add(override);
+						}
+					}
 					try {
+						if (editorOverrides.size > 0) {
+							// ensure custom editors from extensions are registered
+							await this.extensionService.whenInstalledExtensionsRegistered();
+							const promises = <Promise<void>[]>[];
+							for (const ext of this.extensionService.extensions) {
+								const shouldActivate = ext.contributes?.customEditors?.some((editor) => editorOverrides.has(editor.viewType)) ?? false;
+								if (shouldActivate) {
+									promises.push(this.extensionService.activateById(ext.identifier, { startup: true, extensionId: ext.identifier, activationEvent: '' }));
+								}
+							}
+							await Promise.all(promises);
+						}
 						await this.editorService.openEditors(Array.from(editors), groupId, { validateTrust: true });
 					} catch (error) {
 						this.logService.error(error);
