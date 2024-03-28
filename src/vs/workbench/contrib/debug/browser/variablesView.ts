@@ -22,7 +22,7 @@ import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -38,6 +38,7 @@ import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane'
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
@@ -467,7 +468,7 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 		renderExpressionValue(viz, data.value, {
 			showChanged: false,
 			maxValueLength: 1024,
-			showHover: true,
+			hover: data.elementDisposable,
 			colorize: true,
 			linkDetector: this.linkDetector
 		});
@@ -525,6 +526,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugVisualizerService private readonly visualization: IDebugVisualizerService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
 	) {
@@ -536,7 +538,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+		renderVariable(data.elementDisposable, this.commandService, expression as Variable, data, true, highlights, this.linkDetector);
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
@@ -650,8 +652,10 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 CommandsRegistry.registerCommand({
+	metadata: {
+		description: COPY_VALUE_LABEL,
+	},
 	id: COPY_VALUE_ID,
 	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | IVariablesContext, ctx?: (Variable | Expression)[]) => {
 		const debugService = accessor.get(IDebugService);
@@ -793,8 +797,10 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const COPY_EVALUATE_PATH_ID = 'debug.copyEvaluatePath';
 CommandsRegistry.registerCommand({
+	metadata: {
+		description: COPY_EVALUATE_PATH_LABEL,
+	},
 	id: COPY_EVALUATE_PATH_ID,
 	handler: async (accessor: ServicesAccessor, context: IVariablesContext) => {
 		const clipboardService = accessor.get(IClipboardService);
@@ -802,8 +808,10 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const ADD_TO_WATCH_ID = 'debug.addToWatchExpressions';
 CommandsRegistry.registerCommand({
+	metadata: {
+		description: ADD_TO_WATCH_LABEL,
+	},
 	id: ADD_TO_WATCH_ID,
 	handler: async (accessor: ServicesAccessor, context: IVariablesContext) => {
 		const debugService = accessor.get(IDebugService);

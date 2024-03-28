@@ -73,6 +73,9 @@ export const CALLSTACK_TOP_ID = 'workbench.action.debug.callStackTop';
 export const CALLSTACK_BOTTOM_ID = 'workbench.action.debug.callStackBottom';
 export const CALLSTACK_UP_ID = 'workbench.action.debug.callStackUp';
 export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
+export const ADD_TO_WATCH_ID = 'debug.addToWatchExpressions';
+export const COPY_EVALUATE_PATH_ID = 'debug.copyEvaluatePath';
+export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 
 export const DEBUG_COMMAND_CATEGORY: ILocalizedString = nls.localize2('debug', 'Debug');
 export const RESTART_LABEL = nls.localize2('restartDebug', "Restart");
@@ -97,6 +100,9 @@ export const CALLSTACK_TOP_LABEL = nls.localize2('callStackTop', "Navigate to To
 export const CALLSTACK_BOTTOM_LABEL = nls.localize2('callStackBottom', "Navigate to Bottom of Call Stack");
 export const CALLSTACK_UP_LABEL = nls.localize2('callStackUp', "Navigate Up Call Stack");
 export const CALLSTACK_DOWN_LABEL = nls.localize2('callStackDown', "Navigate Down Call Stack");
+export const COPY_EVALUATE_PATH_LABEL =  nls.localize2('copyAsExpression', "Copy as Expression");
+export const COPY_VALUE_LABEL =  nls.localize2('copyValue', "Copy Value");
+export const ADD_TO_WATCH_LABEL =  nls.localize2('addToWatchExpressions', "Add to Watch");
 
 export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize2('selectDebugConsole', "Select Debug Console");
 export const SELECT_DEBUG_SESSION_LABEL = nls.localize2('selectDebugSession', "Select Debug Session");
