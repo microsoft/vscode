@@ -672,7 +672,11 @@ export class AccessibleView extends Disposable {
 		const accessibleViewHelpProvider: IAccessibleContentProvider = {
 			id: lastProvider.id,
 			provideContent: () => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-			onClose: () => this.show(lastProvider),
+			onClose: () => {
+				this._contextViewService.hideContextView();
+				// HACK: Delay to allow the context view to hide #207638
+				setTimeout(() => this.show(lastProvider), 100);
+			},
 			options: { type: AccessibleViewType.Help },
 			verbositySettingKey: lastProvider.verbositySettingKey
 		};
