@@ -18,15 +18,16 @@ import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/browser/indentation';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { goIndentationRules, javascriptIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
-import { cppOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
+import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
+import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 
 enum Language {
 	TypeScript,
 	Ruby,
 	PHP,
 	Go,
-	CPP
+	CPP,
+	HTML
 }
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
@@ -102,6 +103,17 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 					['(', ')']
 				],
 				onEnterRules: cppOnEnterRules
+			}));
+			break;
+		case Language.HTML:
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['<!--', '-->'],
+					['{', '}'],
+					['(', ')']
+				],
+				indentationRules: htmlIndentationRules,
+				onEnterRules: htmlOnEnterRules
 			}));
 			break;
 	}
@@ -1336,3 +1348,48 @@ suite('Auto Indent On Type - CPP', () => {
 		});
 	});
 });
+
+suite('Auto Indent On Type - HTML', () => {
+
+	const languageId = "html-test";
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('temp issue because there should be at least one passing test in a suite', () => {
+		assert.ok(true);
+	});
+
+	test.skip('issue #61510: incorrect indentation after // in html file', () => {
+
+		// https://github.com/microsoft/vscode/issues/178334
+
+		const model = createTextModel([
+			'<pre>',
+			'  foo //I press <Enter> at the end of this line',
+			'</pre>',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			registerLanguage(instantiationService, languageId, Language.HTML, disposables);
+			editor.setSelection(new Selection(2, 48, 2, 48));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'<pre>',
+				'  foo //I press <Enter> at the end of this line',
+				'  ',
+				'</pre>',
+			].join('\n'));
+		});
+	});
+});
+
