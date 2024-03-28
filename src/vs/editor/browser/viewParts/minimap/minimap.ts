@@ -27,7 +27,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { EditorTheme } from 'vs/editor/common/editorTheme';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { minimapSelection, minimapBackground, minimapForegroundOpacity, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { minimapSelection, minimapBackground, minimapForegroundOpacity, minimapBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Color } from 'vs/base/common/color';
@@ -99,6 +99,7 @@ class MinimapOptions {
 	public readonly charRenderer: () => MinimapCharRenderer;
 	public readonly defaultBackgroundColor: RGBA8;
 	public readonly backgroundColor: RGBA8;
+	public readonly borderColor: RGBA8;
 	/**
 	 * foreground alpha: integer in [0-255]
 	 */
@@ -145,6 +146,7 @@ class MinimapOptions {
 		this.defaultBackgroundColor = tokensColorTracker.getColor(ColorId.DefaultBackground);
 		this.backgroundColor = MinimapOptions._getMinimapBackground(theme, this.defaultBackgroundColor);
 		this.foregroundAlpha = MinimapOptions._getMinimapForegroundOpacity(theme);
+		this.borderColor = MinimapOptions._getMinimapBorder(theme);
 	}
 
 	private static _getMinimapBackground(theme: EditorTheme, defaultBackgroundColor: RGBA8): RGBA8 {
@@ -161,6 +163,14 @@ class MinimapOptions {
 			return RGBA8._clamp(Math.round(255 * themeColor.rgba.a));
 		}
 		return 255;
+	}
+
+	private static _getMinimapBorder(theme: EditorTheme): RGBA8 {
+		const themeColor = theme.getColor(minimapBorder);
+		if (themeColor) {
+			return new RGBA8(themeColor.rgba.r, themeColor.rgba.g, themeColor.rgba.b, Math.round(255 * themeColor.rgba.a));
+		}
+		return RGBA8.Empty;
 	}
 
 	private static _getSectionHeaderColor(theme: EditorTheme, defaultForegroundColor: RGBA8): RGBA8 {
@@ -199,6 +209,7 @@ class MinimapOptions {
 			&& this.defaultBackgroundColor && this.defaultBackgroundColor.equals(other.defaultBackgroundColor)
 			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)
 			&& this.foregroundAlpha === other.foregroundAlpha
+			&& this.borderColor && this.borderColor.equals(other.borderColor)
 		);
 	}
 }

@@ -46,6 +46,11 @@ export const minimapForegroundOpacity = registerColor('minimap.foregroundOpacity
 	{ dark: Color.fromHex('#000f'), light: Color.fromHex('#000f'), hcDark: Color.fromHex('#000f'), hcLight: Color.fromHex('#000f') },
 	nls.localize('minimapForegroundOpacity', 'Opacity of foreground elements rendered in the minimap. For example, "#000000c0" will render the elements with 75% opacity.'));
 
+export const minimapBorder = registerColor('minimap.border',
+	{ dark: null, light: null, hcDark: null, hcLight: null },
+	nls.localize('minimapBorder', 'Minimap border color.')
+);
+
 export const minimapSliderBackground = registerColor('minimapSlider.background',
 	{ light: transparent(scrollbarSliderBackground, 0.5), dark: transparent(scrollbarSliderBackground, 0.5), hcDark: transparent(scrollbarSliderBackground, 0.5), hcLight: transparent(scrollbarSliderBackground, 0.5) },
 	nls.localize('minimapSliderBackground', "Minimap slider background color."));
