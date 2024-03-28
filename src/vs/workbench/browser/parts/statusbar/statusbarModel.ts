@@ -47,8 +47,7 @@ export class StatusbarViewModel extends Disposable {
 		const hiddenRaw = this.storageService.get(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.PROFILE);
 		if (hiddenRaw) {
 			try {
-				const hiddenArray: string[] = JSON.parse(hiddenRaw);
-				this.hidden = new Set(hiddenArray.filter(entry => !entry.startsWith('status.workspaceTrust.'))); // TODO@bpasero remove this migration eventually
+				this.hidden = new Set(JSON.parse(hiddenRaw));
 			} catch (error) {
 				// ignore parsing errors
 			}

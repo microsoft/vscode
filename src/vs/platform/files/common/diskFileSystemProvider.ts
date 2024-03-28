@@ -211,6 +211,10 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			this._onDidWatchError.fire(msg.message);
 		}
 
+		this.logWatcherMessage(msg);
+	}
+
+	protected logWatcherMessage(msg: ILogMessage): void {
 		this.logService[msg.type](msg.message);
 	}
 
