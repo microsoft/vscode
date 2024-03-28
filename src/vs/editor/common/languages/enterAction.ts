@@ -15,16 +15,21 @@ export function getEnterAction(
 	range: Range,
 	languageConfigurationService: ILanguageConfigurationService
 ): CompleteEnterAction | null {
+	console.log('getEnterAction');
 	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+	// Finding if we have rich text edit support
 	const richEditSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId);
 	if (!richEditSupport) {
+		console.log('return 1');
 		return null;
 	}
 
 	const scopedLineText = scopedLineTokens.getLineContent();
+	// The text before the enter key is pressed
 	const beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 
 	// selection support
+	// presumably the text after the enter key is pressed
 	let afterEnterText: string;
 	if (range.isEmpty()) {
 		afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
@@ -44,7 +49,10 @@ export function getEnterAction(
 	}
 
 	const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
+	console.log('enterResult : ', JSON.stringify(enterResult));
+
 	if (!enterResult) {
+		console.log('return 2');
 		return null;
 	}
 
@@ -71,6 +79,7 @@ export function getEnterAction(
 		indentation = indentation.substring(0, indentation.length - removeText);
 	}
 
+	console.log('return 3');
 	return {
 		indentAction: indentAction,
 		appendText: appendText,

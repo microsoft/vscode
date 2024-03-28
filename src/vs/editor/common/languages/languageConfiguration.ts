@@ -113,10 +113,12 @@ export interface IndentationRule {
 	increaseIndentPattern: RegExp;
 	/**
 	 * If a line matches this pattern, then **only the next line** after it should be indented once.
+	 * Only applies to the next line after the current line has been tested for validity
 	 */
 	indentNextLinePattern?: RegExp | null;
 	/**
 	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
+	 * Even if the increase should have been applied, this regex is nevertheless not applied
 	 */
 	unIndentedLinePattern?: RegExp | null;
 
@@ -164,7 +166,9 @@ export interface OnEnterRule {
 	 */
 	afterText?: RegExp;
 	/**
-	 * This rule will only execute if the text above the this line matches this regular expression.
+	 * This rule will only execute if the text above the line matches this regular expression.
+	 *
+	 * So there is a difference between the beforeText (because this presumably refers to the text on the same line) and the text on the previous line (not same line)
 	 */
 	previousLineText?: RegExp;
 	/**
@@ -218,6 +222,11 @@ export enum IndentAction {
 	 * Insert two new lines:
 	 *  - the first one indented which will hold the cursor
 	 *  - the second one at the same indentation level
+	 *
+	 * Meaning, we will have:
+	 * - Enter
+	 * -- Cursor
+	 * - New extra line
 	 */
 	IndentOutdent = 2,
 	/**
@@ -231,7 +240,7 @@ export enum IndentAction {
  */
 export interface EnterAction {
 	/**
-	 * Describe what to do with the indentation.
+	 * Describe what to do with the indentation on enter.
 	 */
 	indentAction: IndentAction;
 	/**
@@ -240,6 +249,8 @@ export interface EnterAction {
 	appendText?: string;
 	/**
 	 * Describes the number of characters to remove from the new line's indentation.
+	 *
+	 * Number of characters to remove from the indentation that is added or the text that was already there?
 	 */
 	removeText?: number;
 }

@@ -9,6 +9,7 @@ import { CharacterPair, EnterAction, IndentAction, OnEnterRule } from 'vs/editor
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export interface IOnEnterSupportOptions {
+	// This is an array of arrays of bracket characters
 	brackets?: CharacterPair[];
 	onEnterRules?: OnEnterRule[];
 }
@@ -27,6 +28,7 @@ export class OnEnterSupport {
 
 	constructor(opts: IOnEnterSupportOptions) {
 		opts = opts || {};
+		// We have a default for the character brackets which are considered as opening and closing pairs in the editor
 		opts.brackets = opts.brackets || [
 			['(', ')'],
 			['{', '}'],
@@ -37,6 +39,7 @@ export class OnEnterSupport {
 		opts.brackets.forEach((bracket) => {
 			const openRegExp = OnEnterSupport._createOpenBracketRegExp(bracket[0]);
 			const closeRegExp = OnEnterSupport._createCloseBracketRegExp(bracket[1]);
+			// If the two regexes are valid, we will push the character in that array which is part of the pair as well as the corresponding regex
 			if (openRegExp && closeRegExp) {
 				this._brackets.push({
 					open: bracket[0],
@@ -46,14 +49,19 @@ export class OnEnterSupport {
 				});
 			}
 		});
+		// By default we do not have an on enter rules
 		this._regExpRules = opts.onEnterRules || [];
 	}
 
 	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
+		console.log('onEnter of OnEnterSupport');
 		// (1): `regExpRules`
+		// Here advanced and full are covered by the following code, but not the brackets strategy and the strategies below it
 		if (autoIndent >= EditorAutoIndentStrategy.Advanced) {
+			// Iterate over all the rules
 			for (let i = 0, len = this._regExpRules.length; i < len; i++) {
 				const rule = this._regExpRules[i];
+				// Create a new array of regex versus text and check that all of the regexes validate the corresponding texts
 				const regResult = [{
 					reg: rule.beforeText,
 					text: beforeEnterText
@@ -72,18 +80,25 @@ export class OnEnterSupport {
 					return obj.reg.test(obj.text);
 				});
 
+				// Suppose that all the corresponding regexes are validated
+				// In that case, need to return the corresponding action
 				if (regResult) {
+					console.log('return 1');
 					return rule.action;
 				}
 			}
 		}
 
 		// (2): Special indent-outdent
+		// For the strategies Brackets, Advanced and Full
 		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
 			if (beforeEnterText.length > 0 && afterEnterText.length > 0) {
 				for (let i = 0, len = this._brackets.length; i < len; i++) {
 					const bracket = this._brackets[i];
+					// If before the cursor position, the bracket open regexp matches the beforeEnterText, and the closRegExp matches the afterEnterText
+					// Then we insert an indented line, followed by a line at the same indentation level (or outdented with respect to previous indented line).
 					if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
+						console.log('return 2');
 						return { indentAction: IndentAction.IndentOutdent };
 					}
 				}
@@ -92,25 +107,31 @@ export class OnEnterSupport {
 
 
 		// (4): Open bracket based logic
+		// If we previously had not returned yet, we can still return some result in the following code
 		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
 			if (beforeEnterText.length > 0) {
 				for (let i = 0, len = this._brackets.length; i < len; i++) {
 					const bracket = this._brackets[i];
+					// Otherwise we just indent the new next line, but do not outdent the line after
 					if (bracket.openRegExp.test(beforeEnterText)) {
+						console.log('return 3');
 						return { indentAction: IndentAction.Indent };
 					}
 				}
 			}
 		}
 
+		console.log('return 4');
 		return null;
 	}
 
 	private static _createOpenBracketRegExp(bracket: string): RegExp | null {
+		// The following allows to creat an escaped string
 		let str = strings.escapeRegExpCharacters(bracket);
 		if (!/\B/.test(str.charAt(0))) {
 			str = '\\b' + str;
 		}
+		// Adding a variable number of whitespace characters
 		str += '\\s*$';
 		return OnEnterSupport._safeRegExp(str);
 	}
