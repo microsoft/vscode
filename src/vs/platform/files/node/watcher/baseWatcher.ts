@@ -163,7 +163,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 				this.monitorSuspendedWatchRequest(request, disposables);
 			} else if (change?.type === FileChangeType.ADDED) {
-				this.onMonitoredPathAdded(request, change.resource);
+				this.onMonitoredPathAdded(request);
 			}
 		});
 
@@ -177,8 +177,6 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	private doMonitorWithNodeJS(request: IWatchRequestWithCorrelation, disposables: DisposableStore): void {
-		const resource = URI.file(request.path);
-
 		let pathNotFound = false;
 
 		const watchFileCallback: (curr: Stats, prev: Stats) => void = (curr, prev) => {
@@ -193,7 +191,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 			// Watch path created: resume watching request
 			if (!currentPathNotFound && (previousPathNotFound || oldPathNotFound)) {
-				this.onMonitoredPathAdded(request, resource);
+				this.onMonitoredPathAdded(request);
 			}
 		};
 
@@ -215,11 +213,11 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		}));
 	}
 
-	private onMonitoredPathAdded(request: IWatchRequestWithCorrelation, resource: URI) {
+	private onMonitoredPathAdded(request: IWatchRequestWithCorrelation) {
 		this.trace(`detected ${request.path} exists again, resuming watcher (correlationId: ${request.correlationId})`);
 
 		// Emit as event
-		const event: IFileChange = { resource, type: FileChangeType.ADDED, cId: request.correlationId };
+		const event: IFileChange = { resource: URI.file(request.path), type: FileChangeType.ADDED, cId: request.correlationId };
 		this._onDidChangeFile.fire([event]);
 		this.traceEvent(event, request);
 

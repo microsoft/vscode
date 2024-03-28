@@ -149,6 +149,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			return false; // only supported for files where we have the full path known upfront
 		}
 
+		const resource = URI.file(this.request.path);
 		const subscription = this.recursiveWatcher?.subscribe(this.request.path, async (error, change) => {
 			if (disposables.isDisposed) {
 				return; // return early if already disposed
@@ -171,7 +172,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 					// so that the client can correlate the event with the request
 					// properly. Without correlation, we do not have to do that
 					// because the event will appear on the global listener already.
-					this.onDidFilesChange([{ ...change, cId: this.request.correlationId }]);
+					this.onDidFilesChange([{ resource, type: change.type, cId: this.request.correlationId }]);
 				}
 			}
 		});
