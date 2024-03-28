@@ -997,11 +997,11 @@ class TestResultsPeek extends PeekViewWidget {
 
 	protected override _fillBody(containerElement: HTMLElement): void {
 		this.content.fillBody(containerElement);
-		this.content.onDidRequestReveal(sub => {
+		this._disposables.add(this.content.onDidRequestReveal(sub => {
 			TestingOutputPeekController.get(this.editor)?.show(sub instanceof MessageSubject
 				? sub.messageUri
 				: sub.outputUri);
-		});
+		}));
 	}
 
 	/**

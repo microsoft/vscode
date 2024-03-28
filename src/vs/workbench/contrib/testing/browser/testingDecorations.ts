@@ -174,7 +174,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		super();
 		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined);
 
-		modelService.onModelRemoved(e => this.decorationCache.delete(e.uri));
+		this._register(modelService.onModelRemoved(e => this.decorationCache.delete(e.uri)));
 
 		const debounceInvalidate = this._register(new RunOnceScheduler(() => this.invalidate(), 100));
 
