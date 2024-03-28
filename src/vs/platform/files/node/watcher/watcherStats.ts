@@ -83,6 +83,7 @@ function computeRecursiveWatchStatus(recursiveWatcher: ParcelWatcher): { active:
 	let active = 0;
 	let failed = 0;
 	let stopped = 0;
+
 	for (const watcher of recursiveWatcher.watchers.values()) {
 		if (!watcher.failed && !watcher.stopped) {
 			active++;
@@ -102,6 +103,7 @@ function computeNonRecursiveWatchStatus(nonRecursiveWatcher: NodeJSWatcher): { a
 	let active = 0;
 	let failed = 0;
 	let reusing = 0;
+
 	for (const watcher of nonRecursiveWatcher.watchers) {
 		if (!watcher.instance.failed && !watcher.instance.isReusingRecursiveWatcher) {
 			active++;

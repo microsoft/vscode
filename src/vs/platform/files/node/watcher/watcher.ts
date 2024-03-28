@@ -31,8 +31,24 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 		// to step in for non-recursive watch requests, thus reducing
 		// watcher duplication.
 
-		await this.recursiveWatcher.watch(requests.filter(request => request.recursive));
-		await this.nonRecursiveWatcher.watch(requests.filter(request => !request.recursive));
+		let error: Error | undefined;
+		try {
+			await this.recursiveWatcher.watch(requests.filter(request => request.recursive));
+		} catch (e) {
+			error = e;
+		}
+
+		try {
+			await this.nonRecursiveWatcher.watch(requests.filter(request => !request.recursive));
+		} catch (e) {
+			if (!error) {
+				error = e;
+			}
+		}
+
+		if (error) {
+			throw error;
+		}
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {
