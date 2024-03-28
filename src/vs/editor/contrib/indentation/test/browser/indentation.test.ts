@@ -1296,11 +1296,6 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 			].join('\n'));
 		});
 	});
-
-	// Add tests for:
-	// https://github.com/microsoft/vscode/issues/88638
-	// https://github.com/microsoft/vscode/issues/63388
-	// https://github.com/microsoft/vscode/issues/174044
 });
 
 suite('Auto Indent On Type - Ruby', () => {
