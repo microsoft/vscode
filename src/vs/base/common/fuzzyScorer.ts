@@ -5,7 +5,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { compareAnything } from 'vs/base/common/comparers';
-import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from 'vs/base/common/filters';
+import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesContiguousSubString, matchesPrefix } from 'vs/base/common/filters';
 import { hash } from 'vs/base/common/hash';
 import { sep } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -320,8 +320,12 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 }
 
 function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
+
+	const score = fuzzyScore(query.expectContiguousMatch ? query.normalized : query.original, query.expectContiguousMatch ? query.normalizedLowercase : query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
 	if (!score) {
+		return NO_SCORE2;
+	}
+	if (query.expectContiguousMatch && matchesContiguousSubString(query.normalized, target) === null) {
 		return NO_SCORE2;
 	}
 
