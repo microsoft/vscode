@@ -29,11 +29,11 @@ declare module 'vscode' {
 
 		/**
 		 * The working directory that was reported by the shell when this command executed. This
-		 * will be a {@link Uri} if the string reported by the shell can reliably be mapped to the
+		 * will be a {@link Uri} if the path reported by the shell can reliably be mapped to the
 		 * connected machine. This requires the shell integration to support working directory
 		 * reporting.
 		 */
-		readonly cwd: Uri | string | undefined;
+		readonly cwd: Uri | undefined;
 
 		/**
 		 * Creates a stream of raw data (including escape sequences) that is written to the
@@ -67,12 +67,12 @@ declare module 'vscode' {
 	}
 
 	export interface TerminalShellIntegration {
-		// TODO: Is this fine to share the TerminalShellIntegrationChangeEvent event?
+		// TODO: Should this share TerminalShellIntegrationChangeEvent or have it's own TerminalShellIntegrationCwdChangeEvent?
 		/**
-		 * The current working directory of the terminal. This will be a {@link Uri} if the string
+		 * The current working directory of the terminal. This will be a {@link Uri} if the path
 		 * reported by the shell can reliably be mapped to the connected machine.
 		 */
-		readonly cwd: Uri | string | undefined;
+		readonly cwd: Uri | undefined;
 
 		/**
 		 * Execute a command, sending ^C as necessary to interrupt any running command if needed.

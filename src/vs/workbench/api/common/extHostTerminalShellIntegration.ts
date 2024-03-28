@@ -103,7 +103,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $shellExecutionStart(instanceId: number, commandLine: string, cwd: URI | string | undefined): void {
+	public $shellExecutionStart(instanceId: number, commandLine: string, cwd: URI | undefined): void {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
@@ -120,7 +120,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.emitData(data);
 	}
 
-	public $cwdChange(instanceId: number, cwd: string): void {
+	public $cwdChange(instanceId: number, cwd: URI | undefined): void {
 		this._activeShellIntegrations.get(instanceId)?.setCwd(cwd);
 	}
 
@@ -136,7 +136,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
-	private _cwd: URI | string | undefined;
+	private _cwd: URI | undefined;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
 
@@ -157,7 +157,7 @@ class InternalTerminalShellIntegration extends Disposable {
 
 		const that = this;
 		this.value = {
-			get cwd(): URI | string | undefined {
+			get cwd(): URI | undefined {
 				return that._cwd;
 			},
 			executeCommand(commandLine): vscode.TerminalShellExecution {
@@ -171,7 +171,7 @@ class InternalTerminalShellIntegration extends Disposable {
 		};
 	}
 
-	startShellExecution(commandLine: string, cwd: URI | string | undefined, fireEventInMicrotask?: boolean): InternalTerminalShellExecution {
+	startShellExecution(commandLine: string, cwd: URI | undefined, fireEventInMicrotask?: boolean): InternalTerminalShellExecution {
 		if (this._ignoreNextExecution && this._currentExecution) {
 			this._ignoreNextExecution = false;
 		} else {
@@ -201,12 +201,10 @@ class InternalTerminalShellIntegration extends Disposable {
 		}
 	}
 
-	setCwd(cwd: URI | string): void {
+	setCwd(cwd: URI | undefined): void {
 		let wasChanged = false;
 		if (URI.isUri(this._cwd)) {
-			if (this._cwd.toString() !== cwd.toString()) {
-				wasChanged = true;
-			}
+			wasChanged = !URI.isUri(cwd) || this._cwd.toString() !== cwd.toString();
 		} else if (this._cwd !== cwd) {
 			wasChanged = true;
 		}
@@ -227,18 +225,18 @@ class InternalTerminalShellExecution {
 	constructor(
 		readonly terminal: vscode.Terminal,
 		private _commandLine: string | undefined,
-		readonly cwd: URI | string | undefined,
+		readonly cwd: URI | undefined,
 	) {
 		const that = this;
 		this.value = {
 			get terminal(): vscode.Terminal {
-				return terminal;
+				return that.terminal;
 			},
 			get commandLine(): string | undefined {
 				return that._commandLine;
 			},
-			get cwd(): URI | string | undefined {
-				return cwd;
+			get cwd(): URI | undefined {
+				return that.cwd;
 			},
 			createDataStream(): AsyncIterable<string> {
 				return that._createDataStream();
