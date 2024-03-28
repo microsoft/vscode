@@ -21,10 +21,9 @@ declare module 'vscode' {
 		 * - It may be undefined or the empty string until {@link onDidEndTerminalShellExecution} is
 		 *   fired.
 		 * - It may be inaccurate initially if the command line is pulled from the buffer directly
-		 *   via the [`OSC 633/133 ; A`, `B` and `C` sequences](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st).
+		 *   via the shell integration prompt markers.
 		 * - It may contain line continuation characters and/or parts of the right prompt.
-		 * - It may be inaccurate if the shell integration does not support command line reporting
-		 *   via the [`OSC 633 ; E` sequence](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st).
+		 * - It may be inaccurate if the shell integration does not support command line reporting.
 		 */
 		readonly commandLine: string | undefined;
 
@@ -32,8 +31,7 @@ declare module 'vscode' {
 		 * The working directory that was reported by the shell when this command executed. This
 		 * will be a {@link Uri} if the string reported by the shell can reliably be mapped to the
 		 * connected machine. This requires the shell integration to support working directory
-		 * reporting via the [`OSC 633 ; P`](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st)
-		 * or `OSC 1337 ; CurrentDir=<Cwd> ST` sequences.
+		 * reporting.
 		 */
 		readonly cwd: Uri | string | undefined;
 
