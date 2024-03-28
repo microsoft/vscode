@@ -102,21 +102,21 @@ steps:
 
   - template: common/install-builtin-extensions.yml@self
 
-  # - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-  #   - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
-  #     env:
-  #       GITHUB_TOKEN: "$(github-distro-mixin-password)"
-  #     displayName: Compile & Hygiene (OSS)
-  # - ${{ elseif eq(parameters.VSCODE_CIBUILD, true) }}:
-  - script: yarn npm-run-all -lp compile extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Compile & Hygiene (CI)
-  # - ${{ else }}:
-  #   - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
-  #     env:
-  #       GITHUB_TOKEN: "$(github-distro-mixin-password)"
-  #     displayName: Compile & Hygiene
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Compile & Hygiene (OSS)
+  - ${{ elseif eq(parameters.VSCODE_CIBUILD, true) }}:
+    - script: yarn npm-run-all -lp compile extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Compile & Hygiene (CI)
+  - ${{ else }}:
+    - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Compile & Hygiene
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
