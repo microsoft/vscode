@@ -901,7 +901,6 @@ class WindowsPtyHeuristics extends Disposable {
 		if (bashPrompt) {
 			const adjustedPrompt = this._adjustPrompt(bashPrompt, lineText, '$');
 			if (adjustedPrompt) {
-				this._logService.debug('CommandDetectionCapability#_getWindowsPrompt adjusted bash prompt', adjustedPrompt);
 				return adjustedPrompt;
 			}
 		}
