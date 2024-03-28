@@ -319,7 +319,7 @@ export class InlineCompletionsModel extends Disposable {
 			editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
-					EditOperation.replaceMove(completion.range, ''),
+					EditOperation.replace(completion.range, ''),
 					...completion.additionalTextEdits
 				]
 			);
@@ -329,7 +329,7 @@ export class InlineCompletionsModel extends Disposable {
 			const edits = state.edits;
 			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 			editor.executeEdits('inlineSuggestion.accept', [
-				...edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)),
+				...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
 				...completion.additionalTextEdits
 			]);
 			editor.setSelections(selections, 'inlineCompletionAccept');
@@ -437,7 +437,7 @@ export class InlineCompletionsModel extends Disposable {
 				const primaryEdit = new SingleTextEdit(replaceRange, newText);
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
-				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
+				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
