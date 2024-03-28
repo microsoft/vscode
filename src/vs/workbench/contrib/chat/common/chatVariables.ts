@@ -13,6 +13,9 @@ import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserT
 import { IChatContentReference, IChatProgressMessage } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatVariableData {
+	// unique name of the variable
+	id: string;
+	// human readable name
 	name: string;
 	description: string;
 	hidden?: boolean;

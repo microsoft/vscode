@@ -37,7 +37,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		prompt.parts
 			.forEach((part, i) => {
 				if (part instanceof ChatRequestVariablePart) {
-					const data = this._resolver.get(part.variableName.toLowerCase());
+					const data = Iterable.first(this._getVariablesByName(part.variableName.toLowerCase()));
 					if (data) {
 						const references: IChatContentReference[] = [];
 						const variableProgressCallback = (item: IChatVariableResolverProgress) => {
@@ -78,7 +78,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	}
 
 	hasVariable(name: string): boolean {
-		return this._resolver.has(name.toLowerCase());
+		return !Iterable.isEmpty(this._getVariablesByName(name));
 	}
 
 	getVariable(name: string): IChatVariableData | undefined {
@@ -88,6 +88,10 @@ export class ChatVariablesService implements IChatVariablesService {
 	getVariables(): Iterable<Readonly<IChatVariableData>> {
 		const all = Iterable.map(this._resolver.values(), data => data.data);
 		return Iterable.filter(all, data => !data.hidden);
+	}
+
+	private _getVariablesByName(name: string): Iterable<IChatData> {
+		return Iterable.filter(this._resolver.values(), value => value.data.name === name && !value.data.hidden);
 	}
 
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable> {
@@ -109,9 +113,9 @@ export class ChatVariablesService implements IChatVariablesService {
 	}
 
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
-		const key = data.name.toLowerCase();
+		const key = data.id.toLowerCase();
 		if (this._resolver.has(key)) {
-			throw new Error(`A chat variable with the name '${data.name}' already exists.`);
+			throw new Error(`A chat variable with the name '${key}' already exists.`);
 		}
 		this._resolver.set(key, { data, resolver });
 		return toDisposable(() => {

@@ -38,8 +38,8 @@ suite('ChatVariables', function () {
 
 	test('ChatVariables - resolveVariables', async function () {
 
-		const v1 = service.registerVariable({ name: 'foo', description: 'bar' }, async () => ([{ level: 'full', value: 'farboo' }]));
-		const v2 = service.registerVariable({ name: 'far', description: 'boo' }, async () => ([{ level: 'full', value: 'farboo' }]));
+		const v1 = service.registerVariable({ id: 'test:foo', name: 'foo', description: 'bar' }, async () => ([{ level: 'full', value: 'farboo' }]));
+		const v2 = service.registerVariable({ id: 'test:far', name: 'far', description: 'boo' }, async () => ([{ level: 'full', value: 'farboo' }]));
 
 		const parser = instantiationService.createInstance(ChatRequestParser);
 
