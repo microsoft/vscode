@@ -97,7 +97,6 @@ export class TerminalVoiceSession extends Disposable {
 			}
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
-					// TODO: play start audio cue
 					if (!this._decoration) {
 						this._createDecoration();
 					}
@@ -117,7 +116,6 @@ export class TerminalVoiceSession extends Disposable {
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
-					// TODO: play stop audio cue
 					this.stop();
 					break;
 			}
