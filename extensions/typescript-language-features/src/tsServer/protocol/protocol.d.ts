@@ -20,6 +20,7 @@ declare module '../../../../node_modules/typescript/lib/typescript' {
 			readonly _serverType?: ServerType;
 		}
 
+		//#region MapCode
 		export interface MapCodeRequestArgs {
 			/// The files and changes to try and apply/map.
 			mappings: MapCodeRequestDocumentMapping[];
@@ -55,6 +56,29 @@ declare module '../../../../node_modules/typescript/lib/typescript' {
 		export interface MapCodeResponse extends Response {
 			body: FileCodeEdits[]
 		}
+		//#endregion
+
+		//#region Paste
+		export interface GetPostPasteImportFixesRequest extends Request {
+			command: 'getPostPasteImportFixes';
+			arguments: GetPostPasteImportFixesRequestArgs;
+		}
+		export type DocumentRange = FileRangeRequestArgs;
+		export type CopyRange = {
+			start: Location;
+			end: Location;
+		}
+		export type GetPostPasteImportFixesRequestArgs = FileRequestArgs & {
+			pastes: Array<{ text: string; range: TextSpan }>,
+			copy?: FileSpan;
+		}
+		export interface GetPostPasteImportFixesResponse extends Response {
+			body: PostPasteImportAction;
+		}
+		export interface PostPasteImportAction {
+			edits: FileCodeEdits[];
+		}
+		//#endregion
 	}
 }
 
