@@ -55,7 +55,7 @@ function loaderPlugin(src: string, base: string, amdModuleId: string | undefined
 }
 
 function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, externalLoaderInfo?: util.IExternalLoaderInfo): NodeJS.ReadWriteStream {
-	let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
+	let loaderStream = gulp.src(`${src}/vs/loader.cjs`, { base: `${src}` });
 	if (bundleLoader) {
 		loaderStream = es.merge(
 			loaderStream,

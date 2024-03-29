@@ -82,9 +82,9 @@ const vscodeResources = [
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
 const windowBootstrapFiles = [
-	'out-build/bootstrap.js',
-	'out-build/vs/loader.js',
-	'out-build/bootstrap-window.js'
+	'out-build/bootstrap.cjs',
+	'out-build/vs/loader.cjs',
+	'out-build/bootstrap-window.cjs'
 ];
 
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(

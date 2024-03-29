@@ -50,7 +50,7 @@ function loaderPlugin(src, base, amdModuleId) {
     })));
 }
 function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
-    let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
+    let loaderStream = gulp.src(`${src}/vs/loader.cjs`, { base: `${src}` });
     if (bundleLoader) {
         loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'), loaderPlugin(`${src}/vs/nls.js`, `${src}`, 'vs/nls'));
     }
