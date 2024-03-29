@@ -375,6 +375,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	reveal(): void {
 		this._chatWidget?.value.reveal();
 	}
+
 	async viewInChat(): Promise<void> {
 		const providerInfo = this._chatService.getProviderInfos()?.[0];
 		if (!providerInfo) {
