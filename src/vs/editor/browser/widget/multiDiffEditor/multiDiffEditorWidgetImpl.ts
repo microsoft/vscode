@@ -95,7 +95,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	private readonly _totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader) + this._spaceBetweenPx, 0));
 	public readonly activeDiffItem = derived(this, reader => this._viewItems.read(reader).find(i => i.template.read(reader)?.isFocused.read(reader)));
-	public readonly lastActiveDiffItem = derivedObservableWithCache<VirtualizedViewItem | undefined>((reader, lastValue) => this.activeDiffItem.read(reader) ?? lastValue);
+	public readonly lastActiveDiffItem = derivedObservableWithCache<VirtualizedViewItem | undefined>(this, (reader, lastValue) => this.activeDiffItem.read(reader) ?? lastValue);
 	public readonly activeControl = derived(this, reader => this.lastActiveDiffItem.read(reader)?.template.read(reader)?.editor);
 
 	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));

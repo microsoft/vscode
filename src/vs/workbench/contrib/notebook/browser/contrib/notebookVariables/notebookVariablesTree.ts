@@ -8,6 +8,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
@@ -33,6 +34,7 @@ export interface IVariableTemplateData {
 	expression: HTMLElement;
 	name: HTMLSpanElement;
 	value: HTMLSpanElement;
+	elementDisposables: DisposableStore;
 }
 
 export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariableElement, FuzzyScore, IVariableTemplateData> {
@@ -48,7 +50,7 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		const name = dom.append(expression, $('span.name'));
 		const value = dom.append(expression, $('span.value'));
 
-		const template: IVariableTemplateData = { expression, name, value };
+		const template: IVariableTemplateData = { expression, name, value, elementDisposables: new DisposableStore() };
 
 		return template;
 	}
@@ -60,13 +62,18 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 
 		renderExpressionValue(element.element, data.value, {
 			colorize: true,
-			showHover: true,
+			hover: data.elementDisposables,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET
 		});
 	}
 
-	disposeTemplate(): void {
-		// noop
+	disposeElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, index: number, templateData: IVariableTemplateData, height: number | undefined): void {
+		templateData.elementDisposables.clear();
+	}
+
+
+	disposeTemplate(templateData: IVariableTemplateData): void {
+		templateData.elementDisposables.dispose();
 	}
 }
 

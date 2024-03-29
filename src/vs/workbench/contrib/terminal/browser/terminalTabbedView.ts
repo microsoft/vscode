@@ -107,7 +107,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
 		this._terminalContainerIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 1 : 0;
 
-		_configurationService.onDidChangeConfiguration(e => {
+		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.TabsEnabled) ||
 				e.affectsConfiguration(TerminalSettingId.TabsHideCondition)) {
 				this._refreshShowTabs();
@@ -121,20 +121,20 @@ export class TerminalTabbedView extends Disposable {
 					this._splitView.resizeView(this._tabTreeIndex, this._getLastListWidth());
 				}
 			}
-		});
+		}));
 		this._register(this._terminalGroupService.onDidChangeInstances(() => this._refreshShowTabs()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this._refreshShowTabs()));
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
-		this._terminalGroupService.onDidChangePanelOrientation((orientation) => {
+		this._register(this._terminalGroupService.onDidChangePanelOrientation((orientation) => {
 			this._panelOrientation = orientation;
 			if (this._panelOrientation === Orientation.VERTICAL) {
 				this._terminalContainer.classList.add(CssClass.ViewIsVertical);
 			} else {
 				this._terminalContainer.classList.remove(CssClass.ViewIsVertical);
 			}
-		});
+		}));
 
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
 		this._setupSplitView(terminalOuterContainer);

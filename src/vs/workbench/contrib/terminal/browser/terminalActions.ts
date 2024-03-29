@@ -519,6 +519,9 @@ export function registerTerminalActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.GoToRecentDirectory,
 		title: localize2('workbench.action.terminal.goToRecentDirectory', 'Go to Recent Directory...'),
+		metadata: {
+			description: localize2('goToRecentDirectory.metadata', 'Goes to a recent folder'),
+		},
 		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.KeyG,
@@ -1243,7 +1246,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.Join,
-		title: localize2('workbench.action.terminal.join', 'Join Terminals'),
+		title: localize2('workbench.action.terminal.join', 'Join Terminals...'),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c, accessor) => {
 			const themeService = accessor.get(IThemeService);

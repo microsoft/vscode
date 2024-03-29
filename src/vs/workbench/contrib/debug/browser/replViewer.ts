@@ -30,6 +30,7 @@ import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGr
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const $ = dom.$;
 
@@ -136,7 +137,6 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 	renderElement(element: ITreeNode<ReplEvaluationResult | Variable, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
 		const expression = element.element;
 		renderExpressionValue(expression, templateData.value, {
-			showHover: false,
 			colorize: true,
 			linkDetector: this.linkDetector
 		});
@@ -235,6 +235,7 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 		private readonly linkDetector: LinkDetector,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(debugService, contextViewService);
 	}
@@ -248,10 +249,10 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 		const isReplVariable = expression instanceof ReplVariableElement;
 		if (isReplVariable || !expression.name) {
 			data.label.set('');
-			renderExpressionValue(isReplVariable ? expression.expression : expression, data.value, { showHover: false, colorize: true, linkDetector: this.linkDetector });
+			renderExpressionValue(isReplVariable ? expression.expression : expression, data.value, { colorize: true, linkDetector: this.linkDetector });
 			data.expression.classList.remove('nested-variable');
 		} else {
-			renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+			renderVariable(data.elementDisposable, this.commandService, expression as Variable, data, true, highlights, this.linkDetector);
 			data.expression.classList.toggle('nested-variable', isNestedVariable(expression));
 		}
 	}
@@ -293,7 +294,6 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		// value
 		renderExpressionValue(element.value, templateData.value, {
-			showHover: false,
 			linkDetector: this.linkDetector
 		});
 	}

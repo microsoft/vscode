@@ -310,7 +310,7 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		renderExpressionValue(expression, data.value, {
 			showChanged: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			showHover: true,
+			hover: data.elementDisposable,
 			colorize: true
 		});
 	}

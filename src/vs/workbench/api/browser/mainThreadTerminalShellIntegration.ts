@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { TerminalCapability, type ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -25,13 +26,13 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalShellIntegration);
 
 		// onDidChangeTerminalShellIntegration
-		const onDidAddCommandDetection = this._terminalService.createOnInstanceEvent(instance => {
+		const onDidAddCommandDetection = this._store.add(this._terminalService.createOnInstanceEvent(instance => {
 			return Event.map(
 				Event.filter(instance.capabilities.onDidAddCapabilityType, e => {
 					return e === TerminalCapability.CommandDetection;
-				}, this._store), () => instance
+				}), () => instance
 			);
-		});
+		})).event;
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
 
 		// onDidStartTerminalShellExecution
@@ -43,8 +44,9 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			if (e.data === currentCommand) {
 				return;
 			}
+			// String paths are not exposed in the extension API
 			currentCommand = e.data;
-			this._proxy.$shellExecutionStart(e.instance.instanceId, e.data.command, e.data.cwd);
+			this._proxy.$shellExecutionStart(e.instance.instanceId, e.data.command, this._convertCwdToUri(e.data.cwd));
 		}));
 
 		// onDidEndTerminalShellExecution
@@ -56,7 +58,9 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// onDidChangeTerminalShellIntegration via cwd
 		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
-		this._store.add(cwdChangeEvent.event(e => this._proxy.$cwdChange(e.instance.instanceId, e.data)));
+		this._store.add(cwdChangeEvent.event(e => {
+			this._proxy.$cwdChange(e.instance.instanceId, this._convertCwdToUri(e.data));
+		}));
 
 		// Clean up after dispose
 		this._store.add(this._terminalService.onDidDisposeInstance(e => this._proxy.$closeTerminal(e.instanceId)));
@@ -70,5 +74,9 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 	$executeCommand(terminalId: number, commandLine: string): void {
 		this._terminalService.getInstanceFromId(terminalId)?.runCommand(commandLine, true);
+	}
+
+	private _convertCwdToUri(cwd: string | undefined): URI | undefined {
+		return cwd ? URI.file(cwd) : undefined;
 	}
 }
