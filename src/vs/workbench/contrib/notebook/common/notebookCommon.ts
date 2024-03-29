@@ -952,7 +952,6 @@ export const NotebookSetting = {
 	outlineShowCodeCellSymbols: 'notebook.outline.showCodeCellSymbols',
 	breadcrumbsShowCodeCells: 'notebook.breadcrumbs.showCodeCells',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
-	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell',
 	cellChat: 'notebook.experimental.cellChat',
 	notebookVariablesView: 'notebook.experimental.variablesView',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
