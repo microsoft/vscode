@@ -1,3 +1,4 @@
+**/.eslintrc.js
 **/build/*/**/*.js
 **/dist/**/*.js
 **/extensions/**/*.d.ts
