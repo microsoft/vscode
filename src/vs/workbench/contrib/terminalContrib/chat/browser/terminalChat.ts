@@ -19,7 +19,9 @@ export const enum TerminalChatCommandId {
 	FeedbackUnhelpful = 'workbench.action.terminal.chat.feedbackUnhelpful',
 	FeedbackReportIssue = 'workbench.action.terminal.chat.feedbackReportIssue',
 	RunCommand = 'workbench.action.terminal.chat.runCommand',
+	RunFirstCommand = 'workbench.action.terminal.chat.runFirstCommand',
 	InsertCommand = 'workbench.action.terminal.chat.insertCommand',
+	InsertFirstCommand = 'workbench.action.terminal.chat.insertFirstCommand',
 	ViewInChat = 'workbench.action.terminal.chat.viewInChat',
 	PreviousFromHistory = 'workbench.action.terminal.chat.previousFromHistory',
 	NextFromHistory = 'workbench.action.terminal.chat.nextFromHistory',
@@ -39,6 +41,7 @@ export const enum TerminalChatContextKeyStrings {
 	ChatAgentRegistered = 'terminalChatAgentRegistered',
 	ChatResponseEditorFocused = 'terminalChatResponseEditorFocused',
 	ChatResponseContainsCodeBlock = 'terminalChatResponseContainsCodeBlock',
+	ChatResponseContainsMultipleCodeBlocks = 'terminalChatResponseContainsMultipleCodeBlocks',
 	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting',
 	ChatSessionResponseVote = 'terminalChatSessionResponseVote',
 }
@@ -61,8 +64,11 @@ export namespace TerminalChatContextKeys {
 	/** Whether the terminal chat agent has been registered */
 	export const agentRegistered = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether the terminal chat agent has been registered."));
 
-	/** The type of chat response, if any */
+	/** The chat response contains at least one code block */
 	export const responseContainsCodeBlock = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseContainsCodeBlock, false, localize('chatResponseContainsCodeBlockContextKey', "Whether the chat response contains a code block."));
+
+	/** The chat response contains multiple code blocks */
+	export const responseContainsMultipleCodeBlocks = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseContainsMultipleCodeBlocks, false, localize('chatResponseContainsMultipleCodeBlocksContextKey', "Whether the chat response contains multiple code blocks."));
 
 	/** Whether the response supports issue reporting */
 	export const responseSupportsIssueReporting = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseSupportsIssueReporting, false, localize('chatResponseSupportsIssueReportingContextKey', "Whether the response supports issue reporting"));
