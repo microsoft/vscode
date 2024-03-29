@@ -75,9 +75,9 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 			return;
 		}
 
-		const port = await event.getInspectPort(true);
+		const listener = await event.getInspectListener(true);
 
-		if (!port) {
+		if (!listener) {
 			return;
 		}
 
@@ -95,7 +95,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
 			let session: ProfileSession;
 			try {
-				session = await this._instantiationService.createInstance(ExtensionHostProfiler, port).start();
+				session = await this._instantiationService.createInstance(ExtensionHostProfiler, listener.host, listener.port).start();
 
 			} catch (err) {
 				this._session = undefined;
