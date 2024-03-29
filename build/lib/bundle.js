@@ -29,7 +29,7 @@ function bundle(entryPoints, config, callback) {
             allMentionedModulesMap[excludedModule] = true;
         });
     });
-    const code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
+    const code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.cjs'));
     const r = vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
     const loaderModule = { exports: {} };
     r.call({}, require, loaderModule, loaderModule.exports);

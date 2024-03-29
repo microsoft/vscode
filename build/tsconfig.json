@@ -1,9 +1,7 @@
 {
 	"compilerOptions": {
 		"target": "es2022",
-		"lib": [
-			"ES2020"
-		],
+		"lib": ["ES2020"],
 		"module": "commonjs",
 		"alwaysStrict": true,
 		"removeComments": false,
@@ -22,11 +20,6 @@
 		"newLine": "lf",
 		"noEmit": true
 	},
-	"include": [
-		"**/*.ts",
-		"**/*.js"
-	],
-	"exclude": [
-		"node_modules/**"
-	]
+	"include": ["**/*.ts", "**/*.js", "buildfile.d.cts"],
+	"exclude": ["node_modules/**"]
 }

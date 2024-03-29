@@ -12,7 +12,7 @@ import * as ts from 'typescript';
 import { pathToFileURL } from 'url';
 import * as workerpool from 'workerpool';
 import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
-const buildfile = require('../../../src/buildfile.cjs');
+import * as buildfile from '../../buildfile.cjs';
 
 class ShortIdent {
 
