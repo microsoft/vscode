@@ -51,7 +51,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		// is created.
 
 		app.on('browser-window-created', (_event, browserWindow) => {
-			const auxiliaryWindow = this.getWindowById(browserWindow.id);
+			const auxiliaryWindow = this.getWindowByWebContents(browserWindow.webContents);
 			if (auxiliaryWindow) {
 				this.logService.trace('[aux window] app.on("browser-window-created"): Trying to claim auxiliary window');
 
@@ -60,7 +60,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		});
 
 		validatedIpcMain.handle('vscode:registerAuxiliaryWindow', async (event, mainWindowId: number) => {
-			const auxiliaryWindow = this.getWindowById(event.sender.id);
+			const auxiliaryWindow = this.getWindowByWebContents(event.sender);
 			if (auxiliaryWindow) {
 				this.logService.trace('[aux window] vscode:registerAuxiliaryWindow: Registering auxiliary window to main window');
 
@@ -125,14 +125,14 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose());
 	}
 
-	getWindowById(windowId: number): AuxiliaryWindow | undefined {
-		return this.windows.get(windowId);
+	getWindowByWebContents(webContents: WebContents): AuxiliaryWindow | undefined {
+		return this.windows.get(webContents.id);
 	}
 
 	getFocusedWindow(): IAuxiliaryWindow | undefined {
 		const window = BrowserWindow.getFocusedWindow();
 		if (window) {
-			return this.getWindowById(window.id);
+			return this.getWindowByWebContents(window.webContents);
 		}
 
 		return undefined;
