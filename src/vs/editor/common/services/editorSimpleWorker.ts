@@ -826,11 +826,11 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				resolve(getAllMethodNames(this._foreignModule));
 			};
 
-			const isEsm = true
+			const isEsm = true;
 			if (isEsm) {
 				const url = FileAccess.asBrowserUri(moduleId + '.js' as AppResourcePath).toString(true);
 				// @ts-ignore
-				globalThis.exports = {}
+				globalThis.exports = {};
 				import(url).then(onModuleCallback).catch(reject);
 			} else {
 				require([moduleId], onModuleCallback, reject);
@@ -874,3 +874,4 @@ if (typeof importScripts === 'function') {
 	// Running in a web worker
 	globalThis.monaco = createMonacoBaseAPI();
 }
+//
