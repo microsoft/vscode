@@ -829,6 +829,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			const isEsm = true
 			if (isEsm) {
 				const url = FileAccess.asBrowserUri(moduleId + '.js' as AppResourcePath).toString(true);
+				// @ts-ignore
 				globalThis.exports = {}
 				import(url).then(onModuleCallback).catch(reject);
 			} else {
