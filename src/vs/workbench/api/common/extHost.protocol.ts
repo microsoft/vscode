@@ -2268,10 +2268,10 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostTerminalShellIntegrationShape {
 	$shellIntegrationChange(instanceId: number): void;
-	$shellExecutionStart(instanceId: number, commandLine: string | undefined, cwd: UriComponents | string | undefined): void;
+	$shellExecutionStart(instanceId: number, commandLine: string | undefined, cwd: UriComponents | undefined): void;
 	$shellExecutionEnd(instanceId: number, commandLine: string | undefined, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
-	$cwdChange(instanceId: number, cwd: UriComponents | string): void;
+	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
 	$closeTerminal(instanceId: number): void;
 }
 

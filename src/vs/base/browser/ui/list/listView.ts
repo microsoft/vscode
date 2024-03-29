@@ -607,7 +607,7 @@ export class ListView<T> implements IListView<T> {
 					renderer.disposeElement(item.element, i, item.row.templateData, item.size);
 				}
 
-				rows.push(item.row);
+				rows.unshift(item.row);
 			}
 
 			item.row = null;
@@ -924,7 +924,9 @@ export class ListView<T> implements IListView<T> {
 
 		if (item.stale || !item.row.domNode.parentElement) {
 			const referenceNode = this.items.at(index + 1)?.row?.domNode ?? null;
-			this.rowsContainer.insertBefore(item.row.domNode, referenceNode);
+			if (item.row.domNode.parentElement !== this.rowsContainer || item.row.domNode.nextElementSibling !== referenceNode) {
+				this.rowsContainer.insertBefore(item.row.domNode, referenceNode);
+			}
 			item.stale = false;
 		}
 
