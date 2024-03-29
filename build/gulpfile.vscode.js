@@ -148,7 +148,14 @@ const core = task.define('core', task.series(
 ));
 gulp.task(core);
 
-const coreCi = task.define('core-ci', gulp.task('compile-build-pr'));
+const coreCi = task.define('core-ci', task.series(
+	gulp.task('compile-build-pr'),
+	task.parallel(
+		gulp.task('optimize-vscode'),
+		gulp.task('optimize-vscode-reh'),
+		gulp.task('optimize-vscode-reh-web'),
+	)
+));
 gulp.task(coreCi);
 
 const corePr = task.define('core-ci-pr', task.series(
