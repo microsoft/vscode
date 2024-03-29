@@ -61,7 +61,7 @@ const vscodeWebResources = [
 	'!**/test/**'
 ];
 
-const buildfile = require('./buildfile');
+const buildfile = require('./buildfile.cjs');
 
 const vscodeWebEntryPoints = [
 	buildfile.entrypoint('vs/workbench/workbench.web.main'),
