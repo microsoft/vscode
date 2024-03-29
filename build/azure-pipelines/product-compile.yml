@@ -108,12 +108,12 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (OSS)
   - ${{ elseif eq(parameters.VSCODE_CIBUILD, true) }}:
-    - script: yarn npm-run-all -lp compile-build-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+    - script: yarn npm-run-all -lp core-ci extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (CI)
   - ${{ else }}:
-    - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+    - script: yarn npm-run-all -lp core extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene

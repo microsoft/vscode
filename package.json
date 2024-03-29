@@ -59,6 +59,7 @@
     "minify-vscode-reh": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
     "minify-vscode-reh-web": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",
     "hygiene": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js hygiene",
+    "core": "node --max-old-space-size=8095 ./node_modules/gulp/bin/gulp.js core",
     "core-ci": "node --max-old-space-size=8095 ./node_modules/gulp/bin/gulp.js core-ci",
     "core-ci-pr": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js core-ci-pr",
     "extensions-ci": "node --max-old-space-size=8095 ./node_modules/gulp/bin/gulp.js extensions-ci",
