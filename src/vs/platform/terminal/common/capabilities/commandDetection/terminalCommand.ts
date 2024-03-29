@@ -236,6 +236,16 @@ export interface ICurrentPartialCommand {
 	 */
 	isInvalid?: boolean;
 
+	/**
+	 * Whether the command start marker has been adjusted on Windows.
+	 */
+	isAdjusted?: boolean;
+
+	/**
+	 * Whether the command start marker adjustment has been attempt on new terminal input.
+	 */
+	isInputAdjusted?: boolean;
+
 	getPromptRowCount(): number;
 	getCommandRowCount(): number;
 }

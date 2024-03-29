@@ -111,6 +111,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		};
 		this._register(this._terminal.onResize(e => this._handleResize(e)));
 		this._register(this._terminal.onCursorMove(() => this._handleCursorMove()));
+		this._register(this._terminal.onData(() => this._handleInput()));
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
@@ -231,6 +232,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		return undefined;
+	}
+
+	private _handleInput(): void {
+		this._ptyHeuristics.value.handleInput();
 	}
 
 	handlePromptStart(options?: IHandleCommandOptions): void {
@@ -447,6 +452,8 @@ class UnixPtyHeuristics extends Disposable {
 		}));
 	}
 
+	handleInput() { }
+
 	async handleCommandStart(options?: IHandleCommandOptions) {
 		this._hooks.commitCommandFinished();
 
@@ -600,6 +607,19 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 	}
 
+	handleInput() {
+		if (this._capability.currentCommand.isAdjusted === true || this._capability.currentCommand.isInputAdjusted === true) {
+			return;
+		}
+		this._capability.currentCommand.isInputAdjusted = true;
+		this._logService.debug('CommandDetectionCapability#handleInput attempting start marker adjustment');
+
+		this._tryAdjustCommandStartMarkerScannedLineCount = 0;
+		this._tryAdjustCommandStartMarkerPollCount = 0;
+		this._tryAdjustCommandStartMarkerScheduler = new RunOnceScheduler(() => this._tryAdjustCommandStartMarker(this._terminal.registerMarker(0)!), AdjustCommandStartMarkerConstants.Interval);
+		this._tryAdjustCommandStartMarkerScheduler.schedule();
+	}
+
 	async handleCommandStart() {
 		this._capability.currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
@@ -661,21 +681,24 @@ class WindowsPtyHeuristics extends Disposable {
 				if (prompt) {
 					const adjustedPrompt = typeof prompt === 'string' ? prompt : prompt.prompt;
 					this._capability.currentCommand.commandStartMarker = this._terminal.registerMarker(0)!;
-					if (typeof prompt === 'object' && prompt.likelySingleLine) {
-						this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
-						this._capability.currentCommand.promptStartMarker?.dispose();
-						this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
-						// Adjust the last command if it's not in the same position as the following
-						// prompt start marker
-						const lastCommand = this._capability.commands.at(-1);
-						if (lastCommand && this._capability.currentCommand.commandStartMarker.line !== lastCommand.endMarker?.line) {
-							lastCommand.endMarker?.dispose();
-							lastCommand.endMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
-						}
+
+					// Adjust the prompt start marker to the command start marker
+					this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
+					this._capability.currentCommand.promptStartMarker?.dispose();
+					this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
+
+					// Adjust the last command if it's not in the same position as the following
+					// prompt start marker
+					const lastCommand = this._capability.commands.at(-1);
+					if (lastCommand && this._capability.currentCommand.commandStartMarker.line !== lastCommand.endMarker?.line) {
+						lastCommand.endMarker?.dispose();
+						lastCommand.endMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
 					}
+
 					// use the regex to set the position as it's possible input has occurred
 					this._capability.currentCommand.commandStartX = adjustedPrompt.length;
 					this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted commandStart', `${start.line} -> ${this._capability.currentCommand.commandStartMarker.line}:${this._capability.currentCommand.commandStartX}`);
+					this._capability.currentCommand.isAdjusted = true;
 					this._flushPendingHandleCommandStartTask();
 					return;
 				}
