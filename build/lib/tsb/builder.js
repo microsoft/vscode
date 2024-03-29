@@ -14,6 +14,7 @@ const colors = require("ansi-colors");
 const ts = require("typescript");
 const Vinyl = require("vinyl");
 const source_map_1 = require("source-map");
+const fixEsmFile_js_1 = require("./fixEsmFile.js");
 var CancellationToken;
 (function (CancellationToken) {
     CancellationToken.None = {
@@ -22,6 +23,15 @@ var CancellationToken;
 })(CancellationToken || (exports.CancellationToken = CancellationToken = {}));
 function normalize(path) {
     return path.replace(/\\/g, '/');
+}
+const vsRoot = path.join(__dirname, '..', '..', '..', 'vs');
+function getVsRelativePath(absolutePath) {
+    absolutePath = absolutePath.replace('/out/vs/vs/', '/out/vs/');
+    console.log('abs', absolutePath);
+    if (!absolutePath.startsWith(vsRoot)) {
+        return '';
+    }
+    return absolutePath.slice(vsRoot.length);
 }
 function createTypeScriptBuilder(config, projectFile, cmd) {
     const _log = config.logFn;
@@ -115,9 +125,11 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                                 continue;
                             }
                         }
+                        const vsRelativePath = getVsRelativePath(fileName);
+                        const contents = vsRelativePath ? (0, fixEsmFile_js_1.fixEsmFile)(vsRelativePath, file.text) : file.text;
                         const vinyl = new Vinyl({
                             path: file.name,
-                            contents: Buffer.from(file.text),
+                            contents: Buffer.from(contents),
                             base: !config._emitWithoutBasePath && baseFor(host.getScriptSnapshot(fileName)) || undefined
                         });
                         if (!emitSourceMapsInStream && /\.js$/.test(file.name)) {
