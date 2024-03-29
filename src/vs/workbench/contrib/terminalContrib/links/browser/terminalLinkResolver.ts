@@ -26,7 +26,7 @@ export class TerminalLinkResolver implements ITerminalLinkResolver {
 
 	async resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink> {
 		// Correct scheme and authority for remote terminals
-		if (uri && processManager.remoteAuthority) {
+		if (uri && uri.scheme === Schemas.file && processManager.remoteAuthority) {
 			uri = uri.with({
 				scheme: Schemas.vscodeRemote,
 				authority: processManager.remoteAuthority
