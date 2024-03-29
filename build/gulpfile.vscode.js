@@ -148,7 +148,7 @@ const core = task.define('core', task.series(
 ));
 gulp.task(core);
 
-const coreCi = task.define('core-ci', gulp.task('compile-build'));
+const coreCi = task.define('core-ci', gulp.task('compile-build-pr'));
 gulp.task(coreCi);
 
 const corePr = task.define('core-ci-pr', task.series(
