@@ -24,15 +24,16 @@ var CancellationToken;
 function normalize(path) {
     return path.replace(/\\/g, '/');
 }
-const vsRoot = path.join(__dirname, '..', '..', '..', 'vs');
+const vsRoot = path.join(__dirname, '..', '..', '..', 'src');
 function getVsRelativePath(absolutePath) {
     absolutePath = absolutePath.replace('/out/vs/vs/', '/out/vs/');
-    console.log('abs', absolutePath);
+    console.log({ absolutePath, vsRoot });
     if (!absolutePath.startsWith(vsRoot)) {
         return '';
     }
-    return absolutePath.slice(vsRoot.length);
+    return absolutePath.slice(vsRoot.length + 1);
 }
+d;
 function createTypeScriptBuilder(config, projectFile, cmd) {
     const _log = config.logFn;
     const host = new LanguageServiceHost(cmd, projectFile, _log);

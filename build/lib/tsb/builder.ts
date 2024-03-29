@@ -39,15 +39,15 @@ function normalize(path: string): string {
 }
 
 
-const vsRoot = path.join(__dirname, '..', '..', '..', 'vs')
+const vsRoot = path.join(__dirname, '..', '..', '..', 'src')
 
 function getVsRelativePath(absolutePath: string) {
 	absolutePath = absolutePath.replace('/out/vs/vs/', '/out/vs/')
-	console.log('abs', absolutePath)
+	console.log({ absolutePath, vsRoot })
 	if (!absolutePath.startsWith(vsRoot)) {
 		return ''
 	}
-	return absolutePath.slice(vsRoot.length)
+	return absolutePath.slice(vsRoot.length + 1)
 }
 
 export function createTypeScriptBuilder(config: IConfiguration, projectFile: string, cmd: ts.ParsedCommandLine): ITypeScriptBuilder {
