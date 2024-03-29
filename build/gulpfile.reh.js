@@ -435,6 +435,7 @@ function tweakProductForServerWeb(product) {
 			}
 		)
 	));
+	gulp.task(optimizeTask);
 
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		optimizeTask,
