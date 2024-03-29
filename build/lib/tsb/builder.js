@@ -33,7 +33,6 @@ function getVsRelativePath(absolutePath) {
     }
     return absolutePath.slice(vsRoot.length + 1);
 }
-d;
 function createTypeScriptBuilder(config, projectFile, cmd) {
     const _log = config.logFn;
     const host = new LanguageServiceHost(cmd, projectFile, _log);
