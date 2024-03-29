@@ -18,7 +18,7 @@ export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIn
 
 	readonly onDidChangeTerminalShellIntegration: Event<vscode.TerminalShellIntegrationChangeEvent>;
 	readonly onDidStartTerminalShellExecution: Event<vscode.TerminalShellExecution>;
-	readonly onDidEndTerminalShellExecution: Event<vscode.TerminalShellExecution>;
+	readonly onDidEndTerminalShellExecution: Event<vscode.TerminalShellExecutionEndEvent>;
 }
 export const IExtHostTerminalShellIntegration = createDecorator<IExtHostTerminalShellIntegration>('IExtHostTerminalShellIntegration');
 
@@ -34,7 +34,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	readonly onDidChangeTerminalShellIntegration = this._onDidChangeTerminalShellIntegration.event;
 	protected readonly _onDidStartTerminalShellExecution = new Emitter<vscode.TerminalShellExecution>();
 	readonly onDidStartTerminalShellExecution = this._onDidStartTerminalShellExecution.event;
-	protected readonly _onDidEndTerminalShellExecution = new Emitter<vscode.TerminalShellExecution>();
+	protected readonly _onDidEndTerminalShellExecution = new Emitter<vscode.TerminalShellExecutionEndEvent>();
 	readonly onDidEndTerminalShellExecution = this._onDidEndTerminalShellExecution.event;
 
 	constructor(
@@ -74,7 +74,9 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		// 	console.log('*** onDidEndTerminalShellExecution', e);
 		// });
 		// setTimeout(() => {
+		// 	console.log('before executeCommand(\"echo hello\")');
 		// 	Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
+		// 	console.log('after executeCommand(\"echo hello\")');
 		// }, 4000);
 	}
 
@@ -91,7 +93,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 			this._activeShellIntegrations.set(instanceId, shellIntegration);
 			shellIntegration.store.add(terminal.onWillDispose(() => this._activeShellIntegrations.get(instanceId)?.dispose()));
 			shellIntegration.store.add(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(instanceId, commandLine)));
-			shellIntegration.store.add(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e.value)));
+			shellIntegration.store.add(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e)));
 			shellIntegration.store.add(shellIntegration.onDidRequestChangeShellIntegration(e => this._onDidChangeTerminalShellIntegration.fire(e)));
 			terminal.shellIntegration = shellIntegration.value;
 		}
@@ -101,7 +103,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $shellExecutionStart(instanceId: number, commandLine: string, cwd: URI | string | undefined): void {
+	public $shellExecutionStart(instanceId: number, commandLine: string, cwd: URI | undefined): void {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
@@ -118,7 +120,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.emitData(data);
 	}
 
-	public $cwdChange(instanceId: number, cwd: string): void {
+	public $cwdChange(instanceId: number, cwd: URI | undefined): void {
 		this._activeShellIntegrations.get(instanceId)?.setCwd(cwd);
 	}
 
@@ -134,7 +136,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
-	private _cwd: URI | string | undefined;
+	private _cwd: URI | undefined;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
 
@@ -144,7 +146,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	readonly onDidRequestChangeShellIntegration = this._onDidRequestChangeShellIntegration.event;
 	protected readonly _onDidRequestShellExecution = this._register(new Emitter<string>());
 	readonly onDidRequestShellExecution = this._onDidRequestShellExecution.event;
-	protected readonly _onDidRequestEndExecution = this._register(new Emitter<InternalTerminalShellExecution>());
+	protected readonly _onDidRequestEndExecution = this._register(new Emitter<vscode.TerminalShellExecutionEndEvent>());
 	readonly onDidRequestEndExecution = this._onDidRequestEndExecution.event;
 
 	constructor(
@@ -155,28 +157,34 @@ class InternalTerminalShellIntegration extends Disposable {
 
 		const that = this;
 		this.value = {
-			get cwd(): URI | string | undefined {
+			get cwd(): URI | undefined {
 				return that._cwd;
 			},
 			executeCommand(commandLine): vscode.TerminalShellExecution {
 				that._onDidRequestShellExecution.fire(commandLine);
-				const execution = that.startShellExecution(commandLine, that._cwd).value;
+				// Fire the event in a microtask to allow the extension to use the execution before
+				// the start event fires
+				const execution = that.startShellExecution(commandLine, that._cwd, true).value;
 				that._ignoreNextExecution = true;
 				return execution;
 			}
 		};
 	}
 
-	startShellExecution(commandLine: string, cwd: URI | string | undefined): InternalTerminalShellExecution {
+	startShellExecution(commandLine: string, cwd: URI | undefined, fireEventInMicrotask?: boolean): InternalTerminalShellExecution {
 		if (this._ignoreNextExecution && this._currentExecution) {
 			this._ignoreNextExecution = false;
 		} else {
 			if (this._currentExecution) {
 				this._currentExecution.endExecution(undefined, undefined);
-				this._onDidRequestEndExecution.fire(this._currentExecution);
+				this._onDidRequestEndExecution.fire({ execution: this._currentExecution.value, exitCode: undefined });
 			}
-			this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
-			this._onDidStartTerminalShellExecution.fire(this._currentExecution.value);
+			const currentExecution = this._currentExecution = new InternalTerminalShellExecution(this._terminal, commandLine, cwd);
+			if (fireEventInMicrotask) {
+				queueMicrotask(() => this._onDidStartTerminalShellExecution.fire(currentExecution.value));
+			} else {
+				this._onDidStartTerminalShellExecution.fire(this._currentExecution.value);
+			}
 		}
 		return this._currentExecution;
 	}
@@ -188,17 +196,15 @@ class InternalTerminalShellIntegration extends Disposable {
 	endShellExecution(commandLine: string | undefined, exitCode: number | undefined): void {
 		if (this._currentExecution) {
 			this._currentExecution.endExecution(commandLine, exitCode);
-			this._onDidRequestEndExecution.fire(this._currentExecution);
+			this._onDidRequestEndExecution.fire({ execution: this._currentExecution.value, exitCode });
 			this._currentExecution = undefined;
 		}
 	}
 
-	setCwd(cwd: URI | string): void {
+	setCwd(cwd: URI | undefined): void {
 		let wasChanged = false;
 		if (URI.isUri(this._cwd)) {
-			if (this._cwd.toString() !== cwd.toString()) {
-				wasChanged = true;
-			}
+			wasChanged = !URI.isUri(cwd) || this._cwd.toString() !== cwd.toString();
 		} else if (this._cwd !== cwd) {
 			wasChanged = true;
 		}
@@ -212,33 +218,25 @@ class InternalTerminalShellIntegration extends Disposable {
 class InternalTerminalShellExecution {
 	private _dataStream: ShellExecutionDataStream | undefined;
 
-	private readonly _exitCode: Promise<number | undefined>;
-	private _exitCodeResolve: ((exitCode: number | undefined) => void) | undefined;
+	private _ended: boolean = false;
 
 	readonly value: vscode.TerminalShellExecution;
 
 	constructor(
 		readonly terminal: vscode.Terminal,
 		private _commandLine: string | undefined,
-		readonly cwd: URI | string | undefined,
+		readonly cwd: URI | undefined,
 	) {
-		this._exitCode = new Promise<number | undefined>(resolve => {
-			this._exitCodeResolve = resolve;
-		});
-
 		const that = this;
 		this.value = {
 			get terminal(): vscode.Terminal {
-				return terminal;
+				return that.terminal;
 			},
 			get commandLine(): string | undefined {
 				return that._commandLine;
 			},
-			get cwd(): URI | string | undefined {
-				return cwd;
-			},
-			get exitCode(): Promise<number | undefined> {
-				return that._exitCode;
+			get cwd(): URI | undefined {
+				return that.cwd;
 			},
 			createDataStream(): AsyncIterable<string> {
 				return that._createDataStream();
@@ -248,7 +246,7 @@ class InternalTerminalShellExecution {
 
 	private _createDataStream(): AsyncIterable<string> {
 		if (!this._dataStream) {
-			if (this._exitCodeResolve === undefined) {
+			if (this._ended) {
 				return AsyncIterableObject.EMPTY;
 			}
 			this._dataStream = new ShellExecutionDataStream();
@@ -266,8 +264,7 @@ class InternalTerminalShellExecution {
 		}
 		this._dataStream?.endExecution();
 		this._dataStream = undefined;
-		this._exitCodeResolve?.(exitCode);
-		this._exitCodeResolve = undefined;
+		this._ended = true;
 	}
 }
 

@@ -21,26 +21,19 @@ declare module 'vscode' {
 		 * - It may be undefined or the empty string until {@link onDidEndTerminalShellExecution} is
 		 *   fired.
 		 * - It may be inaccurate initially if the command line is pulled from the buffer directly
-		 *   via the [`OSC 633/133 ; A`, `B` and `C` sequences](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st).
+		 *   via the shell integration prompt markers.
 		 * - It may contain line continuation characters and/or parts of the right prompt.
-		 * - It may be inaccurate if the shell integration does not support command line reporting
-		 *   via the [`OSC 633 ; E` sequence](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st).
+		 * - It may be inaccurate if the shell integration does not support command line reporting.
 		 */
 		readonly commandLine: string | undefined;
 
 		/**
 		 * The working directory that was reported by the shell when this command executed. This
-		 * will be a {@link Uri} if the string reported by the shell can reliably be mapped to the
+		 * will be a {@link Uri} if the path reported by the shell can reliably be mapped to the
 		 * connected machine. This requires the shell integration to support working directory
-		 * reporting via the [`OSC 633 ; P`](https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st)
-		 * or `OSC 1337 ; CurrentDir=<Cwd> ST` sequences.
+		 * reporting.
 		 */
-		readonly cwd: Uri | string | undefined;
-
-		/**
-		 * The exit code reported by the shell.
-		 */
-		readonly exitCode: Thenable<number | undefined>;
+		readonly cwd: Uri | undefined;
 
 		/**
 		 * Creates a stream of raw data (including escape sequences) that is written to the
@@ -74,12 +67,12 @@ declare module 'vscode' {
 	}
 
 	export interface TerminalShellIntegration {
-		// TODO: Is this fine to share the TerminalShellIntegrationChangeEvent event?
+		// TODO: Should this share TerminalShellIntegrationChangeEvent or have it's own TerminalShellIntegrationCwdChangeEvent?
 		/**
-		 * The current working directory of the terminal. This will be a {@link Uri} if the string
+		 * The current working directory of the terminal. This will be a {@link Uri} if the path
 		 * reported by the shell can reliably be mapped to the connected machine.
 		 */
-		readonly cwd: Uri | string | undefined;
+		readonly cwd: Uri | undefined;
 
 		/**
 		 * Execute a command, sending ^C as necessary to interrupt any running command if needed.
@@ -184,6 +177,17 @@ declare module 'vscode' {
 		readonly shellIntegration: TerminalShellIntegration;
 	}
 
+	export interface TerminalShellExecutionEndEvent {
+		/**
+		 * The terminal shell execution that has ended.
+		 */
+		readonly execution: TerminalShellExecution;
+		/**
+		 * The exit code reported by the shell.
+		 */
+		readonly exitCode: number | undefined;
+	}
+
 	export namespace window {
 		/**
 		 * Fires when shell integration activates or one of its properties changes in a terminal.
@@ -202,6 +206,6 @@ declare module 'vscode' {
 		 * [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) is
 		 * activated for the terminal.
 		 */
-		export const onDidEndTerminalShellExecution: Event<TerminalShellExecution>;
+		export const onDidEndTerminalShellExecution: Event<TerminalShellExecutionEndEvent>;
 	}
 }

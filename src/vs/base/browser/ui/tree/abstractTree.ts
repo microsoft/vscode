@@ -2295,7 +2295,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			this.tree.setFocus([location]);
 			this.tree.toggleCollapsed(location, recursive);
 
-			if (expandOnlyOnTwistieClick && onTwistie) {
+			if (onTwistie) {
 				// Do not set this before calling a handler on the super class, because it will reject it as handled
 				e.browserEvent.isHandledByList = true;
 				return;

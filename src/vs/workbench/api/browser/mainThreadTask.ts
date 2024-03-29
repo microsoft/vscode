@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -414,7 +414,7 @@ namespace TaskFilterDTO {
 }
 
 @extHostNamedCustomer(MainContext.MainThreadTask)
-export class MainThreadTask implements MainThreadTaskShape {
+export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 
 	private readonly _extHostContext: IExtHostContext | undefined;
 	private readonly _proxy: ExtHostTaskShape;
@@ -426,9 +426,10 @@ export class MainThreadTask implements MainThreadTaskShape {
 		@IWorkspaceContextService private readonly _workspaceContextServer: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
 	) {
+		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
-		this._taskService.onDidStateChange(async (event: ITaskEvent) => {
+		this._register(this._taskService.onDidStateChange(async (event: ITaskEvent) => {
 			if (event.kind === TaskEventKind.Changed) {
 				return;
 			}
@@ -453,14 +454,15 @@ export class MainThreadTask implements MainThreadTaskShape {
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
-		});
+		}));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		for (const value of this._providers.values()) {
 			value.disposable.dispose();
 		}
 		this._providers.clear();
+		super.dispose();
 	}
 
 	$createTaskId(taskDTO: ITaskDTO): Promise<string> {
