@@ -39,7 +39,6 @@ function hygiene(some, linting = true) {
 	});
 
 	const unicode = es.through(function (file) {
-		console.log(file.path)
 		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 		const allowInComments = lines.some(line => /allow-any-unicode-comment-file/.test(line));
