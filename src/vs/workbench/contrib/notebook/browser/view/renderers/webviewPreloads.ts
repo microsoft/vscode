@@ -271,6 +271,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
 		}
 	};
+
+	const blurOutput = (outputId: string) => {
+		const cellOutputContainer = window.document.getElementById(outputId);
+		if (!cellOutputContainer) {
+			return;
+		}
+		const selection = cellOutputContainer.getSelection();
+		if (!selection) {
+			return;
+		}
+		selection.removeAllRanges();
+	};
+
 	const selectOutputContents = (cellOrOutputId: string) => {
 		const selection = window.getSelection();
 		if (!selection) {
@@ -689,7 +702,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		element.id = `focus-sink-${cellId}`;
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
-			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
+			postNotebookMessage<webviewMessages.IFocusEditorMessage>('focus-editor', {
 				cellId: cellId,
 				focusNext
 			});
@@ -1731,6 +1744,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'focus-output':
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
+				break;
+			case 'blur-output':
+				blurOutput(event.data.outputId);
 				break;
 			case 'select-output-contents':
 				selectOutputContents(event.data.cellOrOutputId);
