@@ -6,7 +6,7 @@
 //@ts-check
 import { createRequire } from 'module';
 
-const require = createRequire(import.meta.url)
+const require = createRequire(import.meta.url);
 
 
 // Store the node.js require function in a variable

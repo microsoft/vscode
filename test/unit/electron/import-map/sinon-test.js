@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sinonTest } from './testGlobals.js'
+import { sinonTest } from './testGlobals.js';
 
-export default sinonTest
+export default sinonTest;

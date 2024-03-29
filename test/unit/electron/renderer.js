@@ -61,9 +61,9 @@ const { fs, ipcRenderer, util, glob, path, assert, setRun, url } = globalThis.te
 })();
 
 // TODO
-const coverage = {}
+const coverage = {};
 // TODO
-const takeSnapshotAndCountClasses = {}
+const takeSnapshotAndCountClasses = {};
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -125,26 +125,26 @@ function createCoverageReport(opts) {
 }
 
 async function loadWorkbenchTestingUtilsModule() {
-	const utilsPath = new URL('../../../out/vs/workbench/test/common/utils.js', import.meta.url).toString()
-	const module = await import(utilsPath)
-	return module
+	const utilsPath = new URL('../../../out/vs/workbench/test/common/utils.js', import.meta.url).toString();
+	const module = await import(utilsPath);
+	return module;
 }
 
 const doImportUrl = async url => {
 	try {
 		// console.log('import', url)
-		return await import(url)
+		return await import(url);
 	} catch (error) {
-		throw new Error(`Failed to import ${url}: ${error}`)
+		throw new Error(`Failed to import ${url}: ${error}`);
 	}
-}
+};
 
 async function loadModules(modules) {
 	// console.log({ modules })
 	for (const file of modules) {
-		const importUrl = url.pathToFileURL(path.join(_out, file)).toString()
+		const importUrl = url.pathToFileURL(path.join(_out, file)).toString();
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-		const m = await doImportUrl(importUrl)
+		const m = await doImportUrl(importUrl);
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
 	}
@@ -205,11 +205,11 @@ function loadTests(opts) {
 		'fetch returns keybinding with user first if title and id matches' //
 	]);
 
-	let _testsWithUnexpectedOutput = false;
+	const _testsWithUnexpectedOutput = false;
 
 	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 		console[consoleFn.name] = function (msg) {
-			consoleFn.apply('bla')
+			consoleFn.apply('bla');
 			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTestTitle)) {
 				// _testsWithUnexpectedOutput = true;
 				consoleFn.apply(console, arguments);
@@ -402,7 +402,7 @@ async function runTests(opts) {
 		mocha.timeout(opts.timeout);
 	}
 
-	await loadTests(opts)
+	await loadTests(opts);
 
 	if (opts.grep) {
 		mocha.grep(opts.grep);
@@ -430,11 +430,11 @@ async function runTests(opts) {
 
 const main = (e, opts) => {
 	initLoader(opts);
-	console.log('run tests')
+	console.log('run tests');
 	runTests(opts).catch(async err => {
 
-		console.log(err)
-		await new Promise(r => { })
+		console.log(err);
+		await new Promise(r => { });
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
@@ -442,5 +442,5 @@ const main = (e, opts) => {
 		console.error(err);
 		ipcRenderer.send('error', err);
 	});
-}
-setRun(main)
+};
+setRun(main);

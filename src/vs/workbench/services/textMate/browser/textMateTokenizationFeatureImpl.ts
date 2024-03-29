@@ -380,7 +380,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		} else {
 			const onigurumaWasmUrl = this._environmentService.isBuilt
 				? FileAccess.asBrowserUri(`${nodeModulesAsarUnpackedPath}/vscode-oniguruma/release/onig.wasm`).toString(true)
-				: FileAccess.asBrowserUri(`${nodeModulesPath}/vscode-oniguruma/release/onig.wasm`).toString(true)
+				: FileAccess.asBrowserUri(`${nodeModulesPath}/vscode-oniguruma/release/onig.wasm`).toString(true);
 			const response = await fetch(onigurumaWasmUrl);
 			return response;
 		}

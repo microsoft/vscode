@@ -38,7 +38,7 @@ const {
 	jschardet,
 	xtermHeadless,
 	xtermAddonCanvas
-} = globalThis.testGlobals
+} = globalThis.testGlobals;
 
 
 export {
@@ -76,4 +76,4 @@ export {
 	xtermAddonCanvas,
 	jschardet,
 	xtermHeadless
-}
+};

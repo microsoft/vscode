@@ -5,8 +5,8 @@
 
 import { vscodeSqlite3 } from './testGlobals.js';
 
-const { Database } = vscodeSqlite3
+const { Database } = vscodeSqlite3;
 
-export { Database }
+export { Database };
 
-export default vscodeSqlite3
+export default vscodeSqlite3;

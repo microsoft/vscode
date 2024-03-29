@@ -14,7 +14,7 @@
 	}
 	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
 	const monacoBaseUrl = monacoEnvironment && monacoEnvironment.baseUrl ? monacoEnvironment.baseUrl : '../../../';
-	const isEsm = true
+	const isEsm = true;
 
 	function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
 		policyName: string,
@@ -126,16 +126,16 @@
 
 	async function loadCode(moduleId: string) {
 		if (isEsm) {
-			const modulePath = new URL('../../../' + moduleId + '.js', import.meta.url).toString()
-			const module = await import(modulePath)
-			handleModuleLoaded((module))
-			return
+			const modulePath = new URL('../../../' + moduleId + '.js', import.meta.url).toString();
+			const module = await import(modulePath);
+			handleModuleLoaded((module));
+			return;
 		}
 		loadAMDLoader().then(() => {
 			configureAMDLoader();
 			require([moduleId], function (ws) {
 				setTimeout(function () {
-					handleModuleLoaded(ws)
+					handleModuleLoaded(ws);
 				}, 0);
 			});
 		});

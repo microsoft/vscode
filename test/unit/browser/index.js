@@ -21,10 +21,10 @@ import * as yaserver from 'yaserver';
 import http from 'http';
 import { randomBytes } from 'crypto';
 import minimist from 'minimist';
-import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 
 /**

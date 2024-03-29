@@ -5,4 +5,4 @@
 
 import { xterm } from './testGlobals.js';
 
-export default xterm
+export default xterm;

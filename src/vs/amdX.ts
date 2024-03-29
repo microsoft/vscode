@@ -76,19 +76,19 @@ class AMDModuleImporter {
 
 	private async _import(scriptSrc: string): Promise<DefineCall | undefined> {
 		try {
-			await import(scriptSrc)
-			return this._defineCalls.pop()
+			await import(scriptSrc);
+			return this._defineCalls.pop();
 		} catch (error) {
-			throw new Error(`Failed to import ${scriptSrc}: ${error}`)
+			throw new Error(`Failed to import ${scriptSrc}: ${error}`);
 		}
 	}
 
 	private async _rendererLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
-		return this._import(scriptSrc)
+		return this._import(scriptSrc);
 	}
 
 	private async _workerLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
-		return this._import(scriptSrc)
+		return this._import(scriptSrc);
 	}
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
@@ -150,7 +150,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 			const useASAR = (isBuilt && !platform.isWeb);
 			const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
 			const resourcePath: string = `${actualNodeModulesPath}/${nodeModulePath}`;
-			scriptSrc = resourcePath
+			scriptSrc = resourcePath;
 		}
 		const result = AMDModuleImporter.INSTANCE.load<T>(scriptSrc);
 		cache.set(nodeModulePath, result);

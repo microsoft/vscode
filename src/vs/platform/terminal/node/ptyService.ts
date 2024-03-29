@@ -16,7 +16,7 @@ import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanc
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import xtermHeadless from '@xterm/headless';
-const { Terminal: XtermTerminal } = xtermHeadless
+const { Terminal: XtermTerminal } = xtermHeadless;
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from '@xterm/addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';

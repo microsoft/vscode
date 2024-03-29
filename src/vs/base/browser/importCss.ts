@@ -33,10 +33,10 @@ export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoa
 }
 
 export function importCss(path: string, base: string) {
-	const url = new URL(path, base).toString()
+	const url = new URL(path, base).toString();
 	loadCSS(path, url, () => { }, () => {
-		console.error(`failed to load ${path}`)
-	})
+		console.error(`failed to load ${path}`);
+	});
 }
 
 function loadCSS(name: string, cssUrl: string, callback: () => void, errorback: (err: any) => void): void {

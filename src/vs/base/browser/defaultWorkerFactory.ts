@@ -41,9 +41,9 @@ function getWorker(label: string): Worker | Promise<Worker> {
 		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
 		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 	}
-	const isEsm = true
+	const isEsm = true;
 	if (isEsm) {
-		const workerMain = FileAccess.asBrowserUri('vs/base/worker/workerMain.js').toString()
+		const workerMain = FileAccess.asBrowserUri('vs/base/worker/workerMain.js').toString();
 		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
 		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
 	}

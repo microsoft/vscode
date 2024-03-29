@@ -80,9 +80,9 @@ function createPatchedModule<T extends object>(module: T, patch: any) {
 	// @ts-ignore
 	if (module[Symbol.toStringTag] === 'Module') {
 		// cannot be patched
-		return
+		return;
 	}
-	return Object.assign(module, patch)
+	return Object.assign(module, patch);
 }
 
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {

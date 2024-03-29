@@ -11,7 +11,7 @@ import { Box, GridView, type IGridViewOptions, type IGridViewStyles, type IView 
 import type { SplitView, AutoSizing as SplitViewAutoSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { importCss } from 'vs/base/browser/importCss';
 
-importCss('./gridview.css', import.meta.url)
+importCss('./gridview.css', import.meta.url);
 
 export { type IViewSize, LayoutPriority, Orientation, orthogonal } from './gridview';
 

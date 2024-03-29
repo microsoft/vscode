@@ -7,7 +7,7 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 
 
 // @ts-ignore
-const { assert } = globalThis['testGlobals']
+const { assert } = globalThis['testGlobals'];
 
 /**
  * This function is called before test running and also again at the end of test running

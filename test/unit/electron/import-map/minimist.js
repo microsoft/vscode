@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { minimist } from './testGlobals.js'
+import { minimist } from './testGlobals.js';
 
-export default minimist
+export default minimist;

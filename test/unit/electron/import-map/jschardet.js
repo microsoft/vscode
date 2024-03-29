@@ -5,6 +5,6 @@
 
 import { jschardet } from './testGlobals.js';
 
-const { detect } = jschardet
+const { detect } = jschardet;
 
-export { detect }
+export { detect };

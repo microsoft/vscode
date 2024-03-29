@@ -306,7 +306,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	}
 
 	private async doConnect(path: string): Promise<IDatabaseConnection> {
-		const { default: sqlite3 } = await import('@vscode/sqlite3')
+		const { default: sqlite3 } = await import('@vscode/sqlite3');
 		return new Promise((resolve, reject) => {
 			const connection: IDatabaseConnection = {
 				db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, (error: (Error & { code?: string }) | null) => {

@@ -12,11 +12,11 @@
  */
 
 import { createRequire } from 'module';
-import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const require = createRequire(import.meta.url)
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 
 import * as perf from './vs/base/common/performance.js';
 perf.mark('code/didStartMain');
@@ -35,7 +35,7 @@ import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 import { app, protocol, crashReporter, Menu } from 'electron';
 
 
-const product = require('../product.json')
+const product = require('../product.json');
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -184,8 +184,8 @@ async function startup(codeCachePath, nlsConfig) {
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	await import('./bootstrap-esm.js')
-	await import('./vs/code/electron-main/main.js')
+	await import('./bootstrap-esm.js');
+	await import('./vs/code/electron-main/main.js');
 	perf.mark('code/didLoadMainBundle');
 }
 

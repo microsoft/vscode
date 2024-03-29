@@ -218,7 +218,7 @@ function showSplash(configuration) {
 //#endregion
 
 
-import { main } from '../../../../vs/workbench/workbench.desktop.main.js'
+import { main } from '../../../../vs/workbench/workbench.desktop.main.js';
 
 
 
@@ -234,9 +234,9 @@ const actualMain = async () => {
 	performance.mark('code/didWaitForWindowConfig');
 	clearTimeout(timeout);
 
-	await main(configuration)
+	await main(configuration);
 
-}
+};
 
 
-actualMain()
+actualMain();

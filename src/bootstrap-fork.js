@@ -12,10 +12,10 @@ performance.mark('code/fork/start');
 import { createRequire } from 'module';
 
 
-const require = createRequire(import.meta.url)
+const require = createRequire(import.meta.url);
 
 // @ts-ignore
-const { enableASARSupport } = require('./bootstrap.cjs')
+const { enableASARSupport } = require('./bootstrap.cjs');
 
 const { removeGlobalNodeModuleLookupPaths, injectNodeModuleLookupPath } = require('./bootstrap-node.cjs');
 
@@ -48,9 +48,9 @@ if (process.env['VSCODE_PARENT_PID']) {
 }
 
 // Load AMD entry point
-require('./bootstrap-amd.cjs')
+require('./bootstrap-amd.cjs');
 
-const entryPath = './' + process.env.VSCODE_AMD_ENTRYPOINT + '.js'
+const entryPath = './' + process.env.VSCODE_AMD_ENTRYPOINT + '.js';
 import(entryPath);
 
 

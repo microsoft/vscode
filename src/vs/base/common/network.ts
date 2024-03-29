@@ -318,7 +318,7 @@ class FileAccessImpl {
 			return uriOrModule;
 		}
 		if (uriOrModule.startsWith('vscode-file://')) {
-			return URI.parse(uriOrModule)
+			return URI.parse(uriOrModule);
 		}
 		const resolved = `${root}out/${uriOrModule}`;
 		return URI.parse(resolved);

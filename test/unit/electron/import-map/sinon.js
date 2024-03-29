@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sinon } from './testGlobals.js'
+import { sinon } from './testGlobals.js';
 
-const { stub, createSandbox, sandbox, useFakeTimers, spy, restore, createStubInstance, expectation, clock, defaultConfig, addBehaviour, setFormatter, assert, mock } = sinon
+const { stub, createSandbox, sandbox, useFakeTimers, spy, restore, createStubInstance, expectation, clock, defaultConfig, addBehaviour, setFormatter, assert, mock } = sinon;
 
-export { stub, createSandbox, sandbox, useFakeTimers, spy, restore, createStubInstance, expectation, clock, defaultConfig, addBehaviour, setFormatter, assert, mock }
+export { stub, createSandbox, sandbox, useFakeTimers, spy, restore, createStubInstance, expectation, clock, defaultConfig, addBehaviour, setFormatter, assert, mock };
 
-export default sinon
+export default sinon;

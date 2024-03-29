@@ -5,6 +5,6 @@
 
 import { events } from './testGlobals.js';
 
-const { EventEmitter } = events
+const { EventEmitter } = events;
 
-export { EventEmitter }
+export { EventEmitter };

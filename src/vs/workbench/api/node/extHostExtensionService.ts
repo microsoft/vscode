@@ -21,7 +21,7 @@ import { ExtHostDiskFileSystemProvider } from 'vs/workbench/api/node/extHostDisk
 
 import { createRequire } from 'module';
 
-const require = createRequire(import.meta.url)
+const require = createRequire(import.meta.url);
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 

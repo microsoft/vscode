@@ -5,4 +5,4 @@
 
 import { cookie } from './testGlobals.js';
 
-export default cookie
+export default cookie;

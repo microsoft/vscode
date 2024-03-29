@@ -6,5 +6,5 @@
 
 import { createRequire } from 'module';
 
-const require = createRequire(import.meta.url)
+const require = createRequire(import.meta.url);
 require('./build/gulpfile.js');

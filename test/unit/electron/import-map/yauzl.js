@@ -5,6 +5,6 @@
 
 import { yauzl } from './testGlobals.js';
 
-const { open } = yauzl
+const { open } = yauzl;
 
-export { open }
+export { open };

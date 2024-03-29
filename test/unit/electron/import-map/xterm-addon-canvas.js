@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { xtermAddonCanvas } from './testGlobals.js'
+import { xtermAddonCanvas } from './testGlobals.js';
 
-export default xtermAddonCanvas
+export default xtermAddonCanvas;

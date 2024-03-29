@@ -52,16 +52,16 @@ export interface StateDeltas {
 }
 
 const loadSpecialModule = (uri: string) => {
-	const nodeModulesIndex = uri.indexOf('node_modules')
+	const nodeModulesIndex = uri.indexOf('node_modules');
 	if (nodeModulesIndex === -1) {
-		return import(uri)
+		return import(uri);
 	}
-	const start = nodeModulesIndex + 'node_modules/'.length
-	const end = uri.indexOf('/', start)
-	const moduleName = uri.slice(start, end)
-	const rest = uri.slice(end + 1)
+	const start = nodeModulesIndex + 'node_modules/'.length;
+	const end = uri.indexOf('/', start);
+	const moduleName = uri.slice(start, end);
+	const rest = uri.slice(end + 1);
 	return importAMDNodeModule(moduleName, rest);
-}
+};
 
 export class TextMateTokenizationWorker {
 	private readonly _host: ITextMateWorkerHost;

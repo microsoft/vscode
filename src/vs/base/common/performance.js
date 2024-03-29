@@ -119,7 +119,7 @@ if (typeof define === 'function' && !Math) {
 }
 
 
-const result = _factory(sharedObj)
+const result = _factory(sharedObj);
 
-export const mark = result.mark
-export const getMarks = result.getMarks
+export const mark = result.mark;
+export const getMarks = result.getMarks;

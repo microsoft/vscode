@@ -5,6 +5,6 @@
 
 import { stream } from './testGlobals.js';
 
-const { Transform, Readable, Writable } = stream
+const { Transform, Readable, Writable } = stream;
 
-export { Transform, Readable, Writable }
+export { Transform, Readable, Writable };

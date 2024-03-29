@@ -22,11 +22,11 @@ import url from 'url';
 import net from 'net';
 import createStatsCollector from 'mocha/lib/stats-collector.js';
 import { applyReporter, importMochaReporter } from '../reporter.js';
-import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+const __dirname = dirname(fileURLToPath(import.meta.url));
 /**
  * @type {{
  * grep: string;

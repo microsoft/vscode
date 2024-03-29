@@ -6,7 +6,7 @@
 import runner from 'mocha/lib/runner.js';
 import BaseRunner from 'mocha/lib/reporters/base.js';
 
-const { constants } = runner
+const { constants } = runner;
 
 const {
 	EVENT_TEST_BEGIN,
@@ -45,7 +45,7 @@ export default class FullJsonStreamReporter extends BaseRunner {
 			writeEvent(['fail', test]);
 		});
 	}
-};
+}
 
 function writeEvent(event) {
 	process.stdout.write(JSON.stringify(event) + '\n');

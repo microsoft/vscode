@@ -5,8 +5,8 @@
 
 /// <reference path="../../../../typings/require.d.ts" />
 
-import * as path from 'node:path'
-import * as os from 'node:os'
+import * as path from 'node:path';
+import * as os from 'node:os';
 
 /**
  * @typedef {import('../common/argv').NativeParsedArgs} NativeParsedArgs
@@ -109,4 +109,4 @@ function factory(path, os, cwd) {
 const result = factory(path, os, process.env['VSCODE_CWD'] || process.cwd());
 
 
-export const getUserDataPath = result.getUserDataPath
+export const getUserDataPath = result.getUserDataPath;

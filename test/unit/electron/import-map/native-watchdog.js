@@ -5,6 +5,6 @@
 
 import { nativeWatchdog } from './testGlobals.js';
 
-const { start } = nativeWatchdog
+const { start } = nativeWatchdog;
 
-export { start }
+export { start };
