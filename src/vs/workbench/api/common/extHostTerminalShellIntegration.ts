@@ -238,7 +238,7 @@ class InternalTerminalShellExecution {
 			get cwd(): URI | undefined {
 				return that.cwd;
 			},
-			createDataStream(): AsyncIterable<string> {
+			readData(): AsyncIterable<string> {
 				return that._createDataStream();
 			}
 		};
