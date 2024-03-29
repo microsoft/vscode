@@ -557,6 +557,9 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					await this.doExportProfile(userDataProfilesExportState);
 				} catch (error) {
 					this.notificationService.error(error);
+					if ((error as Error).message.includes('User did not consent to login.')) {
+						exportAction.enabled = true;
+					}
 					throw error;
 				}
 			}), this.notificationService);
