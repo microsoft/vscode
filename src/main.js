@@ -12,27 +12,26 @@
  */
 
 import { createRequire } from 'module';
-import { dirname } from 'node:path';
+import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
 import * as perf from './vs/base/common/performance.js';
 perf.mark('code/didStartMain');
 
-import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
+import { stripComments } from './vs/base/common/stripComments.js';
+import { addUNCHostToAllowlist, getUNCHost } from './vs/base/node/unc.js';
+import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
 
 const bootstrap = require('./bootstrap.cjs');
 const bootstrapNode = require('./bootstrap-node.cjs');
-import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
-import { stripComments } from './vs/base/common/stripComments.js';
-import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 /** @type {Partial<IProductConfiguration>} */
 // @ts-ignore
-import { app, protocol, crashReporter, Menu } from 'electron';
+import { Menu, app, crashReporter, protocol } from 'electron';
 
 
 const product = require('../product.json');
