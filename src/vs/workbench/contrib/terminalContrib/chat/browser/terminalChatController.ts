@@ -383,7 +383,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		const widget = await this._chatWidgetService.revealViewForProvider(providerInfo.id);
 		const request = this._currentRequest;
-		if (!widget || !request) {
+		if (!widget || !request?.response) {
 			return;
 		}
 		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
