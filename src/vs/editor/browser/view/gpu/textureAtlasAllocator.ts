@@ -37,8 +37,8 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		// TODO: Handle end of atlas page
 
 		// Draw glyph
-		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left;
-		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top;
+		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
+		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
 		// TODO: Prefer putImageData as it doesn't do blending or scaling
 		this._ctx.drawImage(
 			rasterizedGlyph.source,
