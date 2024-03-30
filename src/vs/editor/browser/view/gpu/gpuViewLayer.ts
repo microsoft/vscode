@@ -36,6 +36,7 @@ const enum BindingId {
 	Texture = 3,
 	Uniforms = 4,
 	TextureInfoUniform = 5,
+	ScrollOffset = 6,
 }
 
 export class GpuViewLayerRenderer<T extends IVisibleLine> {
@@ -598,6 +599,10 @@ struct DynamicUnitInfo {
 	unused2: f32
 };
 
+struct ScrollOffset {
+	offset: vec2f
+}
+
 struct VSOutput {
 	@builtin(position) position: vec4f,
 	@location(0) texcoord: vec2f,
@@ -608,6 +613,7 @@ struct VSOutput {
 
 @group(0) @binding(${BindingId.SpriteInfo}) var<storage, read> spriteInfo: array<SpriteInfo>;
 @group(0) @binding(${BindingId.DynamicUnitInfo}) var<storage, read> dynamicUnitInfoStructs: array<DynamicUnitInfo>;
+@group(0) @binding(${BindingId.ScrollOffset}) var<uniform> scrollOffset: ScrollOffset;
 
 @vertex fn vs(
 	vert: Vertex,
@@ -620,7 +626,7 @@ struct VSOutput {
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position - ((spriteInfo.origin * 2) / uniforms.canvasDimensions),
+		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position - ((spriteInfo.origin * 2) / uniforms.canvasDimensions) + ((scrollOffset.offset * 2) / uniforms.canvasDimensions),
 		0.0,
 		1.0
 	);
@@ -654,11 +660,15 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 	private _cellBindBuffer!: GPUBuffer;
 	private _cellValueBuffers!: ArrayBuffer[];
-	private _cellValuesBufferActiveIndex: number = 0;
+	private _activeDoubleBufferIndex: number = 0;
+
+	private _scrollOffsetBindBuffer!: GPUBuffer;
+	private _scrollOffsetValueBuffers!: Float32Array[];
 
 	get bindGroupEntries(): GPUBindGroupEntry[] {
 		return [
-			{ binding: BindingId.DynamicUnitInfo, resource: { buffer: this._cellBindBuffer } }
+			{ binding: BindingId.DynamicUnitInfo, resource: { buffer: this._cellBindBuffer } },
+			{ binding: BindingId.ScrollOffset, resource: { buffer: this._scrollOffsetBindBuffer } }
 		];
 	}
 
@@ -681,6 +691,17 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 			new ArrayBuffer(bufferSize),
 			new ArrayBuffer(bufferSize),
 		];
+
+		const scrollOffsetBufferSize = 2;
+		this._scrollOffsetBindBuffer = this._device.createBuffer({
+			label: 'Scroll offset buffer',
+			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+		this._scrollOffsetValueBuffers = [
+			new Float32Array(scrollOffsetBufferSize),
+			new Float32Array(scrollOffsetBufferSize),
+		];
 	}
 
 	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
@@ -693,15 +714,20 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		let wgslX: number = 0;
 		let wgslY: number = 0;
 
-		const viewportData = this._viewportData;
-		const activeWindow = getActiveWindow();
-		const cellBuffer = new Float32Array(this._cellValueBuffers[this._cellValuesBufferActiveIndex]);
-		const lineIndexCount = FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
-
+		// Update scroll offset
 		let scrollTop = parseInt(this._canvas.parentElement!.getAttribute('data-adjusted-scroll-top')!);
 		if (Number.isNaN(scrollTop)) {
 			scrollTop = 0;
 		}
+		const scrollOffsetBuffer = this._scrollOffsetValueBuffers[this._activeDoubleBufferIndex];
+		scrollOffsetBuffer[1] = scrollTop;
+		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, scrollOffsetBuffer);
+
+		// Update cell data
+		const viewportData = this._viewportData;
+		const activeWindow = getActiveWindow();
+		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
+		const lineIndexCount = FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
 		for (y = startLineNumber; y <= stopLineNumber; y++) {
 			const viewLineRenderingData = viewportData.getViewLineRenderingData(y);
@@ -711,13 +737,13 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 				screenAbsoluteX = x * 7 * activeWindow.devicePixelRatio;
 				// TODO: Send scroll offset instead of setting it here such that the cell data doesn't need to change when scrolling
-				screenAbsoluteY = Math.round(Math.round(-scrollTop + deltaTop[y - startLineNumber]) * activeWindow.devicePixelRatio);
+				screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
 				zeroToOneX = screenAbsoluteX / this._canvas.width;
 				zeroToOneY = screenAbsoluteY / this._canvas.height;
 				wgslX = zeroToOneX * 2 - 1;
 				wgslY = zeroToOneY * 2 - 1;
 
-				const cellIndex = y * lineIndexCount + x * Constants.IndicesPerCell;
+				const cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x - 1)) * Constants.IndicesPerCell;
 				cellBuffer[cellIndex + 0] = wgslX;       // x
 				cellBuffer[cellIndex + 1] = -wgslY;      // y
 				cellBuffer[cellIndex + 2] = 0;
@@ -730,22 +756,22 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
 		// Write buffer and swap it out to unblock writes
-		// this._device.queue.writeBuffer(
-		// 	this._cellBindBuffer,
-		// 	(startLineNumber - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
-		// 	// TODO: this cell buffer actually only needs to be the size of the viewport if we are only uploading a range
-		// 	//       at the maximum each frame
-		// 	cellBuffer,
-		// 	(startLineNumber - 1) * lineIndexCount,
-		// 	(stopLineNumber - startLineNumber) * lineIndexCount
-		// );
 		this._device.queue.writeBuffer(
 			this._cellBindBuffer,
-			0,
-			cellBuffer
+			(startLineNumber - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
+			// TODO: this cell buffer actually only needs to be the size of the viewport if we are only uploading a range
+			//       at the maximum each frame
+			cellBuffer.buffer,
+			(startLineNumber - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
+			(stopLineNumber - startLineNumber) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
 		);
+		// this._device.queue.writeBuffer(
+		// 	this._cellBindBuffer,
+		// 	0,
+		// 	cellBuffer
+		// );
 
-		this._cellValuesBufferActiveIndex = (this._cellValuesBufferActiveIndex + 1) % 2;
+		this._activeDoubleBufferIndex = (this._activeDoubleBufferIndex + 1) % 2;
 
 		return visibleObjectCount;
 	}
@@ -753,18 +779,18 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 	draw(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void {
 		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
-		// console.log('draw',
-		// 	{
-		// 		ctx,
-		// 		startLineNumber,
-		// 		stopLineNumber,
-		// 		deltaTop
-		// 	},
-		// 	6, // square verticies
-		// 	visibleObjectCount,
-		// 	undefined,
-		// 	(startLineNumber - 1) * FullFileRenderStrategy._columnCount
-		// );
+		console.log('draw',
+			{
+				ctx,
+				startLineNumber,
+				stopLineNumber,
+				deltaTop
+			},
+			6, // square verticies
+			visibleObjectCount,
+			undefined,
+			(startLineNumber - 1) * FullFileRenderStrategy._columnCount
+		);
 		pass.draw(
 			6, // square verticies
 			visibleObjectCount,
