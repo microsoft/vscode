@@ -4,29 +4,61 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUniversalWatcher, IUniversalWatchRequest } from 'vs/platform/files/common/watcher';
-import { Event } from 'vs/base/common/event';
+import { ILogMessage, IUniversalWatcher, IUniversalWatchRequest } from 'vs/platform/files/common/watcher';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { Promises } from 'vs/base/common/async';
+import { computeStats } from 'vs/platform/files/node/watcher/watcherStats';
 
 export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
 	private readonly recursiveWatcher = this._register(new ParcelWatcher());
-	private readonly nonRecursiveWatcher = this._register(new NodeJSWatcher());
+	private readonly nonRecursiveWatcher = this._register(new NodeJSWatcher(this.recursiveWatcher));
 
 	readonly onDidChangeFile = Event.any(this.recursiveWatcher.onDidChangeFile, this.nonRecursiveWatcher.onDidChangeFile);
-	readonly onDidLogMessage = Event.any(this.recursiveWatcher.onDidLogMessage, this.nonRecursiveWatcher.onDidLogMessage);
 	readonly onDidError = Event.any(this.recursiveWatcher.onDidError, this.nonRecursiveWatcher.onDidError);
 
+	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
+	readonly onDidLogMessage = Event.any(this._onDidLogMessage.event, this.recursiveWatcher.onDidLogMessage, this.nonRecursiveWatcher.onDidLogMessage);
+
+	private requests: IUniversalWatchRequest[] = [];
+
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
-		await Promises.settled([
-			this.recursiveWatcher.watch(requests.filter(request => request.recursive)),
-			this.nonRecursiveWatcher.watch(requests.filter(request => !request.recursive))
-		]);
+		this.requests = requests;
+
+		// Watch recursively first to give recursive watchers a chance
+		// to step in for non-recursive watch requests, thus reducing
+		// watcher duplication.
+
+		let error: Error | undefined;
+		try {
+			await this.recursiveWatcher.watch(requests.filter(request => request.recursive));
+		} catch (e) {
+			error = e;
+		}
+
+		try {
+			await this.nonRecursiveWatcher.watch(requests.filter(request => !request.recursive));
+		} catch (e) {
+			if (!error) {
+				error = e;
+			}
+		}
+
+		if (error) {
+			throw error;
+		}
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {
+
+		// Log stats
+		if (enabled && this.requests.length > 0) {
+			this._onDidLogMessage.fire({ type: 'trace', message: computeStats(this.requests, this.recursiveWatcher, this.nonRecursiveWatcher) });
+		}
+
+		// Forward to watchers
 		await Promises.settled([
 			this.recursiveWatcher.setVerboseLogging(enabled),
 			this.nonRecursiveWatcher.setVerboseLogging(enabled)

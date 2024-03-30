@@ -12,6 +12,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorPane, IEditorPaneScrollPosition, isEditorPaneWithScrolling } from 'vs/workbench/common/editor';
+import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
@@ -59,6 +60,9 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 		this.toggleStatusbarItem(this.isActive);
 	}
 
+	// makes sure that the onDidEditorPaneScroll is not called multiple times for the same event
+	private _reentrancyBarrier = new ReentrancyBarrier();
+
 	private trackVisiblePanes(): void {
 		this.paneDisposables.clear();
 		this.paneInitialScrollTop.clear();
@@ -70,7 +74,11 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 			}
 
 			this.paneInitialScrollTop.set(pane, pane.getScrollPosition());
-			this.paneDisposables.add(pane.onDidChangeScroll(() => this.onDidEditorPaneScroll(pane)));
+			this.paneDisposables.add(pane.onDidChangeScroll(() =>
+				this._reentrancyBarrier.runExclusively(() => {
+					this.onDidEditorPaneScroll(pane);
+				})
+			));
 		}
 	}
 
@@ -97,7 +105,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 			}
 
 			if (!isEditorPaneWithScrolling(pane)) {
-				return;
+				continue;
 			}
 
 			const initialOffset = this.paneInitialScrollTop.get(pane);
@@ -105,10 +113,17 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 				throw new Error('Could not find initial offset for pane');
 			}
 
-			pane.setScrollPosition({
+			const currentPanePosition = pane.getScrollPosition();
+			const newPaneScrollPosition = {
 				scrollTop: initialOffset.scrollTop + scrolledFromInitial.scrollTop,
 				scrollLeft: initialOffset.scrollLeft !== undefined && scrolledFromInitial.scrollLeft !== undefined ? initialOffset.scrollLeft + scrolledFromInitial.scrollLeft : undefined,
-			});
+			};
+
+			if (currentPanePosition.scrollTop === newPaneScrollPosition.scrollTop && currentPanePosition.scrollLeft === newPaneScrollPosition.scrollLeft) {
+				continue;
+			}
+
+			pane.setScrollPosition(newPaneScrollPosition);
 		}
 	}
 
@@ -177,7 +192,10 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 						mnemonicTitle: localize({ key: 'miToggleLockedScrolling', comment: ['&& denotes a mnemonic'] }, "Locked Scrolling"),
 					},
 					category: Categories.View,
-					f1: true
+					f1: true,
+					metadata: {
+						description: localize('synchronizeScrolling', "Synchronize Scrolling Editors"),
+					}
 				});
 			}
 

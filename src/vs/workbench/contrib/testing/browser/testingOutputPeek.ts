@@ -816,7 +816,7 @@ class TestResultsViewContent extends Disposable {
 			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, this.editor, messageContainer)),
 		];
 
-		this.messageContextKeyService = this._register(this.contextKeyService.createScoped(this.messageContainer));
+		this.messageContextKeyService = this._register(this.contextKeyService.createScoped(containerElement));
 		this.contextKeyTestMessage = TestingContextKeys.testMessageContext.bindTo(this.messageContextKeyService);
 		this.contextKeyResultOutdated = TestingContextKeys.testResultOutdated.bindTo(this.messageContextKeyService);
 
@@ -997,11 +997,11 @@ class TestResultsPeek extends PeekViewWidget {
 
 	protected override _fillBody(containerElement: HTMLElement): void {
 		this.content.fillBody(containerElement);
-		this.content.onDidRequestReveal(sub => {
+		this._disposables.add(this.content.onDidRequestReveal(sub => {
 			TestingOutputPeekController.get(this.editor)?.show(sub instanceof MessageSubject
 				? sub.messageUri
 				: sub.outputUri);
-		});
+		}));
 	}
 
 	/**

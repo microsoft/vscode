@@ -52,7 +52,8 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
+import { TerminalChatController, TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
+import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -104,6 +105,15 @@ class VoiceChatSessionControllerFactory {
 		// Currently Focused Context
 		if (context === 'focused') {
 
+			// Try with the terminal chat
+			const activeInstance = terminalService.activeInstance;
+			if (activeInstance) {
+				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+				if (terminalChat?.hasFocus()) {
+					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
+				}
+			}
+
 			// Try with the chat widget service, which currently
 			// only supports the chat view and quick chat
 			// https://github.com/microsoft/vscode/issues/191191
@@ -132,15 +142,6 @@ class VoiceChatSessionControllerFactory {
 				const inlineChat = InlineChatController.get(activeCodeEditor);
 				if (inlineChat?.hasFocus()) {
 					return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
-				}
-			}
-
-			// Try with the terminal chat
-			const activeInstance = terminalService.activeInstance;
-			if (activeInstance) {
-				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-				if (terminalChat?.hasFocus()) {
-					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
 				}
 			}
 		}
@@ -461,22 +462,18 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 
 	const holdMode = keybindingService.enableKeybindingHoldMode(id);
 
-	let session: IVoiceChatSession | undefined = undefined;
+	const controller = await VoiceChatSessionControllerFactory.create(accessor, target);
+	if (!controller) {
+		return;
+	}
+
+	const session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 
 	let acceptVoice = false;
 	const handle = disposableTimeout(() => {
 		acceptVoice = true;
 		session?.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for VOICE_KEY_HOLD_THRESHOLD
 	}, VOICE_KEY_HOLD_THRESHOLD);
-
-	const controller = await VoiceChatSessionControllerFactory.create(accessor, target);
-	if (!controller) {
-		handle.dispose();
-		return;
-	}
-
-	session = await VoiceChatSessions.getInstance(instantiationService).start(controller, context);
-
 	await holdMode;
 	handle.dispose();
 
@@ -524,7 +521,8 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
 					FocusInChatInput.negate(),			// when already in chat input, disable this action and prefer to start voice chat directly
-					EditorContextKeys.focus.negate() 	// do not steal the inline-chat keybinding
+					EditorContextKeys.focus.negate(), 	// do not steal the inline-chat keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate()	// do not steal the notebook keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			}
@@ -607,6 +605,7 @@ export class StartVoiceChatAction extends Action2 {
 				when: ContextKeyExpr.and(
 					FocusInChatInput,					// scope this action to chat input fields only
 					EditorContextKeys.focus.negate(), 	// do not steal the inline-chat keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate(),	// do not steal the notebook keybinding
 					CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(),
 					CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(),
 					CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate(),
@@ -616,7 +615,7 @@ export class StartVoiceChatAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			icon: Codicon.mic,
-			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate()),
+			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate(), TerminalChatContextKeys.requestActive.negate()),
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),
@@ -699,7 +698,6 @@ class BaseStopListeningAction extends Action2 {
 		private readonly target: 'inline' | 'terminal' | 'quick' | 'view' | 'editor' | undefined,
 		context: RawContextKey<boolean>,
 		menu: MenuId | undefined,
-		group: 'navigation' | 'main' = 'navigation'
 	) {
 		super({
 			...desc,
@@ -713,7 +711,7 @@ class BaseStopListeningAction extends Action2 {
 			menu: menu ? [{
 				id: menu,
 				when: ContextKeyExpr.and(CanVoiceChat, context),
-				group,
+				group: 'navigation',
 				order: -1
 			}] : undefined
 		});
@@ -765,7 +763,7 @@ export class StopListeningInTerminalChatAction extends BaseStopListeningAction {
 	static readonly ID = 'workbench.action.chat.stopListeningInTerminalChat';
 
 	constructor() {
-		super({ id: StopListeningInTerminalChatAction.ID, icon: spinningLoading }, 'terminal', CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS, MenuId.for('terminalChatInput'), 'main');
+		super({ id: StopListeningInTerminalChatAction.ID, icon: spinningLoading }, 'terminal', CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS, MenuId.for('terminalChatInput'));
 	}
 }
 
@@ -806,9 +804,7 @@ registerThemingParticipant((theme, collector) => {
 
 	// Show a "microphone" icon when recording is in progress that glows via outline.
 	collector.addRule(`
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
-		.monaco-workbench:not(.reduce-motion) .terminal-inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
 			color: ${activeRecordingColor};
 			outline: 1px solid ${activeRecordingColor};
 			outline-offset: -1px;
@@ -816,9 +812,7 @@ registerThemingParticipant((theme, collector) => {
 			border-radius: 50%;
 		}
 
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
-		.monaco-workbench:not(.reduce-motion) .terminal-inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 			position: absolute;
 			outline: 1px solid ${activeRecordingColor};
 			outline-offset: 2px;
@@ -827,16 +821,13 @@ registerThemingParticipant((theme, collector) => {
 			height: 16px;
 		}
 
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after,
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
-		.monaco-workbench:not(.reduce-motion) .terminal-inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
 			outline: 2px solid ${activeRecordingColor};
 			outline-offset: -1px;
 			animation: pulseAnimation 1500ms cubic-bezier(0.75, 0, 0.25, 1) infinite;
 		}
 
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 			position: absolute;
 			outline: 1px solid ${activeRecordingColor};
 			outline-offset: 2px;

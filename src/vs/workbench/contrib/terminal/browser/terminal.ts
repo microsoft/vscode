@@ -6,7 +6,7 @@
 import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
-import { Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
+import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -342,7 +342,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * instances and removing old instances as needed.
 	 * @param getEvent Maps the instance to the event.
 	 */
-	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): Event<T>;
+	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): DynamicListEventMultiplexer<ITerminalInstance, T>;
 
 	/**
 	 * Creates a capability event listener that listens to capabilities on all instances,

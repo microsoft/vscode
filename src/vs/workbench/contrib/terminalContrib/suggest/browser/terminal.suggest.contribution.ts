@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { SuggestAddon } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
-import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -18,6 +18,8 @@ import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/brow
 import { localize2 } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 class TerminalSuggestContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.suggest';
@@ -26,17 +28,18 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		return instance.getContribution<TerminalSuggestContribution>(TerminalSuggestContribution.ID);
 	}
 
-	private _addon: SuggestAddon | undefined;
+	private _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private _terminalSuggestWidgetContextKeys: IReadableSet<string> = new Set(TerminalContextKeys.suggestWidgetVisible.key);
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
-	get addon(): SuggestAddon | undefined { return this._addon; }
+	get addon(): SuggestAddon | undefined { return this._addon.value; }
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		_processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -51,21 +54,31 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				this._loadSuggestAddon(xterm.raw);
 			}
 		}));
+		this.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.SendKeybindingsToShell)) {
+				this._loadSuggestAddon(xterm.raw);
+			}
+		}));
 	}
 
 	private _loadSuggestAddon(xterm: RawXtermTerminal): void {
+		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
+		if (sendingKeybindingsToShell) {
+			this._addon.dispose();
+			return;
+		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			this._addon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
-			xterm.loadAddon(this._addon);
-			this._addon?.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
-			this._addon?.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-			this.add(this._instance.onDidBlur(() => this._addon?.hideSuggestWidget()));
-			this.add(this._addon.onAcceptedCompletion(async text => {
+			this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
+			xterm.loadAddon(this._addon.value);
+			this._addon.value.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
+			this._addon.value.setScreen(xterm.element!.querySelector('.xterm-screen')!);
+			this.add(this._instance.onDidBlur(() => this._addon.value?.hideSuggestWidget()));
+			this.add(this._addon.value.onAcceptedCompletion(async text => {
 				this._instance.focus();
 				this._instance.sendText(text, false);
 			}));
 			this.add(this._instance.onDidSendText((text) => {
-				this._addon?.handleNonXtermData(text);
+				this._addon.value?.handleNonXtermData(text);
 			}));
 		}
 	}

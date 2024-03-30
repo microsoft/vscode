@@ -38,14 +38,16 @@ export class CellDiagnostics extends Disposable {
 	) {
 		super();
 
-		this.updateEnabled();
+		if (cell.viewType !== 'interactive') {
+			this.updateEnabled();
 
-		this._register(inlineChatService.onDidChangeProviders(() => this.updateEnabled()));
-		this._register(configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(NotebookSetting.cellFailureDiagnostics)) {
-				this.updateEnabled();
-			}
-		}));
+			this._register(inlineChatService.onDidChangeProviders(() => this.updateEnabled()));
+			this._register(configurationService.onDidChangeConfiguration((e) => {
+				if (e.affectsConfiguration(NotebookSetting.cellFailureDiagnostics)) {
+					this.updateEnabled();
+				}
+			}));
+		}
 	}
 
 	private updateEnabled() {
@@ -101,6 +103,11 @@ export class CellDiagnostics extends Disposable {
 			endColumn: location.endColumn + 1,
 			source: 'Cell Execution Error'
 		};
+	}
+
+	override dispose() {
+		super.dispose();
+		this.clear();
 	}
 
 }
