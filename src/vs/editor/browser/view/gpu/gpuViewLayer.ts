@@ -659,11 +659,11 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private _cellBindBuffer!: GPUBuffer;
-	private _cellValueBuffers!: ArrayBuffer[];
+	private _cellValueBuffers!: [ArrayBuffer, ArrayBuffer];
 	private _activeDoubleBufferIndex: 0 | 1 = 0;
 
 	private _scrollOffsetBindBuffer!: GPUBuffer;
-	private _scrollOffsetValueBuffers!: Float32Array[];
+	private _scrollOffsetValueBuffers!: [Float32Array, Float32Array];
 
 	get bindGroupEntries(): GPUBindGroupEntry[] {
 		return [
