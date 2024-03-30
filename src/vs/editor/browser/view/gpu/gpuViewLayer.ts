@@ -662,6 +662,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 	private _cellValueBuffers!: [ArrayBuffer, ArrayBuffer];
 	private _activeDoubleBufferIndex: 0 | 1 = 0;
 
+	private readonly _upToDateLines: [Set<number>, Set<number>] = [new Set(), new Set()];
+
 	private _scrollOffsetBindBuffer!: GPUBuffer;
 	private _scrollOffsetValueBuffers!: [Float32Array, Float32Array];
 
@@ -732,7 +734,12 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
 		const lineIndexCount = FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
+		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
+
 		for (y = startLineNumber; y <= stopLineNumber; y++) {
+			if (upToDateLines.has(y)) {
+				continue;
+			}
 			const viewLineRenderingData = viewportData.getViewLineRenderingData(y);
 			const content = viewLineRenderingData.content;
 			for (x = 0; x < FullFileRenderStrategy._columnCount; x++) {
@@ -754,8 +761,10 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 				cellBuffer[cellIndex + 4] = glyph.index; // textureIndex
 				cellBuffer[cellIndex + 5] = 0;
 			}
+			upToDateLines.add(y);
 		}
 
+		// TODO: Write sub set of buffer
 		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
 		// Write buffer and swap it out to unblock writes
