@@ -660,7 +660,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 	private _cellBindBuffer!: GPUBuffer;
 	private _cellValueBuffers!: ArrayBuffer[];
-	private _activeDoubleBufferIndex: number = 0;
+	private _activeDoubleBufferIndex: 0 | 1 = 0;
 
 	private _scrollOffsetBindBuffer!: GPUBuffer;
 	private _scrollOffsetValueBuffers!: Float32Array[];
@@ -714,10 +714,14 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		let wgslX: number = 0;
 		let wgslY: number = 0;
 
+		const activeWindow = getActiveWindow();
+
 		// Update scroll offset
 		let scrollTop = parseInt(this._canvas.parentElement!.getAttribute('data-adjusted-scroll-top')!);
 		if (Number.isNaN(scrollTop)) {
 			scrollTop = 0;
+		} else {
+			scrollTop *= activeWindow.devicePixelRatio;
 		}
 		const scrollOffsetBuffer = this._scrollOffsetValueBuffers[this._activeDoubleBufferIndex];
 		scrollOffsetBuffer[1] = scrollTop;
@@ -725,7 +729,6 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 		// Update cell data
 		const viewportData = this._viewportData;
-		const activeWindow = getActiveWindow();
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
 		const lineIndexCount = FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
@@ -765,13 +768,14 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 			(startLineNumber - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
 			(stopLineNumber - startLineNumber) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
 		);
+		// HACK: Replace entire buffer for testing purposes
 		// this._device.queue.writeBuffer(
 		// 	this._cellBindBuffer,
 		// 	0,
 		// 	cellBuffer
 		// );
 
-		this._activeDoubleBufferIndex = (this._activeDoubleBufferIndex + 1) % 2;
+		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 
 		return visibleObjectCount;
 	}
@@ -779,18 +783,6 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 	draw(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void {
 		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
-		console.log('draw',
-			{
-				ctx,
-				startLineNumber,
-				stopLineNumber,
-				deltaTop
-			},
-			6, // square verticies
-			visibleObjectCount,
-			undefined,
-			(startLineNumber - 1) * FullFileRenderStrategy._columnCount
-		);
 		pass.draw(
 			6, // square verticies
 			visibleObjectCount,
