@@ -735,11 +735,16 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		const lineIndexCount = FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
 		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
+		let dirtyLineStart = Number.MAX_SAFE_INTEGER;
+		let dirtyLineEnd = 0;
 
 		for (y = startLineNumber; y <= stopLineNumber; y++) {
 			if (upToDateLines.has(y)) {
 				continue;
 			}
+			dirtyLineStart = Math.min(dirtyLineStart, y);
+			dirtyLineEnd = Math.max(dirtyLineEnd, y);
+
 			const viewLineRenderingData = viewportData.getViewLineRenderingData(y);
 			const content = viewLineRenderingData.content;
 			for (x = 0; x < FullFileRenderStrategy._columnCount; x++) {
@@ -767,16 +772,19 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		// TODO: Write sub set of buffer
 		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
-		// Write buffer and swap it out to unblock writes
-		this._device.queue.writeBuffer(
-			this._cellBindBuffer,
-			(startLineNumber - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
-			// TODO: this cell buffer actually only needs to be the size of the viewport if we are only uploading a range
-			//       at the maximum each frame
-			cellBuffer.buffer,
-			(startLineNumber - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
-			(stopLineNumber - startLineNumber) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
-		);
+		// Only write when there is changed data
+		if (dirtyLineStart <= dirtyLineEnd) {
+			// Write buffer and swap it out to unblock writes
+			this._device.queue.writeBuffer(
+				this._cellBindBuffer,
+				(dirtyLineStart - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
+				// TODO: this cell buffer actually only needs to be the size of the viewport if we are only uploading a range
+				//       at the maximum each frame
+				cellBuffer.buffer,
+				(dirtyLineStart - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
+				(dirtyLineEnd - dirtyLineStart) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
+			);
+		}
 		// HACK: Replace entire buffer for testing purposes
 		// this._device.queue.writeBuffer(
 		// 	this._cellBindBuffer,
