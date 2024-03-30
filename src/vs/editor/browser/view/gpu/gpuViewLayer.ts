@@ -38,79 +38,6 @@ const enum BindingId {
 	TextureInfoUniform = 5,
 }
 
-const wgsl = `
-struct Uniforms {
-	canvasDimensions: vec2f,
-};
-
-struct TextureInfoUniform {
-	spriteSheetSize: vec2f,
-}
-
-struct SpriteInfo {
-	position: vec2f,
-	size: vec2f,
-	origin: vec2f,
-};
-
-struct Vertex {
-	@location(0) position: vec2f,
-};
-
-struct DynamicUnitInfo {
-	position: vec2f,
-	unused1: vec2f,
-	textureIndex: f32,
-	unused2: f32
-};
-
-struct VSOutput {
-	@builtin(position) position: vec4f,
-	@location(0) texcoord: vec2f,
-};
-
-@group(0) @binding(${BindingId.Uniforms}) var<uniform> uniforms: Uniforms;
-@group(0) @binding(${BindingId.TextureInfoUniform}) var<uniform> textureInfoUniform: TextureInfoUniform;
-
-@group(0) @binding(${BindingId.SpriteInfo}) var<storage, read> spriteInfo: array<SpriteInfo>;
-@group(0) @binding(${BindingId.DynamicUnitInfo}) var<storage, read> dynamicUnitInfoStructs: array<DynamicUnitInfo>;
-
-@vertex fn vs(
-	vert: Vertex,
-	@builtin(instance_index) instanceIndex: u32,
-	@builtin(vertex_index) vertexIndex : u32
-) -> VSOutput {
-	let dynamicUnitInfo = dynamicUnitInfoStructs[instanceIndex];
-	let spriteInfo = spriteInfo[u32(dynamicUnitInfo.textureIndex)];
-
-	var vsOut: VSOutput;
-	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
-	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position - ((spriteInfo.origin * 2) / uniforms.canvasDimensions),
-		0.0,
-		1.0
-	);
-
-	// Textures are flipped from natural direction on the y-axis, so flip it back
-	vsOut.texcoord = vert.position;
-	vsOut.texcoord = (
-		// Sprite offset (0-1)
-		(spriteInfo.position / textureInfoUniform.spriteSheetSize) +
-		// Sprite coordinate (0-1)
-		(vsOut.texcoord * (spriteInfo.size / textureInfoUniform.spriteSheetSize))
-	);
-
-	return vsOut;
-}
-
-@group(0) @binding(${BindingId.TextureSampler}) var ourSampler: sampler;
-@group(0) @binding(${BindingId.Texture}) var ourTexture: texture_2d<f32>;
-
-@fragment fn fs(vsOut: VSOutput) -> @location(0) vec4f {
-	return textureSample(ourTexture, ourSampler, vsOut.texcoord);
-}
-`;
-
 export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 	readonly domNode: HTMLCanvasElement;
@@ -125,9 +52,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _bindGroup!: GPUBindGroup;
 	private _pipeline!: GPURenderPipeline;
 
-	private _dataBindBuffer!: GPUBuffer;
-	private _dataValueBuffers!: ArrayBuffer[];
-	private _dataValuesBufferActiveIndex: number = 0;
 
 	private _vertexBuffer!: GPUBuffer;
 	private _squareVertices!: { vertexData: Float32Array; numVertices: number };
@@ -142,6 +66,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 	private static _testCanvas: HTMLCanvasElement;
 	private static _testCtx: CanvasRenderingContext2D;
+
+	private _renderStrategy!: IRenderStrategy<T>;
 
 
 	constructor(domNode: HTMLCanvasElement, host: IVisibleLinesHost<T>, viewportData: ViewportData) {
@@ -171,9 +97,30 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			format: presentationFormat,
 		});
 
+
+		// Create texture atlas
+		if (!GpuViewLayerRenderer._textureAtlas) {
+			GpuViewLayerRenderer._textureAtlas = new TextureAtlas(this.domNode, this._device.limits.maxTextureDimension2D);
+
+			GpuViewLayerRenderer._testCanvas = document.createElement('canvas');
+			GpuViewLayerRenderer._testCanvas.width = 2048;
+			GpuViewLayerRenderer._testCanvas.height = 2048;
+			GpuViewLayerRenderer._testCanvas.style.position = 'absolute';
+			GpuViewLayerRenderer._testCanvas.style.top = '0';
+			GpuViewLayerRenderer._testCanvas.style.left = '0';
+			GpuViewLayerRenderer._testCanvas.style.zIndex = '10000';
+			GpuViewLayerRenderer._testCanvas.style.pointerEvents = 'none';
+			GpuViewLayerRenderer._testCtx = ensureNonNullable(GpuViewLayerRenderer._testCanvas.getContext('2d'));
+			getActiveDocument().body.appendChild(GpuViewLayerRenderer._testCanvas);
+		}
+		const textureAtlas = GpuViewLayerRenderer._textureAtlas;
+
+
+		this._renderStrategy = new NaiveViewportRenderStrategy(this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
+
 		const module = this._device.createShaderModule({
 			label: 'ViewLayer shader module',
-			code: wgsl,
+			code: this._renderStrategy.wgsl,
 		});
 
 		this._pipeline = this._device.createRenderPipeline({
@@ -233,24 +180,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		}
 
 
-		// Create texture atlas
-		if (!GpuViewLayerRenderer._textureAtlas) {
-			GpuViewLayerRenderer._textureAtlas = new TextureAtlas(this.domNode, this._device.limits.maxTextureDimension2D);
-
-			GpuViewLayerRenderer._testCanvas = document.createElement('canvas');
-			GpuViewLayerRenderer._testCanvas.width = 2048;
-			GpuViewLayerRenderer._testCanvas.height = 2048;
-			GpuViewLayerRenderer._testCanvas.style.position = 'absolute';
-			GpuViewLayerRenderer._testCanvas.style.top = '0';
-			GpuViewLayerRenderer._testCanvas.style.left = '0';
-			GpuViewLayerRenderer._testCanvas.style.zIndex = '10000';
-			GpuViewLayerRenderer._testCanvas.style.pointerEvents = 'none';
-			GpuViewLayerRenderer._testCtx = ensureNonNullable(GpuViewLayerRenderer._testCanvas.getContext('2d'));
-			getActiveDocument().body.appendChild(GpuViewLayerRenderer._testCanvas);
-		}
-		const textureAtlas = GpuViewLayerRenderer._textureAtlas;
-
-
 
 		const enum TextureInfoUniformBufferInfo {
 			Size = 2,
@@ -295,24 +224,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 
 
+		this._renderStrategy.initBuffers();
 
-
-
-
-
-
-		// TODO: Grow/shrink buffer size dynamically
-		const cellCount = 10000;
-		const bufferSize = cellCount * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
-		this._dataBindBuffer = this._device.createBuffer({
-			label: 'Entity dynamic info buffer',
-			size: bufferSize,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
-		this._dataValueBuffers = [
-			new ArrayBuffer(bufferSize),
-			new ArrayBuffer(bufferSize),
-		];
 		this._updateSquareVertices();
 
 
@@ -326,11 +239,11 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			layout: this._pipeline.getBindGroupLayout(0),
 			entries: [
 				{ binding: BindingId.SpriteInfo, resource: { buffer: this._spriteInfoStorageBuffer } },
-				{ binding: BindingId.DynamicUnitInfo, resource: { buffer: this._dataBindBuffer } },
 				{ binding: BindingId.TextureSampler, resource: sampler },
 				{ binding: BindingId.Texture, resource: this._textureAtlasGpuTexture.createView() },
 				{ binding: BindingId.Uniforms, resource: { buffer: uniformBuffer } },
 				{ binding: BindingId.TextureInfoUniform, resource: { buffer: textureInfoUniformBuffer } },
+				...this._renderStrategy.bindGroupEntries
 			],
 		});
 
@@ -424,18 +337,11 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		if (!this._initialized) {
 			return ctx;
 		}
-		return this._renderWebgpu(ctx, startLineNumber, stopLineNumber, deltaTop);
+		return this._render(ctx, startLineNumber, stopLineNumber, deltaTop);
 	}
 
-	private _renderWebgpu(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
-		// TODO: Improve "data" name
-		const dataBuffer = new Float32Array(this._dataValueBuffers[this._dataValuesBufferActiveIndex]);
-		const visibleObjectCount = this._updateDataBuffer(dataBuffer, ctx, startLineNumber, stopLineNumber, deltaTop);
-
-		// Write buffer and swap it out to unblock writes
-		this._device.queue.writeBuffer(this._dataBindBuffer, 0, dataBuffer, 0, visibleObjectCount * Constants.IndicesPerCell);
-
-		this._dataValuesBufferActiveIndex = (this._dataValuesBufferActiveIndex + 1) % 2;
+	private _render(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
+		const visibleObjectCount = this._renderStrategy.update(ctx, startLineNumber, stopLineNumber, deltaTop);
 
 		// TODO: Only do this when needed
 		this._updateTextureAtlas();
@@ -449,6 +355,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		pass.setBindGroup(0, this._bindGroup);
 		// TODO: Draws could be split by chunk, this would help minimize moving data around in arrays
+
 		pass.draw(this._squareVertices.numVertices, visibleObjectCount);
 
 		pass.end();
@@ -459,8 +366,139 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		return ctx;
 	}
+}
 
-	// TODO: This update could be moved to an arbitrary task thread if expensive?
+
+interface IRenderStrategy<T extends IVisibleLine> {
+	readonly wgsl: string;
+	readonly bindGroupEntries: GPUBindGroupEntry[];
+
+	initBuffers(): void;
+	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number;
+}
+
+// #region Naive viewport render strategy
+
+const naiveViewportRenderStrategyWgsl = `
+struct Uniforms {
+	canvasDimensions: vec2f,
+};
+
+struct TextureInfoUniform {
+	spriteSheetSize: vec2f,
+}
+
+struct SpriteInfo {
+	position: vec2f,
+	size: vec2f,
+	origin: vec2f,
+};
+
+struct Vertex {
+	@location(0) position: vec2f,
+};
+
+struct DynamicUnitInfo {
+	position: vec2f,
+	unused1: vec2f,
+	textureIndex: f32,
+	unused2: f32
+};
+
+struct VSOutput {
+	@builtin(position) position: vec4f,
+	@location(0) texcoord: vec2f,
+};
+
+@group(0) @binding(${BindingId.Uniforms}) var<uniform> uniforms: Uniforms;
+@group(0) @binding(${BindingId.TextureInfoUniform}) var<uniform> textureInfoUniform: TextureInfoUniform;
+
+@group(0) @binding(${BindingId.SpriteInfo}) var<storage, read> spriteInfo: array<SpriteInfo>;
+@group(0) @binding(${BindingId.DynamicUnitInfo}) var<storage, read> dynamicUnitInfoStructs: array<DynamicUnitInfo>;
+
+@vertex fn vs(
+	vert: Vertex,
+	@builtin(instance_index) instanceIndex: u32,
+	@builtin(vertex_index) vertexIndex : u32
+) -> VSOutput {
+	let dynamicUnitInfo = dynamicUnitInfoStructs[instanceIndex];
+	let spriteInfo = spriteInfo[u32(dynamicUnitInfo.textureIndex)];
+
+	var vsOut: VSOutput;
+	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
+	vsOut.position = vec4f(
+		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position - ((spriteInfo.origin * 2) / uniforms.canvasDimensions),
+		0.0,
+		1.0
+	);
+
+	// Textures are flipped from natural direction on the y-axis, so flip it back
+	vsOut.texcoord = vert.position;
+	vsOut.texcoord = (
+		// Sprite offset (0-1)
+		(spriteInfo.position / textureInfoUniform.spriteSheetSize) +
+		// Sprite coordinate (0-1)
+		(vsOut.texcoord * (spriteInfo.size / textureInfoUniform.spriteSheetSize))
+	);
+
+	return vsOut;
+}
+
+@group(0) @binding(${BindingId.TextureSampler}) var ourSampler: sampler;
+@group(0) @binding(${BindingId.Texture}) var ourTexture: texture_2d<f32>;
+
+@fragment fn fs(vsOut: VSOutput) -> @location(0) vec4f {
+	return textureSample(ourTexture, ourSampler, vsOut.texcoord);
+}
+`;
+
+class NaiveViewportRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<T> {
+	readonly wgsl: string = naiveViewportRenderStrategyWgsl;
+
+	private _cellBindBuffer!: GPUBuffer;
+	private _cellValueBuffers!: ArrayBuffer[];
+	private _cellValuesBufferActiveIndex: number = 0;
+
+	get bindGroupEntries(): GPUBindGroupEntry[] {
+		return [
+			{ binding: BindingId.DynamicUnitInfo, resource: { buffer: this._cellBindBuffer } }
+		];
+	}
+
+	constructor(
+		private readonly _device: GPUDevice,
+		private readonly _canvas: HTMLCanvasElement,
+		private readonly _viewportData: ViewportData,
+		private readonly _textureAtlas: TextureAtlas
+	) {
+	}
+
+	initBuffers(): void {
+		// TODO: Grow/shrink buffer size dynamically
+		const cellCount = 10000;
+		const bufferSize = cellCount * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
+		this._cellBindBuffer = this._device.createBuffer({
+			label: 'Entity dynamic info buffer',
+			size: bufferSize,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this._cellValueBuffers = [
+			new ArrayBuffer(bufferSize),
+			new ArrayBuffer(bufferSize),
+		];
+	}
+
+	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
+		const cellBuffer = new Float32Array(this._cellValueBuffers[this._cellValuesBufferActiveIndex]);
+		const visibleObjectCount = this._updateDataBuffer(cellBuffer, ctx, startLineNumber, stopLineNumber, deltaTop);
+
+		// Write buffer and swap it out to unblock writes
+		this._device.queue.writeBuffer(this._cellBindBuffer, 0, cellBuffer, 0, visibleObjectCount * Constants.IndicesPerCell);
+
+		this._cellValuesBufferActiveIndex = (this._cellValuesBufferActiveIndex + 1) % 2;
+		return visibleObjectCount;
+	}
+
 	private _updateDataBuffer(dataBuffer: Float32Array, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
 		// let chars: string = '';
 		let screenAbsoluteX: number = 0;
@@ -472,7 +510,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		const activeWindow = getActiveWindow();
 		let charCount = 0;
-		let scrollTop = parseInt(this.domNode.parentElement!.getAttribute('data-adjusted-scroll-top')!);
+		let scrollTop = parseInt(this._canvas.parentElement!.getAttribute('data-adjusted-scroll-top')!);
 		if (Number.isNaN(scrollTop)) {
 			scrollTop = 0;
 		}
@@ -482,7 +520,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			if (y < 0) {
 				continue;
 			}
-			const content = this.viewportData.getViewLineRenderingData(lineNumber).content;
+			const content = this._viewportData.getViewLineRenderingData(lineNumber).content;
 			// console.log(content, 0, y);
 			for (let x = 0; x < content.length; x++) {
 				if (content.charAt(x) === ' ') {
@@ -491,7 +529,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				// TODO: Handle tab
 
 				// chars = content[x];
-				const glyph = GpuViewLayerRenderer._textureAtlas.getGlyph(content, x);
+				const glyph = this._textureAtlas.getGlyph(content, x);
 
 				// TODO: Move math to gpu
 				// TODO: Render using a line offset for partial line scrolling
@@ -499,8 +537,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				screenAbsoluteX = x * 7 * activeWindow.devicePixelRatio;
 				// TODO: This +10 is because the glyph is being rendered in the wrong position
 				screenAbsoluteY = Math.round(y * activeWindow.devicePixelRatio);
-				zeroToOneX = screenAbsoluteX / this.domNode.width;
-				zeroToOneY = screenAbsoluteY / this.domNode.height;
+				zeroToOneX = screenAbsoluteX / this._canvas.width;
+				zeroToOneY = screenAbsoluteY / this._canvas.height;
 				wgslX = zeroToOneX * 2 - 1;
 				wgslY = zeroToOneY * 2 - 1;
 
@@ -523,3 +561,5 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		return charCount;
 	}
 }
+
+// #endregion Naive viewport render strategy
