@@ -715,6 +715,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		let zeroToOneY: number = 0;
 		let wgslX: number = 0;
 		let wgslY: number = 0;
+		let chars: string = '';
+		let xOffset: number = 0;
 
 		const activeWindow = getActiveWindow();
 
@@ -747,10 +749,20 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 			const viewLineRenderingData = viewportData.getViewLineRenderingData(y);
 			const content = viewLineRenderingData.content;
+			xOffset = 0;
 			for (x = 0; x < FullFileRenderStrategy._columnCount; x++) {
 				const glyph = this._textureAtlas.getGlyph(content, x);
+				chars = content[x];
+				switch (chars) {
+					case ' ':
+						continue;
+					case '\t':
+						// TODO: Pull actual tab size
+						xOffset += 3;
+						break;
+				}
 
-				screenAbsoluteX = x * 7 * activeWindow.devicePixelRatio;
+				screenAbsoluteX = (x + xOffset) * 7 * activeWindow.devicePixelRatio;
 				// TODO: Send scroll offset instead of setting it here such that the cell data doesn't need to change when scrolling
 				screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
 				zeroToOneX = screenAbsoluteX / this._canvas.width;
@@ -758,7 +770,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 				wgslX = zeroToOneX * 2 - 1;
 				wgslY = zeroToOneY * 2 - 1;
 
-				const cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x - 1)) * Constants.IndicesPerCell;
+				const cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x - 1 + xOffset)) * Constants.IndicesPerCell;
 				cellBuffer[cellIndex + 0] = wgslX;       // x
 				cellBuffer[cellIndex + 1] = -wgslY;      // y
 				cellBuffer[cellIndex + 2] = 0;
@@ -769,7 +781,6 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 			upToDateLines.add(y);
 		}
 
-		// TODO: Write sub set of buffer
 		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
 		// Only write when there is changed data
