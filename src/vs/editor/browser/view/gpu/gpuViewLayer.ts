@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveDocument, getActiveWindow } from 'vs/base/browser/dom';
+import { debounce } from 'vs/base/common/decorators';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/textureAtlas';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
@@ -131,7 +132,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _vertexBuffer!: GPUBuffer;
 	private _squareVertices!: { vertexData: Float32Array; numVertices: number };
 
-	private _textureAtlas!: TextureAtlas;
+	private static _textureAtlas: TextureAtlas;
 	private _spriteInfoStorageBuffer!: GPUBuffer;
 	private _textureAtlasGpuTexture!: GPUTexture;
 
@@ -139,8 +140,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 
 
-	private readonly _testCanvas: HTMLCanvasElement;
-	private readonly _testCtx: CanvasRenderingContext2D;
+	private static _testCanvas: HTMLCanvasElement;
+	private static _testCtx: CanvasRenderingContext2D;
 
 
 	constructor(domNode: HTMLCanvasElement, host: IVisibleLinesHost<T>, viewportData: ViewportData) {
@@ -150,19 +151,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		this._gpuCtx = this.domNode.getContext('webgpu')!;
 		this.initWebgpu();
-
-
-
-		this._testCanvas = document.createElement('canvas');
-		this._testCanvas.width = 2048;
-		this._testCanvas.height = 2048;
-		this._testCanvas.style.position = 'absolute';
-		this._testCanvas.style.top = '0';
-		this._testCanvas.style.left = '0';
-		this._testCanvas.style.zIndex = '10000';
-		this._testCanvas.style.pointerEvents = 'none';
-		this._testCtx = ensureNonNullable(this._testCanvas.getContext('2d'));
-		getActiveDocument().body.appendChild(this._testCanvas);
 	}
 
 	async initWebgpu() {
@@ -246,7 +234,21 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 
 		// Create texture atlas
-		const textureAtlas = this._textureAtlas = new TextureAtlas(this.domNode, this._device.limits.maxTextureDimension2D);
+		if (!GpuViewLayerRenderer._textureAtlas) {
+			GpuViewLayerRenderer._textureAtlas = new TextureAtlas(this.domNode, this._device.limits.maxTextureDimension2D);
+
+			GpuViewLayerRenderer._testCanvas = document.createElement('canvas');
+			GpuViewLayerRenderer._testCanvas.width = 2048;
+			GpuViewLayerRenderer._testCanvas.height = 2048;
+			GpuViewLayerRenderer._testCanvas.style.position = 'absolute';
+			GpuViewLayerRenderer._testCanvas.style.top = '0';
+			GpuViewLayerRenderer._testCanvas.style.left = '0';
+			GpuViewLayerRenderer._testCanvas.style.zIndex = '10000';
+			GpuViewLayerRenderer._testCanvas.style.pointerEvents = 'none';
+			GpuViewLayerRenderer._testCtx = ensureNonNullable(GpuViewLayerRenderer._testCanvas.getContext('2d'));
+			getActiveDocument().body.appendChild(GpuViewLayerRenderer._testCanvas);
+		}
+		const textureAtlas = GpuViewLayerRenderer._textureAtlas;
 
 
 
@@ -377,15 +379,15 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _updateTextureAtlas() {
-		if (!this._textureAtlas.hasChanges) {
+		if (!GpuViewLayerRenderer._textureAtlas.hasChanges) {
 			return;
 		}
-		this._textureAtlas.hasChanges = false;
+		GpuViewLayerRenderer._textureAtlas.hasChanges = false;
 		// TODO: Dynamically set buffer size
 		const bufferSize = spriteInfoStorageBufferByteSize * 10000;
 		const values = new Float32Array(bufferSize / 4);
 		let entryOffset = 0;
-		for (const glyph of this._textureAtlas.glyphs) {
+		for (const glyph of GpuViewLayerRenderer._textureAtlas.glyphs) {
 			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition] = glyph.x;
 			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition + 1] = glyph.y;
 			values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize] = glyph.w;
@@ -397,13 +399,19 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		this._device.queue.writeBuffer(this._spriteInfoStorageBuffer, 0, values);
 
 		this._device.queue.copyExternalImageToTexture(
-			{ source: this._textureAtlas.source },
+			{ source: GpuViewLayerRenderer._textureAtlas.source },
 			{ texture: this._textureAtlasGpuTexture },
-			{ width: this._textureAtlas.source.width, height: this._textureAtlas.source.height },
+			{ width: GpuViewLayerRenderer._textureAtlas.source.width, height: GpuViewLayerRenderer._textureAtlas.source.height },
 		);
 
 
-		this._testCtx.drawImage(this._textureAtlas.source, 0, 0);
+		GpuViewLayerRenderer._drawToTextureAtlas();
+	}
+
+	@debounce(500)
+	private static _drawToTextureAtlas() {
+		GpuViewLayerRenderer._testCtx.clearRect(0, 0, GpuViewLayerRenderer._textureAtlas.source.width, GpuViewLayerRenderer._textureAtlas.source.height);
+		GpuViewLayerRenderer._testCtx.drawImage(GpuViewLayerRenderer._textureAtlas.source, 0, 0);
 	}
 
 	public render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
@@ -483,7 +491,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				// TODO: Handle tab
 
 				// chars = content[x];
-				const glyph = this._textureAtlas.getGlyph(content, x);
+				const glyph = GpuViewLayerRenderer._textureAtlas.getGlyph(content, x);
 
 				// TODO: Move math to gpu
 				// TODO: Render using a line offset for partial line scrolling
