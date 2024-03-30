@@ -626,7 +626,7 @@ struct VSOutput {
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position - ((spriteInfo.origin * 2) / uniforms.canvasDimensions) + ((scrollOffset.offset * 2) / uniforms.canvasDimensions),
+		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position + ((spriteInfo.origin * vec2f(2, -2)) / uniforms.canvasDimensions) + ((scrollOffset.offset * 2) / uniforms.canvasDimensions),
 		0.0,
 		1.0
 	);
@@ -764,7 +764,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 				screenAbsoluteX = (x + xOffset) * 7 * activeWindow.devicePixelRatio;
 				// TODO: Send scroll offset instead of setting it here such that the cell data doesn't need to change when scrolling
-				screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
+				screenAbsoluteY = (Math.round(deltaTop[y - startLineNumber] + viewportData.lineHeight) * activeWindow.devicePixelRatio);
 				zeroToOneX = screenAbsoluteX / this._canvas.width;
 				zeroToOneY = screenAbsoluteY / this._canvas.height;
 				wgslX = zeroToOneX * 2 - 1;

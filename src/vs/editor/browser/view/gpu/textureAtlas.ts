@@ -85,7 +85,7 @@ class GlyphRasterizer extends Disposable {
 			willReadFrequently: true
 		}));
 		this._ctx.font = `${this._fontSize}px ${fontFamily}`;
-		this._ctx.textBaseline = 'alphabetic';
+		this._ctx.textBaseline = 'top';
 		this._ctx.fillStyle = '#FFFFFF';
 	}
 
@@ -95,7 +95,9 @@ class GlyphRasterizer extends Disposable {
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
 		// TODO: Draw in middle using alphabetical baseline
-		this._ctx.fillText(chars, this._fontSize * 2, this._fontSize);
+		const originX = this._fontSize;
+		const originY = this._fontSize;
+		this._ctx.fillText(chars, originX, originY);
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
 		// TODO: Hot path: Reuse object
@@ -104,8 +106,8 @@ class GlyphRasterizer extends Disposable {
 			source: this._canvas,
 			boundingBox,
 			originOffset: {
-				x: boundingBox.left - this._fontSize,
-				y: boundingBox.top - this._fontSize
+				x: boundingBox.left - originX,
+				y: boundingBox.top - originY
 			}
 		};
 		return result;
