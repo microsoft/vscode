@@ -116,7 +116,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		const textureAtlas = GpuViewLayerRenderer._textureAtlas;
 
 
-		this._renderStrategy = new NaiveViewportRenderStrategy(this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
+		// this._renderStrategy = new NaiveViewportRenderStrategy(this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
+		this._renderStrategy = new FullFileRenderStrategy(this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
 
 		const module = this._device.createShaderModule({
 			label: 'ViewLayer shader module',
@@ -356,7 +357,11 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		pass.setBindGroup(0, this._bindGroup);
 		// TODO: Draws could be split by chunk, this would help minimize moving data around in arrays
 
-		pass.draw(this._squareVertices.numVertices, visibleObjectCount);
+		if (this._renderStrategy?.draw) {
+			this._renderStrategy.draw(pass, ctx, startLineNumber, stopLineNumber, deltaTop);
+		} else {
+			pass.draw(this._squareVertices.numVertices, visibleObjectCount);
+		}
 
 		pass.end();
 
@@ -375,6 +380,7 @@ interface IRenderStrategy<T extends IVisibleLine> {
 
 	initBuffers(): void;
 	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number;
+	draw?(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void;
 }
 
 // #region Naive viewport render strategy
@@ -563,3 +569,209 @@ class NaiveViewportRenderStrategy<T extends IVisibleLine> implements IRenderStra
 }
 
 // #endregion Naive viewport render strategy
+
+// #region Full file render strategy
+
+const fullFileRenderStrategyWgsl = `
+struct Uniforms {
+	canvasDimensions: vec2f,
+};
+
+struct TextureInfoUniform {
+	spriteSheetSize: vec2f,
+}
+
+struct SpriteInfo {
+	position: vec2f,
+	size: vec2f,
+	origin: vec2f,
+};
+
+struct Vertex {
+	@location(0) position: vec2f,
+};
+
+struct DynamicUnitInfo {
+	position: vec2f,
+	unused1: vec2f,
+	textureIndex: f32,
+	unused2: f32
+};
+
+struct VSOutput {
+	@builtin(position) position: vec4f,
+	@location(0) texcoord: vec2f,
+};
+
+@group(0) @binding(${BindingId.Uniforms}) var<uniform> uniforms: Uniforms;
+@group(0) @binding(${BindingId.TextureInfoUniform}) var<uniform> textureInfoUniform: TextureInfoUniform;
+
+@group(0) @binding(${BindingId.SpriteInfo}) var<storage, read> spriteInfo: array<SpriteInfo>;
+@group(0) @binding(${BindingId.DynamicUnitInfo}) var<storage, read> dynamicUnitInfoStructs: array<DynamicUnitInfo>;
+
+@vertex fn vs(
+	vert: Vertex,
+	@builtin(instance_index) instanceIndex: u32,
+	@builtin(vertex_index) vertexIndex : u32
+) -> VSOutput {
+	let dynamicUnitInfo = dynamicUnitInfoStructs[instanceIndex];
+	let spriteInfo = spriteInfo[u32(dynamicUnitInfo.textureIndex)];
+
+	var vsOut: VSOutput;
+	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
+	vsOut.position = vec4f(
+		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position - ((spriteInfo.origin * 2) / uniforms.canvasDimensions),
+		0.0,
+		1.0
+	);
+
+	// Textures are flipped from natural direction on the y-axis, so flip it back
+	vsOut.texcoord = vert.position;
+	vsOut.texcoord = (
+		// Sprite offset (0-1)
+		(spriteInfo.position / textureInfoUniform.spriteSheetSize) +
+		// Sprite coordinate (0-1)
+		(vsOut.texcoord * (spriteInfo.size / textureInfoUniform.spriteSheetSize))
+	);
+
+	return vsOut;
+}
+
+@group(0) @binding(${BindingId.TextureSampler}) var ourSampler: sampler;
+@group(0) @binding(${BindingId.Texture}) var ourTexture: texture_2d<f32>;
+
+@fragment fn fs(vsOut: VSOutput) -> @location(0) vec4f {
+	return textureSample(ourTexture, ourSampler, vsOut.texcoord);
+}
+`;
+
+class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<T> {
+
+	private static _lineCount = 3000;
+	private static _columnCount = 200;
+
+	readonly wgsl: string = fullFileRenderStrategyWgsl;
+
+	private _cellBindBuffer!: GPUBuffer;
+	private _cellValueBuffers!: ArrayBuffer[];
+	private _cellValuesBufferActiveIndex: number = 0;
+
+	get bindGroupEntries(): GPUBindGroupEntry[] {
+		return [
+			{ binding: BindingId.DynamicUnitInfo, resource: { buffer: this._cellBindBuffer } }
+		];
+	}
+
+	constructor(
+		private readonly _device: GPUDevice,
+		private readonly _canvas: HTMLCanvasElement,
+		private readonly _viewportData: ViewportData,
+		private readonly _textureAtlas: TextureAtlas
+	) {
+	}
+
+	initBuffers(): void {
+		const bufferSize = FullFileRenderStrategy._lineCount * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
+		this._cellBindBuffer = this._device.createBuffer({
+			label: 'Full file cell buffer',
+			size: bufferSize,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this._cellValueBuffers = [
+			new ArrayBuffer(bufferSize),
+			new ArrayBuffer(bufferSize),
+		];
+	}
+
+	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
+		let y = 0;
+		let x = 0;
+		let screenAbsoluteX: number = 0;
+		let screenAbsoluteY: number = 0;
+		let zeroToOneX: number = 0;
+		let zeroToOneY: number = 0;
+		let wgslX: number = 0;
+		let wgslY: number = 0;
+
+		const viewportData = this._viewportData;
+		const activeWindow = getActiveWindow();
+		const cellBuffer = new Float32Array(this._cellValueBuffers[this._cellValuesBufferActiveIndex]);
+		const lineIndexCount = FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
+
+		let scrollTop = parseInt(this._canvas.parentElement!.getAttribute('data-adjusted-scroll-top')!);
+		if (Number.isNaN(scrollTop)) {
+			scrollTop = 0;
+		}
+
+		for (y = startLineNumber; y <= stopLineNumber; y++) {
+			const viewLineRenderingData = viewportData.getViewLineRenderingData(y);
+			const content = viewLineRenderingData.content;
+			for (x = 0; x < FullFileRenderStrategy._columnCount; x++) {
+				const glyph = this._textureAtlas.getGlyph(content, x);
+
+				screenAbsoluteX = x * 7 * activeWindow.devicePixelRatio;
+				// TODO: Send scroll offset instead of setting it here such that the cell data doesn't need to change when scrolling
+				screenAbsoluteY = Math.round(Math.round(-scrollTop + deltaTop[y - startLineNumber]) * activeWindow.devicePixelRatio);
+				zeroToOneX = screenAbsoluteX / this._canvas.width;
+				zeroToOneY = screenAbsoluteY / this._canvas.height;
+				wgslX = zeroToOneX * 2 - 1;
+				wgslY = zeroToOneY * 2 - 1;
+
+				const cellIndex = y * lineIndexCount + x * Constants.IndicesPerCell;
+				cellBuffer[cellIndex + 0] = wgslX;       // x
+				cellBuffer[cellIndex + 1] = -wgslY;      // y
+				cellBuffer[cellIndex + 2] = 0;
+				cellBuffer[cellIndex + 3] = 0;
+				cellBuffer[cellIndex + 4] = glyph.index; // textureIndex
+				cellBuffer[cellIndex + 5] = 0;
+			}
+		}
+
+		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
+
+		// Write buffer and swap it out to unblock writes
+		// this._device.queue.writeBuffer(
+		// 	this._cellBindBuffer,
+		// 	(startLineNumber - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
+		// 	// TODO: this cell buffer actually only needs to be the size of the viewport if we are only uploading a range
+		// 	//       at the maximum each frame
+		// 	cellBuffer,
+		// 	(startLineNumber - 1) * lineIndexCount,
+		// 	(stopLineNumber - startLineNumber) * lineIndexCount
+		// );
+		this._device.queue.writeBuffer(
+			this._cellBindBuffer,
+			0,
+			cellBuffer
+		);
+
+		this._cellValuesBufferActiveIndex = (this._cellValuesBufferActiveIndex + 1) % 2;
+
+		return visibleObjectCount;
+	}
+
+	draw(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void {
+		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
+
+		// console.log('draw',
+		// 	{
+		// 		ctx,
+		// 		startLineNumber,
+		// 		stopLineNumber,
+		// 		deltaTop
+		// 	},
+		// 	6, // square verticies
+		// 	visibleObjectCount,
+		// 	undefined,
+		// 	(startLineNumber - 1) * FullFileRenderStrategy._columnCount
+		// );
+		pass.draw(
+			6, // square verticies
+			visibleObjectCount,
+			undefined,
+			(startLineNumber - 1) * FullFileRenderStrategy._columnCount
+		);
+	}
+}
+
+// #endregion Full file render strategy
