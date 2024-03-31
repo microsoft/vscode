@@ -22,6 +22,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { CellDiagnostics } from 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnostics';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export const outputDisplayLimit = 500;
 
@@ -43,6 +45,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
 
 	private _outputCollection: number[] = [];
+
+	private readonly _cellDiagnostics: CellDiagnostics;
+	get cellDiagnostics() {
+		return this._cellDiagnostics;
+	}
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
@@ -108,6 +115,15 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._onDidChangeState.fire({ outputIsFocusedChanged: true });
 	}
 
+	private _focusInputInOutput: boolean = false;
+	public get inputInOutputIsFocused(): boolean {
+		return this._focusInputInOutput;
+	}
+
+	public set inputInOutputIsFocused(v: boolean) {
+		this._focusInputInOutput = v;
+	}
+
 	private _outputMinHeight: number = 0;
 
 	private get outputMinHeight() {
@@ -143,7 +159,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
@@ -166,10 +183,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			if (outputLayoutChange) {
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 			}
+			if (this._outputCollection.length === 0) {
+				this._cellDiagnostics.clear();
+			}
 			dispose(removedOutputs);
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
+
+		this._cellDiagnostics = instantiationService.createInstance(CellDiagnostics, this);
+		this._register(this._cellDiagnostics);
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
@@ -425,6 +448,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this.updateEditState(CellEditState.Editing, 'onDidChangeTextModelContent');
 			this._onDidChangeState.fire({ contentChanged: true });
 		}
+		this._cellDiagnostics.clear();
 	}
 
 	onDeselect() {

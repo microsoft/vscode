@@ -80,11 +80,17 @@ declare module 'vscode' {
 		content: string;
 
 		/**
+		 * The optional name of a user for this message.
+		 */
+		name: string | undefined;
+
+		/**
 		 * Create a new assistant message.
 		 *
 		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
 		 */
-		constructor(content: string);
+		constructor(content: string, name?: string);
 	}
 
 	/**

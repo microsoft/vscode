@@ -186,7 +186,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		}, dataOverrides);
 
 		if (issueReporterData.extensionId) {
-			const extensionExists = extensionData.some(extension => extension.id === issueReporterData.extensionId);
+			const extensionExists = extensionData.some(extension => ExtensionIdentifier.equals(extension.id, issueReporterData.extensionId));
 			if (!extensionExists) {
 				console.error(`Extension with ID ${issueReporterData.extensionId} does not exist.`);
 			}

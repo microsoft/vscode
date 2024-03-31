@@ -404,9 +404,9 @@ export class KeepAliveObserver implements IObserver {
 	}
 }
 
-export function derivedObservableWithCache<T>(computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
+export function derivedObservableWithCache<T>(owner: Owner, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
 	let lastValue: T | undefined = undefined;
-	const observable = derived(reader => {
+	const observable = derived(owner, reader => {
 		lastValue = computeFn(reader, lastValue);
 		return lastValue;
 	});

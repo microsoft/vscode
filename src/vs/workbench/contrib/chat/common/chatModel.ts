@@ -8,12 +8,14 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { revive } from 'vs/base/common/marshalling';
 import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { TextEdit } from 'vs/editor/common/languages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -29,6 +31,7 @@ export interface IChatRequestVariableEntry {
 	name: string;
 	range?: IOffsetRange;
 	values: IChatRequestVariableValue[];
+	references?: IChatContentReference[];
 }
 
 export interface IChatRequestVariableData {
@@ -73,7 +76,9 @@ export interface IChatResponseModel {
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly slashCommand?: IChatAgentCommand;
+	readonly agentOrSlashCommandDetected: boolean;
 	readonly response: IResponse;
+	readonly edits: ResourceMap<TextEdit[]>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
@@ -234,6 +239,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._response;
 	}
 
+	private _edits: ResourceMap<TextEdit[]>;
+	public get edits(): ResourceMap<TextEdit[]> {
+		return this._edits;
+	}
+
 	public get result(): IChatAgentResult | undefined {
 		return this._result;
 	}
@@ -258,6 +268,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	public get slashCommand(): IChatAgentCommand | undefined {
 		return this._slashCommand;
+	}
+
+	private _agentOrSlashCommandDetected: boolean | undefined;
+	public get agentOrSlashCommandDetected(): boolean {
+		return this._agentOrSlashCommandDetected ?? false;
 	}
 
 	private _usedContext: IChatUsedContext | undefined;
@@ -299,6 +314,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		this._followups = followups ? [...followups] : undefined;
 		this._response = new Response(_response);
+		this._edits = new ResourceMap<TextEdit[]>();
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
@@ -308,6 +324,16 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	 */
 	updateContent(responsePart: IChatProgressResponseContent | IChatContent, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
+	}
+
+	updateTextEdits(uri: URI, edits: TextEdit[]) {
+		const array = this._edits.get(uri);
+		if (!array) {
+			this._edits.set(uri, edits);
+		} else {
+			array.push(...edits);
+		}
+		this._onDidChange.fire();
 	}
 
 	/**
@@ -325,6 +351,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
+		this._agentOrSlashCommandDetected = true;
 		this._onDidChange.fire();
 	}
 
@@ -505,7 +532,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	private get _defaultAgent() {
-		return this.chatAgentService.getDefaultAgent();
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 	}
 
 	get requesterUsername(): string {
@@ -591,7 +618,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
-						revive<ISerializableChatAgentData>(raw.agent) : undefined;
+						this.reviveSerializedAgent(raw.agent) : undefined;
 
 					// Port entries from old format
 					const result = 'responseErrorDetails' in raw ?
@@ -611,6 +638,16 @@ export class ChatModel extends Disposable implements IChatModel {
 			this.logService.error('Failed to parse chat data', error);
 			return [];
 		}
+	}
+
+	private reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
+		const agent = 'name' in raw ?
+			raw :
+			{
+				...(raw as any),
+				name: (raw as any).id,
+			};
+		return revive(agent);
 	}
 
 	private getParsedRequestFromString(message: string): IParsedChatRequest {
@@ -703,10 +740,12 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'agentDetection') {
-			const agent = this.chatAgentService.getAgent(progress.agentName);
+			const agent = this.chatAgentService.getAgent(progress.agentId);
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
 			}
+		} else if (progress.kind === 'textEdit') {
+			request.response.updateTextEdits(progress.uri, progress.edits);
 		} else {
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		}
@@ -802,7 +841,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					vote: r.response?.vote,
 					agent: r.response?.agent ?
 						// May actually be the full IChatAgent instance, just take the data props. slashCommands don't matter here.
-						{ id: r.response.agent.id, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
+						{ id: r.response.agent.id, name: r.response.agent.name, description: r.response.agent.description, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [], locations: r.response.agent.locations, isDefault: r.response.agent.isDefault }
 						: undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
@@ -859,11 +898,11 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 
 	public get username(): string {
-		return this.chatAgentService.getDefaultAgent()?.metadata.fullName ?? '';
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.fullName ?? '';
 	}
 
 	public get avatarIcon(): ThemeIcon | undefined {
-		return this.chatAgentService.getDefaultAgent()?.metadata.themeIcon;
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.themeIcon;
 	}
 }
 

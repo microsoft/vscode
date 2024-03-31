@@ -50,6 +50,7 @@ export interface IOutputBlurMessage extends BaseToWebviewMessage {
 export interface IOutputInputFocusMessage extends BaseToWebviewMessage {
 	readonly type: 'outputInputFocus';
 	readonly inputFocused: boolean;
+	readonly id: string;
 }
 
 export interface IScrollToRevealMessage extends BaseToWebviewMessage {
@@ -166,23 +167,6 @@ export interface IRenderedCellOutputMessage extends BaseToWebviewMessage {
 
 export interface IClearMessage {
 	readonly type: 'clear';
-}
-
-export interface IOutputRequestMetadata {
-	/**
-	 * Additional attributes of a cell metadata.
-	 */
-	readonly custom?: { readonly [key: string]: unknown };
-}
-
-export interface IOutputRequestDto {
-	/**
-	 * { mime_type: value }
-	 */
-	readonly data: { readonly [key: string]: unknown };
-
-	readonly metadata?: IOutputRequestMetadata;
-	readonly outputId: string;
 }
 
 export interface OutputItemEntry {
@@ -476,6 +460,15 @@ export interface IReturnOutputItemMessage {
 	readonly output: OutputItemEntry | undefined;
 }
 
+export interface ISelectOutputItemMessage {
+	readonly type: 'select-output-contents';
+	readonly cellOrOutputId: string;
+}
+export interface ISelectInputOutputItemMessage {
+	readonly type: 'select-input-contents';
+	readonly cellOrOutputId: string;
+}
+
 export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
 	readonly type: 'logRendererDebugMessage';
 	readonly message: string;
@@ -555,7 +548,9 @@ export type ToWebviewMessage = IClearMessage |
 	IFindHighlightCurrentMessage |
 	IFindUnHighlightCurrentMessage |
 	IFindStopMessage |
-	IReturnOutputItemMessage;
+	IReturnOutputItemMessage |
+	ISelectOutputItemMessage |
+	ISelectInputOutputItemMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

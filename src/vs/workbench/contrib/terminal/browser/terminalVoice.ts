@@ -89,7 +89,7 @@ export class TerminalVoiceSession extends Disposable {
 		}, voiceTimeout));
 		this._cancellationTokenSource = new CancellationTokenSource();
 		this._register(toDisposable(() => this._cancellationTokenSource?.dispose(true)));
-		const session = await this._speechService.createSpeechToTextSession(this._cancellationTokenSource?.token);
+		const session = await this._speechService.createSpeechToTextSession(this._cancellationTokenSource?.token, 'terminal');
 
 		this._disposables.add(session.onDidChange((e) => {
 			if (this._cancellationTokenSource?.token.isCancellationRequested) {
@@ -97,7 +97,6 @@ export class TerminalVoiceSession extends Disposable {
 			}
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
-					// TODO: play start audio cue
 					if (!this._decoration) {
 						this._createDecoration();
 					}
@@ -117,7 +116,6 @@ export class TerminalVoiceSession extends Disposable {
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
-					// TODO: play stop audio cue
 					this.stop();
 					break;
 			}

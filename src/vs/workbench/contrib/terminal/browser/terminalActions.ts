@@ -519,6 +519,9 @@ export function registerTerminalActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.GoToRecentDirectory,
 		title: localize2('workbench.action.terminal.goToRecentDirectory', 'Go to Recent Directory...'),
+		metadata: {
+			description: localize2('goToRecentDirectory.metadata', 'Goes to a recent folder'),
+		},
 		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.KeyG,
@@ -1243,7 +1246,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.Join,
-		title: localize2('workbench.action.terminal.join', 'Join Terminals'),
+		title: localize2('workbench.action.terminal.join', 'Join Terminals...'),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c, accessor) => {
 			const themeService = accessor.get(IThemeService);
@@ -1776,6 +1779,15 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 									type: 'string',
 									enum: profileEnum.values,
 									markdownEnumDescriptions: profileEnum.markdownDescriptions
+								},
+								location: {
+									description: localize('newWithProfile.location', "Where to create the terminal"),
+									type: 'string',
+									enum: ['view', 'editor'],
+									enumDescriptions: [
+										localize('newWithProfile.location.view', 'Create the terminal in the terminal view'),
+										localize('newWithProfile.location.editor', 'Create the terminal in the editor'),
+									]
 								}
 							}
 						}
@@ -1783,7 +1795,11 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile) {
+		async run(
+			accessor: ServicesAccessor,
+			eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string; location?: 'view' | 'editor' | unknown } | undefined,
+			profile?: ITerminalProfile
+		) {
 			const c = getTerminalServices(accessor);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
@@ -1799,6 +1815,12 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
 				}
 				options = { config };
+				if ('location' in eventOrOptionsOrProfile) {
+					switch (eventOrOptionsOrProfile.location) {
+						case 'editor': options.location = TerminalLocation.Editor; break;
+						case 'view': options.location = TerminalLocation.Panel; break;
+					}
+				}
 			} else if (isMouseEvent(eventOrOptionsOrProfile) || isPointerEvent(eventOrOptionsOrProfile) || isKeyboardEvent(eventOrOptionsOrProfile)) {
 				event = eventOrOptionsOrProfile;
 				options = profile ? { config: profile } : undefined;

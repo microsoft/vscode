@@ -96,13 +96,18 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			'_executeNotebookVariableProvider',
 			'Execute notebook variable provider',
 			[ApiCommandArgument.Uri],
-			new ApiCommandResult<VariablesResult[], vscode.Variable[]>('A promise that resolves to an array of variables', (value, apiArgs) => {
+			new ApiCommandResult<VariablesResult[], vscode.VariablesResult[]>('A promise that resolves to an array of variables', (value, apiArgs) => {
 				return value.map(variable => {
 					return {
-						name: variable.name,
-						value: variable.value,
-						type: variable.type,
-						editable: false
+						variable: {
+							name: variable.name,
+							value: variable.value,
+							expression: variable.expression,
+							type: variable.type,
+							language: variable.language
+						},
+						hasNamedChildren: variable.hasNamedChildren,
+						indexedChildrenCount: variable.indexedChildrenCount
 					};
 				});
 			})
@@ -475,6 +480,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				name: result.variable.name,
 				value: result.variable.value,
 				type: result.variable.type,
+				interfaces: result.variable.interfaces,
 				language: result.variable.language,
 				expression: result.variable.expression,
 				hasNamedChildren: result.hasNamedChildren,

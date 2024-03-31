@@ -513,7 +513,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				this.element?.classList.add('ready');
 
 				if (this._state.type === WebviewState.Type.Initializing) {
-					this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
+					this._state.pendingMessages.forEach(({ channel, data, resolve }) => resolve(this.doPostMessage(channel, data)));
 				}
 				this._state = WebviewState.Ready;
 
@@ -839,6 +839,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			if (this.window?.document.activeElement && this.window.document.activeElement !== this.element && this.window.document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
+
+			// It is possible for the webview to be contained in another window
+			// that does not have focus. As such, also focus the body of the
+			// webview's window to ensure it is properly receiving keyboard focus.
+			this.window?.document.body?.focus();
 
 			this._send('focus', undefined);
 		});

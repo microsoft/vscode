@@ -49,6 +49,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -66,6 +67,8 @@ export interface IViewPaneOptions extends IPaneOptions {
 	readonly showActions?: ViewPaneShowActions;
 	readonly titleMenuId?: MenuId;
 	readonly donotForwardArgs?: boolean;
+	// The title of the container pane when it is merged with the view container
+	readonly singleViewPaneContainerTitle?: string;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -118,9 +121,10 @@ class ViewWelcomeController {
 		@IOpenerService protected openerService: IOpenerService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		this.delegate.onDidChangeViewWelcomeState(this.onDidChangeViewWelcomeState, this, this.disposables);
-		this.onDidChangeViewWelcomeState();
+		this.disposables.add(Event.runAndSubscribe(this.delegate.onDidChangeViewWelcomeState, () => this.onDidChangeViewWelcomeState()));
+		this.disposables.add(lifecycleService.onWillShutdown(() => this.dispose())); // Fixes https://github.com/microsoft/vscode/issues/208878
 	}
 
 	layout(height: number, width: number) {
@@ -333,6 +337,11 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
+	private _singleViewPaneContainerTitle: string | undefined;
+	public get singleViewPaneContainerTitle(): string | undefined {
+		return this._singleViewPaneContainerTitle;
+	}
+
 	readonly menuActions: CompositeMenuActions;
 
 	private progressBar!: ProgressBar;
@@ -369,6 +378,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.id = options.id;
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
+		this._singleViewPaneContainerTitle = options.singleViewPaneContainerTitle;
 		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
 
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
@@ -583,7 +593,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected renderBody(container: HTMLElement): void {
-		this.viewWelcomeController = this._register(new ViewWelcomeController(container, this, this.instantiationService, this.openerService, this.telemetryService, this.contextKeyService));
+		this.viewWelcomeController = this._register(this.instantiationService.createInstance(ViewWelcomeController, container, this));
 	}
 
 	protected layoutBody(height: number, width: number): void {

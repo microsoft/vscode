@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, isAncestor, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
@@ -607,7 +607,7 @@ export class ListView<T> implements IListView<T> {
 					renderer.disposeElement(item.element, i, item.row.templateData, item.size);
 				}
 
-				rows.push(item.row);
+				rows.unshift(item.row);
 			}
 
 			item.row = null;
@@ -924,7 +924,9 @@ export class ListView<T> implements IListView<T> {
 
 		if (item.stale || !item.row.domNode.parentElement) {
 			const referenceNode = this.items.at(index + 1)?.row?.domNode ?? null;
-			this.rowsContainer.insertBefore(item.row.domNode, referenceNode);
+			if (item.row.domNode.parentElement !== this.rowsContainer || item.row.domNode.nextElementSibling !== referenceNode) {
+				this.rowsContainer.insertBefore(item.row.domNode, referenceNode);
+			}
 			item.stale = false;
 		}
 
@@ -1517,6 +1519,9 @@ export class ListView<T> implements IListView<T> {
 		if (item.row) {
 			item.row.domNode.style.height = '';
 			item.size = item.row.domNode.offsetHeight;
+			if (item.size === 0 && !isAncestor(item.row.domNode, getWindow(item.row.domNode).document.body)) {
+				console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!');
+			}
 			item.lastDynamicHeightWidth = this.renderWidth;
 			return item.size - size;
 		}

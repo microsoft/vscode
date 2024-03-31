@@ -110,6 +110,7 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 			extensionsScannerService,
 			extensionsProfileScannerService,
 			logService,
+			NullTelemetryService
 		);
 	}
 

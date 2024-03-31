@@ -45,12 +45,16 @@ export interface IAuxiliaryWindowService {
 	open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow>;
 }
 
+export interface BeforeAuxiliaryWindowUnloadEvent {
+	veto(reason: string | undefined): void;
+}
+
 export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onWillLayout: Event<Dimension>;
 	readonly onDidLayout: Event<Dimension>;
 
-	readonly onBeforeUnload: Event<void>;
+	readonly onBeforeUnload: Event<BeforeAuxiliaryWindowUnloadEvent>;
 	readonly onUnload: Event<void>;
 
 	readonly whenStylesHaveLoaded: Promise<void>;
@@ -69,7 +73,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onBeforeUnload = this._register(new Emitter<void>());
+	private readonly _onBeforeUnload = this._register(new Emitter<BeforeAuxiliaryWindowUnloadEvent>());
 	readonly onBeforeUnload = this._onBeforeUnload.event;
 
 	private readonly _onUnload = this._register(new Emitter<void>());
@@ -120,8 +124,20 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	private handleBeforeUnload(e: BeforeUnloadEvent): void {
 
-		// Event
-		this._onBeforeUnload.fire();
+		// Check for veto from a listening component
+		let veto: string | undefined;
+		this._onBeforeUnload.fire({
+			veto(reason) {
+				if (reason) {
+					veto = reason;
+				}
+			}
+		});
+		if (veto) {
+			this.handleVetoBeforeClose(e, veto);
+
+			return;
+		}
 
 		// Check for confirm before close setting
 		const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
@@ -131,9 +147,17 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		}
 	}
 
-	protected confirmBeforeClose(e: BeforeUnloadEvent): void {
+	protected handleVetoBeforeClose(e: BeforeUnloadEvent, reason: string): void {
+		this.preventUnload(e);
+	}
+
+	protected preventUnload(e: BeforeUnloadEvent): void {
 		e.preventDefault();
 		e.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
+	}
+
+	protected confirmBeforeClose(e: BeforeUnloadEvent): void {
+		this.preventUnload(e);
 	}
 
 	private handleUnload(): void {
@@ -182,7 +206,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IDialogService private readonly dialogService: IDialogService,
+		@IDialogService protected readonly dialogService: IDialogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService protected readonly hostService: IHostService,

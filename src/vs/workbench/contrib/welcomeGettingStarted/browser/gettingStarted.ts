@@ -62,7 +62,7 @@ import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors'
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
-import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
+import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { startEntries } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
 import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -853,17 +853,21 @@ export class GettingStartedPage extends EditorPane {
 			if (gettingStartedList.itemCount) {
 				this.container.classList.remove('noWalkthroughs');
 				if (videoList?.itemCount > 0) {
+					this.container.classList.remove('noVideos');
 					reset(rightColumn, videoList?.getDomElement(), gettingStartedList.getDomElement());
 				} else {
+					this.container.classList.add('noVideos');
 					reset(rightColumn, gettingStartedList.getDomElement());
 				}
 			}
 			else {
 				this.container.classList.add('noWalkthroughs');
 				if (videoList?.itemCount > 0) {
+					this.container.classList.remove('noVideos');
 					reset(rightColumn, videoList?.getDomElement());
 				}
 				else {
+					this.container.classList.add('noVideos');
 					reset(rightColumn);
 				}
 			}
@@ -872,7 +876,7 @@ export class GettingStartedPage extends EditorPane {
 		};
 
 		const layoutRecentList = () => {
-			if (this.container.classList.contains('noWalkthroughs') && videoList?.itemCount === 0) {
+			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noVideos')) {
 				recentList.setLimit(10);
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
@@ -1370,7 +1374,7 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private buildStepMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
+	private buildMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
 		while (container.firstChild) { container.removeChild(container.firstChild); }
 
 		for (const linkedText of text) {
@@ -1440,12 +1444,15 @@ export class GettingStartedPage extends EditorPane {
 			throw Error('could not find category with ID ' + categoryID);
 		}
 
+		const descriptionContainer = $('.category-description.description.max-lines-3', { 'x-category-description-for': category.id });
+		this.buildMarkdownDescription(descriptionContainer, parseDescription(category.description));
+
 		const categoryDescriptorComponent =
 			$('.getting-started-category',
 				{},
 				$('.category-description-container', {},
 					$('h2.category-title.max-lines-3', { 'x-category-title-for': category.id }, ...renderLabelWithIcons(category.title)),
-					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, ...renderLabelWithIcons(category.description))));
+					descriptionContainer));
 
 		const stepListContainer = $('.step-list-container');
 
@@ -1496,7 +1503,7 @@ export class GettingStartedPage extends EditorPane {
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });
-					this.buildStepMarkdownDescription(container, step.description);
+					this.buildMarkdownDescription(container, step.description);
 
 					const stepTitle = $('h3.step-title.max-lines-3', { 'x-step-title-for': step.id });
 					reset(stepTitle, ...renderLabelWithIcons(step.title));

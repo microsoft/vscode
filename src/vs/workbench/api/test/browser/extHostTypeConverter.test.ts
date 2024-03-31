@@ -90,7 +90,7 @@ suite('ExtHostTypeConverter', function () {
 
 		const d = new extHostTypes.NotebookData([]);
 		d.cells.push(new extHostTypes.NotebookCellData(extHostTypes.NotebookCellKind.Code, 'hello', 'fooLang'));
-		d.metadata = { custom: { foo: 'bar', bar: 123 } };
+		d.metadata = { foo: 'bar', bar: 123 };
 
 		const dto = NotebookData.from(d);
 

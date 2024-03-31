@@ -195,8 +195,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private readonly containerStylesLoaded = new Map<number /* window ID */, Promise<void>>();
-	whenContainerStylesLoaded(window: CodeWindow): Promise<void> {
-		return this.containerStylesLoaded.get(window.vscodeWindowId) ?? Promise.resolve();
+	whenContainerStylesLoaded(window: CodeWindow): Promise<void> | undefined {
+		return this.containerStylesLoaded.get(window.vscodeWindowId);
 	}
 
 	private _mainContainerDimension!: IDimension;
@@ -409,6 +409,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
 			const windowId = window.window.vscodeWindowId;
 			this.containerStylesLoaded.set(windowId, window.whenStylesHaveLoaded);
+			window.whenStylesHaveLoaded.then(() => this.containerStylesLoaded.delete(windowId));
 			disposables.add(toDisposable(() => this.containerStylesLoaded.delete(windowId)));
 
 			const eventDisposables = disposables.add(new DisposableStore());
