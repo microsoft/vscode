@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { TwoKeyMap } from 'vs/editor/browser/view/gpu/multiKeyMap';

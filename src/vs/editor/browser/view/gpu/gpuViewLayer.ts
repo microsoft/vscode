@@ -504,6 +504,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		private readonly _textureAtlas: TextureAtlas,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
+		// TODO: Detect when lines have been tokenized and clear _upToDateLines
 	}
 
 	initBuffers(): void {
