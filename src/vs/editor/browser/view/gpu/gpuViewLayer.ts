@@ -505,6 +505,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
+		const colorMap = this._themeService.getColorTheme().tokenColorMap;
+		console.log('colorMap', colorMap);
 	}
 
 	initBuffers(): void {
@@ -567,10 +569,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		let dirtyLineStart = Number.MAX_SAFE_INTEGER;
 		let dirtyLineEnd = 0;
 
-		const colorMap = this._themeService.getColorTheme().tokenColorMap;
 		// const theme = this._themeService.getColorTheme() as ColorThemeData;
 		// const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, defaultLanguage, true, definitions);
-		// console.log('colorMap', colorMap);
 
 		for (y = startLineNumber; y <= stopLineNumber; y++) {
 			if (upToDateLines.has(y)) {
@@ -651,7 +651,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 					wgslX = zeroToOneX * 2 - 1;
 					wgslY = zeroToOneY * 2 - 1;
 
-					const cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x - 1 + xOffset)) * Constants.IndicesPerCell;
+					const cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x + xOffset)) * Constants.IndicesPerCell;
 					cellBuffer[cellIndex + 0] = wgslX;       // x
 					cellBuffer[cellIndex + 1] = -wgslY;      // y
 					cellBuffer[cellIndex + 2] = 0;
@@ -666,7 +666,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 			upToDateLines.add(y);
 		}
 
-		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
+		const visibleObjectCount = (stopLineNumber - startLineNumber + 1) * lineIndexCount;
 
 		// Only write when there is changed data
 		if (dirtyLineStart <= dirtyLineEnd) {
@@ -678,7 +678,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 				//       at the maximum each frame
 				cellBuffer.buffer,
 				(dirtyLineStart - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
-				(dirtyLineEnd - dirtyLineStart) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
+				(dirtyLineEnd - dirtyLineStart + 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
 			);
 		}
 		// HACK: Replace entire buffer for testing purposes
@@ -694,14 +694,18 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 	}
 
 	draw(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void {
-		const visibleObjectCount = (stopLineNumber - startLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
+		const visibleObjectCount = (stopLineNumber - startLineNumber + 1) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
-		pass.draw(
-			6, // square verticies
-			visibleObjectCount,
-			undefined,
-			(startLineNumber - 1) * FullFileRenderStrategy._columnCount
-		);
+		if (visibleObjectCount <= 0) {
+			console.error('Attempt to draw 0 objects');
+		} else {
+			pass.draw(
+				6, // square verticies
+				visibleObjectCount,
+				undefined,
+				(startLineNumber - 1) * FullFileRenderStrategy._columnCount
+			);
+		}
 	}
 }
 
