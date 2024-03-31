@@ -12,6 +12,39 @@ import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { ITextureAtlasAllocator, TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/textureAtlasAllocator';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
+// DEBUG: This helper can be used to draw image data to the console, it's commented out as we don't
+//        want to ship it, but this is very useful for investigating texture atlas issues.
+// (console as any).image = (source: ImageData | HTMLCanvasElement, scale: number = 1) => {
+// 	function getBox(width: number, height: number) {
+// 		return {
+// 			string: '+',
+// 			style: 'font-size: 1px; padding: ' + Math.floor(height / 2) + 'px ' + Math.floor(width / 2) + 'px; line-height: ' + height + 'px;'
+// 		};
+// 	}
+// 	if (source instanceof HTMLCanvasElement) {
+// 		source = source.getContext('2d')?.getImageData(0, 0, source.width, source.height)!;
+// 	}
+// 	const canvas = document.createElement('canvas');
+// 	canvas.width = source.width;
+// 	canvas.height = source.height;
+// 	const ctx = canvas.getContext('2d')!;
+// 	ctx.putImageData(source, 0, 0);
+
+// 	const sw = source.width * scale;
+// 	const sh = source.height * scale;
+// 	const dim = getBox(sw, sh);
+// 	console.log(
+// 		`Image: ${source.width} x ${source.height}\n%c${dim.string}`,
+// 		`${dim.style}background: url(${canvas.toDataURL()}); background-size: ${sw}px ${sh}px; background-repeat: no-repeat; color: transparent;`
+// 	);
+// 	console.groupCollapsed('Zoomed');
+// 	console.log(
+// 		`%c${dim.string}`,
+// 		`${getBox(sw * 10, sh * 10).style}background: url(${canvas.toDataURL()}); background-size: ${sw * 10}px ${sh * 10}px; background-repeat: no-repeat; color: transparent; image-rendering: pixelated;-ms-interpolation-mode: nearest-neighbor;`
+// 	);
+// 	console.groupEnd();
+// };
+
 export class TextureAtlas extends Disposable {
 	private readonly _canvas: OffscreenCanvas;
 	private readonly _ctx: OffscreenCanvasRenderingContext2D;
@@ -149,6 +182,10 @@ class GlyphRasterizer extends Disposable {
 				y: boundingBox.top - originY
 			}
 		};
+
+		// DEBUG: Show image data in console
+		// (console as any).image(imageData);
+
 		return result;
 	}
 

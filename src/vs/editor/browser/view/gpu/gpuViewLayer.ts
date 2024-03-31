@@ -643,7 +643,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 					const glyph = this._textureAtlas.getGlyph(chars, tokenFg);
 
-					screenAbsoluteX = (x + xOffset) * 7 * activeWindow.devicePixelRatio;
+					screenAbsoluteX = Math.round((x + xOffset) * 7 * activeWindow.devicePixelRatio);
 					screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
 					zeroToOneX = screenAbsoluteX / this._canvas.width;
 					zeroToOneY = screenAbsoluteY / this._canvas.height;
