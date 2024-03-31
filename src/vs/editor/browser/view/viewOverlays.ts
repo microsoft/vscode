@@ -14,6 +14,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
 
@@ -22,10 +23,13 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 	private _dynamicOverlays: DynamicViewOverlay[];
 	private _isFocused: boolean;
 
-	constructor(context: ViewContext) {
+	constructor(
+		context: ViewContext,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 		super(context);
 
-		this._visibleLines = new VisibleLinesCollection<ViewOverlayLine>(this);
+		this._visibleLines = instantiationService.createInstance(VisibleLinesCollection<ViewOverlayLine>, this);
 		this.domNode = this._visibleLines.domNode;
 
 		const options = this._context.configuration.options;
@@ -207,8 +211,11 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	private _contentWidth: number;
 
-	constructor(context: ViewContext) {
-		super(context);
+	constructor(
+		context: ViewContext,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(context, instantiationService);
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._contentWidth = layoutInfo.contentWidth;
@@ -241,8 +248,11 @@ export class MarginViewOverlays extends ViewOverlays {
 
 	private _contentLeft: number;
 
-	constructor(context: ViewContext) {
-		super(context);
+	constructor(
+		context: ViewContext,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(context, instantiationService);
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);

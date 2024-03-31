@@ -8,7 +8,10 @@ import { debounce } from 'vs/base/common/decorators';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/textureAtlas';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
+import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 interface IRendererContext<T extends IVisibleLine> {
 	rendLineNumberStart: number;
@@ -71,7 +74,12 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _renderStrategy!: IRenderStrategy<T>;
 
 
-	constructor(domNode: HTMLCanvasElement, host: IVisibleLinesHost<T>, viewportData: ViewportData) {
+	constructor(
+		domNode: HTMLCanvasElement,
+		host: IVisibleLinesHost<T>,
+		viewportData: ViewportData,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
 		this.domNode = domNode;
 		this.host = host;
 		this.viewportData = viewportData;
@@ -101,11 +109,13 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		// Create texture atlas
 		if (!GpuViewLayerRenderer._textureAtlas) {
-			GpuViewLayerRenderer._textureAtlas = new TextureAtlas(this.domNode, this._device.limits.maxTextureDimension2D);
+			GpuViewLayerRenderer._textureAtlas = this._instantiationService.createInstance(TextureAtlas, this.domNode, this._device.limits.maxTextureDimension2D);
 
 			GpuViewLayerRenderer._testCanvas = document.createElement('canvas');
-			GpuViewLayerRenderer._testCanvas.width = 2048;
-			GpuViewLayerRenderer._testCanvas.height = 2048;
+			GpuViewLayerRenderer._testCanvas.width = this._device.limits.maxTextureDimension2D;
+			GpuViewLayerRenderer._testCanvas.height = this._device.limits.maxTextureDimension2D;
+			GpuViewLayerRenderer._testCanvas.style.width = `${this._device.limits.maxTextureDimension2D / getActiveWindow().devicePixelRatio}px`;
+			GpuViewLayerRenderer._testCanvas.style.height = `${this._device.limits.maxTextureDimension2D / getActiveWindow().devicePixelRatio}px`;
 			GpuViewLayerRenderer._testCanvas.style.position = 'absolute';
 			GpuViewLayerRenderer._testCanvas.style.top = '0';
 			GpuViewLayerRenderer._testCanvas.style.left = '0';
@@ -118,7 +128,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 
 		// this._renderStrategy = new NaiveViewportRenderStrategy(this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
-		this._renderStrategy = new FullFileRenderStrategy(this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
+		this._renderStrategy = this._instantiationService.createInstance(FullFileRenderStrategy, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
 
 		const module = this._device.createShaderModule({
 			label: 'ViewLayer shader module',
@@ -384,193 +394,6 @@ interface IRenderStrategy<T extends IVisibleLine> {
 	draw?(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void;
 }
 
-// #region Naive viewport render strategy
-
-const naiveViewportRenderStrategyWgsl = `
-struct Uniforms {
-	canvasDimensions: vec2f,
-};
-
-struct TextureInfoUniform {
-	spriteSheetSize: vec2f,
-}
-
-struct SpriteInfo {
-	position: vec2f,
-	size: vec2f,
-	origin: vec2f,
-};
-
-struct Vertex {
-	@location(0) position: vec2f,
-};
-
-struct DynamicUnitInfo {
-	position: vec2f,
-	unused1: vec2f,
-	textureIndex: f32,
-	unused2: f32
-};
-
-struct VSOutput {
-	@builtin(position) position: vec4f,
-	@location(0) texcoord: vec2f,
-};
-
-@group(0) @binding(${BindingId.Uniforms}) var<uniform> uniforms: Uniforms;
-@group(0) @binding(${BindingId.TextureInfoUniform}) var<uniform> textureInfoUniform: TextureInfoUniform;
-
-@group(0) @binding(${BindingId.SpriteInfo}) var<storage, read> spriteInfo: array<SpriteInfo>;
-@group(0) @binding(${BindingId.DynamicUnitInfo}) var<storage, read> dynamicUnitInfoStructs: array<DynamicUnitInfo>;
-
-@vertex fn vs(
-	vert: Vertex,
-	@builtin(instance_index) instanceIndex: u32,
-	@builtin(vertex_index) vertexIndex : u32
-) -> VSOutput {
-	let dynamicUnitInfo = dynamicUnitInfoStructs[instanceIndex];
-	let spriteInfo = spriteInfo[u32(dynamicUnitInfo.textureIndex)];
-
-	var vsOut: VSOutput;
-	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
-	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position - ((spriteInfo.origin * 2) / uniforms.canvasDimensions),
-		0.0,
-		1.0
-	);
-
-	// Textures are flipped from natural direction on the y-axis, so flip it back
-	vsOut.texcoord = vert.position;
-	vsOut.texcoord = (
-		// Sprite offset (0-1)
-		(spriteInfo.position / textureInfoUniform.spriteSheetSize) +
-		// Sprite coordinate (0-1)
-		(vsOut.texcoord * (spriteInfo.size / textureInfoUniform.spriteSheetSize))
-	);
-
-	return vsOut;
-}
-
-@group(0) @binding(${BindingId.TextureSampler}) var ourSampler: sampler;
-@group(0) @binding(${BindingId.Texture}) var ourTexture: texture_2d<f32>;
-
-@fragment fn fs(vsOut: VSOutput) -> @location(0) vec4f {
-	return textureSample(ourTexture, ourSampler, vsOut.texcoord);
-}
-`;
-
-class NaiveViewportRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<T> {
-	readonly wgsl: string = naiveViewportRenderStrategyWgsl;
-
-	private _cellBindBuffer!: GPUBuffer;
-	private _cellValueBuffers!: ArrayBuffer[];
-	private _cellValuesBufferActiveIndex: number = 0;
-
-	get bindGroupEntries(): GPUBindGroupEntry[] {
-		return [
-			{ binding: BindingId.DynamicUnitInfo, resource: { buffer: this._cellBindBuffer } }
-		];
-	}
-
-	constructor(
-		private readonly _device: GPUDevice,
-		private readonly _canvas: HTMLCanvasElement,
-		private readonly _viewportData: ViewportData,
-		private readonly _textureAtlas: TextureAtlas
-	) {
-	}
-
-	initBuffers(): void {
-		// TODO: Grow/shrink buffer size dynamically
-		const cellCount = 10000;
-		const bufferSize = cellCount * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
-		this._cellBindBuffer = this._device.createBuffer({
-			label: 'Entity dynamic info buffer',
-			size: bufferSize,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
-		this._cellValueBuffers = [
-			new ArrayBuffer(bufferSize),
-			new ArrayBuffer(bufferSize),
-		];
-	}
-
-	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
-		const cellBuffer = new Float32Array(this._cellValueBuffers[this._cellValuesBufferActiveIndex]);
-		const visibleObjectCount = this._updateDataBuffer(cellBuffer, ctx, startLineNumber, stopLineNumber, deltaTop);
-
-		// Write buffer and swap it out to unblock writes
-		this._device.queue.writeBuffer(this._cellBindBuffer, 0, cellBuffer, 0, visibleObjectCount * Constants.IndicesPerCell);
-
-		this._cellValuesBufferActiveIndex = (this._cellValuesBufferActiveIndex + 1) % 2;
-		return visibleObjectCount;
-	}
-
-	private _updateDataBuffer(dataBuffer: Float32Array, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
-		// let chars: string = '';
-		let screenAbsoluteX: number = 0;
-		let screenAbsoluteY: number = 0;
-		let zeroToOneX: number = 0;
-		let zeroToOneY: number = 0;
-		let wgslX: number = 0;
-		let wgslY: number = 0;
-
-		const activeWindow = getActiveWindow();
-		let charCount = 0;
-		let scrollTop = parseInt(this._canvas.parentElement!.getAttribute('data-adjusted-scroll-top')!);
-		if (Number.isNaN(scrollTop)) {
-			scrollTop = 0;
-		}
-		for (let lineNumber = startLineNumber; lineNumber <= stopLineNumber; lineNumber++) {
-			const y = Math.round(-scrollTop + deltaTop[lineNumber - startLineNumber]);
-			// Offscreen
-			if (y < 0) {
-				continue;
-			}
-			const content = this._viewportData.getViewLineRenderingData(lineNumber).content;
-			// console.log(content, 0, y);
-			for (let x = 0; x < content.length; x++) {
-				if (content.charAt(x) === ' ') {
-					continue;
-				}
-				// TODO: Handle tab
-
-				// chars = content[x];
-				const glyph = this._textureAtlas.getGlyph(content, x);
-
-				// TODO: Move math to gpu
-				// TODO: Render using a line offset for partial line scrolling
-				// TODO: Sub-pixel rendering
-				screenAbsoluteX = x * 7 * activeWindow.devicePixelRatio;
-				// TODO: This +10 is because the glyph is being rendered in the wrong position
-				screenAbsoluteY = Math.round(y * activeWindow.devicePixelRatio);
-				zeroToOneX = screenAbsoluteX / this._canvas.width;
-				zeroToOneY = screenAbsoluteY / this._canvas.height;
-				wgslX = zeroToOneX * 2 - 1;
-				wgslY = zeroToOneY * 2 - 1;
-
-				// TODO: We could upload the entire file as a grid, capping out lines at some reasonable amount (200?)
-				//       Optimize for the common case and fallback to a slower path for long line files
-				//       Doing the fast grid path would mean only the cell needs to change on data change, scrolling would simply change the start line index
-				//       Even better would be a grid for standard sized lines (~120?) and then another buffer that handles larger lines in a slower but more dynamic way
-
-				dataBuffer[charCount * Constants.IndicesPerCell + 0] = wgslX; // x
-				dataBuffer[charCount * Constants.IndicesPerCell + 1] = -wgslY; // y
-				dataBuffer[charCount * Constants.IndicesPerCell + 2] = 0;
-				dataBuffer[charCount * Constants.IndicesPerCell + 3] = 0;
-				dataBuffer[charCount * Constants.IndicesPerCell + 4] = glyph.index;     // textureIndex
-				dataBuffer[charCount * Constants.IndicesPerCell + 5] = 0;
-
-				charCount++;
-			}
-		}
-		// console.log('charCount: ' + charCount);
-		return charCount;
-	}
-}
-
-// #endregion Naive viewport render strategy
-
 // #region Full file render strategy
 
 const fullFileRenderStrategyWgsl = `
@@ -678,7 +501,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		private readonly _device: GPUDevice,
 		private readonly _canvas: HTMLCanvasElement,
 		private readonly _viewportData: ViewportData,
-		private readonly _textureAtlas: TextureAtlas
+		private readonly _textureAtlas: TextureAtlas,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 	}
 
@@ -707,16 +531,18 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 	}
 
 	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
+		let chars = '';
 		let y = 0;
 		let x = 0;
-		let screenAbsoluteX: number = 0;
-		let screenAbsoluteY: number = 0;
-		let zeroToOneX: number = 0;
-		let zeroToOneY: number = 0;
-		let wgslX: number = 0;
-		let wgslY: number = 0;
-		let chars: string = '';
-		let xOffset: number = 0;
+		let screenAbsoluteX = 0;
+		let screenAbsoluteY = 0;
+		let zeroToOneX = 0;
+		let zeroToOneY = 0;
+		let wgslX = 0;
+		let wgslY = 0;
+		let xOffset = 0;
+
+		let tokens: IViewLineTokens;
 
 		const activeWindow = getActiveWindow();
 
@@ -740,6 +566,11 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		let dirtyLineStart = Number.MAX_SAFE_INTEGER;
 		let dirtyLineEnd = 0;
 
+		const colorMap = this._themeService.getColorTheme().tokenColorMap;
+		// const theme = this._themeService.getColorTheme() as ColorThemeData;
+		// const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, defaultLanguage, true, definitions);
+		// console.log('colorMap', colorMap);
+
 		for (y = startLineNumber; y <= stopLineNumber; y++) {
 			if (upToDateLines.has(y)) {
 				continue;
@@ -747,42 +578,90 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 			dirtyLineStart = Math.min(dirtyLineStart, y);
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
-			const viewLineRenderingData = viewportData.getViewLineRenderingData(y);
-			const content = viewLineRenderingData.content;
+			const lineData = viewportData.getViewLineRenderingData(y);
+			const content = lineData.content;
 			xOffset = 0;
+
 			// TODO: Handle colors via viewLineRenderingData.tokens
-			console.log(viewLineRenderingData.tokens);
-			console.log('fgs');
-			for (let i = 0; i < viewLineRenderingData.tokens.getCount(); i++) {
-				console.log(`  ${viewLineRenderingData.tokens.getForeground(i)}`);
-			}
-			for (x = 0; x < FullFileRenderStrategy._columnCount; x++) {
-				const glyph = this._textureAtlas.getGlyph(content, x);
-				chars = content[x];
-				switch (chars) {
-					case ' ':
-						continue;
-					case '\t':
-						// TODO: Pull actual tab size
-						xOffset += 3;
+			// console.log(lineData.tokens);
+			// console.log('fg');
+			// for (let i = 0; i < lineData.tokens.getCount(); i++) {
+			// 	console.log(`  ${lineData.tokens.getForeground(i)}`);
+			// }
+
+			// See ViewLine#renderLine
+			// const renderLineInput = new RenderLineInput(
+			// 	options.useMonospaceOptimizations,
+			// 	options.canUseHalfwidthRightwardsArrow,
+			// 	lineData.content,
+			// 	lineData.continuesWithWrappedLine,
+			// 	lineData.isBasicASCII,
+			// 	lineData.containsRTL,
+			// 	lineData.minColumn - 1,
+			// 	lineData.tokens,
+			// 	actualInlineDecorations,
+			// 	lineData.tabSize,
+			// 	lineData.startVisibleColumn,
+			// 	options.spaceWidth,
+			// 	options.middotWidth,
+			// 	options.wsmiddotWidth,
+			// 	options.stopRenderingLineAfter,
+			// 	options.renderWhitespace,
+			// 	options.renderControlCharacters,
+			// 	options.fontLigatures !== EditorFontLigatures.OFF,
+			// 	selectionsOnLine
+			// );
+
+			tokens = lineData.tokens;
+			let tokenStartIndex = lineData.minColumn - 1;
+			let tokenFg: number;
+			for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
+				const tokenEndIndex = tokens.getEndOffset(tokenIndex);
+				if (tokenEndIndex <= tokenStartIndex) {
+					// The faux indent part of the line should have no token type
+					continue;
+				}
+				tokenFg = tokens.getForeground(tokenIndex);
+				// console.log(`token: start=${tokenStartIndex}, end=${tokenEndIndex}, fg=${colorMap[tokenFg]}`);
+
+
+				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
+					// HACK: Prevent rendering past the end of the render buffer
+					// TODO: This needs to move to a dynamic long line rendering strategy
+					if (x > FullFileRenderStrategy._columnCount) {
 						break;
+					}
+					chars = content.charAt(x);
+					switch (chars) {
+						case ' ':
+							continue;
+						case '\t':
+							// TODO: Pull actual tab size
+							xOffset += 3;
+							break;
+					}
+
+					const glyph = this._textureAtlas.getGlyph(chars, tokenFg);
+
+					screenAbsoluteX = (x + xOffset) * 7 * activeWindow.devicePixelRatio;
+					screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
+					zeroToOneX = screenAbsoluteX / this._canvas.width;
+					zeroToOneY = screenAbsoluteY / this._canvas.height;
+					wgslX = zeroToOneX * 2 - 1;
+					wgslY = zeroToOneY * 2 - 1;
+
+					const cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x - 1 + xOffset)) * Constants.IndicesPerCell;
+					cellBuffer[cellIndex + 0] = wgslX;       // x
+					cellBuffer[cellIndex + 1] = -wgslY;      // y
+					cellBuffer[cellIndex + 2] = 0;
+					cellBuffer[cellIndex + 3] = 0;
+					cellBuffer[cellIndex + 4] = glyph.index; // textureIndex
+					cellBuffer[cellIndex + 5] = 0;
 				}
 
-				screenAbsoluteX = (x + xOffset) * 7 * activeWindow.devicePixelRatio;
-				screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
-				zeroToOneX = screenAbsoluteX / this._canvas.width;
-				zeroToOneY = screenAbsoluteY / this._canvas.height;
-				wgslX = zeroToOneX * 2 - 1;
-				wgslY = zeroToOneY * 2 - 1;
-
-				const cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x - 1 + xOffset)) * Constants.IndicesPerCell;
-				cellBuffer[cellIndex + 0] = wgslX;       // x
-				cellBuffer[cellIndex + 1] = -wgslY;      // y
-				cellBuffer[cellIndex + 2] = 0;
-				cellBuffer[cellIndex + 3] = 0;
-				cellBuffer[cellIndex + 4] = glyph.index; // textureIndex
-				cellBuffer[cellIndex + 5] = 0;
+				tokenStartIndex = tokenEndIndex;
 			}
+
 			upToDateLines.add(y);
 		}
 

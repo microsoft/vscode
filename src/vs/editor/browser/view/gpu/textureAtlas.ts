@@ -4,21 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { TwoKeyMap } from 'vs/editor/browser/view/gpu/multiKeyMap';
+import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { ITextureAtlasAllocator, TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/textureAtlasAllocator';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TextureAtlas extends Disposable {
 	private readonly _canvas: OffscreenCanvas;
 	private readonly _ctx: OffscreenCanvasRenderingContext2D;
 
-	private readonly _glyphMap: Map<string, ITextureAtlasGlyph> = new Map();
+	private readonly _glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
+	// HACK: This is an ordered set of glyphs to be passed to the GPU since currently the shader
+	//       uses the index of the glyph. This should be improved to derive from _glyphMap
+	private readonly _glyphInOrderSet: Set<ITextureAtlasGlyph> = new Set();
 	public get glyphs(): IterableIterator<ITextureAtlasGlyph> {
-		return this._glyphMap.values();
+		return this._glyphInOrderSet.values();
 	}
 
 	private readonly _glyphRasterizer: GlyphRasterizer;
 	private readonly _allocator: ITextureAtlasAllocator;
+
+	private _colorMap!: string[];
+	private _warmUpTask?: IdleTaskQueue;
 
 	public get source(): OffscreenCanvas {
 		return this._canvas;
@@ -27,7 +37,11 @@ export class TextureAtlas extends Disposable {
 	public hasChanges = false;
 
 	// TODO: Should pull in the font size from config instead of random dom node
-	constructor(parentDomNode: HTMLElement, maxTextureSize: number) {
+	constructor(
+		parentDomNode: HTMLElement,
+		maxTextureSize: number,
+		@IThemeService private readonly _themeService: IThemeService
+	) {
 		super();
 
 		this._canvas = new OffscreenCanvas(maxTextureSize, maxTextureSize);
@@ -40,6 +54,12 @@ export class TextureAtlas extends Disposable {
 		const fontSize = Math.ceil(parseInt(style.fontSize.replace('px', '')) * activeWindow.devicePixelRatio);
 		this._ctx.font = `${fontSize}px ${style.fontFamily}`;
 
+		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
+			// TODO: Clear entire atlas on theme change
+			this._colorMap = this._themeService.getColorTheme().tokenColorMap;
+			this._warmUpAtlas();
+		}));
+
 		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
 		this._allocator = new TextureAtlasShelfAllocator(this._canvas, this._ctx);
 
@@ -51,24 +71,42 @@ export class TextureAtlas extends Disposable {
 	}
 
 	// TODO: Color, style etc.
-	public getGlyph(lineContent: string, glyphIndex: number): ITextureAtlasGlyph {
-		const chars = lineContent.charAt(glyphIndex);
-		let glyph: ITextureAtlasGlyph | undefined = this._glyphMap.get(chars);
+	public getGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
+		let glyph: ITextureAtlasGlyph | undefined = this._glyphMap.get(chars, tokenFg);
 		if (glyph) {
 			return glyph;
 		}
-		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars);
+		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars, this._colorMap[tokenFg]);
 		glyph = this._allocator.allocate(rasterizedGlyph);
-		this._glyphMap.set(chars, glyph);
+		this._glyphMap.set(chars, tokenFg, glyph);
+		this._glyphInOrderSet.add(glyph);
 		this.hasChanges = true;
 
 		console.log('New glyph', {
 			chars,
+			fg: this._colorMap[tokenFg],
 			rasterizedGlyph,
 			glyph
 		});
 
 		return glyph;
+	}
+
+	/**
+	 * Warms up the atlas by rasterizing all printable ASCII characters for each token color. This
+	 * is distrubuted over multiple idle callbacks to avoid blocking the main thread.
+	 */
+	private _warmUpAtlas(): void {
+		// TODO: Clean up on dispose
+		this._warmUpTask?.clear();
+		this._warmUpTask = new IdleTaskQueue();
+		for (const tokenFg of this._colorMap.keys()) {
+			this._warmUpTask.enqueue(() => {
+				for (let code = 33; code < 126; code++) {
+					this.getGlyph(String.fromCharCode(code), tokenFg);
+				}
+			});
+		}
 	}
 }
 
@@ -91,12 +129,13 @@ class GlyphRasterizer extends Disposable {
 
 	// TODO: Support drawing multiple fonts and sizes
 	// TODO: Should pull in the font size from config instead of random dom node
-	public rasterizeGlyph(chars: string): IRasterizedGlyph {
+	public rasterizeGlyph(chars: string, fg: string): IRasterizedGlyph {
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
 		// TODO: Draw in middle using alphabetical baseline
 		const originX = this._fontSize;
 		const originY = this._fontSize;
+		this._ctx.fillStyle = fg;
 		this._ctx.fillText(chars, originX, originY);
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);

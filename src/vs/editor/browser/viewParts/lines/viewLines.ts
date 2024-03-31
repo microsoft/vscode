@@ -24,6 +24,7 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Viewport } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class LastRenderedData {
 
@@ -120,11 +121,15 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _stickyScrollEnabled: boolean;
 	private _maxNumberStickyLines: number;
 
-	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
+	constructor(
+		context: ViewContext,
+		linesContent: FastDomNode<HTMLElement>,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 		super(context);
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
-		this._visibleLines = new VisibleLinesCollection(this);
+		this._visibleLines = instantiationService.createInstance(VisibleLinesCollection, this);
 		this.domNode = this._visibleLines.domNode;
 
 		const conf = this._context.configuration;
