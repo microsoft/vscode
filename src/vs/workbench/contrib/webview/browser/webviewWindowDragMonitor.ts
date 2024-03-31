@@ -32,5 +32,11 @@ export class WebviewWindowDragMonitor extends Disposable {
 				onDragEnd();
 			}
 		}));
+
+		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG, (event) => {
+			if (event.shiftKey) {
+				onDragEnd();
+			}
+		}));
 	}
 }
