@@ -569,9 +569,10 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		// const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, defaultLanguage, true, definitions);
 
 		for (y = startLineNumber; y <= stopLineNumber; y++) {
-			if (upToDateLines.has(y)) {
-				continue;
-			}
+			// TODO: Update on dirty lines; is this known by line before rendering?
+			// if (upToDateLines.has(y)) {
+			// 	continue;
+			// }
 			dirtyLineStart = Math.min(dirtyLineStart, y);
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
@@ -611,9 +612,10 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 			tokens = lineData.tokens;
 			let tokenStartIndex = lineData.minColumn - 1;
+			let tokenEndIndex = 0;
 			let tokenFg: number;
 			for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
-				const tokenEndIndex = tokens.getEndOffset(tokenIndex);
+				tokenEndIndex = tokens.getEndOffset(tokenIndex);
 				if (tokenEndIndex <= tokenStartIndex) {
 					// The faux indent part of the line should have no token type
 					continue;
@@ -658,6 +660,11 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 				tokenStartIndex = tokenEndIndex;
 			}
+
+			// Clear to end of line
+			const fillStartIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (tokenEndIndex + xOffset)) * Constants.IndicesPerCell;
+			const fillEndIndex = (y * FullFileRenderStrategy._columnCount) * Constants.IndicesPerCell;
+			cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 
 			upToDateLines.add(y);
 		}
