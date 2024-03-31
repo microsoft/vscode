@@ -48,6 +48,32 @@ export function setup(logger: Logger) {
 			await app.workbench.search.removeFileMatch('app.js', '2 results in 2 files');
 		});
 
+		it('navigates search results & checks for correct selection after removal', async function () {
+			const app = this.app as Application;
+			await app.workbench.search.openSearchViewlet();
+			await app.workbench.search.searchFor('body');
+
+			// Go to the first result not in app.js
+			await app.workbench.search.waitForSelectNextResult();
+			await app.workbench.search.waitForSelectNextResult();
+			await app.workbench.search.waitForSelectNextResult();
+			await app.workbench.search.waitForSelectNextResult();
+			await app.workbench.search.waitForSelectNextResult();
+
+			// Delete the next result (only result in style.css)
+			await app.code.dispatchKeybinding('Backspace');
+
+			// Should go to the result in layout.pug
+			await app.workbench.search.waitForSelectNextResult();
+			// Delete the next result (only result in style.css)
+			await app.code.dispatchKeybinding('Backspace');
+			await app.code.dispatchKeybinding('escape');
+
+			// The only results left should be in app.js
+			await app.workbench.search.searchFor('body');
+			await app.workbench.search.waitForResultText('4 results in 1 file');
+		});
+
 		it.skip('replaces first search result with a replace term', async function () { // TODO@roblourens https://github.com/microsoft/vscode/issues/137195
 			const app = this.app as Application;
 

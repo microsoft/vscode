@@ -126,6 +126,10 @@ export class Search extends Viewlet {
 		await this.code.waitForTextContent(`${VIEWLET} .messages`, undefined, text => text === '' || text.startsWith('Search was canceled before any results could be found'), retryCount);
 	}
 
+	async waitForSelectNextResult(): Promise<void> {
+		await this.code.dispatchKeybinding('F4');
+	}
+
 	private async waitForInputFocus(selector: string): Promise<void> {
 		let retries = 0;
 
