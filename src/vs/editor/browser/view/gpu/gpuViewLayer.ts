@@ -750,6 +750,12 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 			const viewLineRenderingData = viewportData.getViewLineRenderingData(y);
 			const content = viewLineRenderingData.content;
 			xOffset = 0;
+			// TODO: Handle colors via viewLineRenderingData.tokens
+			console.log(viewLineRenderingData.tokens);
+			console.log('fgs');
+			for (let i = 0; i < viewLineRenderingData.tokens.getCount(); i++) {
+				console.log(`  ${viewLineRenderingData.tokens.getForeground(i)}`);
+			}
 			for (x = 0; x < FullFileRenderStrategy._columnCount; x++) {
 				const glyph = this._textureAtlas.getGlyph(content, x);
 				chars = content[x];
@@ -763,8 +769,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 				}
 
 				screenAbsoluteX = (x + xOffset) * 7 * activeWindow.devicePixelRatio;
-				// TODO: Send scroll offset instead of setting it here such that the cell data doesn't need to change when scrolling
-				screenAbsoluteY = (Math.round(deltaTop[y - startLineNumber] + viewportData.lineHeight) * activeWindow.devicePixelRatio);
+				screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
 				zeroToOneX = screenAbsoluteX / this._canvas.width;
 				zeroToOneY = screenAbsoluteY / this._canvas.height;
 				wgslX = zeroToOneX * 2 - 1;
