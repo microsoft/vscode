@@ -550,12 +550,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		const activeWindow = getActiveWindow();
 
 		// Update scroll offset
-		let scrollTop = parseInt(this._canvas.parentElement!.getAttribute('data-adjusted-scroll-top')!);
-		if (Number.isNaN(scrollTop)) {
-			scrollTop = 0;
-		} else {
-			scrollTop *= activeWindow.devicePixelRatio;
-		}
+		// TODO: Get at ViewModel in a safe way
+		const scrollTop = (this._viewportData as any)._model.viewLayout.getCurrentScrollTop() * activeWindow.devicePixelRatio;
 		const scrollOffsetBuffer = this._scrollOffsetValueBuffers[this._activeDoubleBufferIndex];
 		scrollOffsetBuffer[1] = scrollTop;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, scrollOffsetBuffer);
