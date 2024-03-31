@@ -117,8 +117,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			GpuViewLayerRenderer._testCanvas.style.width = `${this._device.limits.maxTextureDimension2D / getActiveWindow().devicePixelRatio}px`;
 			GpuViewLayerRenderer._testCanvas.style.height = `${this._device.limits.maxTextureDimension2D / getActiveWindow().devicePixelRatio}px`;
 			GpuViewLayerRenderer._testCanvas.style.position = 'absolute';
-			GpuViewLayerRenderer._testCanvas.style.top = '0';
-			GpuViewLayerRenderer._testCanvas.style.left = '0';
+			GpuViewLayerRenderer._testCanvas.style.top = '2px';
+			GpuViewLayerRenderer._testCanvas.style.left = '2px';
 			GpuViewLayerRenderer._testCanvas.style.zIndex = '10000';
 			GpuViewLayerRenderer._testCanvas.style.pointerEvents = 'none';
 			GpuViewLayerRenderer._testCtx = ensureNonNullable(GpuViewLayerRenderer._testCanvas.getContext('2d'));
@@ -632,13 +632,13 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 						break;
 					}
 					chars = content.charAt(x);
-					switch (chars) {
-						case ' ':
-							continue;
-						case '\t':
-							// TODO: Pull actual tab size
-							xOffset += 3;
-							break;
+					if (chars === ' ') {
+						continue;
+					}
+					if (chars === '\t') {
+						// TODO: Pull actual tab size
+						xOffset += 3;
+						continue;
 					}
 
 					const glyph = this._textureAtlas.getGlyph(chars, tokenFg);

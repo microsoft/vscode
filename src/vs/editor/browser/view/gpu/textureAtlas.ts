@@ -102,7 +102,7 @@ export class TextureAtlas extends Disposable {
 		this._warmUpTask = new IdleTaskQueue();
 		for (const tokenFg of this._colorMap.keys()) {
 			this._warmUpTask.enqueue(() => {
-				for (let code = 33; code < 126; code++) {
+				for (let code = 33; code <= 126; code++) {
 					this.getGlyph(String.fromCharCode(code), tokenFg);
 				}
 			});
