@@ -47,7 +47,6 @@ export class ShowSignalSoundHelp extends Action2 {
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.sound') !== 'never');
-		const isScreenReaderOptimized = accessibilityService.isScreenReaderOptimized();
 		qp.onDidAccept(() => {
 			const enabledSounds = qp.selectedItems.map(i => i.signal);
 			const disabledSounds = qp.items.map(i => (i as any).signal).filter(i => !enabledSounds.includes(i));
@@ -60,6 +59,7 @@ export class ShowSignalSoundHelp extends Action2 {
 					configurationService.updateValue(signal.settingsKey, { sound });
 				}
 			}
+			const isScreenReaderOptimized = accessibilityService.isScreenReaderOptimized();
 			for (const signal of disabledSounds) {
 				let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(signal.settingsKey);
 				const userGestureSignal = userGestureSignals.includes(signal);
