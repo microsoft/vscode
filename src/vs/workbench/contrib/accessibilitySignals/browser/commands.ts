@@ -43,7 +43,7 @@ export class ShowSignalSoundHelp extends Action2 {
 				tooltip: localize('sounds.help.settings', 'Configure Sound'),
 				alwaysVisible: true
 			}] : []
-		}));
+		})).sort((a, b) => a.label.localeCompare(b.label));
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.sound') !== 'never');
@@ -113,7 +113,7 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 				tooltip: localize('announcement.help.settings', 'Configure Announcement'),
 				alwaysVisible: true,
 			}] : []
-		}));
+		})).sort((a, b) => a.label.localeCompare(b.label));
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isAnnouncementEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.announcement') !== 'never');

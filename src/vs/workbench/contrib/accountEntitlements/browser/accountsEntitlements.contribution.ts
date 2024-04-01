@@ -32,7 +32,7 @@ const accountsBadgeConfigKey = 'workbench.accounts.experimental.showEntitlements
 const chatWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
 
 type EntitlementEnablementClassification = {
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if the entitlement is enabled' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the entitlement is enabled' };
 	owner: 'bhavyaus';
 	comment: 'Reporting when the entitlement is shown';
 };

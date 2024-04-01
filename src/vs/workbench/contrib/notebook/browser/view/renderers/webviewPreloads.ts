@@ -271,6 +271,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
 		}
 	};
+
+	const blurOutput = () => {
+		const selection = window.getSelection();
+		if (!selection) {
+			return;
+		}
+		selection.removeAllRanges();
+	};
+
 	const selectOutputContents = (cellOrOutputId: string) => {
 		const selection = window.getSelection();
 		if (!selection) {
@@ -689,7 +698,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		element.id = `focus-sink-${cellId}`;
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
-			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
+			postNotebookMessage<webviewMessages.IFocusEditorMessage>('focus-editor', {
 				cellId: cellId,
 				focusNext
 			});
@@ -1732,6 +1741,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'focus-output':
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
+			case 'blur-output':
+				blurOutput();
+				break;
 			case 'select-output-contents':
 				selectOutputContents(event.data.cellOrOutputId);
 				break;
@@ -2699,7 +2711,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 			outputElement/** outputNode */.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
 
 			if (!!data.executionId && !!data.rendererId) {
-				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
+				let outputSize: number | undefined = undefined;
+				let mimeType: string | undefined = undefined;
+				if (data.content.type === 1 /* extension */) {
+					outputSize = data.content.output.valueBytes.length;
+					mimeType = data.content.output.mime;
+				}
+
+				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
+					cellId: data.cellId,
+					executionId: data.executionId,
+					duration: Date.now() - startTime,
+					rendererId: data.rendererId,
+					outputSize,
+					mimeType
+				});
 			}
 		}
 
