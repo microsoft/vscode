@@ -12,7 +12,8 @@ import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, FontWeight, ITerminalCon
 export class TerminalConfigurationService extends Disposable implements ITerminalConfigurationService {
 	declare _serviceBrand: undefined;
 
-	config!: ITerminalConfiguration;
+	private _config!: Readonly<ITerminalConfiguration>;
+	get config() { return this._config; }
 
 	private readonly _onConfigChanged = new Emitter<void>();
 	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
@@ -32,7 +33,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 		const configValues = { ...this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION) };
 		configValues.fontWeight = this._normalizeFontWeight(configValues.fontWeight, DEFAULT_FONT_WEIGHT);
 		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
-		this.config = configValues;
+		this._config = configValues;
 		this._onConfigChanged.fire();
 	}
 

@@ -362,7 +362,7 @@ export interface ITerminalConfigurationService {
 	/**
 	 * A typed and partially validated representation of the terminal configuration.
 	 */
-	readonly config: ITerminalConfiguration;
+	readonly config: Readonly<ITerminalConfiguration>;
 
 	/**
 	 * Fires when something within the terminal configuration changes.
