@@ -155,12 +155,14 @@ export async function getCodeActions(
 
 	try {
 		const actions = await Promise.all(promises);
-		const allActions = actions.map(x => x.actions).flat();
+		const allActions = actions.flatMap(x => x.actions);
 		const allDocumentation = [
 			...coalesce(actions.map(x => x.documentation)),
 			...getAdditionalDocumentationForShowingActions(registry, model, trigger, allActions)
 		];
-		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
+		const result = new ManagedCodeActionSet(allActions, allDocumentation, disposables);
+		result.dispose();
+		return result;
 	} finally {
 		listener.dispose();
 		cts.dispose();

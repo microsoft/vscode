@@ -39,10 +39,8 @@ suite('CodeActionModel', () => {
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
 	let registry: LanguageFeatureRegistry<languages.CodeActionProvider>;
-	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables.clear();
 		markerService = new MarkerService();
 		model = createTextModel('foobar  foo bar\nfarboo far boo', languageId, undefined, uri);
 		editor = createTestCodeEditor(model);
@@ -50,10 +48,9 @@ suite('CodeActionModel', () => {
 		registry = new LanguageFeatureRegistry();
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => {
-		disposables.clear();
 		editor.dispose();
 		model.dispose();
 		markerService.dispose();
@@ -64,11 +61,11 @@ suite('CodeActionModel', () => {
 
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
 			const reg = registry.register(languageId, testProvider);
-			disposables.add(reg);
+			store.add(reg);
 
 			const contextKeys = new MockContextKeyService();
-			const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
-			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+			const model = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
+			store.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
 				assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
@@ -96,7 +93,7 @@ suite('CodeActionModel', () => {
 	test('Oracle -> position changed', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
 			const reg = registry.register(languageId, testProvider);
-			disposables.add(reg);
+			store.add(reg);
 
 			markerService.changeOne('fake', uri, [{
 				startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
@@ -110,8 +107,8 @@ suite('CodeActionModel', () => {
 
 			return new Promise((resolve, reject) => {
 				const contextKeys = new MockContextKeyService();
-				const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
-				disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+				const model = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
+				store.add(model.onDidChangeState((e: CodeActionsState.State) => {
 					assertType(e.type === CodeActionsState.Type.Triggered);
 
 					assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
@@ -132,12 +129,12 @@ suite('CodeActionModel', () => {
 		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
 			const reg = registry.register(languageId, testProvider);
-			disposables.add(reg);
+			store.add(reg);
 
 			let triggerCount = 0;
 			const contextKeys = new MockContextKeyService();
-			const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
-			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+			const model = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
+			store.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
 				assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
