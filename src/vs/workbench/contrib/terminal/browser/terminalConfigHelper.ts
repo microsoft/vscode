@@ -6,11 +6,10 @@
 import * as nls from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import { ITerminalConfigHelper, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Emitter, Event } from 'vs/base/common/event';
+import { ITerminalConfigHelper, ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { basename } from 'vs/base/common/path';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,10 +35,6 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 	private _charMeasureElement: HTMLElement | undefined;
 	private _lastFontMeasurement: ITerminalFont | undefined;
 	protected _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
-	config!: ITerminalConfiguration;
-
-	private readonly _onConfigChanged = this._register(new Emitter<void>());
-	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -47,14 +42,9 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IProductService private readonly _productService: IProductService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super();
-		this._updateConfig();
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
-				this._updateConfig();
-			}
-		}));
 		if (isLinux) {
 			if (navigator.userAgent.includes('Ubuntu')) {
 				this._linuxDistro = LinuxDistro.Ubuntu;
@@ -64,18 +54,9 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 		}
 	}
 
-	private _updateConfig(): void {
-		const configValues = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-		configValues.fontWeight = this._normalizeFontWeight(configValues.fontWeight, DEFAULT_FONT_WEIGHT);
-		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
-
-		this.config = configValues;
-		this._onConfigChanged.fire();
-	}
-
 	configFontIsMonospace(): boolean {
 		const fontSize = 15;
-		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+		const fontFamily = this._terminalConfigurationService.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		const iRect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		const wRect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
@@ -139,7 +120,7 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 			this._lastFontMeasurement.charHeight = Math.ceil(rect.height);
 			// Char width is calculated differently for DOM and the other renderer types. Refer to
 			// how each renderer updates their dimensions in xterm.js
-			if (this.config.gpuAcceleration === 'off') {
+			if (this._terminalConfigurationService.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
 				const deviceCharWidth = Math.floor(rect.width * w.devicePixelRatio);
@@ -159,11 +140,11 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
-		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		let fontSize = this._clampInt(this.config.fontSize, FontConstants.MinimumFontSize, FontConstants.MaximumFontSize, EDITOR_FONT_DEFAULTS.fontSize);
+		let fontFamily = this._terminalConfigurationService.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+		let fontSize = this._clampInt(this._terminalConfigurationService.config.fontSize, FontConstants.MinimumFontSize, FontConstants.MaximumFontSize, EDITOR_FONT_DEFAULTS.fontSize);
 
 		// Work around bad font on Fedora/Ubuntu
-		if (!this.config.fontFamily) {
+		if (!this._terminalConfigurationService.config.fontFamily) {
 			if (this._linuxDistro === LinuxDistro.Fedora) {
 				fontFamily = '\'DejaVu Sans Mono\'';
 			}
@@ -178,8 +159,8 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 		// Always fallback to monospace, otherwise a proportional font may become the default
 		fontFamily += ', monospace';
 
-		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
-		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+		const letterSpacing = this._terminalConfigurationService.config.letterSpacing ? Math.max(Math.floor(this._terminalConfigurationService.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
+		const lineHeight = this._terminalConfigurationService.config.lineHeight ? Math.max(this._terminalConfigurationService.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
 		if (excludeDimensions) {
 			return {
@@ -263,12 +244,5 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 	private async _isExtensionInstalled(id: string): Promise<boolean> {
 		const extensions = await this._extensionManagementService.getInstalled();
 		return extensions.some(e => e.identifier.id === id);
-	}
-
-	private _normalizeFontWeight(input: any, defaultWeight: FontWeight): FontWeight {
-		if (input === 'normal' || input === 'bold') {
-			return input;
-		}
-		return this._clampInt(input, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, defaultWeight);
 	}
 }

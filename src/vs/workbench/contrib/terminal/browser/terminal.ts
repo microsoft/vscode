@@ -31,6 +31,7 @@ import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/wo
 import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -87,7 +88,6 @@ export interface ITerminalInstanceService {
 }
 
 export interface ITerminalConfigHelper {
-	config: ITerminalConfiguration;
 	panelContainer: HTMLElement | undefined;
 
 	configFontIsMonospace(): boolean;
@@ -352,6 +352,26 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
+
+/**
+ * A service that provides convenient access to the terminal configuration and derived values.
+ */
+export interface ITerminalConfigurationService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * A typed and partially validated representation of the terminal configuration.
+	 */
+	readonly config: Readonly<ITerminalConfiguration>;
+
+	/**
+	 * Fires when something within the terminal configuration changes.
+	 */
+	readonly onConfigChanged: Event<void>;
+
+	// TODO: Expose xterm.js font metrics here
+}
+
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
 }
