@@ -15,11 +15,6 @@ export interface IXtermCore {
 		_innerRefresh(): void;
 	};
 
-	_charSizeService: {
-		width: number;
-		height: number;
-	};
-
 	_inputHandler: {
 		_curAttrData: XtermAttributes;
 	};
