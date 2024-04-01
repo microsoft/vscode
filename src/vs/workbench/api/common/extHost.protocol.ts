@@ -1322,7 +1322,7 @@ export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
 	$acceptChatState(sessionId: number, state: any): Promise<void>;
 	$unregisterChatProvider(handle: number): Promise<void>;
-	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void;
+	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
 
 export interface ExtHostChatShape {
