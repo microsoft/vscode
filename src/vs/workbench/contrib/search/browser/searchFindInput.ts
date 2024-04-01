@@ -58,8 +58,9 @@ export class SearchFindInput extends ContextScopedFindInput {
 
 		this.setAdditionalToggles([this._aiButton]);
 
-
-		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width + (this._aiButton?.width() ?? 0);
+		// ensure that ai button is visible if it should be
+		this._aiButton.domNode.style.display = _shouldShowAIButton ? '' : 'none';
+		this._updatePaddingRight();
 
 		this.controls.appendChild(this._findFilter.container);
 		this._findFilter.container.classList.add('monaco-custom-toggle');
@@ -79,8 +80,6 @@ export class SearchFindInput extends ContextScopedFindInput {
 			}
 		}));
 
-		// ensure that ai button is visible if it should be
-		this._aiButton.domNode.style.display = _shouldShowAIButton ? '' : 'none';
 	}
 
 	set shouldShowAIButton(visible: boolean) {
@@ -94,6 +93,7 @@ export class SearchFindInput extends ContextScopedFindInput {
 		this._findFilter.container.style.display = visible ? '' : 'none';
 		this._visible = visible;
 		this.updateStyles();
+		this._updatePaddingRight();
 	}
 
 	override setEnabled(enabled: boolean) {
@@ -121,6 +121,11 @@ export class SearchFindInput extends ContextScopedFindInput {
 	get isAIEnabled() {
 		return this._aiButton.checked;
 	}
+
+	private _updatePaddingRight() {
+		const aiButtonWidth = (this._aiButton && this._aiButton.visible) ? this._aiButton.width() : 0;
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width + aiButtonWidth;
+	}
 }
 
 class AIToggle extends Toggle {
@@ -134,5 +139,9 @@ class AIToggle extends Toggle {
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
+	}
+
+	get visible(): boolean {
+		return this.domNode.style.display !== 'none';
 	}
 }
