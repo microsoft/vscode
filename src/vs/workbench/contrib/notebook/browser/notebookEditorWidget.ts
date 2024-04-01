@@ -409,6 +409,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.id = `notebook-${id}`;
 		this._overlayContainer.className = 'notebookOverlay';
 		this._overlayContainer.classList.add('notebook-editor');
+		this._overlayContainer.inert = true;
 		this._overlayContainer.style.visibility = 'hidden';
 
 		container.appendChild(this._overlayContainer);
@@ -1839,6 +1840,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._list.updateOptions({ paddingBottom: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : 0, paddingTop: 0 });
 		}
 
+		this._overlayContainer.inert = false;
 		this._overlayContainer.style.visibility = 'visible';
 		this._overlayContainer.style.display = 'block';
 		this._overlayContainer.style.position = 'absolute';
@@ -1968,6 +1970,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	onWillHide() {
 		this._isVisible = false;
 		this._editorFocus.set(false);
+		this._overlayContainer.inert = true;
 		this._overlayContainer.style.visibility = 'hidden';
 		this._overlayContainer.style.left = '-50000px';
 		this._notebookTopToolbarContainer.style.display = 'none';
