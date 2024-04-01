@@ -254,7 +254,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		type AuxiliaryWindowClassification = {
 			owner: 'bpasero';
 			comment: 'An event that fires when an auxiliary window is opened';
-			bounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Has window bounds provided.' };
+			bounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Has window bounds provided.' };
 		};
 		type AuxiliaryWindowOpenEvent = {
 			bounds: boolean;
