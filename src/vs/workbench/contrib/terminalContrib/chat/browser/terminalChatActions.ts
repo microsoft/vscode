@@ -224,16 +224,12 @@ registerActiveXtermAction({
 		TerminalChatContextKeys.responseContainsCodeBlock,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks.negate()
 	),
-	keybinding: [{
+	keybinding: {
 		when: TerminalChatContextKeys.requestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Alt | KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt]
 	},
-	{
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, CTX_INLINE_CHAT_FOCUSED),
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt
-	}],
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
@@ -265,10 +261,6 @@ registerActiveXtermAction({
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Alt | KeyCode.Enter,
 		secondary: [KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt]
-	}, {
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, CTX_INLINE_CHAT_FOCUSED),
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt
 	}],
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
