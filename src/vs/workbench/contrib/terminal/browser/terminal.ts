@@ -88,10 +88,6 @@ export interface ITerminalInstanceService {
 }
 
 export interface ITerminalConfigHelper {
-	/**
-	 * @deprecated Use `ITerminalConfigurationService.config` instead.
-	 */
-	config: ITerminalConfiguration;
 	panelContainer: HTMLElement | undefined;
 
 	configFontIsMonospace(): boolean;
