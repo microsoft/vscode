@@ -150,7 +150,6 @@ suite('Workbench - TerminalInstance', () => {
 		let mockMultiRootWorkspace: Workspace;
 		let emptyWorkspace: Workspace;
 		let capabilities: TerminalCapabilityStore;
-		let terminalConfigService: ITerminalConfigurationService;
 
 		function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
 			const capabilities = store.add(new TerminalCapabilityStore());
