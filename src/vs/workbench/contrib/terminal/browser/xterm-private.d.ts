@@ -40,9 +40,7 @@ export interface IXtermCore {
 			}
 		},
 		_renderer: {
-			value?: {
-				_renderLayers?: any[];
-			}
+			value?: unknown;
 		};
 		_handleIntersectionChange: any;
 	};
