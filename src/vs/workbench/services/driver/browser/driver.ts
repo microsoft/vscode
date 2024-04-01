@@ -175,7 +175,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 			throw new Error(`Element not found: ${selector}`);
 		}
 
-		const xterm = (element as any).xterm as XtermTerminal;
+		const xterm = (element as any).xterm as (XtermTerminal | undefined);
 
 		if (!xterm) {
 			throw new Error(`Xterm not found: ${selector}`);
