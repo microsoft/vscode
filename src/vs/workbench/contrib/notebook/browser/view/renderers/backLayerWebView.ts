@@ -930,25 +930,25 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return initializePromise.p;
 	}
 
-	private _sendPerformanceData(mimeType: string, outputSize: number, duration: number) {
+	private _sendPerformanceData(mimeType: string, outputSize: number, renderTime: number) {
 		type NotebookOutputPerfClassification = {
 			owner: 'amunger';
 			comment: 'Track performance data for output rendering';
-			mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total time, including execution time, presented to the user' };
-			outputSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent outside of executing or rendering.' };
-			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent rendering output.' };
+			mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Presentation type of the output.' };
+			outputSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Size of the output data buffer.'; isMeasurement: true };
+			renderTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent rendering output.'; isMeasurement: true };
 		};
 
 		type NotebookOutputPerfEvent = {
 			mimeType: string;
 			outputSize: number;
-			duration: number | undefined;
+			renderTime: number;
 		};
 
 		const telemetryData = {
 			mimeType,
 			outputSize,
-			duration
+			renderTime
 		};
 
 		this.telemetryService.publicLog2<NotebookOutputPerfEvent, NotebookOutputPerfClassification>('notebookCellPerformance', telemetryData);
