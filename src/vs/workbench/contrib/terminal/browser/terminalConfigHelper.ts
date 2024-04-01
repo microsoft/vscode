@@ -10,7 +10,6 @@ import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, IT
 import Severity from 'vs/base/common/severity';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { ITerminalConfigHelper, ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,9 +35,6 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 	private _charMeasureElement: HTMLElement | undefined;
 	private _lastFontMeasurement: ITerminalFont | undefined;
 	protected _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
-
-	private readonly _onConfigChanged = this._register(new Emitter<void>());
-	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
