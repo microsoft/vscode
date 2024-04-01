@@ -13,7 +13,6 @@ import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
 import * as dom from 'vs/base/browser/dom';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -181,7 +180,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	 */
 	constructor(
 		xtermCtor: typeof RawXtermTerminal,
-		private readonly _configHelper: TerminalConfigHelper,
 		cols: number,
 		rows: number,
 		private readonly _xtermColorProvider: IXtermColorProvider,
@@ -201,7 +199,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@ILayoutService layoutService: ILayoutService
 	) {
 		super();
-		const font = this._configHelper.getFont(dom.getActiveWindow(), undefined, true);
+		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), undefined, true);
 		const config = this._terminalConfigurationService.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
@@ -496,7 +494,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	getFont(): ITerminalFont {
-		return this._configHelper.getFont(dom.getWindow(this.raw.element), this._core);
+		return this._terminalConfigurationService.getFont(dom.getWindow(this.raw.element), this._core);
 	}
 
 	getLongestViewportWrappedLineLength(): number {

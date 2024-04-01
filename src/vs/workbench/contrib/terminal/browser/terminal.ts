@@ -29,6 +29,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -85,13 +86,6 @@ export interface ITerminalInstanceService {
 
 	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
 	didRegisterBackend(remoteAuthority?: string): void;
-}
-
-export interface ITerminalConfigHelper {
-	panelContainer: HTMLElement | undefined;
-
-	configFontIsMonospace(): boolean;
-	getFont(w: Window): ITerminalFont;
 }
 
 export const enum Direction {
@@ -247,7 +241,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
 	readonly detachedInstances: Iterable<IDetachedTerminalInstance>;
-	readonly configHelper: ITerminalConfigHelper;
 	readonly defaultLocation: TerminalLocation;
 
 	readonly isProcessSupportRegistered: boolean;
@@ -368,7 +361,9 @@ export interface ITerminalConfigurationService {
 	 */
 	readonly onConfigChanged: Event<void>;
 
-	// TODO: Expose xterm.js font metrics here
+	setPanelContainer(panelContainer: HTMLElement): void;
+	configFontIsMonospace(): boolean;
+	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont;
 }
 
 export class TerminalLinkQuickPickEvent extends MouseEvent {
