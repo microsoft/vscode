@@ -9,6 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import * as languages from 'vs/editor/common/languages';
@@ -48,6 +49,8 @@ suite('CodeActionModel', () => {
 		editor.setPosition({ lineNumber: 1, column: 1 });
 		registry = new LanguageFeatureRegistry();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => {
 		disposables.clear();
