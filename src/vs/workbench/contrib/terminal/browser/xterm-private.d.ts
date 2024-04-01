@@ -34,7 +34,3 @@ export interface IXtermCore {
 		_handleIntersectionChange: any;
 	};
 }
-
-export interface IEventEmitter<T> {
-	fire(e: T): void;
-}
