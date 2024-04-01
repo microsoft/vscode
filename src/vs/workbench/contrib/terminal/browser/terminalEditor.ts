@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -211,12 +211,23 @@ export class TerminalEditor extends EditorPane {
 				if (action instanceof MenuItemAction) {
 					const location = { viewColumn: ACTIVE_GROUP };
 					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
 					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate });
 					return button;
 				}
 			}
 		}
 		return super.getActionViewItem(action, options);
+	}
+
+	/**
+	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
+	 */
+	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
+		if (dropdownAction instanceof Action) {
+			this._register(dropdownAction);
+		}
+		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._register(a));
 	}
 
 	private _getDefaultProfileName(): string {

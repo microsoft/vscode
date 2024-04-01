@@ -272,6 +272,7 @@ export class TerminalViewPane extends ViewPane {
 			case TerminalCommandId.New: {
 				if (action instanceof MenuItemAction) {
 					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
 					this._newDropdown?.dispose();
 					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate }, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
 					this._updateTabActionBar(this._terminalProfileService.availableProfiles);
@@ -280,6 +281,16 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}
 		return super.getActionViewItem(action, options);
+	}
+
+	/**
+	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
+	 */
+	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
+		if (dropdownAction instanceof Action) {
+			this._register(dropdownAction);
+		}
+		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._register(a));
 	}
 
 	private _getDefaultProfileName(): string {
@@ -298,6 +309,7 @@ export class TerminalViewPane extends ViewPane {
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
 		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+		this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
 		this._newDropdown?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
