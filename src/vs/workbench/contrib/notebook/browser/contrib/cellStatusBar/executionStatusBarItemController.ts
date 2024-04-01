@@ -23,6 +23,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { debounce } from 'vs/base/common/decorators';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -341,6 +342,8 @@ class TimerCellStatusBarItem extends Disposable {
 		};
 	}
 
+	// Duplicate events can be sent, but they all happen right after cell execution ends, so a short debounce should be fine.
+	@debounce(200)
 	private sendPerformanceData(timerDuration: number, overheadTime: number, totalRenderingTime: number | undefined, builtinRendererTime?: number | undefined) {
 		type NotebookOutputPerfClassification = {
 			owner: 'amunger';
