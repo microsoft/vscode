@@ -59,7 +59,7 @@ export class SearchFindInput extends ContextScopedFindInput {
 		this.setAdditionalToggles([this._aiButton]);
 
 
-		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width + (this._aiButton?.width() ?? 0);
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
 
 		this.controls.appendChild(this._findFilter.container);
 		this._findFilter.container.classList.add('monaco-custom-toggle');
