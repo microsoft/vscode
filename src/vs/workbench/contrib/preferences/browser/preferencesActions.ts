@@ -17,6 +17,7 @@ import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/co
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { MenuId, MenuRegistry, isIMenuItem } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { isLocalizedString } from 'vs/platform/action/common/action';
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
@@ -83,21 +84,33 @@ CommandsRegistry.registerCommand({
 //#region --- Register a command to get all actions from the command palette
 CommandsRegistry.registerCommand('_getAllCommands', function (accessor) {
 	const keybindingService = accessor.get(IKeybindingService);
-	const actions: { command: string; label: string; precondition?: string; keybinding: string }[] = [];
+	const actions: { command: string; label: string; keybinding: string; description?: string; precondition?: string }[] = [];
 	for (const editorAction of EditorExtensionsRegistry.getEditorActions()) {
 		const keybinding = keybindingService.lookupKeybinding(editorAction.id);
-		actions.push({ command: editorAction.id, label: editorAction.label, precondition: editorAction.precondition?.serialize(), keybinding: keybinding?.getLabel() ?? 'Not set' });
+		actions.push({
+			command: editorAction.id,
+			label: editorAction.label,
+			description: isLocalizedString(editorAction.metadata?.description) ? editorAction.metadata.description.value : editorAction.metadata?.description,
+			precondition: editorAction.precondition?.serialize(),
+			keybinding: keybinding?.getLabel() ?? 'Not set'
+		});
 	}
 	for (const menuItem of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
 		if (isIMenuItem(menuItem)) {
 			const title = typeof menuItem.command.title === 'string' ? menuItem.command.title : menuItem.command.title.value;
 			const category = menuItem.command.category ? typeof menuItem.command.category === 'string' ? menuItem.command.category : menuItem.command.category.value : undefined;
 			const label = category ? `${category}: ${title}` : title;
+			const description = isLocalizedString(menuItem.command.metadata?.description) ? menuItem.command.metadata.description.value : menuItem.command.metadata?.description;
 			const keybinding = keybindingService.lookupKeybinding(menuItem.command.id);
-			actions.push({ command: menuItem.command.id, label, precondition: menuItem.when?.serialize(), keybinding: keybinding?.getLabel() ?? 'Not set' });
+			actions.push({
+				command: menuItem.command.id,
+				label,
+				description,
+				precondition: menuItem.when?.serialize(),
+				keybinding: keybinding?.getLabel() ?? 'Not set'
+			});
 		}
 	}
 	return actions;
 });
 //#endregion
-
