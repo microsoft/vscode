@@ -30,6 +30,7 @@ import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalC
 import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class TerminalEditor extends EditorPane {
 
@@ -45,6 +46,8 @@ export class TerminalEditor extends EditorPane {
 	private readonly _instanceMenu: IMenu;
 
 	private _cancelContextMenu: boolean = false;
+
+	private _disposableStore = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,
@@ -224,10 +227,11 @@ export class TerminalEditor extends EditorPane {
 	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
 	 */
 	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
+		this._disposableStore.clear();
 		if (dropdownAction instanceof Action) {
-			this._register(dropdownAction);
+			this._disposableStore.add(dropdownAction);
 		}
-		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._register(a));
+		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._disposableStore.add(a));
 	}
 
 	private _getDefaultProfileName(): string {

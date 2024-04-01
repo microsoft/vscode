@@ -33,7 +33,7 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -58,6 +58,7 @@ export class TerminalViewPane extends ViewPane {
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
+	private _disposableStore = this._register(new DisposableStore());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -287,10 +288,11 @@ export class TerminalViewPane extends ViewPane {
 	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
 	 */
 	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
+		this._disposableStore.clear();
 		if (dropdownAction instanceof Action) {
-			this._register(dropdownAction);
+			this._disposableStore.add(dropdownAction);
 		}
-		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._register(a));
+		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._disposableStore.add(a));
 	}
 
 	private _getDefaultProfileName(): string {
