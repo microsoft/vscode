@@ -264,7 +264,6 @@ export interface IFocusOutputMessage {
 
 export interface IBlurOutputMessage {
 	readonly type: 'blur-output';
-	readonly outputId: string;
 }
 
 export interface IAckOutputHeight {

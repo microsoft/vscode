@@ -272,12 +272,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
-	const blurOutput = (outputId: string) => {
-		const cellOutputContainer = window.document.getElementById(outputId);
-		if (!cellOutputContainer) {
-			return;
-		}
-		const selection = cellOutputContainer.getSelection();
+	const blurOutput = () => {
+		const selection = window.getSelection();
 		if (!selection) {
 			return;
 		}
@@ -1746,7 +1742,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
 			case 'blur-output':
-				blurOutput(event.data.outputId);
+				blurOutput();
 				break;
 			case 'select-output-contents':
 				selectOutputContents(event.data.cellOrOutputId);

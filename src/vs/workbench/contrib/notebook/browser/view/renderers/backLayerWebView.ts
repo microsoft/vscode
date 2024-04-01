@@ -1729,14 +1729,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	blurOutput(outputId: string) {
+	blurOutput() {
 		if (this._disposed) {
 			return;
 		}
 
 		this._sendMessageToWebview({
-			type: 'blur-output',
-			outputId
+			type: 'blur-output'
 		});
 	}
 

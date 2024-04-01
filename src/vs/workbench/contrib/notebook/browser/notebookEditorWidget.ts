@@ -2367,8 +2367,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		cell.focusedOutputId = undefined;
+
 		if (focusItem === 'editor') {
-			cell.focusedOutputId = undefined;
 			this.focusElement(cell);
 			this._list.focusView();
 
@@ -2424,10 +2425,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const itemDOM = this._list.domElementOfElement(cell);
 			if (itemDOM && itemDOM.ownerDocument.activeElement && itemDOM.contains(itemDOM.ownerDocument.activeElement)) {
 				(itemDOM.ownerDocument.activeElement as HTMLElement).blur();
-			} else if (cell.focusedOutputId) {
-				this._webview?.blurOutput(cell.focusedOutputId);
-				cell.focusedOutputId = undefined;
 			}
+
+			this._webview?.blurOutput();
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Container;
