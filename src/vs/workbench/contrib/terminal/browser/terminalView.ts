@@ -68,6 +68,7 @@ export class TerminalViewPane extends ViewPane {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -191,8 +192,7 @@ export class TerminalViewPane extends ViewPane {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
-				const configHelper = this._terminalService.configHelper;
-				if (!configHelper.configFontIsMonospace()) {
+				if (!this._terminalConfigurationService.configFontIsMonospace()) {
 					const choices: IPromptChoice[] = [{
 						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
 						run: () => this.configurationService.updateValue(TerminalSettingId.FontFamily, 'monospace'),
