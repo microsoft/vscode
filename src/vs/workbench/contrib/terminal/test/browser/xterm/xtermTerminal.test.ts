@@ -35,6 +35,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 
 registerColors();
 
@@ -121,6 +123,7 @@ suite('XtermTerminal', () => {
 
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITerminalConfigurationService, store.add(instantiationService.createInstance(TerminalConfigurationService)));
 		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(IThemeService, themeService);
