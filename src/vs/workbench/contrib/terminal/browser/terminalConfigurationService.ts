@@ -16,7 +16,7 @@ import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, 
 export class TerminalConfigurationService extends Disposable implements ITerminalConfigurationService {
 	declare _serviceBrand: undefined;
 
-	private _fontMetrics: TerminalFontMetrics;
+	protected _fontMetrics: TerminalFontMetrics;
 
 	private _config!: Readonly<ITerminalConfiguration>;
 	get config() { return this._config; }
@@ -72,7 +72,7 @@ class TerminalFontMetrics extends Disposable {
 	private _charMeasureElement: HTMLElement | undefined;
 	private _lastFontMeasurement: ITerminalFont | undefined;
 
-	protected _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
+	linuxDistro: LinuxDistro = LinuxDistro.Unknown;
 
 	constructor(
 		private readonly _terminalConfigurationService: ITerminalConfigurationService,
@@ -112,10 +112,10 @@ class TerminalFontMetrics extends Disposable {
 
 		// Work around bad font on Fedora/Ubuntu
 		if (!this._terminalConfigurationService.config.fontFamily) {
-			if (this._linuxDistro === LinuxDistro.Fedora) {
+			if (this.linuxDistro === LinuxDistro.Fedora) {
 				fontFamily = '\'DejaVu Sans Mono\'';
 			}
-			if (this._linuxDistro === LinuxDistro.Ubuntu) {
+			if (this.linuxDistro === LinuxDistro.Ubuntu) {
 				fontFamily = '\'Ubuntu Mono\'';
 
 				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
