@@ -357,12 +357,23 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
 
+/**
+ * A service that provides convenient access to the terminal configuration and derived values.
+ */
 export interface ITerminalConfigurationService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * A typed and partially validated representation of the terminal configuration.
+	 */
 	readonly config: ITerminalConfiguration;
 
+	/**
+	 * Fires when something within the terminal configuration changes.
+	 */
 	readonly onConfigChanged: Event<void>;
+
+	// TODO: Expose xterm.js font metrics here
 }
 
 export class TerminalLinkQuickPickEvent extends MouseEvent {
