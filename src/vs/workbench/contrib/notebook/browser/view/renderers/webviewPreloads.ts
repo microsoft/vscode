@@ -2699,7 +2699,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 			outputElement/** outputNode */.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
 
 			if (!!data.executionId && !!data.rendererId) {
-				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
+				let outputSize: number | undefined = undefined;
+				let mimeType: string | undefined = undefined;
+				if (data.content.type === 1 /* extension */) {
+					outputSize = data.content.output.valueBytes.length;
+					mimeType = data.content.output.mime;
+				}
+
+				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
+					cellId: data.cellId,
+					executionId: data.executionId,
+					duration: Date.now() - startTime,
+					rendererId: data.rendererId,
+					outputSize,
+					mimeType
+				});
 			}
 		}
 

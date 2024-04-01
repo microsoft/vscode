@@ -22,8 +22,6 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { debounce } from 'vs/base/common/decorators';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -237,7 +235,6 @@ class TimerCellStatusBarItem extends Disposable {
 		private readonly _cell: ICellViewModel,
 		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -291,11 +288,7 @@ class TimerCellStatusBarItem extends Disposable {
 		}
 	}
 
-	private _getTimeItem(
-		startTime: number, endTime: number, adjustment: number = 0,
-		runtimeInformation?: { renderDuration: { [key: string]: number }; executionDuration: number; timerDuration: number }
-	): INotebookCellStatusBarItem {
-
+	private _getTimeItem(startTime: number, endTime: number, adjustment: number = 0, runtimeInformation?: { renderDuration: { [key: string]: number }; executionDuration: number; timerDuration: number }): INotebookCellStatusBarItem {
 		const duration = endTime - startTime + adjustment;
 
 		let tooltip: IMarkdownString | undefined;
@@ -304,7 +297,6 @@ class TimerCellStatusBarItem extends Disposable {
 			const lastExecution = new Date(endTime).toLocaleTimeString(language);
 			const { renderDuration, executionDuration, timerDuration } = runtimeInformation;
 
-			let totalRenderingTime: number | undefined = undefined;
 			let renderTimes = '';
 			for (const key in renderDuration) {
 				const rendererInfo = this._notebookService.getRendererInfo(key);
@@ -317,21 +309,16 @@ class TimerCellStatusBarItem extends Disposable {
 						`Renderer Duration: ${formatCellDuration(renderDuration[key])}\n`
 				}));
 
-				totalRenderingTime = totalRenderingTime ? totalRenderingTime + renderDuration[key] : renderDuration[key];
 				renderTimes += `- [${rendererInfo?.displayName ?? key}](command:workbench.action.openIssueReporter?${args}) ${formatCellDuration(renderDuration[key])}\n`;
 			}
 
 			renderTimes += `\n*${localize('notebook.cell.statusBar.timerTooltip.reportIssueFootnote', "Use the links above to file an issue using the issue reporter.")}*\n`;
 
-			const overheadTime = timerDuration - executionDuration;
-			const builtinRendererTime = renderDuration['vscode.builtin-renderer'];
 			tooltip = {
-				value: localize('notebook.cell.statusBar.timerTooltip', "**Last Execution** {0}\n\n**Execution Time** {1}\n\n**Overhead Time** {2}\n\n**Render Times**\n\n{3}",
-					lastExecution, formatCellDuration(executionDuration), formatCellDuration(overheadTime), renderTimes),
+				value: localize('notebook.cell.statusBar.timerTooltip', "**Last Execution** {0}\n\n**Execution Time** {1}\n\n**Overhead Time** {2}\n\n**Render Times**\n\n{3}", lastExecution, formatCellDuration(executionDuration), formatCellDuration(timerDuration - executionDuration), renderTimes),
 				isTrusted: true
 			};
 
-			this.sendPerformanceData(timerDuration, overheadTime, totalRenderingTime, builtinRendererTime);
 		}
 
 		return <INotebookCellStatusBarItem>{
@@ -340,35 +327,6 @@ class TimerCellStatusBarItem extends Disposable {
 			priority: Number.MAX_SAFE_INTEGER - 5,
 			tooltip
 		};
-	}
-
-	// Duplicate events can be sent, but they all happen right after cell execution ends, so a short debounce should be fine.
-	@debounce(200)
-	private sendPerformanceData(timerDuration: number, overheadTime: number, totalRenderingTime: number | undefined, builtinRendererTime?: number | undefined) {
-		type NotebookOutputPerfClassification = {
-			owner: 'amunger';
-			comment: 'Track performance data for output rendering';
-			timerDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total time, including execution time, presented to the user' };
-			overheadTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent outside of executing or rendering.' };
-			totalRenderingTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent rendering output.' };
-			builtinRendererTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time for the built renderer to run.' };
-		};
-
-		type NotebookOutputPerfEvent = {
-			timerDuration: number;
-			overheadTime: number;
-			totalRenderingTime: number | undefined;
-			builtinRendererTime: number | undefined;
-		};
-
-		const telemetryData = {
-			timerDuration,
-			overheadTime,
-			totalRenderingTime,
-			builtinRendererTime
-		};
-
-		this._telemetryService.publicLog2<NotebookOutputPerfEvent, NotebookOutputPerfClassification>('notebookCellPerformance', telemetryData);
 	}
 
 	override dispose() {

@@ -909,6 +909,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				}
 				case 'notebookPerformanceMessage': {
 					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
+					if (data.mimeType && data.outputSize && data.rendererId === 'vscode.builtin-renderer') {
+						this._sendPerformanceData(data.mimeType, data.outputSize, data.duration);
+					}
 					break;
 				}
 				case 'outputInputFocus': {
@@ -925,6 +928,30 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}));
 
 		return initializePromise.p;
+	}
+
+	private _sendPerformanceData(mimeType: string, outputSize: number, duration: number) {
+		type NotebookOutputPerfClassification = {
+			owner: 'amunger';
+			comment: 'Track performance data for output rendering';
+			mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total time, including execution time, presented to the user' };
+			outputSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent outside of executing or rendering.' };
+			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent rendering output.' };
+		};
+
+		type NotebookOutputPerfEvent = {
+			mimeType: string;
+			outputSize: number;
+			duration: number | undefined;
+		};
+
+		const telemetryData = {
+			mimeType,
+			outputSize,
+			duration
+		};
+
+		this.telemetryService.publicLog2<NotebookOutputPerfEvent, NotebookOutputPerfClassification>('notebookCellPerformance', telemetryData);
 	}
 
 	private _handleNotebookCellResource(uri: URI) {
