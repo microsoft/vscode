@@ -22,10 +22,6 @@ export interface IXtermCore {
 		height: number;
 	};
 
-	coreService: {
-		triggerDataEvent(data: string, wasUserInput?: boolean): void;
-	};
-
 	_inputHandler: {
 		_curAttrData: XtermAttributes;
 	};
