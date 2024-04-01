@@ -63,7 +63,8 @@
     "core-ci-pr": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js core-ci-pr",
     "extensions-ci": "node --max-old-space-size=8095 ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
-    "perf": "node scripts/code-perf.js"
+    "perf": "node scripts/code-perf.js",
+    "update-build-ts-version": "yarn add typescript@next && tsc -p ./build/tsconfig.build.json"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -209,7 +210,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.5.0-dev.20240318",
+    "typescript": "^5.5.0-dev.20240401",
     "typescript-formatter": "7.1.0",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",

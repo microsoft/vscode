@@ -19,7 +19,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal, ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -203,6 +203,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
@@ -210,7 +211,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	) {
 		super();
 		const font = this._configHelper.getFont(dom.getActiveWindow(), undefined, true);
-		const config = this._configHelper.config;
+		const config = this._terminalConfigurationService.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
 		this.raw = this._register(new xtermCtor({
@@ -385,7 +386,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	updateConfig(): void {
-		const config = this._configHelper.config;
+		const config = this._terminalConfigurationService.config;
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
@@ -422,15 +423,15 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _updateSmoothScrolling() {
-		this.raw.options.smoothScrollDuration = this._configHelper.config.smoothScrolling && this._isPhysicalMouseWheel ? RenderConstants.SmoothScrollDuration : 0;
+		this.raw.options.smoothScrollDuration = this._terminalConfigurationService.config.smoothScrolling && this._isPhysicalMouseWheel ? RenderConstants.SmoothScrollDuration : 0;
 	}
 
 	private _shouldLoadWebgl(): boolean {
-		return !isSafari && (this._configHelper.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._configHelper.config.gpuAcceleration === 'on';
+		return !isSafari && (this._terminalConfigurationService.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._terminalConfigurationService.config.gpuAcceleration === 'on';
 	}
 
 	private _shouldLoadCanvas(): boolean {
-		return (this._configHelper.config.gpuAcceleration === 'auto' && (XtermTerminal._suggestedRendererType === undefined || XtermTerminal._suggestedRendererType === 'canvas')) || this._configHelper.config.gpuAcceleration === 'canvas';
+		return (this._terminalConfigurationService.config.gpuAcceleration === 'auto' && (XtermTerminal._suggestedRendererType === undefined || XtermTerminal._suggestedRendererType === 'canvas')) || this._terminalConfigurationService.config.gpuAcceleration === 'canvas';
 	}
 
 	forceRedraw() {
@@ -718,7 +719,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
-			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
+			if (!neverMeasureRenderTime && this._terminalConfigurationService.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
 			this._disableWebglForThisSession();
@@ -745,7 +746,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this._logService.warn(`Canvas renderer could not be loaded, falling back to dom renderer`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
-			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
+			if (!neverMeasureRenderTime && this._terminalConfigurationService.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
 			XtermTerminal._suggestedRendererType = 'dom';
@@ -764,7 +765,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	@debounce(100)
 	private async _refreshImageAddon(): Promise<void> {
 		// Only allow the image addon when a canvas is being used to avoid possible GPU issues
-		if (this._configHelper.config.enableImages && (this._canvasAddon || this._webglAddon)) {
+		if (this._terminalConfigurationService.config.enableImages && (this._canvasAddon || this._webglAddon)) {
 			if (!this._imageAddon) {
 				const AddonCtor = await this._getImageAddonConstructor();
 				this._imageAddon = new AddonCtor();
@@ -848,7 +849,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
 			if (medianTime > RenderConstants.SlowCanvasRenderThreshold) {
-				if (this._configHelper.config.gpuAcceleration === 'auto') {
+				if (this._terminalConfigurationService.config.gpuAcceleration === 'auto') {
 					XtermTerminal._suggestedRendererType = 'dom';
 					this.updateConfig();
 				} else {
@@ -938,13 +939,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
-		if (!this._unicode11Addon && this._configHelper.config.unicodeVersion === '11') {
+		if (!this._unicode11Addon && this._terminalConfigurationService.config.unicodeVersion === '11') {
 			const Addon = await this._getUnicode11Constructor();
 			this._unicode11Addon = new Addon();
 			this.raw.loadAddon(this._unicode11Addon);
 		}
-		if (this.raw.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
-			this.raw.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+		if (this.raw.unicode.activeVersion !== this._terminalConfigurationService.config.unicodeVersion) {
+			this.raw.unicode.activeVersion = this._terminalConfigurationService.config.unicodeVersion;
 		}
 	}
 
