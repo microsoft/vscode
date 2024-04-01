@@ -37,18 +37,6 @@ export class WebIssueService implements IWorkbenchIssueService {
 			throw new Error(`No issue reporting URL configured for ${this.productService.nameLong}.`);
 		}
 
-		// If we have a handler registered for this extension, use it instead of anything else
-		// if (this._handlers.has(extensionId)) {
-		// 	try {
-		// 		const uri = await this.getIssueUriFromHandler(extensionId, CancellationToken.None);
-		// 		dom.windowOpenNoOpener(uri);
-		// 		return;
-		// 	} catch (e) {
-		// 		this.logService.error(e);
-		// 	}
-		// }
-
-		// if we don't have a handler, or the handler failed, try to get the extension's github url
 		const selectedExtension = this.extensionService.extensions.filter(ext => ext.identifier.value === options.extensionId)[0];
 		const extensionGitHubUrl = this.getExtensionGitHubUrl(selectedExtension);
 		if (!extensionGitHubUrl) {
@@ -58,25 +46,6 @@ export class WebIssueService implements IWorkbenchIssueService {
 		const uri = this.getIssueUriFromStaticContent(`${extensionGitHubUrl}/issues/new`, selectedExtension);
 		dom.windowOpenNoOpener(uri);
 	}
-
-	// registerIssueUriRequestHandler(extensionId: string, handler: IIssueUriRequestHandler): IDisposable {
-	// 	this._handlers.set(extensionId, handler);
-	// 	return toDisposable(() => this._handlers.delete(extensionId));
-	// }
-
-	// registerIssueDataProvider(extensionId: string, handler: IIssueDataProvider): IDisposable {
-	// 	this._providers.set(extensionId, handler);
-	// 	return toDisposable(() => this._providers.delete(extensionId));
-	// }
-
-	// private async getIssueUriFromHandler(extensionId: string, token: CancellationToken): Promise<string> {
-	// 	const handler = this._handlers.get(extensionId);
-	// 	if (!handler) {
-	// 		throw new Error(`No handler registered for extension ${extensionId}`);
-	// 	}
-	// 	const result = await handler.provideIssueUrl(token);
-	// 	return result.toString(true);
-	// }
 
 	private getExtensionGitHubUrl(extension: IExtensionDescription): string {
 		if (extension.isBuiltin && this.productService.reportIssueUrl) {

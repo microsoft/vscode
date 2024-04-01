@@ -43,38 +43,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
-		// ipcRenderer.on('vscode:triggerIssueUriRequestHandler', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
-		// 	const result = await this.getIssueReporterUri(request.extensionId, CancellationToken.None);
-		// 	ipcRenderer.send(request.replyChannel, result.toString());
-		// });
-		// ipcRenderer.on('vscode:triggerIssueDataProvider', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
-		// 	const result = await this.getIssueData(request.extensionId, CancellationToken.None);
-		// 	ipcRenderer.send(request.replyChannel, result);
-		// });
-		// ipcRenderer.on('vscode:triggerIssueDataTemplate', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
-		// 	const result = await this.getIssueTemplate(request.extensionId, CancellationToken.None);
-		// 	ipcRenderer.send(request.replyChannel, result);
-		// });
-		// ipcRenderer.on('vscode:triggerReporterStatus', async (event, arg) => {
-		// 	const extensionId = arg.extensionId;
-		// 	const extension = await this.extensionService.getExtension(extensionId);
-		// 	if (extension) {
-		// 		const activationEvents = this._activationEventReader.readActivationEvents(extension);
-		// 		for (const activationEvent of activationEvents) {
-		// 			if (activationEvent === 'onIssueReporterOpened') {
-		// 				const eventName = `onIssueReporterOpened:${ExtensionIdentifier.toKey(extension.identifier)}`;
-		// 				try {
-		// 					await this.extensionService.activateById(extension.identifier, { startup: false, extensionId: extension.identifier, activationEvent: eventName });
-		// 				} catch (e) {
-		// 					this.logService.error(`Error activating extension ${extensionId}: ${e}`);
-		// 				}
-		// 				break;
-		// 			}
-		// 		}
-		// 	}
-		// 	const result = [this._providers.has(extensionId.toLowerCase()), this._handlers.has(extensionId.toLowerCase())];
-		// 	ipcRenderer.send(`vscode:triggerReporterStatusResponse`, result);
-		// });
 		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
 			const extensionId = arg.extensionId;
 
