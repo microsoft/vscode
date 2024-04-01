@@ -5,7 +5,6 @@
 
 import { strictEqual } from 'assert';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ITestInstantiationService, TestTerminalProfileResolverService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -109,8 +108,7 @@ suite('Workbench - TerminalProcessManager', () => {
 		instantiationService.stub(ITerminalProfileResolverService, TestTerminalProfileResolverService);
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 
-		const configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
-		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, configHelper, undefined, undefined, undefined));
+		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
 	});
 
 	teardown(() => store.dispose());

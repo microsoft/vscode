@@ -92,7 +92,6 @@ export interface ITerminalConfigHelper {
 
 	configFontIsMonospace(): boolean;
 	getFont(w: Window): ITerminalFont;
-	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
 export const enum Direction {

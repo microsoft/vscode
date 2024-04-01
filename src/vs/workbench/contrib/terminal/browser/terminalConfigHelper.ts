@@ -3,22 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isLinux } from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
-import Severity from 'vs/base/common/severity';
-import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { ITerminalConfigHelper, ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { basename } from 'vs/base/common/path';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, ITerminalFont, MINIMUM_LETTER_SPACING } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const enum FontConstants {
 	MinimumFontSize = 6,
@@ -38,10 +29,6 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IProductService private readonly _productService: IProductService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super();
@@ -202,47 +189,5 @@ export class TerminalConfigHelper extends Disposable implements ITerminalConfigH
 			r = Math.min(maximum, r);
 		}
 		return r;
-	}
-
-	private _recommendationsShown = false;
-
-	async showRecommendations(shellLaunchConfig: IShellLaunchConfig): Promise<void> {
-		if (this._recommendationsShown) {
-			return;
-		}
-		this._recommendationsShown = true;
-
-		if (isWindows && shellLaunchConfig.executable && basename(shellLaunchConfig.executable).toLowerCase() === 'wsl.exe') {
-			const exeBasedExtensionTips = this._productService.exeBasedExtensionTips;
-			if (!exeBasedExtensionTips || !exeBasedExtensionTips.wsl) {
-				return;
-			}
-			const extId = Object.keys(exeBasedExtensionTips.wsl.recommendations).find(extId => exeBasedExtensionTips.wsl.recommendations[extId].important);
-			if (extId && ! await this._isExtensionInstalled(extId)) {
-				this._notificationService.prompt(
-					Severity.Info,
-					nls.localize(
-						'useWslExtension.title', "The '{0}' extension is recommended for opening a terminal in WSL.", exeBasedExtensionTips.wsl.friendlyName),
-					[
-						{
-							label: nls.localize('install', 'Install'),
-							run: () => {
-								this._instantiationService.createInstance(InstallRecommendedExtensionAction, extId).run();
-							}
-						}
-					],
-					{
-						sticky: true,
-						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.APPLICATION },
-						onCancel: () => { }
-					}
-				);
-			}
-		}
-	}
-
-	private async _isExtensionInstalled(id: string): Promise<boolean> {
-		const extensions = await this._extensionManagementService.getInstalled();
-		return extensions.some(e => e.identifier.id === id);
 	}
 }
