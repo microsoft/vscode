@@ -256,7 +256,7 @@ registerActiveXtermAction({
 		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks
 	),
-	keybinding: [{
+	keybinding: {
 		when: TerminalChatContextKeys.requestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Alt | KeyCode.Enter,
