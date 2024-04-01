@@ -11,7 +11,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from 'vs/base/common/async';
-import { Codicon, getAllCodicons } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -88,6 +88,7 @@ import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
+import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/terminalIconPicker';
 
 const enum Constants {
 	/**
@@ -365,7 +366,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
@@ -2171,21 +2172,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onIconChanged.fire({ instance: this, userInitiated: true });
 			return icon;
 		}
-		type Item = IQuickPickItem & { icon: TerminalIcon };
-		const items: Item[] = [];
-		for (const icon of getAllCodicons()) {
-			items.push({ label: `$(${icon.id})`, description: `${icon.id}`, icon });
+		const iconPicker = this._scopedInstantiationService.createInstance(TerminalIconPicker);
+		const pickedIcon = await iconPicker.pickIcons();
+		iconPicker.dispose();
+		if (!pickedIcon) {
+			return undefined;
 		}
-		const result = await this._quickInputService.pick(items, {
-			matchOnDescription: true,
-			placeHolder: nls.localize('changeIcon', 'Select an icon for the terminal')
-		});
-		if (result) {
-			this._icon = result.icon;
-			this._onIconChanged.fire({ instance: this, userInitiated: true });
-			return this._icon;
-		}
-		return;
+		this._icon = pickedIcon;
+		this._onIconChanged.fire({ instance: this, userInitiated: true });
+		return pickedIcon;
 	}
 
 	async changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined> {
