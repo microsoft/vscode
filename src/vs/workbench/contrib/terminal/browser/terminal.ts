@@ -31,6 +31,7 @@ import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/wo
 import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -87,6 +88,9 @@ export interface ITerminalInstanceService {
 }
 
 export interface ITerminalConfigHelper {
+	/**
+	 * @deprecated Use `ITerminalConfigurationService.config` instead.
+	 */
 	config: ITerminalConfiguration;
 	panelContainer: HTMLElement | undefined;
 
@@ -352,6 +356,15 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
+
+export interface ITerminalConfigurationService {
+	readonly _serviceBrand: undefined;
+
+	readonly config: ITerminalConfiguration;
+
+	readonly onConfigChanged: Event<void>;
+}
+
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
 }
