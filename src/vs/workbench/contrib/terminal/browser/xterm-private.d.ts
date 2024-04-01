@@ -14,7 +14,6 @@ export interface IXtermCore {
 		readonly scrollBarWidth: number;
 		_innerRefresh(): void;
 	};
-	_onData: IEventEmitter<string>;
 	_onKey: IEventEmitter<{ key: string }>;
 
 	_charSizeService: {
