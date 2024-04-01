@@ -1859,10 +1859,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			this.xterm.raw.resize(cols, rows);
 			TerminalInstance._lastKnownGridDimensions = { cols, rows };
-
-			if (this._isVisible) {
-				this.xterm.forceUnpause();
-			}
 		}
 
 		if (immediate) {

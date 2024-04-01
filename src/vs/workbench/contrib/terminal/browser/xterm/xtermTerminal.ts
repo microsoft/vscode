@@ -446,19 +446,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._core.viewport?._innerRefresh();
 	}
 
-	forceUnpause() {
-		// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
-		// This is to fix an issue where dragging the windpow to the top of the screen to
-		// maximize on Windows/Linux would fire an event saying that the terminal was not
-		// visible.
-		if (!!this._canvasAddon) {
-			this._core._renderService?._handleIntersectionChange({ intersectionRatio: 1 });
-			// HACK: Force a refresh of the screen to ensure links are refresh corrected.
-			// This can probably be removed when the above hack is fixed in Chromium.
-			this.raw.refresh(0, this.raw.rows - 1);
-		}
-	}
-
 	async findNext(term: string, searchOptions: ISearchOptions): Promise<boolean> {
 		this._updateFindColors(searchOptions);
 		return (await this._getSearchAddon()).findNext(term, searchOptions);

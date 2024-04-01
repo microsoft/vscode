@@ -31,6 +31,5 @@ export interface IXtermCore {
 				_renderLayers?: any[];
 			}
 		};
-		_handleIntersectionChange: any;
 	};
 }
