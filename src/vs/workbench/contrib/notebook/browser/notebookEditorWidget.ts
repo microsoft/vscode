@@ -2427,6 +2427,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				(itemDOM.ownerDocument.activeElement as HTMLElement).blur();
 			}
 
+			this._webview?.blurOutput();
+
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Container;
 
