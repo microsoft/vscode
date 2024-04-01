@@ -47,6 +47,7 @@ export class ShowSignalSoundHelp extends Action2 {
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.sound') !== 'never');
+		const isScreenReaderOptimized = accessibilityService.isScreenReaderOptimized();
 		qp.onDidAccept(() => {
 			const enabledSounds = qp.selectedItems.map(i => i.signal);
 			const disabledSounds = qp.items.map(i => (i as any).signal).filter(i => !enabledSounds.includes(i));
@@ -61,7 +62,12 @@ export class ShowSignalSoundHelp extends Action2 {
 			}
 			for (const signal of disabledSounds) {
 				let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(signal.settingsKey);
-				sound = userGestureSignals.includes(signal) ? 'never' : 'off';
+				const userGestureSignal = userGestureSignals.includes(signal);
+				if (isScreenReaderOptimized) {
+					sound = userGestureSignal ? 'never' : 'off';
+				} else {
+					sound = userGestureSignal ? 'never' : 'auto';
+				}
 				if (announcement) {
 					configurationService.updateValue(signal.settingsKey, { sound, announcement });
 				} else {
@@ -123,8 +129,15 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 				announcement = userGestureSignals.includes(signal) ? 'userGesture' : signal.announcementMessage && accessibilityService.isScreenReaderOptimized() ? 'auto' : undefined;
 				configurationService.updateValue(signal.settingsKey, { sound, announcement });
 			}
+			const isScreenReaderOptimized = accessibilityService.isScreenReaderOptimized();
 			for (const signal of disabledAnnouncements) {
-				const announcement = userGestureSignals.includes(signal) ? 'never' : 'off';
+				let announcement;
+				const isUserGestureSignal = userGestureSignals.includes(signal);
+				if (isScreenReaderOptimized) {
+					announcement = isUserGestureSignal ? 'never' : 'off';
+				} else {
+					announcement = isUserGestureSignal ? 'never' : 'auto';
+				}
 				const sound = configurationService.getValue(signal.settingsKey + '.sound');
 				configurationService.updateValue(signal.settingsKey, announcement ? { sound, announcement } : { sound });
 			}
