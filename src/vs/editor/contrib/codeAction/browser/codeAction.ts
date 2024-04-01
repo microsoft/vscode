@@ -160,9 +160,7 @@ export async function getCodeActions(
 			...coalesce(actions.map(x => x.documentation)),
 			...getAdditionalDocumentationForShowingActions(registry, model, trigger, allActions)
 		];
-		const result = new ManagedCodeActionSet(allActions, allDocumentation, disposables);
-		result.dispose();
-		return result;
+		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
 	} finally {
 		listener.dispose();
 		cts.dispose();

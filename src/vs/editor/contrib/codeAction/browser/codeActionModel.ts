@@ -219,7 +219,7 @@ export class CodeActionModel extends Disposable {
 			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []);
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {
+			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, async trigger => {
 				if (!trigger) {
 					this.setState(CodeActionsState.Empty);
 					return;
@@ -315,7 +315,8 @@ export class CodeActionModel extends Disposable {
 							}
 						}
 					}
-					// temporarilly hiding here as this is enabled/disabled behind a setting.
+
+					// This is for case where setting for nearby quickfixes is off.
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
@@ -335,6 +336,8 @@ export class CodeActionModel extends Disposable {
 				if (!isManualToAutoTransition) {
 					this.setState(newState);
 				}
+				const toDisposeActions = await actions;
+				toDisposeActions.dispose();
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
