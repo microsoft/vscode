@@ -144,7 +144,7 @@ export class ChatSubmitEditorAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: ChatSubmitEditorAction.ID,
-			title: localize2({ key: 'actions.chat.submit', comment: ['Apply input from the chat input box'] }, "Submit"),
+			title: localize2({ key: 'actions.chat.submit', comment: ['Apply input from the chat input box'] }, "Send"),
 			precondition: CONTEXT_CHAT_INPUT_HAS_TEXT,
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
