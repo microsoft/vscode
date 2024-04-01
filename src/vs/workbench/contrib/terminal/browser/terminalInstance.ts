@@ -1323,7 +1323,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const processManager = this._scopedInstantiationService.createInstance(
 			TerminalProcessManager,
 			this._instanceId,
-			this._configHelper,
 			this.shellLaunchConfig?.cwd,
 			deserializedCollections,
 			this.shellLaunchConfig.attachPersistentProcess?.shellIntegrationNonce

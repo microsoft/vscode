@@ -49,6 +49,7 @@ import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/te
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
+import { TerminalWslRecommendationContribution } from 'vs/workbench/contrib/terminal/browser/terminalWslRecommendationContribution';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
@@ -83,6 +84,7 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 // This contribution blocks startup as it's critical to enable the web embedder window.createTerminal API
 registerWorkbenchContribution2(TerminalMainContribution.ID, TerminalMainContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RemoteTerminalBackendContribution.ID, RemoteTerminalBackendContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(TerminalWslRecommendationContribution.ID, TerminalWslRecommendationContribution, WorkbenchPhase.Eventually);
 
 // Register configurations
 registerTerminalPlatformConfiguration();
