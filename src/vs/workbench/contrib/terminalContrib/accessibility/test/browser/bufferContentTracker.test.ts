@@ -31,6 +31,8 @@ import { TestLayoutService, TestLifecycleService } from 'vs/workbench/test/brows
 import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
 import type { Terminal } from '@xterm/xterm';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -61,6 +63,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService = store.add(new TestInstantiationService());
 		themeService = new TestThemeService();
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITerminalConfigurationService, store.add(instantiationService.createInstance(TerminalConfigurationService)));
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(ILoggerService, store.add(new TestLoggerService()));
