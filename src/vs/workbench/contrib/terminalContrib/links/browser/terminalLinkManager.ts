@@ -20,7 +20,7 @@ import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, 
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLocalLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalUriLinkDetector';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalWordLinkDetector';
-import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService, ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
@@ -53,6 +53,7 @@ export class TerminalLinkManager extends DisposableStore {
 		capabilities: ITerminalCapabilityStore,
 		private readonly _linkResolver: ITerminalLinkResolver,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalConfigurationService private readonly _termninalConfigurationService: ITerminalConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITunnelService private readonly _tunnelService: ITunnelService
@@ -99,7 +100,21 @@ export class TerminalLinkManager extends DisposableStore {
 			activeTooltipScheduler?.dispose();
 		}));
 		this._xterm.options.linkHandler = {
-			activate: (_, text) => {
+			allowNonHttpProtocols: true,
+			activate: (event, text) => {
+				if (!this._isLinkActivationModifierDown(event)) {
+					return;
+				}
+				// TODO: Support arbitrary schemes
+				const colonIndex = text.indexOf(':');
+				if (colonIndex === -1) {
+					throw new Error(`Could not find scheme in link "${text}"`);
+				}
+				const scheme = text.substring(0, colonIndex);
+				if (this._termninalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
+					// TODO: Notification with config
+					throw new Error('Scheme not allowed');
+				}
 				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
 					type: TerminalBuiltinLinkType.Url,
 					text,

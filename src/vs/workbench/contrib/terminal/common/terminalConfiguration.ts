@@ -489,6 +489,21 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'on'
 		},
+		[TerminalSettingId.AllowedLinkSchemes]: {
+			description: localize('terminal.integrated.allowedLinkSchemes', "An array of strings containing the URI schemes that the terminal is allowed to open links for. By default, only a small subset of possible schemes are allowed for security reasons."),
+			type: 'array',
+			items: {
+				type: 'string'
+			},
+			default: [
+				'file',
+				'http',
+				'https',
+				'mailto',
+				'vscode',
+				'vscode-insiders',
+			]
+		},
 		[TerminalSettingId.UnicodeVersion]: {
 			type: 'string',
 			enum: ['6', '11'],
