@@ -876,8 +876,8 @@ class HistoryItemActionRunner extends ActionRunner {
 		args.push({
 			id: context.id,
 			parentIds: context.parentIds,
-			label: context.label,
-			description: context.description,
+			message: context.message,
+			author: context.author,
 			icon: context.icon,
 			timestamp: context.timestamp,
 			statistics: context.statistics,
@@ -940,7 +940,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		}
 
 		const [matches, descriptionMatches] = this.processMatches(historyItem, node.filterData);
-		templateData.label.setLabel(historyItem.label, historyItem.description, { matches, descriptionMatches });
+		templateData.label.setLabel(historyItem.message, historyItem.author, { matches, descriptionMatches });
 
 		templateData.actionBar.clear();
 		templateData.actionBar.context = historyItem;
@@ -964,8 +964,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		}
 
 		return [
-			historyItem.label === filterData.label ? createMatches(filterData.score) : undefined,
-			historyItem.description === filterData.label ? createMatches(filterData.score) : undefined
+			historyItem.message === filterData.label ? createMatches(filterData.score) : undefined,
+			historyItem.author === filterData.label ? createMatches(filterData.score) : undefined
 		];
 	}
 
@@ -1318,7 +1318,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			// For a history item we want to match both the message and
 			// the author. A match in the message takes precedence over
 			// a match in the author.
-			return [element.label, element.description];
+			return [element.message, element.author];
 		} else if (isSCMViewSeparator(element)) {
 			return element.label;
 		} else {
@@ -1418,7 +1418,7 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		} else if (isSCMHistoryItemGroupTreeElement(element)) {
 			return element.ariaLabel ?? `${element.label.trim()}${element.description ? `, ${element.description}` : ''}`;
 		} else if (isSCMHistoryItemTreeElement(element)) {
-			return `${stripIcons(element.label).trim()}${element.description ? `, ${element.description}` : ''}`;
+			return `${stripIcons(element.message).trim()}${element.author ? `, ${element.author}` : ''}`;
 		} else if (isSCMHistoryItemChangeTreeElement(element)) {
 			const result = [basename(element.uri)];
 			const path = this.labelService.getUriLabel(dirname(element.uri), { relative: true, noPrefix: true });
@@ -3623,8 +3623,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			// Only show "Incoming" node if there is a base branch
 			incomingHistoryItemGroup = currentHistoryItemGroup.base ? {
 				id: currentHistoryItemGroup.base.id,
-				label: currentHistoryItemGroup.base.label,
-				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.base.label),
+				label: currentHistoryItemGroup.base.name,
+				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.base.name),
 				icon: Codicon.arrowCircleDown,
 				direction: 'incoming',
 				ancestor: ancestor.id,
@@ -3635,8 +3635,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			outgoingHistoryItemGroup = {
 				id: currentHistoryItemGroup.id,
-				label: currentHistoryItemGroup.label,
-				ariaLabel: localize('outgoingChangesAriaLabel', "Outgoing changes to {0}", currentHistoryItemGroup.label),
+				label: currentHistoryItemGroup.name,
+				ariaLabel: localize('outgoingChangesAriaLabel', "Outgoing changes to {0}", currentHistoryItemGroup.name),
 				icon: Codicon.arrowCircleUp,
 				direction: 'outgoing',
 				ancestor: ancestor.id,
@@ -3702,7 +3702,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			children.push({
 				...historyItemsElement[0],
 				icon: historyItemsElement[0].icon ?? Codicon.files,
-				label: localize('allChanges', "All Changes"),
+				message: localize('allChanges', "All Changes"),
 				historyItemGroup: element,
 				type: 'allChanges'
 			} satisfies SCMHistoryItemTreeElement);
