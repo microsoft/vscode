@@ -106,6 +106,8 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { clamp } from 'vs/base/common/numbers';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -891,6 +893,7 @@ interface HistoryItemTemplate {
 	readonly iconContainer: HTMLElement;
 	readonly label: IconLabel;
 	readonly statsContainer: HTMLElement;
+	readonly statsCustomHover: ICustomHover;
 	readonly filesLabel: HTMLElement;
 	readonly insertionsLabel: HTMLElement;
 	readonly deletionsLabel: HTMLElement;
@@ -928,7 +931,10 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		const insertionsLabel = append(statsContainer, $('.insertions-label'));
 		const deletionsLabel = append(statsContainer, $('.deletions-label'));
 
-		return { iconContainer, label: iconLabel, actionBar, statsContainer, filesLabel, insertionsLabel, deletionsLabel, elementDisposables: new DisposableStore(), disposables };
+		const statsCustomHover = setupCustomHover(getDefaultHoverDelegate('element'), statsContainer, '');
+		disposables.add(statsCustomHover);
+
+		return { iconContainer, label: iconLabel, actionBar, statsContainer, statsCustomHover, filesLabel, insertionsLabel, deletionsLabel, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -983,10 +989,9 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 					historyItem.statistics.deletions > 1 ? localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)') : ''
 			];
 
-			const statsTitle = statsAriaLabel
-				.filter(l => l !== '').join(', ');
-			templateData.statsContainer.title = statsTitle;
+			const statsTitle = statsAriaLabel.filter(l => l !== '').join(', ');
 			templateData.statsContainer.setAttribute('aria-label', statsTitle);
+			templateData.statsCustomHover.update(statsTitle);
 
 			templateData.filesLabel.textContent = historyItem.statistics.files.toString();
 
