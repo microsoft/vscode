@@ -2973,7 +2973,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
-			let groupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
@@ -3001,6 +3000,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						});
 				});
 			};
+			let groupTasks: (Task | ConfiguringTask)[] = [];
 			const { globGroupTasks, globTasksDetected } = await this._getGlobTasks(taskGroup._id);
 			groupTasks = [...globGroupTasks];
 			if (!globTasksDetected && groupTasks.length === 0) {
