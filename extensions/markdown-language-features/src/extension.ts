@@ -34,7 +34,7 @@ function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promi
 
 	// The debug options for the server
 	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };
-
+	console.log(debugOptions);
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
 	const serverOptions: ServerOptions = {
