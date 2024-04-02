@@ -235,6 +235,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			overviewRulerWidth: 10,
 			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode,
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,
+			windowOptions: {
+				getWinSizePixels: true,
+				getCellSizePixels: true,
+				getWinSizeChars: true,
+			},
 		}));
 		this._updateSmoothScrolling();
 		this._core = (this.raw as any)._core as IXtermCore;
