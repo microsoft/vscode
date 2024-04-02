@@ -455,6 +455,7 @@ extends:
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
               - job: Linuxx64
+                timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
