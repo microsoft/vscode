@@ -207,7 +207,6 @@ export class CodeActionModel extends Disposable {
 			return;
 		}
 
-		// this._codeActionOracle.value?.dispose();
 		this._codeActionOracle.value = undefined;
 
 		this.setState(CodeActionsState.Empty);
@@ -347,7 +346,6 @@ export class CodeActionModel extends Disposable {
 				}
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
-			// setTimeout(async () => this._codeActionOracle.value?.dispose(), 500);
 		} else {
 			this._supportedCodeActions.reset();
 		}
@@ -355,7 +353,6 @@ export class CodeActionModel extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger) {
 		this._codeActionOracle.value?.trigger(trigger);
-		// setTimeout(async () => this._codeActionOracle.value?.dispose(), 500);
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {
