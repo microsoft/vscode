@@ -75,6 +75,7 @@ export const enum TerminalSettingId {
 	TerminalTitle = 'terminal.integrated.tabs.title',
 	TerminalDescription = 'terminal.integrated.tabs.description',
 	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
+	MiddleClickBehavior = 'terminal.integrated.middleClickBehavior',
 	Cwd = 'terminal.integrated.cwd',
 	ConfirmOnExit = 'terminal.integrated.confirmOnExit',
 	ConfirmOnKill = 'terminal.integrated.confirmOnKill',

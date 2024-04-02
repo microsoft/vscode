@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalTabsListSizes, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -339,10 +339,18 @@ export class TerminalTabbedView extends Disposable {
 				return;
 			}
 
-			if (event.which === 2 && isLinux) {
-				// Drop selection and focus terminal on Linux to enable middle button paste when click
-				// occurs on the selection itself.
-				terminal.focus();
+			if (event.which === 2) {
+				switch (this._terminalConfigurationService.config.middleClickBehavior) {
+					case 'paste':
+						terminal.paste();
+						break;
+					case 'default':
+					default:
+						// Drop selection and focus terminal on Linux to enable middle button paste
+						// when click occurs on the selection itself.
+						terminal.focus();
+						break;
+				}
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
 				if (rightClickBehavior === 'nothing') {

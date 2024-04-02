@@ -334,6 +334,16 @@ const terminalConfiguration: IConfigurationNode = {
 			default: isMacintosh ? 'selectWord' : isWindows ? 'copyPaste' : 'default',
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
 		},
+		[TerminalSettingId.MiddleClickBehavior]: {
+			type: 'string',
+			enum: ['default', 'paste'],
+			enumDescriptions: [
+				localize('terminal.integrated.middleClickBehavior.default', "The platform default to focus the terminal. On Linux this will also paste the selection."),
+				localize('terminal.integrated.middleClickBehavior.paste', "Paste on middle click."),
+			],
+			default: 'default',
+			description: localize('terminal.integrated.middleClickBehavior', "Controls how terminal reacts to middle click.")
+		},
 		[TerminalSettingId.Cwd]: {
 			restricted: true,
 			description: localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
