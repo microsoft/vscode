@@ -1088,13 +1088,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _initDragAndDrop(container: HTMLElement) {
-		const dndController = this._register(this._scopedInstantiationService.createInstance(TerminalInstanceDragAndDropController, container));
-		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
-		dndController.onDropFile(async path => {
+		const store = new DisposableStore();
+		const dndController = store.add(this._scopedInstantiationService.createInstance(TerminalInstanceDragAndDropController, container));
+		store.add(dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e)));
+		store.add(dndController.onDropFile(async path => {
 			this.focus();
 			await this.sendPath(path, false);
-		});
-		this._dndObserver.value = new dom.DragAndDropObserver(container, dndController);
+		}));
+		store.add(new dom.DragAndDropObserver(container, dndController));
+		this._dndObserver.value = store;
 	}
 
 	hasSelection(): boolean {
