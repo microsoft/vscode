@@ -207,6 +207,7 @@ export class CodeActionModel extends Disposable {
 			return;
 		}
 
+		// this._codeActionOracle.value?.dispose();
 		this._codeActionOracle.value = undefined;
 
 		this.setState(CodeActionsState.Empty);
@@ -336,10 +337,17 @@ export class CodeActionModel extends Disposable {
 				if (!isManualToAutoTransition) {
 					this.setState(newState);
 				}
-				const toDisposeActions = await actions;
-				toDisposeActions.dispose();
+
+				// try/catch to dispose when done.
+				let disposed: Readonly<CodeActionSet>;
+				try {
+					disposed = await actions;
+				} finally {
+					setTimeout(async () => disposed?.dispose(), 1000);
+				}
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
+			// setTimeout(async () => this._codeActionOracle.value?.dispose(), 500);
 		} else {
 			this._supportedCodeActions.reset();
 		}
@@ -347,6 +355,7 @@ export class CodeActionModel extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger) {
 		this._codeActionOracle.value?.trigger(trigger);
+		// setTimeout(async () => this._codeActionOracle.value?.dispose(), 500);
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {
