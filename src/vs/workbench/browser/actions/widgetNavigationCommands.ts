@@ -91,8 +91,6 @@ class NavigableContainerManager implements IDisposable {
 	private log(msg: string, ...args: any[]): void {
 		if (this.debugEnabled) {
 			this.logService.debug(msg, ...args);
-		} else {
-			this.logService.trace(msg, ...args);
 		}
 	}
 
