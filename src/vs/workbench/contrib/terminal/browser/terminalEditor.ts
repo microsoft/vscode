@@ -23,7 +23,7 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
@@ -123,15 +123,23 @@ export class TerminalEditor extends EditorPane {
 			return;
 		}
 		this._register(dom.addDisposableListener(this._editorInstanceElement, 'mousedown', async (event: MouseEvent) => {
-			if (this._terminalEditorService.instances.length === 0) {
+			const terminal = this._terminalEditorService.activeInstance;
+			if (this._terminalEditorService.instances.length === 0 || !terminal) {
 				return;
 			}
 
-			if (event.which === 2 && isLinux) {
-				// Drop selection and focus terminal on Linux to enable middle button paste when click
-				// occurs on the selection itself.
-				const terminal = this._terminalEditorService.activeInstance;
-				terminal?.focus();
+			if (event.which === 2) {
+				switch (this._terminalConfigurationService.config.middleClickBehavior) {
+					case 'paste':
+						terminal.paste();
+						break;
+					case 'default':
+					default:
+						// Drop selection and focus terminal on Linux to enable middle button paste
+						// when click occurs on the selection itself.
+						terminal.focus();
+						break;
+				}
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
 				if (rightClickBehavior === 'nothing') {
@@ -141,11 +149,6 @@ export class TerminalEditor extends EditorPane {
 					return;
 				}
 				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
-					const terminal = this._terminalEditorService.activeInstance;
-					if (!terminal) {
-						return;
-					}
-
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
 						openContextMenu(this.window, event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);

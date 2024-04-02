@@ -442,6 +442,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	get contentHeight(): number {
+		const data = this.getLayoutData();
+		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight;
+	}
+
 	layout(height: number, width: number) {
 		this.cachedDimensions = new dom.Dimension(width, height);
 
@@ -450,25 +455,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(height: number, width: number, allowRecurse = true): void {
-		const followupsHeight = this.followupsContainer.offsetHeight;
 
-		const inputPartBorder = 0;
-		const inputPartHorizontalPadding = this.options.renderStyle === 'compact' ? 8 : 40;
-		const inputPartVerticalPadding = this.options.renderStyle === 'compact' ? 12 : 24;
-		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartVerticalPadding - inputPartBorder, INPUT_EDITOR_MAX_HEIGHT);
-		const implicitContextHeight = this.implicitContextContainer.offsetHeight;
+		const data = this.getLayoutData();
 
-		const inputEditorBorder = 2;
-		this._inputPartHeight = followupsHeight + inputEditorHeight + inputPartVerticalPadding + inputPartBorder + inputEditorBorder + implicitContextHeight;
+		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.inputPartVerticalPadding);
 
-		const editorBorder = 2;
-		const editorPadding = 12;
-		const executeToolbarWidth = this.cachedToolbarWidth = this.toolbar.getItemsWidth();
-		const toolbarPadding = 4;
-		const sideToolbarWidth = this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0;
+		this._inputPartHeight = data.followupsHeight + inputEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = width - inputPartHorizontalPadding - editorBorder - editorPadding - executeToolbarWidth - sideToolbarWidth - toolbarPadding;
+		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.editorPadding - data.executeToolbarWidth - data.sideToolbarWidth - data.toolbarPadding;
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
@@ -481,6 +476,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
 			return this._layout(height, width, false);
 		}
+	}
+
+	private getLayoutData() {
+		return {
+			inputEditorBorder: 2,
+			followupsHeight: this.followupsContainer.offsetHeight,
+			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT),
+			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 8 : 40,
+			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 24,
+			implicitContextHeight: this.implicitContextContainer.offsetHeight,
+			editorBorder: 2,
+			editorPadding: 12,
+			toolbarPadding: 4,
+			executeToolbarWidth: this.cachedToolbarWidth = this.toolbar.getItemsWidth(),
+			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
+		};
 	}
 
 	saveState(): void {

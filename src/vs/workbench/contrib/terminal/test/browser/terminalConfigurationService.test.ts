@@ -14,6 +14,9 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 
+class TestTerminalConfigurationService extends TerminalConfigurationService {
+	get fontMetrics() { return this._fontMetrics; }
+}
 
 suite('Workbench - TerminalConfigurationService', () => {
 	let configurationService: TestConfigurationService;
@@ -58,11 +61,11 @@ suite('Workbench - TerminalConfigurationService', () => {
 	function createTerminalConfigationService(config: any, linuxDistro?: LinuxDistro): ITerminalConfigurationService {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.set(IConfigurationService, new TestConfigurationService(config));
-		const terminalConfigurationService = store.add(instantiationService.createInstance(TerminalConfigurationService));
+		const terminalConfigurationService = store.add(instantiationService.createInstance(TestTerminalConfigurationService));
 		instantiationService.set(ITerminalConfigurationService, terminalConfigurationService);
 		terminalConfigurationService.setPanelContainer(mainWindow.document.body);
 		if (linuxDistro) {
-			(terminalConfigurationService as any)._fontMetrics._linuxDistro = linuxDistro;
+			terminalConfigurationService.fontMetrics.linuxDistro = linuxDistro;
 		}
 		return terminalConfigurationService;
 	}
