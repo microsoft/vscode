@@ -23,6 +23,7 @@ const ts = require("typescript");
 const File = require("vinyl");
 const task = require("./task");
 const index_1 = require("./mangle/index");
+const postcss_1 = require("./postcss");
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
@@ -60,13 +61,12 @@ function createCompile(src, build, emitError, transpileOnly) {
         const isRuntimeJs = (f) => f.path.endsWith('.js') && !f.path.includes('fixtures');
         const isCSS = (f) => f.path.endsWith('.css') && !f.path.includes('fixtures');
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
-        const postcss = require('gulp-postcss');
         const postcssNesting = require('postcss-nesting');
         const input = es.through();
         const output = input
             .pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise
             .pipe(util.$if(!build && isRuntimeJs, util.appendOwnPathSourceURL()))
-            .pipe(util.$if(isCSS, postcss([postcssNesting()])))
+            .pipe(util.$if(isCSS, (0, postcss_1.gulpPostcss)([postcssNesting()], err => reporter(String(err)))))
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
             .pipe(compilation(token))

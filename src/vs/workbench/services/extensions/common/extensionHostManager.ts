@@ -545,7 +545,7 @@ type RPCTelemetryDataClassification = {
 	owner: 'jrieken';
 	comment: 'Insights about RPC message sizes';
 	type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the RPC message' };
-	length: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The byte-length of the RPC message' };
+	length: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The byte-length of the RPC message' };
 };
 
 class TelemetryRPCLogger implements IRPCProtocolLogger {

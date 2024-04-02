@@ -74,7 +74,6 @@ export function createInsertUriListEdit(
 		return;
 	}
 
-
 	const edits: vscode.SnippetTextEdit[] = [];
 
 	let insertedLinkCount = 0;

@@ -1186,6 +1186,20 @@ class ContentReferencesListPool extends Disposable {
 
 					getWidgetAriaLabel: () => localize('usedReferences', "Used References")
 				},
+				dnd: {
+					getDragURI: ({ reference }: IChatContentReference) => {
+						if ('variableName' in reference) {
+							return null;
+						} else if (URI.isUri(reference)) {
+							return reference.toString();
+						} else {
+							return reference.uri.toString();
+						}
+					},
+					dispose: () => { },
+					onDragOver: () => false,
+					drop: () => { },
+				},
 			});
 
 		return list;

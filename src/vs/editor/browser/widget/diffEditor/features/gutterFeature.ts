@@ -38,7 +38,7 @@ export class DiffEditorGutter extends Disposable {
 
 	public readonly width = derived(this, reader => this._hasActions.read(reader) ? width : 0);
 
-	private readonly elements = h('div.gutter@gutter', { style: { position: 'absolute', height: '100%', width: width + 'px', zIndex: '0' } }, []);
+	private readonly elements = h('div.gutter@gutter', { style: { position: 'absolute', height: '100%', width: width + 'px' } }, []);
 
 	constructor(
 		diffEditorRoot: HTMLDivElement,
