@@ -271,4 +271,3 @@ class BreakpointLineFeature implements LineFeature {
 		};
 	}
 }
-
