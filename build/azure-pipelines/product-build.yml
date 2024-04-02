@@ -152,6 +152,8 @@ variables:
     value: true
   - name: ARTIFACT_PREFIX
     value: ''
+  - name: OneES_DefaultRepoBranch
+    value: refs/heads/main
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
