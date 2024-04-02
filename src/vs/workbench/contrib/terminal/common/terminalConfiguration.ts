@@ -338,7 +338,7 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'string',
 			enum: ['default', 'paste'],
 			enumDescriptions: [
-				localize('terminal.integrated.middleClickBehavior.default', "Platform default"),
+				localize('terminal.integrated.middleClickBehavior.default', "The platform default to focus the terminal. On Linux this will also paste the selection."),
 				localize('terminal.integrated.middleClickBehavior.paste', "Paste on middle click."),
 			],
 			default: 'default',
