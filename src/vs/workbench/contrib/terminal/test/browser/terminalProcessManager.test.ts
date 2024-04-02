@@ -5,7 +5,6 @@
 
 import { strictEqual } from 'assert';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ITestInstantiationService, TestTerminalProfileResolverService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -16,12 +15,13 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalChildProcess, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
@@ -101,14 +101,14 @@ suite('Workbench - TerminalProcessManager', () => {
 			}
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITerminalConfigurationService, instantiationService.createInstance(TerminalConfigurationService));
 		instantiationService.stub(IProductService, TestProductService);
 		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IEnvironmentVariableService, instantiationService.createInstance(EnvironmentVariableService));
 		instantiationService.stub(ITerminalProfileResolverService, TestTerminalProfileResolverService);
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 
-		const configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
-		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, configHelper, undefined, undefined, undefined));
+		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
 	});
 
 	teardown(() => store.dispose());

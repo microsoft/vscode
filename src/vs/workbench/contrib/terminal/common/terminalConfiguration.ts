@@ -334,6 +334,16 @@ const terminalConfiguration: IConfigurationNode = {
 			default: isMacintosh ? 'selectWord' : isWindows ? 'copyPaste' : 'default',
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
 		},
+		[TerminalSettingId.MiddleClickBehavior]: {
+			type: 'string',
+			enum: ['default', 'paste'],
+			enumDescriptions: [
+				localize('terminal.integrated.middleClickBehavior.default', "The platform default to focus the terminal. On Linux this will also paste the selection."),
+				localize('terminal.integrated.middleClickBehavior.paste', "Paste on middle click."),
+			],
+			default: 'default',
+			description: localize('terminal.integrated.middleClickBehavior', "Controls how terminal reacts to middle click.")
+		},
 		[TerminalSettingId.Cwd]: {
 			restricted: true,
 			description: localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
@@ -579,7 +589,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ShellIntegrationEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
+			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh, git bash\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
 			type: 'boolean',
 			default: true
 		},

@@ -116,6 +116,22 @@ export const cppOnEnterRules = [
 	}
 ];
 
+export const htmlOnEnterRules = [
+	{
+		beforeText: /<(?!(?:area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr))([_:\w][_:\w-.\d]*)(?:(?:[^'"/>]|"[^"]*"|'[^']*')*?(?!\/)>)[^<]*$/i,
+		afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
+		action: {
+			indentAction: IndentAction.IndentOutdent
+		}
+	},
+	{
+		beforeText: /<(?!(?:area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr))([_:\w][_:\w-.\d]*)(?:(?:[^'"/>]|"[^"]*"|'[^']*')*?(?!\/)>)[^<]*$/i,
+		action: {
+			indentAction: IndentAction.Indent
+		}
+	}
+];
+
 /*
 export enum IndentAction {
 	None = 0,

@@ -159,7 +159,6 @@
 							"src/vs/platform/opener/test/common/opener.test.ts",
 							"src/vs/platform/registry/test/common/platform.test.ts",
 							"src/vs/platform/remote/test/common/remoteHosts.test.ts",
-							"src/vs/platform/telemetry/test/browser/1dsAppender.test.ts",
 							"src/vs/platform/workspace/test/common/workspace.test.ts",
 							"src/vs/platform/workspaces/test/electron-main/workspaces.test.ts",
 							"src/vs/workbench/api/test/browser/mainThreadConfiguration.test.ts",
@@ -857,7 +856,11 @@
 							}, // TODO@layers
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
-							"@vscode/vscode-languagedetection" // node module allowed even in /common/
+							"@vscode/vscode-languagedetection", // node module allowed even in /common/
+							{
+								"when": "hasBrowser",
+								"pattern": "@xterm/xterm"
+							} // node module allowed even in /browser/
 						]
 					},
 					{

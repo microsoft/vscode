@@ -63,7 +63,8 @@
     "core-ci-pr": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js core-ci-pr",
     "extensions-ci": "node --max-old-space-size=8095 ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
-    "perf": "node scripts/code-perf.js"
+    "perf": "node scripts/code-perf.js",
+    "update-build-ts-version": "yarn add typescript@next && tsc -p ./build/tsconfig.build.json"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -112,7 +113,6 @@
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
     "@types/graceful-fs": "4.1.2",
-    "@types/gulp-postcss": "^8.0.6",
     "@types/gulp-svgmin": "^1.2.1",
     "@types/http-proxy-agent": "^2.0.1",
     "@types/kerberos": "^1.1.2",
@@ -170,7 +170,6 @@
     "gulp-gzip": "^1.4.2",
     "gulp-json-editor": "^2.5.0",
     "gulp-plumber": "^1.2.0",
-    "gulp-postcss": "^9.1.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-sourcemaps": "^3.0.0",
@@ -209,7 +208,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.5.0-dev.20240318",
+    "typescript": "^5.5.0-dev.20240401",
     "typescript-formatter": "7.1.0",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",

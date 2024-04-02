@@ -45,7 +45,7 @@ import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView
 import { CONTINUE_ID, CONTINUE_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, PAUSE_ID, PAUSE_LABEL, RESTART_LABEL, RESTART_SESSION_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createDisconnectMenuItemAction } from 'vs/workbench/contrib/debug/browser/debugToolBar';
-import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, IStackFrame, IThread, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, isFrameDeemphasized, IStackFrame, IThread, State } from 'vs/workbench/contrib/debug/common/debug';
 import { StackFrame, Thread, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
@@ -550,7 +550,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 			actionViewItemProvider: (action, options) => {
 				if ((action.id === STOP_ID || action.id === DISCONNECT_ID) && action instanceof MenuItemAction) {
 					stopActionViewItemDisposables.clear();
-					const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, stopActionViewItemDisposables, accessor, options));
+					const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, stopActionViewItemDisposables, accessor, { ...options, menuAsChild: false }));
 					if (item) {
 						return item;
 					}
@@ -744,9 +744,8 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
 		const stackFrame = element.element;
-		data.stackFrame.classList.toggle('disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
+		data.stackFrame.classList.toggle('disabled', !stackFrame.source || !stackFrame.source.available || isFrameDeemphasized(stackFrame));
 		data.stackFrame.classList.toggle('label', stackFrame.presentationHint === 'label');
-		data.stackFrame.classList.toggle('subtle', stackFrame.presentationHint === 'subtle');
 		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle' && stackFrame.canRestart;
 		data.stackFrame.classList.toggle('has-actions', hasActions);
 
@@ -933,10 +932,6 @@ function isDebugSession(obj: any): obj is IDebugSession {
 	return obj && typeof obj.getAllThreads === 'function';
 }
 
-function isDeemphasized(frame: IStackFrame): boolean {
-	return frame.source.presentationHint === 'deemphasize' || frame.presentationHint === 'deemphasize';
-}
-
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
 	deemphasizedStackFramesToShow: IStackFrame[] = [];
 
@@ -984,7 +979,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			// Check if some stack frames should be hidden under a parent element since they are deemphasized
 			const result: CallStackItem[] = [];
 			children.forEach((child, index) => {
-				if (child instanceof StackFrame && child.source && isDeemphasized(child)) {
+				if (child instanceof StackFrame && child.source && isFrameDeemphasized(child)) {
 					// Check if the user clicked to show the deemphasized source
 					if (this.deemphasizedStackFramesToShow.indexOf(child) === -1) {
 						if (result.length) {
@@ -997,7 +992,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 						}
 
 						const nextChild = index < children.length - 1 ? children[index + 1] : undefined;
-						if (nextChild instanceof StackFrame && nextChild.source && isDeemphasized(nextChild)) {
+						if (nextChild instanceof StackFrame && nextChild.source && isFrameDeemphasized(nextChild)) {
 							// Start collecting stackframes that will be "collapsed"
 							result.push([child]);
 							return;
