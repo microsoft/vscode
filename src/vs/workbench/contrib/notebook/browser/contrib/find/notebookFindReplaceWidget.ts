@@ -182,7 +182,7 @@ export class NotebookFindInputFilterButton extends Disposable {
 		return this._filterButtonContainer;
 	}
 
-	get width() {
+	width() {
 		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
@@ -192,6 +192,14 @@ export class NotebookFindInputFilterButton extends Disposable {
 
 	disable(): void {
 		this.container.setAttribute('aria-disabled', String(true));
+	}
+
+	set visible(visible: boolean) {
+		this._filterButtonContainer.style.display = visible ? '' : 'none';
+	}
+
+	get visible() {
+		return this._filterButtonContainer.style.display !== 'none';
 	}
 
 	applyStyles(filterChecked: boolean): void {
@@ -235,7 +243,7 @@ export class NotebookFindInput extends FindInput {
 		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
 		this._findFilter = this._register(new NotebookFindInputFilterButton(filters, contextMenuService, instantiationService, options));
 
-		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width();
 		this.controls.appendChild(this._findFilter.container);
 	}
 
