@@ -383,7 +383,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		const hoverController = this.editor.getContribution<HoverController>(HoverController.ID);
-		hoverController?.hideContentHover();
+		hoverController?.hideHoverWidgets();
 
 		this.editor.updateOptions({ hover: { enabled: false } });
 		this.defaultHoverLockout.value = {

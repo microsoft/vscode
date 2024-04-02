@@ -363,7 +363,7 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	private clearWidgets() {
-		HoverController.get(this.editor)?.hideContentHover();
+		HoverController.get(this.editor)?.hideHoverWidgets();
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
