@@ -2614,10 +2614,10 @@ chownr@^2.0.0:
   resolved "https://registry.yarnpkg.com/chownr/-/chownr-2.0.0.tgz#15bfbe53d2eab4cf70f18a8cd68ebe5b3cb1dece"
   integrity sha512-bIomtDF5KGpdogkLd9VspvFzk9KfpyyGlS8YFVZl7TGPBHL5snIOnxeshwVgPteQ9b4Eydl+pVbIyE1DcvCWgQ==
 
-chrome-remote-interface@0.28.2:
-  version "0.28.2"
-  resolved "https://registry.yarnpkg.com/chrome-remote-interface/-/chrome-remote-interface-0.28.2.tgz#6be3554d2c227ff07eb74baa7e5d4911da12a5a6"
-  integrity sha512-F7mjof7rWvRNsJqhVXuiFU/HWySCxTA9tzpLxUJxVfdLkljwFJ1aMp08AnwXRmmP7r12/doTDOMwaNhFCJsacw==
+chrome-remote-interface@^0.33.0:
+  version "0.33.0"
+  resolved "https://registry.yarnpkg.com/chrome-remote-interface/-/chrome-remote-interface-0.33.0.tgz#9140b5612ee5cdc39212cd0296d3b61ea881c47a"
+  integrity sha512-tv/SgeBfShXk43fwFpQ9wnS7mOCPzETnzDXTNxCb6TqKOiOeIfbrJz+2NAp8GmzwizpKa058wnU1Te7apONaYg==
   dependencies:
     commander "2.11.x"
     ws "^7.2.0"
@@ -9768,12 +9768,12 @@ v8-compile-cache-lib@^3.0.1:
   resolved "https://registry.yarnpkg.com/v8-compile-cache-lib/-/v8-compile-cache-lib-3.0.1.tgz#6336e8d71965cb3d35a1bbb7868445a7c05264bf"
   integrity sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==
 
-v8-inspect-profiler@^0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.1.0.tgz#0d3f80e2dc878f737c31ae7ff4c033425a33a724"
-  integrity sha512-K7RyY4p59+rIPvgcTN/Oo7VU9cJ68LOl+dz8RCh/M4VwbZ9yS3Ci+qajbMDojW207anNn7CehkLvqpSIrNT9oA==
+v8-inspect-profiler@^0.1.1:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.1.1.tgz#52fd9f1234dca2f650063c6cd39bdaef47b49396"
+  integrity sha512-GB3X9w7w+y9v4gq85olmf/bM3F2hj2DjjwvVpDXIziW5JBy8cDcIQ/K7m8xJVDWiFemxRX2Dxoo1k6JDvLMTig==
   dependencies:
-    chrome-remote-interface "0.28.2"
+    chrome-remote-interface "^0.33.0"
 
 v8-to-istanbul@^9.0.0:
   version "9.2.0"

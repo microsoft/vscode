@@ -557,7 +557,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	public async enableInspectPort(): Promise<boolean> {
-		if (typeof this._inspectListener === 'number') {
+		if (!!this._inspectListener) {
 			return true;
 		}
 
@@ -571,7 +571,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		}
 
 		await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
-		return typeof this._inspectListener === 'number';
+		return !!this._inspectListener;
 	}
 
 	public getInspectPort(): { port: number; host: string } | undefined {
