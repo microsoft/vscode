@@ -133,7 +133,7 @@ export class TerminalEditor extends EditorPane {
 					// occurs on the selection itself.
 					const terminal = this._terminalEditorService.activeInstance;
 					terminal?.focus();
-				} else if (this._terminalService.configHelper.config.middleClickBehavior === 'paste') {
+				} else if (this._terminalConfigurationService.config.middleClickBehavior === 'paste') {
 					const terminal = this._terminalEditorService.activeInstance;
 					terminal?.paste();
 				}
