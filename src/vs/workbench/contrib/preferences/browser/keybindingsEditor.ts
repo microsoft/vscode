@@ -143,6 +143,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	override create(parent: HTMLElement): void {
 		super.create(parent);
 		this._register(registerNavigableContainer({
+			name: 'keybindingsEditor',
 			focusNotifiers: [this],
 			focusNextWidget: () => {
 				if (this.searchWidget.hasFocus()) {
