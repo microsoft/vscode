@@ -157,12 +157,6 @@ export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | 
  * rendered in a tooltip-like widget.
  */
 export interface Hover extends IDisposable {
-
-	/**
-	 * ID of the hover
-	 */
-	id: string;
-
 	/**
 	 * The contents of this hover.
 	 */
@@ -186,20 +180,28 @@ export interface Hover extends IDisposable {
 	canDecreaseVerbosity?: boolean;
 }
 
+export interface HoverWithId extends Hover {
+	/**
+	 * An id for the hover
+	 */
+	id?: string;
+
+}
+
 /**
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
-export interface HoverProvider {
+export interface HoverProvider<THover = Hover> {
 	/**
 	 * Provide a hover for the given position, context and document. Multiple hovers at the same
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<THover>;
 }
 
-export interface HoverContext {
+export interface HoverContext<THover = Hover> {
 	/**
 	 * Whether to increase or decrease the hover's verbosity
 	 */
@@ -207,7 +209,7 @@ export interface HoverContext {
 	/**
 	 * The previous hover for the same position
 	 */
-	hover?: Hover;
+	previousHover: THover;
 }
 
 export enum HoverVerbosityAction {

@@ -263,16 +263,18 @@ class HoverAdapter {
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	async provideHover(resource: URI, position: IPosition, context: languages.HoverContext | undefined, token: CancellationToken): Promise<languages.Hover | undefined> {
+	async provideHover(resource: URI, position: IPosition, context: languages.HoverContext<languages.HoverWithId> | undefined, token: CancellationToken): Promise<languages.HoverWithId | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
 		let value: vscode.Hover | null | undefined;
-		if (context && context.hover && context.action) {
-			const previousHover = this._hoverMap.get(context.hover.id);
+
+		if (context && context.previousHover.id && context.action !== undefined) {
+			const previousHoverId = context.previousHover.id;
+			const previousHover = this._hoverMap.get(previousHoverId);
 			if (!previousHover) {
-				throw new Error(`Hover with id ${context.hover.id} not found`);
+				throw new Error(`Hover with id ${previousHoverId} not found`);
 			}
 			value = await this._provider.provideHover(doc, pos, token, { action: context.action, previousHover });
 		} else {
@@ -2255,7 +2257,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext | undefined, token: CancellationToken,): Promise<languages.Hover | undefined> {
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext<languages.HoverWithId> | undefined, token: CancellationToken,): Promise<languages.HoverWithId | undefined> {
 		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, context, token), undefined, token);
 	}
 

@@ -251,8 +251,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <languages.HoverProvider>{
-			provideHover: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context?: languages.HoverContext): Promise<languages.Hover | undefined> => {
+		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <languages.HoverProvider<languages.HoverWithId>>{
+			provideHover: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context?: languages.HoverContext<languages.HoverWithId>): Promise<languages.HoverWithId | undefined> => {
 				const result = await this._proxy.$provideHover(handle, model.uri, position, context, token);
 				if (!result) {
 					return;
@@ -260,7 +260,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				return {
 					...result,
 					dispose: () => {
-						if (result) {
+						if (result && result.id) {
 							this._proxy.$releaseHover(handle, result.id);
 						}
 					}

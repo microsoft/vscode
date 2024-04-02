@@ -67,7 +67,7 @@ export class HoverAction extends Disposable {
 		const label = dom.append(this.action, $('span'));
 		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 
-		registerActionOnClickOrAcceptKeydown(this.actionContainer, actionOptions.run, this._store);
+		this._store.add(registerActionOnClickOrAcceptKeydown(this.actionContainer, actionOptions.run));
 		this.setEnabled(true);
 	}
 
@@ -86,7 +86,8 @@ export function getHoverAccessibleViewHint(shouldHaveHint?: boolean, keybinding?
 	return shouldHaveHint && keybinding ? localize('acessibleViewHint', "Inspect this in the accessible view with {0}.", keybinding) : shouldHaveHint ? localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.") : '';
 }
 
-export function registerActionOnClickOrAcceptKeydown(container: HTMLElement, run: (container: HTMLElement) => void, store: DisposableStore) {
+export function registerActionOnClickOrAcceptKeydown(container: HTMLElement, run: (container: HTMLElement) => void): DisposableStore {
+	const store = new DisposableStore();
 	store.add(dom.addDisposableListener(container, dom.EventType.CLICK, e => {
 		e.stopPropagation();
 		e.preventDefault();
@@ -100,4 +101,5 @@ export function registerActionOnClickOrAcceptKeydown(container: HTMLElement, run
 			run(container);
 		}
 	}));
+	return store;
 }

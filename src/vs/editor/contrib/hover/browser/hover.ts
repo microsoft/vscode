@@ -326,12 +326,12 @@ export class HoverController extends Disposable implements IEditorContribution {
 		const mightTriggerFocus = (
 			resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded ||
 			(resolvedKeyboardEvent.kind === ResultKind.KbFound
-				&& (resolvedKeyboardEvent.commandId === 'editor.action.showHover'
-					|| resolvedKeyboardEvent.commandId === 'editor.action.increaseHoverVerbosityLevel'
-					|| resolvedKeyboardEvent.commandId === 'editor.action.decreaseHoverVerbosityLevel')
-				&& this._contentWidget?.isVisible
-			)
-		);
+				&& (resolvedKeyboardEvent.commandId === ShowOrFocusHoverAction.ID
+					|| resolvedKeyboardEvent.commandId === IncreaseHoverVerbosityLevel.ID
+					|| resolvedKeyboardEvent.commandId === DecreaseHoverVerbosityLevel.ID
+					&& this._contentWidget?.isVisible
+				)
+			));
 
 		if (
 			e.keyCode === KeyCode.Ctrl
@@ -465,9 +465,11 @@ enum HoverFocusBehavior {
 
 class ShowOrFocusHoverAction extends EditorAction {
 
+	static ID = 'editor.action.showHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.showHover',
+			id: ShowOrFocusHoverAction.ID,
 			label: nls.localize({
 				key: 'showOrFocusHover',
 				comment: [
@@ -547,9 +549,11 @@ class ShowOrFocusHoverAction extends EditorAction {
 
 class ShowDefinitionPreviewHoverAction extends EditorAction {
 
+	static ID = 'editor.action.showDefinitionPreviewHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.showDefinitionPreviewHover',
+			id: ShowDefinitionPreviewHoverAction.ID,
 			label: nls.localize({
 				key: 'showDefinitionPreviewHover',
 				comment: [
@@ -588,9 +592,11 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 
 class ScrollUpHoverAction extends EditorAction {
 
+	static ID = 'editor.action.scrollUpHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.scrollUpHover',
+			id: ScrollUpHoverAction.ID,
 			label: nls.localize({
 				key: 'scrollUpHover',
 				comment: [
@@ -618,9 +624,11 @@ class ScrollUpHoverAction extends EditorAction {
 
 class ScrollDownHoverAction extends EditorAction {
 
+	static ID = 'editor.action.scrollDownHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.scrollDownHover',
+			id: ScrollDownHoverAction.ID,
 			label: nls.localize({
 				key: 'scrollDownHover',
 				comment: [
@@ -648,9 +656,11 @@ class ScrollDownHoverAction extends EditorAction {
 
 class ScrollLeftHoverAction extends EditorAction {
 
+	static ID = 'editor.action.scrollLeftHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.scrollLeftHover',
+			id: ScrollLeftHoverAction.ID,
 			label: nls.localize({
 				key: 'scrollLeftHover',
 				comment: [
@@ -678,9 +688,11 @@ class ScrollLeftHoverAction extends EditorAction {
 
 class ScrollRightHoverAction extends EditorAction {
 
+	static ID = 'editor.action.scrollRightHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.scrollRightHover',
+			id: ScrollRightHoverAction.ID,
 			label: nls.localize({
 				key: 'scrollRightHover',
 				comment: [
@@ -708,9 +720,11 @@ class ScrollRightHoverAction extends EditorAction {
 
 class PageUpHoverAction extends EditorAction {
 
+	static ID = 'editor.action.pageUpHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.pageUpHover',
+			id: PageUpHoverAction.ID,
 			label: nls.localize({
 				key: 'pageUpHover',
 				comment: [
@@ -740,9 +754,11 @@ class PageUpHoverAction extends EditorAction {
 
 class PageDownHoverAction extends EditorAction {
 
+	static ID = 'editor.action.pageDownHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.pageDownHover',
+			id: PageDownHoverAction.ID,
 			label: nls.localize({
 				key: 'pageDownHover',
 				comment: [
@@ -771,9 +787,11 @@ class PageDownHoverAction extends EditorAction {
 
 class GoToTopHoverAction extends EditorAction {
 
+	static ID = 'editor.action.goToTopHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.goToTopHover',
+			id: GoToTopHoverAction.ID,
 			label: nls.localize({
 				key: 'goToTopHover',
 				comment: [
@@ -803,9 +821,11 @@ class GoToTopHoverAction extends EditorAction {
 
 class GoToBottomHoverAction extends EditorAction {
 
+	static ID = 'editor.action.goToBottomHover';
+
 	constructor() {
 		super({
-			id: 'editor.action.goToBottomHover',
+			id: GoToBottomHoverAction.ID,
 			label: nls.localize({
 				key: 'goToBottomHover',
 				comment: [
@@ -834,9 +854,11 @@ class GoToBottomHoverAction extends EditorAction {
 
 class IncreaseHoverVerbosityLevel extends EditorAction {
 
+	static ID = 'editor.action.increaseHoverVerbosityLevel';
+
 	constructor() {
 		super({
-			id: 'editor.action.increaseHoverVerbosityLevel',
+			id: IncreaseHoverVerbosityLevel.ID,
 			label: nls.localize({
 				key: 'increaseHoverVerbosityLevel',
 				comment: ['Label for action that will increase the hover verbosity level.']
@@ -858,9 +880,11 @@ class IncreaseHoverVerbosityLevel extends EditorAction {
 
 class DecreaseHoverVerbosityLevel extends EditorAction {
 
+	static ID = 'editor.action.decreaseHoverVerbosityLevel';
+
 	constructor() {
 		super({
-			id: 'editor.action.decreaseHoverVerbosityLevel',
+			id: DecreaseHoverVerbosityLevel.ID,
 			label: nls.localize({
 				key: 'decreaseHoverVerbosityLevel',
 				comment: ['Label for action that will decrease the hover verbosity level.']

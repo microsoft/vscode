@@ -6,7 +6,7 @@
 import { Dimension } from 'vs/base/browser/dom';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -104,10 +104,6 @@ export interface IEditorHoverRenderContext {
 	 */
 	readonly statusBar: IEditorHoverStatusBar;
 	/**
-	 * The disposable store for this hover
-	 */
-	readonly disposables: DisposableStore | undefined;
-	/**
 	 * Set if the hover will render a color picker widget.
 	 */
 	setColorPicker(widget: IEditorHoverColorPickerWidget): void;
@@ -131,7 +127,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable | undefined;
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;

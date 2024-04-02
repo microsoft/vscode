@@ -156,9 +156,10 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			if (!this._languageFeaturesService.hoverProvider.has(model)) {
 				return AsyncIterableObject.EMPTY;
 			}
-			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), undefined, token)
+			const position = new Position(range.startLineNumber, range.startColumn);
+			return getHover(this._languageFeaturesService.hoverProvider, model, position, token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new VerboseMarkdownHover(item.hover, item.provider, this, part.item.anchor.range, false, 2 + item.ordinal));
+				.map(item => new VerboseMarkdownHover(item.hover, item.provider, 2 + item.ordinal, position, part.item.anchor.range, this));
 		} finally {
 			ref.dispose();
 		}

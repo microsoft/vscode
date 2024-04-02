@@ -39,6 +39,7 @@ export class ContentHoverController extends Disposable {
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
+	// TODO@aiday-mar make array of participants, dispatch between them
 	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -220,7 +221,6 @@ export class ContentHoverController extends Disposable {
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
-			disposables,
 			setColorPicker: (widget) => colorPicker = widget,
 			onContentsChanged: () => this._widget.onContentsChanged(),
 			setMinimumDimensions: (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions),
@@ -230,10 +230,7 @@ export class ContentHoverController extends Disposable {
 		for (const participant of this._participants) {
 			const hoverParts = messages.filter(msg => msg.owner === participant);
 			if (hoverParts.length > 0) {
-				const participantDisposables = participant.renderHoverParts(context, hoverParts);
-				if (participantDisposables) {
-					disposables.add(participantDisposables);
-				}
+				disposables.add(participant.renderHoverParts(context, hoverParts));
 			}
 		}
 

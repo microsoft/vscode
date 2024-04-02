@@ -6781,10 +6781,6 @@ declare namespace monaco.languages {
 	 */
 	export interface Hover extends IDisposable {
 		/**
-		 * ID of the hover
-		 */
-		id: string;
-		/**
 		 * The contents of this hover.
 		 */
 		contents: IMarkdownString[];
@@ -6804,20 +6800,27 @@ declare namespace monaco.languages {
 		canDecreaseVerbosity?: boolean;
 	}
 
+	export interface HoverWithId extends Hover {
+		/**
+		 * An id for the hover
+		 */
+		id?: string;
+	}
+
 	/**
 	 * The hover provider interface defines the contract between extensions and
 	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
 	 */
-	export interface HoverProvider {
+	export interface HoverProvider<THover = Hover> {
 		/**
 		 * Provide a hover for the given position, context and document. Multiple hovers at the same
 		 * position will be merged by the editor. A hover can have a range which defaults
 		 * to the word range at the position when omitted.
 		 */
-		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken, context?: HoverContext): ProviderResult<Hover>;
+		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<THover>;
 	}
 
-	export interface HoverContext {
+	export interface HoverContext<THover = Hover> {
 		/**
 		 * Whether to increase or decrease the hover's verbosity
 		 */
@@ -6825,7 +6828,7 @@ declare namespace monaco.languages {
 		/**
 		 * The previous hover for the same position
 		 */
-		hover?: Hover;
+		previousHover: THover;
 	}
 
 	export enum HoverVerbosityAction {
