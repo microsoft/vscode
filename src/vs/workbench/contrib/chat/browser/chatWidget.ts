@@ -258,7 +258,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return dom.getTotalHeight(this.inputPart.element) + this.tree.contentHeight;
+		return this.inputPart.contentHeight + this.tree.contentHeight;
 	}
 
 	render(parent: HTMLElement): void {
