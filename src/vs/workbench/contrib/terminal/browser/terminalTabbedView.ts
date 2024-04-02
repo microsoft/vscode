@@ -340,12 +340,16 @@ export class TerminalTabbedView extends Disposable {
 			}
 
 			if (event.which === 2) {
-				if (isLinux) {
-					// Drop selection and focus terminal on Linux to enable middle button paste when click
-					// occurs on the selection itself.
-					terminal.focus();
-				} else if (this._terminalConfigurationService.config.middleClickBehavior === 'paste') {
-					terminal.paste();
+				switch (this._terminalConfigurationService.config.middleClickBehavior) {
+					case 'paste':
+						terminal.paste();
+						break;
+					case 'default':
+					default:
+						// Drop selection and focus terminal on Linux to enable middle button paste
+						// when click occurs on the selection itself.
+						terminal.focus();
+						break;
 				}
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
