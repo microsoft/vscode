@@ -123,7 +123,8 @@ export class TerminalEditor extends EditorPane {
 			return;
 		}
 		this._register(dom.addDisposableListener(this._editorInstanceElement, 'mousedown', async (event: MouseEvent) => {
-			if (this._terminalEditorService.instances.length === 0) {
+			const terminal = this._terminalEditorService.activeInstance;
+			if (this._terminalEditorService.instances.length === 0 || !terminal) {
 				return;
 			}
 
@@ -131,11 +132,9 @@ export class TerminalEditor extends EditorPane {
 				if (isLinux) {
 					// Drop selection and focus terminal on Linux to enable middle button paste when click
 					// occurs on the selection itself.
-					const terminal = this._terminalEditorService.activeInstance;
-					terminal?.focus();
+					terminal.focus();
 				} else if (this._terminalConfigurationService.config.middleClickBehavior === 'paste') {
-					const terminal = this._terminalEditorService.activeInstance;
-					terminal?.paste();
+					terminal.paste();
 				}
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
@@ -146,11 +145,6 @@ export class TerminalEditor extends EditorPane {
 					return;
 				}
 				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
-					const terminal = this._terminalEditorService.activeInstance;
-					if (!terminal) {
-						return;
-					}
-
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
 						openContextMenu(this.window, event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
