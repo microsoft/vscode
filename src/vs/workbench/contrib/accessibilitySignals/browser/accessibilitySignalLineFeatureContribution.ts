@@ -235,10 +235,8 @@ class FoldedAreaLineFeature implements LineFeature {
 		if (!foldingController) {
 			return { isPresent: () => false, isPresentOnLine: () => false };
 		}
-		const foldingModel = observableFromPromise(foldingController.getFoldingModel() ?? Promise.resolve(undefined));
-		return {
-			isPresent: () => false,
-			isPresentOnLine: (lineNumber, reader) => {
+		class FoldedAreaLineFeatureSource extends LineFeatureSource {
+			isPresentOnLine(lineNumber: number, reader: IReader): boolean {
 				const m = foldingModel.read(reader);
 				const regionAtLine = m.value?.getRegionAtLine(lineNumber);
 				const hasFolding = !regionAtLine
@@ -246,8 +244,11 @@ class FoldedAreaLineFeature implements LineFeature {
 					: regionAtLine.isCollapsed &&
 					regionAtLine.startLineNumber === lineNumber;
 				return hasFolding;
-			},
-		};
+			}
+		}
+
+		const foldingModel = observableFromPromise(foldingController.getFoldingModel() ?? Promise.resolve(undefined));
+		return new FoldedAreaLineFeatureSource();
 	}
 }
 
@@ -258,17 +259,18 @@ class BreakpointLineFeature implements LineFeature {
 
 	createSource(editor: ICodeEditor, model: ITextModel): LineFeatureSource {
 		const signal = observableSignalFromEvent('onDidChangeBreakpoints', this.debugService.getModel().onDidChangeBreakpoints);
-		return {
-			isPresent: () => false,
-			isPresentOnLine: (lineNumber, reader) => {
+		const debugService = this.debugService;
+		class BreakpointLineFeatureSource extends LineFeatureSource {
+			isPresentOnLine(lineNumber: number, reader: IReader): boolean {
 				signal.read(reader);
-				const breakpoints = this.debugService
+				const breakpoints = debugService
 					.getModel()
 					.getBreakpoints({ uri: model.uri, lineNumber });
 				const hasBreakpoints = breakpoints.length > 0;
 				return hasBreakpoints;
-			},
-		};
+			}
+		}
+		return new BreakpointLineFeatureSource();
 	}
 }
 
