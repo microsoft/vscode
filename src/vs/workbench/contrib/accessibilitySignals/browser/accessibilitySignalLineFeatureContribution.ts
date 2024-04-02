@@ -129,7 +129,7 @@ export class SignalLineFeatureContribution
 						return false;
 					}
 					const lineChanged = this._previousLineNumber !== position.lineNumber;
-					const isPresent = lineFeatureState.isPresent(position, reader) || (lineChanged && lineFeatureState.isPresentOnLine?.(position, reader));
+					const isPresent = lineFeatureState.isPresent(position, reader) || (lineChanged && lineFeatureState.isPresentOnLine(position.lineNumber, reader));
 					this._previousLineNumber = position.lineNumber;
 					return isPresent;
 				}
@@ -179,9 +179,10 @@ interface LineFeature {
 	): LineFeatureSource;
 }
 
-interface LineFeatureSource {
-	isPresent(position: Position, reader: IReader): boolean;
-	isPresentOnLine?(position: Position, reader: IReader): boolean;
+
+abstract class LineFeatureSource {
+	isPresent(position: Position, reader: IReader): boolean { return false; }
+	abstract isPresentOnLine(lineNumber: number, reader: IReader): boolean;
 }
 
 class MarkerLineFeature implements LineFeature {
@@ -210,15 +211,15 @@ class MarkerLineFeature implements LineFeature {
 					);
 				return hasMarker;
 			},
-			isPresentOnLine: (position, reader) => {
+			isPresentOnLine: (lineNumber, reader) => {
 				obs.read(reader);
 				const hasMarker = this.markerService
 					.read({ resource: model.uri })
 					.some(
 						(m) =>
 							m.severity === this.severity &&
-							m.startLineNumber <= position.lineNumber &&
-							position.lineNumber <= m.endLineNumber
+							m.startLineNumber <= lineNumber &&
+							lineNumber <= m.endLineNumber
 					);
 				return hasMarker;
 			}
@@ -232,17 +233,18 @@ class FoldedAreaLineFeature implements LineFeature {
 	createSource(editor: ICodeEditor, _model: ITextModel): LineFeatureSource {
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
-			return { isPresent: () => false, };
+			return { isPresentOnLine: () => false, isPresent: () => false };
 		}
 		const foldingModel = observableFromPromise(foldingController.getFoldingModel() ?? Promise.resolve(undefined));
 		return {
-			isPresent: (position, reader) => {
+			isPresent: () => false,
+			isPresentOnLine: (lineNumber, reader) => {
 				const m = foldingModel.read(reader);
-				const regionAtLine = m.value?.getRegionAtLine(position.lineNumber);
+				const regionAtLine = m.value?.getRegionAtLine(lineNumber);
 				const hasFolding = !regionAtLine
 					? false
 					: regionAtLine.isCollapsed &&
-					regionAtLine.startLineNumber === position.lineNumber;
+					regionAtLine.startLineNumber === lineNumber;
 				return hasFolding;
 			},
 		};
@@ -257,14 +259,16 @@ class BreakpointLineFeature implements LineFeature {
 	createSource(editor: ICodeEditor, model: ITextModel): LineFeatureSource {
 		const signal = observableSignalFromEvent('onDidChangeBreakpoints', this.debugService.getModel().onDidChangeBreakpoints);
 		return {
-			isPresent: (position, reader) => {
+			isPresent: () => false,
+			isPresentOnLine: (lineNumber, reader) => {
 				signal.read(reader);
 				const breakpoints = this.debugService
 					.getModel()
-					.getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
+					.getBreakpoints({ uri: model.uri, lineNumber });
 				const hasBreakpoints = breakpoints.length > 0;
 				return hasBreakpoints;
 			},
 		};
 	}
 }
+
