@@ -708,6 +708,15 @@
             "%configuration.markdown.preferredMdPathExtensionStyle.includeExtension%",
             "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
           ]
+        },
+        "markdown.experimental.updateLinksOnPaste": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.markdown.experimental.updateLinksOnPaste%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
