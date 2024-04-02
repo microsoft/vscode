@@ -579,6 +579,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	override render(): void {
 		super.render();
 		this._register(registerNavigableContainer({
+			name: 'repl',
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
 				const element = this.tree?.getHTMLElement();

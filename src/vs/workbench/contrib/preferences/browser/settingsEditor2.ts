@@ -336,6 +336,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.updateStyles();
 
 		this._register(registerNavigableContainer({
+			name: 'settingsEditor2',
 			focusNotifiers: [this],
 			focusNextWidget: () => {
 				if (this.searchWidget.inputWidget.hasWidgetFocus()) {

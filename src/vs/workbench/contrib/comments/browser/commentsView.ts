@@ -126,6 +126,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	override render(): void {
 		super.render();
 		this._register(registerNavigableContainer({
+			name: 'commentsView',
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
 				if (this.filterWidget.hasFocus()) {
