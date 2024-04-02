@@ -32,6 +32,7 @@ import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContr
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { TerminalMultiLineLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalMultiLineLinkDetector';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -53,8 +54,9 @@ export class TerminalLinkManager extends DisposableStore {
 		capabilities: ITerminalCapabilityStore,
 		private readonly _linkResolver: ITerminalLinkResolver,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalConfigurationService private readonly _termninalConfigurationService: ITerminalConfigurationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
@@ -105,15 +107,24 @@ export class TerminalLinkManager extends DisposableStore {
 				if (!this._isLinkActivationModifierDown(event)) {
 					return;
 				}
-				// TODO: Support arbitrary schemes
 				const colonIndex = text.indexOf(':');
 				if (colonIndex === -1) {
 					throw new Error(`Could not find scheme in link "${text}"`);
 				}
 				const scheme = text.substring(0, colonIndex);
-				if (this._termninalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
-					// TODO: Notification with config
-					throw new Error('Scheme not allowed');
+				if (this._terminalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
+					this._notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
+						{
+							label: nls.localize('allow', 'Allow {0}', scheme),
+							run: () => {
+								const allowedLinkSchemes = [
+									...this._terminalConfigurationService.config.allowedLinkSchemes,
+									scheme
+								];
+								this._configurationService.updateValue(`terminal.integrated.allowedLinkSchemes`, allowedLinkSchemes);
+							}
+						}
+					]);
 				}
 				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
 					type: TerminalBuiltinLinkType.Url,
