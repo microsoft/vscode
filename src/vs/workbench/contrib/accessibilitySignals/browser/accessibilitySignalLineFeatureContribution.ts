@@ -233,7 +233,7 @@ class FoldedAreaLineFeature implements LineFeature {
 	createSource(editor: ICodeEditor, _model: ITextModel): LineFeatureSource {
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
-			return { isPresentOnLine: () => false, isPresent: () => false };
+			return { isPresent: () => false, isPresentOnLine: () => false };
 		}
 		const foldingModel = observableFromPromise(foldingController.getFoldingModel() ?? Promise.resolve(undefined));
 		return {
