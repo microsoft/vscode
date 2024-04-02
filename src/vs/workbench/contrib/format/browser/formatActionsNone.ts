@@ -7,16 +7,16 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 async function showExtensionQuery(paneCompositeService: IPaneCompositePartService, query: string) {
 	const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
@@ -51,9 +51,10 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const notificationService = accessor.get(INotificationService);
 		const dialogService = accessor.get(IDialogService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 
 		const model = editor.getModel();
-		const formatterCount = DocumentFormattingEditProviderRegistry.all(model).length;
+		const formatterCount = languageFeaturesService.documentFormattingEditProvider.all(model).length;
 
 		if (formatterCount > 1) {
 			return commandService.executeCommand('editor.action.formatDocument.multiple');
@@ -64,12 +65,11 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		} else {
 			const langName = model.getLanguageId();
 			const message = nls.localize('no.provider', "There is no formatter for '{0}' files installed.", langName);
-			const res = await dialogService.show(
-				Severity.Info,
+			const { confirmed } = await dialogService.confirm({
 				message,
-				[nls.localize('cancel', "Cancel"), nls.localize('install.formatter', "Install Formatter...")]
-			);
-			if (res.choice === 1) {
+				primaryButton: nls.localize({ key: 'install.formatter', comment: ['&& denotes a mnemonic'] }, "&&Install Formatter...")
+			});
+			if (confirmed) {
 				showExtensionQuery(paneCompositeService, `category:formatters ${langName}`);
 			}
 		}

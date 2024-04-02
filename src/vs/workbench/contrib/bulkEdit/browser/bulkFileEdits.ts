@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { WorkspaceFileEditOptions } from 'vs/editor/common/modes';
-import { IFileService, FileSystemProviderCapabilities, IFileContent } from 'vs/platform/files/common/files';
+import { WorkspaceFileEditOptions } from 'vs/editor/common/languages';
+import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -16,8 +16,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { flatten, tail } from 'vs/base/common/arrays';
+import { tail } from 'vs/base/common/arrays';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { Schemas } from 'vs/base/common/network';
 
 interface IFileOperation {
 	uris: URI[];
@@ -51,7 +52,7 @@ class RenameOperation implements IFileOperation {
 	) { }
 
 	get uris() {
-		return flatten(this._edits.map(edit => [edit.newUri, edit.oldUri]));
+		return this._edits.flatMap(edit => [edit.newUri, edit.oldUri]);
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
@@ -105,7 +106,7 @@ class CopyOperation implements IFileOperation {
 	) { }
 
 	get uris() {
-		return flatten(this._edits.map(edit => [edit.newUri, edit.oldUri]));
+		return this._edits.flatMap(edit => [edit.newUri, edit.oldUri]);
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
@@ -173,6 +174,9 @@ class CreateOperation implements IFileOperation {
 		const undoes: DeleteEdit[] = [];
 
 		for (const edit of this._edits) {
+			if (edit.newUri.scheme === Schemas.untitled) {
+				continue; // ignore, will be handled by a later edit
+			}
 			if (edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
 				continue; // not overwriting, but ignoring, and the target file exists
 			}
@@ -233,7 +237,10 @@ class DeleteOperation implements IFileOperation {
 		const undoes: CreateEdit[] = [];
 
 		for (const edit of this._edits) {
-			if (!await this._fileService.exists(edit.oldUri)) {
+			let fileStat: IFileStatWithMetadata | undefined;
+			try {
+				fileStat = await this._fileService.resolve(edit.oldUri, { resolveMetadata: true });
+			} catch (err) {
 				if (!edit.options.ignoreIfNotExists) {
 					throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
 				}
@@ -249,15 +256,15 @@ class DeleteOperation implements IFileOperation {
 
 			// read file contents for undo operation. when a file is too large it won't be restored
 			let fileContent: IFileContent | undefined;
-			if (!edit.undoesCreate && !edit.options.folder) {
+			if (!edit.undoesCreate && !edit.options.folder && !(typeof edit.options.maxSize === 'number' && fileStat.size > edit.options.maxSize)) {
 				try {
 					fileContent = await this._fileService.readFile(edit.oldUri);
 				} catch (err) {
-					this._logService.critical(err);
+					this._logService.error(err);
 				}
 			}
-			if (!(typeof edit.options.maxSize === 'number' && fileContent && (fileContent?.size > edit.options.maxSize))) {
-				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent?.value));
+			if (fileContent !== undefined) {
+				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent.value));
 			}
 		}
 
@@ -286,10 +293,11 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 
 	constructor(
 		readonly label: string,
+		readonly code: string,
 		readonly operations: IFileOperation[],
 		readonly confirmBeforeUndo: boolean
 	) {
-		this.resources = (<URI[]>[]).concat(...operations.map(op => op.uris));
+		this.resources = operations.flatMap(op => op.uris);
 	}
 
 	async undo(): Promise<void> {
@@ -317,6 +325,7 @@ export class BulkFileEdits {
 
 	constructor(
 		private readonly _label: string,
+		private readonly _code: string,
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _confirmBeforeUndo: boolean,
@@ -327,7 +336,7 @@ export class BulkFileEdits {
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 	) { }
 
-	async apply(): Promise<void> {
+	async apply(): Promise<readonly URI[]> {
 		const undoOperations: IFileOperation[] = [];
 		const undoRedoInfo = { undoRedoGroupId: this._undoRedoGroup.id };
 
@@ -340,12 +349,12 @@ export class BulkFileEdits {
 			} else if (!edit.newResource && edit.oldResource) {
 				edits.push(new DeleteEdit(edit.oldResource, edit.options ?? {}, false));
 			} else if (edit.newResource && !edit.oldResource) {
-				edits.push(new CreateEdit(edit.newResource, edit.options ?? {}, undefined));
+				edits.push(new CreateEdit(edit.newResource, edit.options ?? {}, await edit.options.contents));
 			}
 		}
 
 		if (edits.length === 0) {
-			return;
+			return [];
 		}
 
 		const groups: Array<RenameEdit | CopyEdit | DeleteEdit | CreateEdit>[] = [];
@@ -361,7 +370,7 @@ export class BulkFileEdits {
 			}
 		}
 
-		for (let group of groups) {
+		for (const group of groups) {
 
 			if (this._token.isCancellationRequested) {
 				break;
@@ -390,6 +399,8 @@ export class BulkFileEdits {
 			this._progress.report(undefined);
 		}
 
-		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations, this._confirmBeforeUndo), this._undoRedoGroup, this._undoRedoSource);
+		const undoRedoElement = new FileUndoRedoElement(this._label, this._code, undoOperations, this._confirmBeforeUndo);
+		this._undoRedoService.pushElement(undoRedoElement, this._undoRedoGroup, this._undoRedoSource);
+		return undoRedoElement.resources;
 	}
 }

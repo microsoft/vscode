@@ -6,10 +6,10 @@
 import * as nls from 'vs/nls';
 import { JSONSchemaType } from 'vs/base/common/jsonSchema';
 import { Color } from 'vs/base/common/color';
-import { isArray, isObject, isUndefinedOrNull, isString, isStringArray } from 'vs/base/common/types';
+import { isObject, isUndefinedOrNull, isString, isStringArray } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
-type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
+type Validator<T> = { enabled: boolean; isValid: (value: T) => boolean; message: string };
 
 function canBeType(propTypes: (string | undefined)[], ...types: JSONSchemaType[]): boolean {
 	return types.some(t => propTypes.includes(t));
@@ -20,21 +20,21 @@ function isNullOrEmpty(value: unknown): boolean {
 }
 
 export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
-	const type: (string | undefined)[] = isArray(prop.type) ? prop.type : [prop.type];
+	const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
 	const isNullable = canBeType(type, 'null');
 	const isNumeric = (canBeType(type, 'number') || canBeType(type, 'integer')) && (type.length === 1 || type.length === 2 && isNullable);
 
 	const numericValidations = getNumericValidators(prop);
 	const stringValidations = getStringValidators(prop);
-	const stringArrayValidator = getArrayOfStringValidator(prop);
+	const arrayValidator = getArrayValidator(prop);
 	const objectValidator = getObjectValidator(prop);
 
 	return value => {
 		if (isNullable && isNullOrEmpty(value)) { return ''; }
 
 		const errors: string[] = [];
-		if (stringArrayValidator) {
-			const err = stringArrayValidator(value);
+		if (arrayValidator) {
+			const err = arrayValidator(value);
 			if (err) {
 				errors.push(err);
 			}
@@ -52,7 +52,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		}
 
 		if (isNumeric) {
-			if (isNullOrEmpty(value) || isNaN(+value)) {
+			if (isNullOrEmpty(value) || typeof value === 'boolean' || Array.isArray(value) || isNaN(+value)) {
 				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
 			} else {
 				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));
@@ -85,7 +85,7 @@ export function getInvalidTypeError(value: any, type: undefined | string | strin
 		return;
 	}
 
-	const typeArr = isArray(type) ? type : [type];
+	const typeArr = Array.isArray(type) ? type : [type];
 	if (!typeArr.some(_type => valueValidatesAsType(value, _type))) {
 		return nls.localize('invalidTypeError', "Setting has an invalid type, expected {0}. Fix in JSON.", JSON.stringify(type));
 	}
@@ -98,11 +98,11 @@ function valueValidatesAsType(value: any, type: string): boolean {
 	if (type === 'boolean') {
 		return valueType === 'boolean';
 	} else if (type === 'object') {
-		return value && !isArray(value) && valueType === 'object';
+		return value && !Array.isArray(value) && valueType === 'object';
 	} else if (type === 'null') {
 		return value === null;
 	} else if (type === 'array') {
-		return isArray(value);
+		return Array.isArray(value);
 	} else if (type === 'string') {
 		return valueType === 'string';
 	} else if (type === 'number' || type === 'integer') {
@@ -112,22 +112,41 @@ function valueValidatesAsType(value: any, type: string): boolean {
 	return true;
 }
 
+function toRegExp(pattern: string): RegExp {
+	try {
+		// The u flag allows support for better Unicode matching,
+		// but deprecates some patterns such as [\s-9]
+		// Ref https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Character_class#description
+		return new RegExp(pattern, 'u');
+	} catch (e) {
+		try {
+			return new RegExp(pattern);
+		} catch (e) {
+			// If the pattern can't be parsed even without the 'u' flag,
+			// just log the error to avoid rendering the entire Settings editor blank.
+			// Ref https://github.com/microsoft/vscode/issues/195054
+			console.error(nls.localize('regexParsingError', "Error parsing the following regex both with and without the u flag:"), pattern);
+			return /.*/;
+		}
+	}
+}
+
 function getStringValidators(prop: IConfigurationPropertySchema) {
 	const uriRegex = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	let patternRegex: RegExp | undefined;
 	if (typeof prop.pattern === 'string') {
-		patternRegex = new RegExp(prop.pattern);
+		patternRegex = toRegExp(prop.pattern);
 	}
 
 	return [
 		{
 			enabled: prop.maxLength !== undefined,
-			isValid: ((value: { length: number; }) => value.length <= prop.maxLength!),
+			isValid: ((value: { length: number }) => value.length <= prop.maxLength!),
 			message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
 		},
 		{
 			enabled: prop.minLength !== undefined,
-			isValid: ((value: { length: number; }) => value.length >= prop.minLength!),
+			isValid: ((value: { length: number }) => value.length >= prop.minLength!),
 			message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
 		},
 		{
@@ -170,7 +189,7 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 }
 
 function getNumericValidators(prop: IConfigurationPropertySchema): Validator<number>[] {
-	const type: (string | undefined)[] = isArray(prop.type) ? prop.type : [prop.type];
+	const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
 
 	const isNullable = canBeType(type, 'null');
 	const isIntegral = (canBeType(type, 'integer')) && (type.length === 1 || type.length === 2 && isNullable);
@@ -205,7 +224,6 @@ function getNumericValidators(prop: IConfigurationPropertySchema): Validator<num
 			isValid: ((value: number) => value > exclusiveMin!),
 			message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
 		},
-
 		{
 			enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
 			isValid: ((value: number) => value <= prop.maximum!),
@@ -229,10 +247,10 @@ function getNumericValidators(prop: IConfigurationPropertySchema): Validator<num
 	].filter(validation => validation.enabled);
 }
 
-function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
-	if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type === 'string') {
+function getArrayValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
+	if (prop.type === 'array' && prop.items && !Array.isArray(prop.items)) {
 		const propItems = prop.items;
-		if (propItems && !isArray(propItems) && propItems.type === 'string') {
+		if (propItems && !Array.isArray(propItems.type)) {
 			const withQuotes = (s: string) => `'` + s + `'`;
 			return value => {
 				if (!value) {
@@ -241,58 +259,72 @@ function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value:
 
 				let message = '';
 
-				if (!isStringArray(value)) {
-					message += nls.localize('validations.stringArrayIncorrectType', 'Incorrect type. Expected a string array.');
+				if (!Array.isArray(value)) {
+					message += nls.localize('validations.arrayIncorrectType', 'Incorrect type. Expected an array.');
 					message += '\n';
 					return message;
 				}
 
-				const stringArrayValue = value;
-
+				const arrayValue = value as unknown[];
 				if (prop.uniqueItems) {
-					if (new Set(stringArrayValue).size < stringArrayValue.length) {
+					if (new Set(arrayValue).size < arrayValue.length) {
 						message += nls.localize('validations.stringArrayUniqueItems', 'Array has duplicate items');
 						message += '\n';
 					}
 				}
 
-				if (prop.minItems && stringArrayValue.length < prop.minItems) {
+				if (prop.minItems && arrayValue.length < prop.minItems) {
 					message += nls.localize('validations.stringArrayMinItem', 'Array must have at least {0} items', prop.minItems);
 					message += '\n';
 				}
 
-				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
+				if (prop.maxItems && arrayValue.length > prop.maxItems) {
 					message += nls.localize('validations.stringArrayMaxItem', 'Array must have at most {0} items', prop.maxItems);
 					message += '\n';
 				}
 
-				if (typeof propItems.pattern === 'string') {
-					const patternRegex = new RegExp(propItems.pattern);
-					stringArrayValue.forEach(v => {
-						if (!patternRegex.test(v)) {
-							message +=
-								propItems.patternErrorMessage ||
-								nls.localize(
-									'validations.stringArrayItemPattern',
-									'Value {0} must match regex {1}.',
-									withQuotes(v),
-									withQuotes(propItems.pattern!)
-								);
-						}
-					});
-				}
+				if (propItems.type === 'string') {
+					if (!isStringArray(arrayValue)) {
+						message += nls.localize('validations.stringArrayIncorrectType', 'Incorrect type. Expected a string array.');
+						message += '\n';
+						return message;
+					}
 
-				const propItemsEnum = propItems.enum;
-				if (propItemsEnum) {
-					stringArrayValue.forEach(v => {
-						if (propItemsEnum.indexOf(v) === -1) {
-							message += nls.localize(
-								'validations.stringArrayItemEnum',
-								'Value {0} is not one of {1}',
-								withQuotes(v),
-								'[' + propItemsEnum.map(withQuotes).join(', ') + ']'
-							);
-							message += '\n';
+					if (typeof propItems.pattern === 'string') {
+						const patternRegex = toRegExp(propItems.pattern);
+						arrayValue.forEach(v => {
+							if (!patternRegex.test(v)) {
+								message +=
+									propItems.patternErrorMessage ||
+									nls.localize(
+										'validations.stringArrayItemPattern',
+										'Value {0} must match regex {1}.',
+										withQuotes(v),
+										withQuotes(propItems.pattern!)
+									);
+							}
+						});
+					}
+
+					const propItemsEnum = propItems.enum;
+					if (propItemsEnum) {
+						arrayValue.forEach(v => {
+							if (propItemsEnum.indexOf(v) === -1) {
+								message += nls.localize(
+									'validations.stringArrayItemEnum',
+									'Value {0} is not one of {1}',
+									withQuotes(v),
+									'[' + propItemsEnum.map(withQuotes).join(', ') + ']'
+								);
+								message += '\n';
+							}
+						});
+					}
+				} else if (propItems.type === 'integer' || propItems.type === 'number') {
+					arrayValue.forEach(v => {
+						const errorMessage = getErrorsForSchema(propItems, v);
+						if (errorMessage) {
+							message += `${v}: ${errorMessage}\n`;
 						}
 					});
 				}

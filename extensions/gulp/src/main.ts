@@ -7,9 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 
-const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
 
@@ -53,7 +51,7 @@ function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: strin
 
 const buildNames: string[] = ['build', 'compile', 'watch'];
 function isBuildTask(name: string): boolean {
-	for (let buildName of buildNames) {
+	for (const buildName of buildNames) {
 		if (name.indexOf(buildName) !== -1) {
 			return true;
 		}
@@ -63,7 +61,7 @@ function isBuildTask(name: string): boolean {
 
 const testNames: string[] = ['test'];
 function isTestTask(name: string): boolean {
-	for (let testName of testNames) {
+	for (const testName of testNames) {
 		if (name.indexOf(testName) !== -1) {
 			return true;
 		}
@@ -80,8 +78,8 @@ function getOutputChannel(): vscode.OutputChannel {
 }
 
 function showError() {
-	vscode.window.showWarningMessage(localize('gulpTaskDetectError', 'Problem finding gulp tasks. See the output for more information.'),
-		localize('gulpShowOutput', 'Go to output')).then((choice) => {
+	vscode.window.showWarningMessage(vscode.l10n.t("Problem finding gulp tasks. See the output for more information."),
+		vscode.l10n.t("Go to output")).then((choice) => {
 			if (choice !== undefined) {
 				_channel.show(true);
 			}
@@ -89,7 +87,7 @@ function showError() {
 }
 
 async function findGulpCommand(rootPath: string): Promise<string> {
-	let platform = process.platform;
+	const platform = process.platform;
 
 	if (platform === 'win32' && await exists(path.join(rootPath, 'node_modules', '.bin', 'gulp.cmd'))) {
 		const globalGulp = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm', 'gulp.cmd');
@@ -132,7 +130,7 @@ class FolderDetector {
 	}
 
 	public start(): void {
-		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{node_modules,gulpfile{.babel.js,.esm.js,.js,.mjs,.cjs,.ts}}');
+		const pattern = path.join(this._workspaceFolder.uri.fsPath, '{node_modules,gulpfile{.babel.js,.esm.js,.js,.mjs,.cjs,.ts}}');
 		this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 		this.fileWatcher.onDidChange(() => this.promise = undefined);
 		this.fileWatcher.onDidCreate(() => this.promise = undefined);
@@ -154,9 +152,9 @@ class FolderDetector {
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
 		const gulpTask = (<any>_task.definition).task;
 		if (gulpTask) {
-			let kind: GulpTaskDefinition = (<any>_task.definition);
-			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
-			let task = new vscode.Task(kind, this.workspaceFolder, gulpTask, 'gulp', new vscode.ShellExecution(await this._gulpCommand, [gulpTask], options));
+			const kind: GulpTaskDefinition = (<any>_task.definition);
+			const options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
+			const task = new vscode.Task(kind, this.workspaceFolder, gulpTask, 'gulp', new vscode.ShellExecution(await this._gulpCommand, [gulpTask], options));
 			return task;
 		}
 		return undefined;
@@ -187,7 +185,7 @@ class FolderDetector {
 				continue;
 			}
 
-			let basename = path.basename(filename, ext).toLowerCase();
+			const basename = path.basename(filename, ext).toLowerCase();
 			if (basename === 'gulpfile') {
 				return true;
 			}
@@ -203,8 +201,8 @@ class FolderDetector {
 	}
 
 	private async computeTasks(): Promise<vscode.Task[]> {
-		let rootPath = this._workspaceFolder.uri.scheme === 'file' ? this._workspaceFolder.uri.fsPath : undefined;
-		let emptyTasks: vscode.Task[] = [];
+		const rootPath = this._workspaceFolder.uri.scheme === 'file' ? this._workspaceFolder.uri.fsPath : undefined;
+		const emptyTasks: vscode.Task[] = [];
 		if (!rootPath) {
 			return emptyTasks;
 		}
@@ -213,9 +211,9 @@ class FolderDetector {
 			return emptyTasks;
 		}
 
-		let commandLine = `${await this._gulpCommand} --tasks-simple --no-color`;
+		const commandLine = `${await this._gulpCommand} --tasks-simple --no-color`;
 		try {
-			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
+			const { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr && stderr.length > 0) {
 				// Filter out "No license field"
 				const errors = stderr.split('\n');
@@ -225,21 +223,21 @@ class FolderDetector {
 					showError();
 				}
 			}
-			let result: vscode.Task[] = [];
+			const result: vscode.Task[] = [];
 			if (stdout) {
-				let lines = stdout.split(/\r{0,1}\n/);
-				for (let line of lines) {
+				const lines = stdout.split(/\r{0,1}\n/);
+				for (const line of lines) {
 					if (line.length === 0) {
 						continue;
 					}
-					let kind: GulpTaskDefinition = {
+					const kind: GulpTaskDefinition = {
 						type: 'gulp',
 						task: line
 					};
-					let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
-					let task = new vscode.Task(kind, this.workspaceFolder, line, 'gulp', new vscode.ShellExecution(await this._gulpCommand, [line], options));
+					const options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
+					const task = new vscode.Task(kind, this.workspaceFolder, line, 'gulp', new vscode.ShellExecution(await this._gulpCommand, [line], options));
 					result.push(task);
-					let lowerCaseLine = line.toLowerCase();
+					const lowerCaseLine = line.toLowerCase();
 					if (isBuildTask(lowerCaseLine)) {
 						task.group = vscode.TaskGroup.Build;
 					} else if (isTestTask(lowerCaseLine)) {
@@ -249,14 +247,14 @@ class FolderDetector {
 			}
 			return result;
 		} catch (err) {
-			let channel = getOutputChannel();
+			const channel = getOutputChannel();
 			if (err.stderr) {
 				channel.appendLine(err.stderr);
 			}
 			if (err.stdout) {
 				channel.appendLine(err.stdout);
 			}
-			channel.appendLine(localize('execFailed', 'Auto detecting gulp for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
+			channel.appendLine(vscode.l10n.t("Auto detecting gulp for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown"));
 			showError();
 			return emptyTasks;
 		}
@@ -279,7 +277,7 @@ class TaskDetector {
 	}
 
 	public start(): void {
-		let folders = vscode.workspace.workspaceFolders;
+		const folders = vscode.workspace.workspaceFolders;
 		if (folders) {
 			this.updateWorkspaceFolders(folders, []);
 		}
@@ -296,15 +294,15 @@ class TaskDetector {
 	}
 
 	private updateWorkspaceFolders(added: readonly vscode.WorkspaceFolder[], removed: readonly vscode.WorkspaceFolder[]): void {
-		for (let remove of removed) {
-			let detector = this.detectors.get(remove.uri.toString());
+		for (const remove of removed) {
+			const detector = this.detectors.get(remove.uri.toString());
 			if (detector) {
 				detector.dispose();
 				this.detectors.delete(remove.uri.toString());
 			}
 		}
-		for (let add of added) {
-			let detector = new FolderDetector(add, findGulpCommand(add.uri.fsPath));
+		for (const add of added) {
+			const detector = new FolderDetector(add, findGulpCommand(add.uri.fsPath));
 			this.detectors.set(add.uri.toString(), detector);
 			if (detector.isEnabled()) {
 				detector.start();
@@ -314,15 +312,15 @@ class TaskDetector {
 	}
 
 	private updateConfiguration(): void {
-		for (let detector of this.detectors.values()) {
+		for (const detector of this.detectors.values()) {
 			detector.dispose();
 			this.detectors.delete(detector.workspaceFolder.uri.toString());
 		}
-		let folders = vscode.workspace.workspaceFolders;
+		const folders = vscode.workspace.workspaceFolders;
 		if (folders) {
-			for (let folder of folders) {
+			for (const folder of folders) {
 				if (!this.detectors.has(folder.uri.toString())) {
-					let detector = new FolderDetector(folder, findGulpCommand(folder.uri.fsPath));
+					const detector = new FolderDetector(folder, findGulpCommand(folder.uri.fsPath));
 					this.detectors.set(folder.uri.toString(), detector);
 					if (detector.isEnabled()) {
 						detector.start();
@@ -361,13 +359,13 @@ class TaskDetector {
 		} else if (this.detectors.size === 1) {
 			return this.detectors.values().next().value.getTasks();
 		} else {
-			let promises: Promise<vscode.Task[]>[] = [];
-			for (let detector of this.detectors.values()) {
+			const promises: Promise<vscode.Task[]>[] = [];
+			for (const detector of this.detectors.values()) {
 				promises.push(detector.getTasks().then((value) => value, () => []));
 			}
 			return Promise.all(promises).then((values) => {
-				let result: vscode.Task[] = [];
-				for (let tasks of values) {
+				const result: vscode.Task[] = [];
+				for (const tasks of values) {
 					if (tasks && tasks.length > 0) {
 						result.push(...tasks);
 					}

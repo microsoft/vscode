@@ -12,13 +12,12 @@ import {
 	languages,
 	TextDocument,
 	Uri,
-	workspace
+	workspace,
+	l10n
 } from 'vscode';
-import * as nls from 'vscode-nls';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
 
-const localize = nls.loadMessageBundle();
 
 const enum Constants {
 	ConfigKey = 'debug.javascript.codelens.npmScripts',
@@ -32,16 +31,17 @@ const getFreshLensLocation = () => workspace.getConfiguration().get(Constants.Co
  */
 export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 	private lensLocation = getFreshLensLocation();
-	private changeEmitter = new EventEmitter<void>();
+	private readonly changeEmitter = new EventEmitter<void>();
 	private subscriptions: Disposable[] = [];
 
 	/**
 	 * @inheritdoc
 	 */
-	public onDidChangeCodeLenses = this.changeEmitter.event;
+	public readonly onDidChangeCodeLenses = this.changeEmitter.event;
 
 	constructor() {
 		this.subscriptions.push(
+			this.changeEmitter,
 			workspace.onDidChangeConfiguration(evt => {
 				if (evt.affectsConfiguration(Constants.ConfigKey)) {
 					this.lensLocation = getFreshLensLocation();
@@ -71,7 +71,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 			return [];
 		}
 
-		const title = localize('codelens.debug', '{0} Debug', '$(debug-start)');
+		const title = '$(debug-start) ' + l10n.t("Debug");
 		const cwd = path.dirname(document.uri.fsPath);
 		if (this.lensLocation === 'top') {
 			return [

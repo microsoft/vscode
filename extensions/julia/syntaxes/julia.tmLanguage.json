@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/6c80921298caa9e6c382f1fecec0bf3a83c3d9ec",
+	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/ca657621631c568fdce35fb583c97b8d0b7a226c",
 	"name": "Julia",
 	"scopeName": "source.julia",
 	"comment": "This grammar is used by Atom (Oniguruma), GitHub (PCRE), and VSCode (Oniguruma),\nso all regexps must be compatible with both engines.\n\nSpecs:\n- https://github.com/kkos/oniguruma/blob/master/doc/RE\n- https://www.pcre.org/current/doc/html/",
@@ -19,6 +19,9 @@
 			"include": "#string"
 		},
 		{
+			"include": "#parentheses"
+		},
+		{
 			"include": "#bracket"
 		},
 		{
@@ -26,6 +29,9 @@
 		},
 		{
 			"include": "#function_call"
+		},
+		{
+			"include": "#for_block"
 		},
 		{
 			"include": "#keyword"
@@ -41,6 +47,9 @@
 		},
 		{
 			"include": "#symbol"
+		},
+		{
+			"include": "#punctuation"
 		}
 	],
 	"repository": {
@@ -53,12 +62,12 @@
 							"name": "meta.bracket.julia"
 						}
 					},
-					"end": "(?:\\])(?:(\\.)?'*)",
+					"end": "(\\])((?:\\.)?'*)",
 					"endCaptures": {
-						"0": {
+						"1": {
 							"name": "meta.bracket.julia"
 						},
-						"1": {
+						"2": {
 							"name": "keyword.operator.transpose.julia"
 						}
 					},
@@ -73,11 +82,33 @@
 							"name": "constant.numeric.julia"
 						},
 						{
-							"match": "\\bfor\\b",
-							"name": "keyword.control.julia"
+							"include": "#self_no_for_block"
+						}
+					]
+				}
+			]
+		},
+		"parentheses": {
+			"patterns": [
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.bracket.julia"
+						}
+					},
+					"end": "(\\))((?:\\.)?'*)",
+					"endCaptures": {
+						"1": {
+							"name": "meta.bracket.julia"
 						},
+						"2": {
+							"name": "keyword.operator.transpose.julia"
+						}
+					},
+					"patterns": [
 						{
-							"include": "$self"
+							"include": "#self_no_for_block"
 						}
 					]
 				}
@@ -86,8 +117,46 @@
 		"bracket": {
 			"patterns": [
 				{
-					"match": "(?:\\(|\\)|\\[|\\]|\\{|\\}|,|;)(?!('|(?:\\.'))*\\.?')",
-					"name": "meta.bracket.julia"
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.bracket.julia"
+						}
+					},
+					"end": "(\\})((?:\\.)?'*)",
+					"endCaptures": {
+						"1": {
+							"name": "meta.bracket.julia"
+						},
+						"2": {
+							"name": "keyword.operator.transpose.julia"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#self_no_for_block"
+						}
+					]
+				}
+			]
+		},
+		"comment_tags": {
+			"patterns": [
+				{
+					"match": "\\bTODO\\b",
+					"name": "keyword.other.comment-annotation.julia"
+				},
+				{
+					"match": "\\bFIXME\\b",
+					"name": "keyword.other.comment-annotation.julia"
+				},
+				{
+					"match": "\\bCHANGED\\b",
+					"name": "keyword.other.comment-annotation.julia"
+				},
+				{
+					"match": "\\bXXX\\b",
+					"name": "keyword.other.comment-annotation.julia"
 				}
 			]
 		},
@@ -104,7 +173,12 @@
 						}
 					},
 					"end": "\\n",
-					"name": "comment.line.number-sign.julia"
+					"name": "comment.line.number-sign.julia",
+					"patterns": [
+						{
+							"include": "#comment_tags"
+						}
+					]
 				}
 			]
 		},
@@ -126,6 +200,9 @@
 					"name": "comment.block.number-sign-equals.julia",
 					"patterns": [
 						{
+							"include": "#comment_tags"
+						},
+						{
 							"include": "#comment_block"
 						}
 					]
@@ -135,13 +212,16 @@
 		"function_call": {
 			"patterns": [
 				{
-					"begin": "((?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*)({(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})?\\.?(?=\\()",
+					"begin": "((?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*)({(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})?\\.?(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.julia"
 						},
 						"2": {
 							"name": "support.type.julia"
+						},
+						"3": {
+							"name": "meta.bracket.julia"
 						}
 					},
 					"end": "\\)(('|(\\.'))*\\.?')?",
@@ -155,11 +235,7 @@
 					},
 					"patterns": [
 						{
-							"match": "\\bfor\\b",
-							"name": "keyword.control.julia"
-						},
-						{
-							"include": "$self"
+							"include": "#self_no_for_block"
 						}
 					]
 				}
@@ -177,7 +253,7 @@
 						}
 					},
 					"match": "((?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*)({(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})?(?=\\([^#]*\\)(::[^\\s]+)?(\\s*\\bwhere\\b\\s+.+?)?\\s*?=(?![=>]))",
-					"comment": "first group is function name\nSecond group is type parameters (e.g. {T<:Number, S})\nThen open parens\nThen a lookahead ensures that we are followed by:\n  - anything (function argumnets)\n  - 0 or more spaces\n  - Finally an equal sign\nNegative lookahead ensures we don't have another equal sign (not `==`)"
+					"comment": "first group is function name\nSecond group is type parameters (e.g. {T<:Number, S})\nThen open parens\nThen a lookahead ensures that we are followed by:\n  - anything (function arguments)\n  - 0 or more spaces\n  - Finally an equal sign\nNegative lookahead ensures we don't have another equal sign (not `==`)"
 				},
 				{
 					"captures": {
@@ -199,14 +275,10 @@
 				}
 			]
 		},
-		"keyword": {
+		"for_block": {
+			"comment": "for blocks need to be special-cased to support tokenizing 'outer' properly",
 			"patterns": [
 				{
-					"match": "\\b(?<![:_\\.])(?:function|mutable\\s+struct|struct|macro|quote|abstract\\s+type|primitive\\s+type|module|baremodule|where)\\b",
-					"name": "keyword.other.julia"
-				},
-				{
-					"comment": "special case for blocks to support tokenizing outer properly",
 					"begin": "\\b(for)\\b",
 					"beginCaptures": {
 						"0": {
@@ -223,9 +295,17 @@
 							"include": "$self"
 						}
 					]
+				}
+			]
+		},
+		"keyword": {
+			"patterns": [
+				{
+					"match": "\\b(?<![:_\\.])(?:function|mutable\\s+struct|struct|macro|quote|abstract\\s+type|primitive\\s+type|module|baremodule|where)\\b",
+					"name": "keyword.other.julia"
 				},
 				{
-					"match": "\\b(?<![:_])(?:if|else|elseif|while|begin|let|do|try|catch|finally|return|break|continue)\\b",
+					"match": "\\b(?<![:_])(?:if|else|elseif|for|while|begin|let|do|try|catch|finally|return|break|continue)\\b",
 					"name": "keyword.control.julia"
 				},
 				{
@@ -241,12 +321,20 @@
 					"name": "keyword.control.export.julia"
 				},
 				{
+					"match": "\\b(?<![:_])(?:public)\\b",
+					"name": "keyword.control.public.julia"
+				},
+				{
 					"match": "\\b(?<![:_])(?:import)\\b",
 					"name": "keyword.control.import.julia"
 				},
 				{
 					"match": "\\b(?<![:_])(?:using)\\b",
 					"name": "keyword.control.using.julia"
+				},
+				{
+					"match": "(?<=\\w\\s)\\b(as)\\b(?=\\s\\w)",
+					"name": "keyword.control.as.julia"
 				},
 				{
 					"match": "(@(\\.|(?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*))",
@@ -257,8 +345,15 @@
 		"number": {
 			"patterns": [
 				{
-					"match": "(?<!(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿]))((\\b0(x|X)[0-9a-fA-F](_?[0-9a-fA-F])*)|(\\b0o[0-7](_?[0-7])*)|(\\b0b[0-1](_?[0-1])*)|((\\b[0-9](_?[0-9])*\\.?(?!\\.)([_0-9]*))|(\\.[0-9](_?[0-9])*))([efE][+-]?[0-9](_?[0-9])*)?(im\\b)?|\\bInf(16|32|64)?\\b|\\bNaN(16|32|64)?\\b|\\bπ\\b|\\bpi\\b|\\bℯ\\b)",
-					"name": "constant.numeric.julia"
+					"match": "((?<!(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿]))(?:(?:\\b0(?:x|X)[0-9a-fA-F](?:_?[0-9a-fA-F])*)|(?:\\b0o[0-7](?:_?[0-7])*)|(?:\\b0b[0-1](?:_?[0-1])*)|(?:(?:\\b[0-9](?:_?[0-9])*\\.?(?!\\.)(?:[_0-9]*))|(?:\\b\\.[0-9](?:_?[0-9])*))(?:[efE][+-]?[0-9](?:_?[0-9])*)?(?:im\\b|Inf(?:16|32|64)?\\b|NaN(?:16|32|64)?\\b|π\\b|pi\\b|ℯ\\b)?|\\b[0-9]+|\\bInf(?:16|32|64)?\\b|\\bNaN(?:16|32|64)?\\b|\\bπ\\b|\\bpi\\b|\\bℯ\\b))('*)",
+					"captures": {
+						"1": {
+							"name": "constant.numeric.julia"
+						},
+						"2": {
+							"name": "keyword.operator.conjugate-number.julia"
+						}
+					}
 				},
 				{
 					"match": "\\bARGS\\b|\\bC_NULL\\b|\\bDEPOT_PATH\\b|\\bENDIAN_BOM\\b|\\bENV\\b|\\bLOAD_PATH\\b|\\bPROGRAM_FILE\\b|\\bstdin\\b|\\bstdout\\b|\\bstderr\\b|\\bVERSION\\b|\\bdevnull\\b",
@@ -285,13 +380,16 @@
 					"name": "keyword.operator.shift.julia"
 				},
 				{
-					"match": "(?:\\s*(::|>:|<:)\\s*((?:(?:Union)?\\([^)]*\\)|[[:alpha:]_$∇][[:word:]⁺-ₜ!′\\.]*(?:(?:{(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})|(?:\".+?(?<!\\\\)\"))?)))(?:\\.\\.\\.)?",
+					"match": "(?:\\s*(::|>:|<:)\\s*((?:(?:Union)?\\([^)]*\\)|[[:alpha:]_$∇][[:word:]⁺-ₜ!′\\.]*(?:(?:{(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})|(?:\".+?(?<!\\\\)\"))?)))(?:\\.\\.\\.)?((?:\\.)?'*)",
 					"captures": {
 						"1": {
 							"name": "keyword.operator.relation.types.julia"
 						},
 						"2": {
 							"name": "support.type.julia"
+						},
+						"3": {
+							"name": "keyword.operator.transpose.julia"
 						}
 					}
 				},
@@ -438,33 +536,6 @@
 					]
 				},
 				{
-					"begin": "((i?cxxt?)|([rpv]cpp))(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"4": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"name": "embed.cxx.julia",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"contentName": "meta.embedded.inline.cpp",
-					"patterns": [
-						{
-							"include": "source.cpp#root_context"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
 					"begin": "(py)(\"\"\")",
 					"beginCaptures": {
 						"1": {
@@ -481,33 +552,6 @@
 						}
 					},
 					"name": "embed.python.julia",
-					"contentName": "meta.embedded.inline.python",
-					"patterns": [
-						{
-							"include": "source.python"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
-					"begin": "(py)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "(\\w*)(\")",
-					"name": "embed.python.julia",
-					"endCaptures": {
-						"2": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
 					"contentName": "meta.embedded.inline.python",
 					"patterns": [
 						{
@@ -546,33 +590,6 @@
 					]
 				},
 				{
-					"begin": "(js)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"name": "embed.js.julia",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"contentName": "meta.embedded.inline.javascript",
-					"patterns": [
-						{
-							"include": "source.js"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
 					"begin": "(R)(\"\"\")",
 					"beginCaptures": {
 						"1": {
@@ -600,33 +617,6 @@
 					]
 				},
 				{
-					"begin": "(R)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"name": "embed.R.julia",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"contentName": "meta.embedded.inline.r",
-					"patterns": [
-						{
-							"include": "source.r"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
 					"begin": "(raw)(\"\"\")",
 					"beginCaptures": {
 						"1": {
@@ -642,7 +632,12 @@
 						"0": {
 							"name": "punctuation.definition.string.end.julia"
 						}
-					}
+					},
+					"patterns": [
+						{
+							"include": "#string_escaped_char"
+						}
+					]
 				},
 				{
 					"begin": "(raw)(\")",
@@ -660,7 +655,12 @@
 						"0": {
 							"name": "punctuation.definition.string.end.julia"
 						}
-					}
+					},
+					"patterns": [
+						{
+							"include": "#string_escaped_char"
+						}
+					]
 				},
 				{
 					"begin": "(sql)(\"\"\")",
@@ -690,99 +690,22 @@
 					]
 				},
 				{
-					"begin": "(sql)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"name": "embed.sql.julia",
-					"contentName": "meta.embedded.inline.sql",
-					"patterns": [
-						{
-							"include": "source.sql"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
 					"begin": "var\"\"\"",
 					"end": "\"\"\"",
-					"name": "constant.other.symbol.julia"
+					"name": "constant.other.symbol.julia",
+					"patterns": [
+						{
+							"include": "#string_escaped_char"
+						}
+					]
 				},
 				{
 					"begin": "var\"",
 					"end": "\"",
-					"name": "constant.other.symbol.julia"
-				},
-				{
-					"begin": "(md)(\"\"\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"\"\"",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"name": "embed.markdown.julia",
-					"contentName": "meta.embedded.inline.markdown",
+					"name": "constant.other.symbol.julia",
 					"patterns": [
 						{
-							"include": "text.md"
-						},
-						{
-							"include": "text.html.markdown.julia"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
-						}
-					]
-				},
-				{
-					"begin": "(md)(\")",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.macro.julia"
-						},
-						"2": {
-							"name": "punctuation.definition.string.begin.julia"
-						}
-					},
-					"end": "\"",
-					"name": "embed.markdown.julia",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.julia"
-						}
-					},
-					"contentName": "meta.embedded.inline.markdown",
-					"patterns": [
-						{
-							"include": "text.md"
-						},
-						{
-							"include": "text.html.markdown.julia"
-						},
-						{
-							"include": "#string_dollar_sign_interpolate"
+							"include": "#string_escaped_char"
 						}
 					]
 				},
@@ -1004,6 +927,9 @@
 					"patterns": [
 						{
 							"include": "#string_escaped_char"
+						},
+						{
+							"include": "#string_dollar_sign_interpolate"
 						}
 					]
 				},
@@ -1030,6 +956,9 @@
 					"patterns": [
 						{
 							"include": "#string_escaped_char"
+						},
+						{
+							"include": "#string_dollar_sign_interpolate"
 						}
 					]
 				}
@@ -1046,38 +975,29 @@
 		"string_dollar_sign_interpolate": {
 			"patterns": [
 				{
-					"match": "\\$(?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*",
+					"match": "\\$(?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿]|[^\\p{^Sc}$])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿]|[^\\p{^Sc}$])*",
 					"name": "variable.interpolation.julia"
 				},
 				{
-					"begin": "\\$\\(",
+					"begin": "\\$(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "meta.bracket.julia"
+						}
+					},
 					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.bracket.julia"
+						}
+					},
 					"name": "variable.interpolation.julia",
 					"comment": "`punctuation.section.embedded`, `constant.escape`,\n& `meta.embedded.line` were considered but appear to have even spottier\nsupport among popular syntaxes.",
 					"patterns": [
 						{
-							"include": "#nest_parens_and_self"
-						},
-						{
-							"include": "$self"
+							"include": "#self_no_for_block"
 						}
 					]
-				}
-			]
-		},
-		"nest_parens_and_self": {
-			"patterns": [
-				{
-					"begin": "\\(",
-					"end": "\\)",
-					"patterns": [
-						{
-							"include": "#nest_parens_and_self"
-						}
-					]
-				},
-				{
-					"include": "$self"
 				}
 			]
 		},
@@ -1106,6 +1026,62 @@
 					},
 					"match": "(?>!:_)(?:struct|mutable\\s+struct|abstract\\s+type|primitive\\s+type)\\s+((?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*)(\\s*(<:)\\s*(?:[[:alpha:]_\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{So}←-⇿])(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿])*(?:{.*})?)?",
 					"name": "meta.type.julia"
+				}
+			]
+		},
+		"self_no_for_block": {
+			"comment": "Same as $self, but does not contain #for_block. 'outer' is not valid in some contexts (e.g. generators, comprehensions, indexing), so use this when matching those in begin/end patterns. Keep this up-to-date with $self!",
+			"patterns": [
+				{
+					"include": "#operator"
+				},
+				{
+					"include": "#array"
+				},
+				{
+					"include": "#string"
+				},
+				{
+					"include": "#parentheses"
+				},
+				{
+					"include": "#bracket"
+				},
+				{
+					"include": "#function_decl"
+				},
+				{
+					"include": "#function_call"
+				},
+				{
+					"include": "#keyword"
+				},
+				{
+					"include": "#number"
+				},
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#type_decl"
+				},
+				{
+					"include": "#symbol"
+				},
+				{
+					"include": "#punctuation"
+				}
+			]
+		},
+		"punctuation": {
+			"patterns": [
+				{
+					"match": ",",
+					"name": "punctuation.separator.comma.julia"
+				},
+				{
+					"match": ";",
+					"name": "punctuation.separator.semicolon.julia"
 				}
 			]
 		}

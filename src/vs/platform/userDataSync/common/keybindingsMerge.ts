@@ -28,18 +28,18 @@ interface IMergeResult {
 	conflicts: Set<string>;
 }
 
-export function parseKeybindings(content: string): IUserFriendlyKeybinding[] {
+function parseKeybindings(content: string): IUserFriendlyKeybinding[] {
 	return parse(content) || [];
 }
 
-export async function merge(localContent: string, remoteContent: string, baseContent: string | null, formattingOptions: FormattingOptions, userDataSyncUtilService: IUserDataSyncUtilService): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
+export async function merge(localContent: string, remoteContent: string, baseContent: string | null, formattingOptions: FormattingOptions, userDataSyncUtilService: IUserDataSyncUtilService): Promise<{ mergeContent: string; hasChanges: boolean; hasConflicts: boolean }> {
 	const local = parseKeybindings(localContent);
 	const remote = parseKeybindings(remoteContent);
 	const base = baseContent ? parseKeybindings(baseContent) : null;
 
 	const userbindings: string[] = [...local, ...remote, ...(base || [])].map(keybinding => keybinding.key);
 	const normalizedKeys = await userDataSyncUtilService.resolveUserBindings(userbindings);
-	let keybindingsMergeResult = computeMergeResultByKeybinding(local, remote, base, normalizedKeys);
+	const keybindingsMergeResult = computeMergeResultByKeybinding(local, remote, base, normalizedKeys);
 
 	if (!keybindingsMergeResult.hasLocalForwarded && !keybindingsMergeResult.hasRemoteForwarded) {
 		// No changes found between local and remote.
@@ -105,7 +105,7 @@ export async function merge(localContent: string, remoteContent: string, baseCon
 	return { mergeContent, hasChanges: true, hasConflicts: commandsMergeResult.conflicts.size > 0 };
 }
 
-function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompareResult, baseToRemote: ICompareResult): { added: Set<string>, removed: Set<string>, updated: Set<string>, conflicts: Set<string> } {
+function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompareResult, baseToRemote: ICompareResult): { added: Set<string>; removed: Set<string>; updated: Set<string>; conflicts: Set<string> } {
 	const added: Set<string> = new Set<string>();
 	const removed: Set<string> = new Set<string>();
 	const updated: Set<string> = new Set<string>();
@@ -255,8 +255,8 @@ function byCommand(keybindings: IUserFriendlyKeybinding[]): Map<string, IUserFri
 function compareByKeybinding(from: Map<string, IUserFriendlyKeybinding[]>, to: Map<string, IUserFriendlyKeybinding[]>): ICompareResult {
 	const fromKeys = [...from.keys()];
 	const toKeys = [...to.keys()];
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const added = toKeys.filter(key => !fromKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const removed = fromKeys.filter(key => !toKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
 
 	for (const key of fromKeys) {
@@ -276,8 +276,8 @@ function compareByKeybinding(from: Map<string, IUserFriendlyKeybinding[]>, to: M
 function compareByCommand(from: Map<string, IUserFriendlyKeybinding[]>, to: Map<string, IUserFriendlyKeybinding[]>, normalizedKeys: IStringDictionary<string>): ICompareResult {
 	const fromKeys = [...from.keys()];
 	const toKeys = [...to.keys()];
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const added = toKeys.filter(key => !fromKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const removed = fromKeys.filter(key => !toKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
 
 	for (const key of fromKeys) {

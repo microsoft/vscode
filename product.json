@@ -6,49 +6,36 @@
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",
 	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
+	"serverLicenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
 	"serverGreeting": [],
+	"serverLicense": [],
+	"serverLicensePrompt": "",
+	"serverApplicationName": "code-server-oss",
+	"serverDataFolderName": ".vscode-server-oss",
+	"tunnelApplicationName": "code-tunnel-oss",
 	"win32DirName": "Microsoft Code OSS",
 	"win32NameVersion": "Microsoft Code OSS",
 	"win32RegValueName": "CodeOSS",
-	"win32AppId": "{{E34003BB-9E10-4501-8C11-BE3FAA83F23F}",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
 	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
-	"win32UserAppId": "{{C6065F05-9603-4FC4-8101-B9781A25D88E}",
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
 	"win32AppUserModelId": "Microsoft.CodeOSS",
 	"win32ShellNameShort": "C&ode - OSS",
+	"win32TunnelServiceMutex": "vscodeoss-tunnelservice",
+	"win32TunnelMutex": "vscodeoss-tunnel",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"linuxIconName": "com.visualstudio.code.oss",
+	"linuxIconName": "code-oss",
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
+	"nodejsRepository": "https://nodejs.org",
 	"urlProtocol": "code-oss",
-	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/insider/dc1a6699060423b8c4d2ced736ad70195378fddf/out/vs/workbench/contrib/webview/browser/pre/",
-	"extensionAllowedProposedApi": [
-		"ms-vscode.vscode-js-profile-flame",
-		"ms-vscode.vscode-js-profile-table",
-		"GitHub.remotehub",
-		"GitHub.remotehub-insiders"
-	],
+	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
 		{
-			"name": "ms-vscode.references-view",
-			"version": "0.0.81",
-			"repo": "https://github.com/microsoft/vscode-references-view",
-			"metadata": {
-				"id": "dc489f46-520d-4556-ae85-1f9eab3c412d",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
-		},
-		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.0.15",
+			"version": "1.1.2",
+			"sha256": "e034b8b41beb4e97e02c70f7175bd88abe66048374c2bd629f54bb33354bc2aa",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
@@ -63,7 +50,8 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.62.0",
+			"version": "1.88.0",
+			"sha256": "3a048d87c0fac116fce9190ff6042ec7691e66fc17211a058faf0db91bb6605e",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
@@ -78,7 +66,8 @@
 		},
 		{
 			"name": "ms-vscode.vscode-js-profile-table",
-			"version": "0.0.18",
+			"version": "1.0.8",
+			"sha256": "ca30069e21fbf576b49638ff8ff7c316b028c2faca924c23526737c65b8762bf",
 			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
 			"metadata": {
 				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",

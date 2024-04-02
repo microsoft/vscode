@@ -7,7 +7,7 @@
 
 import { TextEditor, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
-import { getImageSize } from './imageSizeHelper';
+import { getImageSize, ImageInfoWithScale } from './imageSizeHelper';
 import { getFlatNode, iterateCSSToken, getCssPropertyFromRule, isStyleSheet, validate, offsetRangeToVsRange } from './util';
 import { HtmlNode, CssToken, HtmlToken, Attribute, Property } from 'EmmetFlatNode';
 import { locateFile } from './locateFile';
@@ -23,7 +23,7 @@ export function updateImageSize(): Promise<boolean> | undefined {
 	}
 	const editor = window.activeTextEditor;
 
-	const allUpdatesPromise = editor.selections.reverse().map(selection => {
+	const allUpdatesPromise = Array.from(editor.selections).reverse().map(selection => {
 		const position = selection.isReversed ? selection.active : selection.anchor;
 		if (!isStyleSheet(editor.document.languageId)) {
 			return updateImageSizeHTML(editor, position);
@@ -108,11 +108,11 @@ function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (
 
 	return locateFile(path.dirname(editor.document.fileName), src)
 		.then(getImageSize)
-		.then((size: any): TextEdit[] => {
+		.then((size: ImageInfoWithScale | undefined): TextEdit[] => {
 			// since this action is asynchronous, we have to ensure that editor wasn't
 			// changed and user didn't moved caret outside <img> node
 			const prop = fetchNode(editor, position);
-			if (prop && getImageSrcCSS(editor, prop, position) === src) {
+			if (size && prop && getImageSrcCSS(editor, prop, position) === src) {
 				return updateCSSNode(editor, prop, size.width, size.height);
 			}
 			return [];
@@ -193,7 +193,7 @@ function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height
 	const quote = getAttributeQuote(editor, srcAttr);
 	const endOfAttributes = node.attributes[node.attributes.length - 1].end;
 
-	let edits: TextEdit[] = [];
+	const edits: TextEdit[] = [];
 	let textToAdd = '';
 
 	if (!widthAttr) {
@@ -226,7 +226,7 @@ function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, hei
 	const separator = srcProp.separator || ': ';
 	const before = getPropertyDelimitor(editor, srcProp);
 
-	let edits: TextEdit[] = [];
+	const edits: TextEdit[] = [];
 	if (!srcProp.terminatorToken) {
 		edits.push(new TextEdit(offsetRangeToVsRange(document, srcProp.end, srcProp.end), ';'));
 	}

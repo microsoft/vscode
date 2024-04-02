@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vscode';
+import { ITerminalEnvironmentProvider } from '../terminal';
 import { toDisposable } from '../util';
 import * as path from 'path';
 import * as http from 'http';
@@ -16,7 +17,7 @@ function getIPCHandlePath(id: string): string {
 		return `\\\\.\\pipe\\vscode-git-${id}-sock`;
 	}
 
-	if (process.env['XDG_RUNTIME_DIR']) {
+	if (process.platform !== 'darwin' && process.env['XDG_RUNTIME_DIR']) {
 		return path.join(process.env['XDG_RUNTIME_DIR'] as string, `vscode-git-${id}.sock`);
 	}
 
@@ -27,9 +28,9 @@ export interface IIPCHandler {
 	handle(request: any): Promise<any>;
 }
 
-export async function createIPCServer(context?: string): Promise<IIPCServer> {
+export async function createIPCServer(context?: string): Promise<IPCServer> {
 	const server = http.createServer();
-	const hash = crypto.createHash('sha1');
+	const hash = crypto.createHash('sha256');
 
 	if (!context) {
 		const buffer = await new Promise<Buffer>((c, e) => crypto.randomBytes(20, (err, buf) => err ? e(err) : c(buf)));
@@ -38,7 +39,7 @@ export async function createIPCServer(context?: string): Promise<IIPCServer> {
 		hash.update(context);
 	}
 
-	const ipcHandlePath = getIPCHandlePath(hash.digest('hex').substr(0, 10));
+	const ipcHandlePath = getIPCHandlePath(hash.digest('hex').substring(0, 10));
 
 	if (process.platform !== 'win32') {
 		try {
@@ -61,11 +62,11 @@ export async function createIPCServer(context?: string): Promise<IIPCServer> {
 
 export interface IIPCServer extends Disposable {
 	readonly ipcHandlePath: string | undefined;
-	getEnv(): { [key: string]: string; };
+	getEnv(): { [key: string]: string };
 	registerHandler(name: string, handler: IIPCHandler): Disposable;
 }
 
-class IPCServer implements IIPCServer, Disposable {
+export class IPCServer implements IIPCServer, ITerminalEnvironmentProvider, Disposable {
 
 	private handlers = new Map<string, IIPCHandler>();
 	get ipcHandlePath(): string { return this._ipcHandlePath; }
@@ -106,7 +107,11 @@ class IPCServer implements IIPCServer, Disposable {
 		});
 	}
 
-	getEnv(): { [key: string]: string; } {
+	getEnv(): { [key: string]: string } {
+		return { VSCODE_GIT_IPC_HANDLE: this.ipcHandlePath };
+	}
+
+	getTerminalEnv(): { [key: string]: string } {
 		return { VSCODE_GIT_IPC_HANDLE: this.ipcHandlePath };
 	}
 

@@ -1,0 +1,688 @@
+[
+	{
+		"c": "pick",
+		"t": "text.git-rebase meta.commit-command.git-rebase support.function.git-rebase",
+		"r": {
+			"dark_plus": "support.function.git-rebase: #9CDCFE",
+			"light_plus": "support.function.git-rebase: #0451A5",
+			"dark_vs": "support.function.git-rebase: #9CDCFE",
+			"light_vs": "support.function.git-rebase: #0451A5",
+			"hc_black": "support.function.git-rebase: #D4D4D4",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
+			"hc_light": "support.function.git-rebase: #0451A5",
+			"light_modern": "support.function.git-rebase: #0451A5"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "1fc6c95",
+		"t": "text.git-rebase meta.commit-command.git-rebase constant.sha.git-rebase",
+		"r": {
+			"dark_plus": "constant.sha.git-rebase: #B5CEA8",
+			"light_plus": "constant.sha.git-rebase: #098658",
+			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
+			"light_vs": "constant.sha.git-rebase: #098658",
+			"hc_black": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
+			"hc_light": "constant.sha.git-rebase: #096D48",
+			"light_modern": "constant.sha.git-rebase: #098658"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "Patch A",
+		"t": "text.git-rebase meta.commit-command.git-rebase meta.commit-message.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "squash",
+		"t": "text.git-rebase meta.commit-command.git-rebase support.function.git-rebase",
+		"r": {
+			"dark_plus": "support.function.git-rebase: #9CDCFE",
+			"light_plus": "support.function.git-rebase: #0451A5",
+			"dark_vs": "support.function.git-rebase: #9CDCFE",
+			"light_vs": "support.function.git-rebase: #0451A5",
+			"hc_black": "support.function.git-rebase: #D4D4D4",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
+			"hc_light": "support.function.git-rebase: #0451A5",
+			"light_modern": "support.function.git-rebase: #0451A5"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "fa39187",
+		"t": "text.git-rebase meta.commit-command.git-rebase constant.sha.git-rebase",
+		"r": {
+			"dark_plus": "constant.sha.git-rebase: #B5CEA8",
+			"light_plus": "constant.sha.git-rebase: #098658",
+			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
+			"light_vs": "constant.sha.git-rebase: #098658",
+			"hc_black": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
+			"hc_light": "constant.sha.git-rebase: #096D48",
+			"light_modern": "constant.sha.git-rebase: #098658"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "Something to add to patch A",
+		"t": "text.git-rebase meta.commit-command.git-rebase meta.commit-message.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "pick",
+		"t": "text.git-rebase meta.commit-command.git-rebase support.function.git-rebase",
+		"r": {
+			"dark_plus": "support.function.git-rebase: #9CDCFE",
+			"light_plus": "support.function.git-rebase: #0451A5",
+			"dark_vs": "support.function.git-rebase: #9CDCFE",
+			"light_vs": "support.function.git-rebase: #0451A5",
+			"hc_black": "support.function.git-rebase: #D4D4D4",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
+			"hc_light": "support.function.git-rebase: #0451A5",
+			"light_modern": "support.function.git-rebase: #0451A5"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "7b36971",
+		"t": "text.git-rebase meta.commit-command.git-rebase constant.sha.git-rebase",
+		"r": {
+			"dark_plus": "constant.sha.git-rebase: #B5CEA8",
+			"light_plus": "constant.sha.git-rebase: #098658",
+			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
+			"light_vs": "constant.sha.git-rebase: #098658",
+			"hc_black": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
+			"hc_light": "constant.sha.git-rebase: #096D48",
+			"light_modern": "constant.sha.git-rebase: #098658"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "Something to move before patch B",
+		"t": "text.git-rebase meta.commit-command.git-rebase meta.commit-message.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "pick",
+		"t": "text.git-rebase meta.commit-command.git-rebase support.function.git-rebase",
+		"r": {
+			"dark_plus": "support.function.git-rebase: #9CDCFE",
+			"light_plus": "support.function.git-rebase: #0451A5",
+			"dark_vs": "support.function.git-rebase: #9CDCFE",
+			"light_vs": "support.function.git-rebase: #0451A5",
+			"hc_black": "support.function.git-rebase: #D4D4D4",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
+			"hc_light": "support.function.git-rebase: #0451A5",
+			"light_modern": "support.function.git-rebase: #0451A5"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "6b2481b",
+		"t": "text.git-rebase meta.commit-command.git-rebase constant.sha.git-rebase",
+		"r": {
+			"dark_plus": "constant.sha.git-rebase: #B5CEA8",
+			"light_plus": "constant.sha.git-rebase: #098658",
+			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
+			"light_vs": "constant.sha.git-rebase: #098658",
+			"hc_black": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
+			"hc_light": "constant.sha.git-rebase: #096D48",
+			"light_modern": "constant.sha.git-rebase: #098658"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "Patch B",
+		"t": "text.git-rebase meta.commit-command.git-rebase meta.commit-message.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "fixup",
+		"t": "text.git-rebase meta.commit-command.git-rebase support.function.git-rebase",
+		"r": {
+			"dark_plus": "support.function.git-rebase: #9CDCFE",
+			"light_plus": "support.function.git-rebase: #0451A5",
+			"dark_vs": "support.function.git-rebase: #9CDCFE",
+			"light_vs": "support.function.git-rebase: #0451A5",
+			"hc_black": "support.function.git-rebase: #D4D4D4",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
+			"hc_light": "support.function.git-rebase: #0451A5",
+			"light_modern": "support.function.git-rebase: #0451A5"
+		}
+	},
+	{
+		"c": "   ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "c619268",
+		"t": "text.git-rebase meta.commit-command.git-rebase constant.sha.git-rebase",
+		"r": {
+			"dark_plus": "constant.sha.git-rebase: #B5CEA8",
+			"light_plus": "constant.sha.git-rebase: #098658",
+			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
+			"light_vs": "constant.sha.git-rebase: #098658",
+			"hc_black": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
+			"hc_light": "constant.sha.git-rebase: #096D48",
+			"light_modern": "constant.sha.git-rebase: #098658"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "A fix for Patch B",
+		"t": "text.git-rebase meta.commit-command.git-rebase meta.commit-message.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "edit",
+		"t": "text.git-rebase meta.commit-command.git-rebase support.function.git-rebase",
+		"r": {
+			"dark_plus": "support.function.git-rebase: #9CDCFE",
+			"light_plus": "support.function.git-rebase: #0451A5",
+			"dark_vs": "support.function.git-rebase: #9CDCFE",
+			"light_vs": "support.function.git-rebase: #0451A5",
+			"hc_black": "support.function.git-rebase: #D4D4D4",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
+			"hc_light": "support.function.git-rebase: #0451A5",
+			"light_modern": "support.function.git-rebase: #0451A5"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "dd1475d",
+		"t": "text.git-rebase meta.commit-command.git-rebase constant.sha.git-rebase",
+		"r": {
+			"dark_plus": "constant.sha.git-rebase: #B5CEA8",
+			"light_plus": "constant.sha.git-rebase: #098658",
+			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
+			"light_vs": "constant.sha.git-rebase: #098658",
+			"hc_black": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
+			"hc_light": "constant.sha.git-rebase: #096D48",
+			"light_modern": "constant.sha.git-rebase: #098658"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "Something I want to split",
+		"t": "text.git-rebase meta.commit-command.git-rebase meta.commit-message.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "reword",
+		"t": "text.git-rebase meta.commit-command.git-rebase support.function.git-rebase",
+		"r": {
+			"dark_plus": "support.function.git-rebase: #9CDCFE",
+			"light_plus": "support.function.git-rebase: #0451A5",
+			"dark_vs": "support.function.git-rebase: #9CDCFE",
+			"light_vs": "support.function.git-rebase: #0451A5",
+			"hc_black": "support.function.git-rebase: #D4D4D4",
+			"dark_modern": "support.function.git-rebase: #9CDCFE",
+			"hc_light": "support.function.git-rebase: #0451A5",
+			"light_modern": "support.function.git-rebase: #0451A5"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "4ca2acc",
+		"t": "text.git-rebase meta.commit-command.git-rebase constant.sha.git-rebase",
+		"r": {
+			"dark_plus": "constant.sha.git-rebase: #B5CEA8",
+			"light_plus": "constant.sha.git-rebase: #098658",
+			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
+			"light_vs": "constant.sha.git-rebase: #098658",
+			"hc_black": "constant.sha.git-rebase: #B5CEA8",
+			"dark_modern": "constant.sha.git-rebase: #B5CEA8",
+			"hc_light": "constant.sha.git-rebase: #096D48",
+			"light_modern": "constant.sha.git-rebase: #098658"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.git-rebase meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "i cant' typ goods",
+		"t": "text.git-rebase meta.commit-command.git-rebase meta.commit-message.git-rebase",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "#",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": " Commands:",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "#",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "  p, pick = use commit",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "#",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "  r, reword = use commit, but edit the commit message",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "#",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "  e, edit = use commit, but stop for amending",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "#",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "  s, squash = use commit, but meld into previous commit",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "#",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "  f, fixup = like \"squash\", but discard this commit's log message",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "#",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "  x, exec = run command (the rest of the line) using shell",
+		"t": "text.git-rebase comment.line.number-sign.git-rebase",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	}
+]

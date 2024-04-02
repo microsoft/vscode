@@ -23,6 +23,18 @@ export interface IFileWorkingCopyModelFactory<M extends IFileWorkingCopyModel> {
 	createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<M>;
 }
 
+export interface IFileWorkingCopyModelConfiguration {
+
+	/**
+	 * The delay in milliseconds to wait before triggering
+	 * a backup after the content of the model has changed.
+	 *
+	 * If not configured, a sensible default will be taken
+	 * based on user settings.
+	 */
+	readonly backupDelay?: number;
+}
+
 /**
  * A generic file working copy model to be reused by untitled
  * and stored file working copies.
@@ -51,6 +63,12 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
 	/**
+	 * Optional additional configuration for the model that drives
+	 * some of the working copy behaviour.
+	 */
+	readonly configuration?: IFileWorkingCopyModelConfiguration;
+
+	/**
 	 * Snapshots the model's current content for writing. This must include
 	 * any changes that were made to the model that are in memory.
 	 *
@@ -67,7 +85,7 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 * Note: it is expected that the model fires a `onDidChangeContent` event
 	 * as part of the update.
 	 *
-	 * @param the contents to use for the model
+	 * @param contents the contents to use for the model
 	 * @param token support for cancellation
 	 */
 	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;

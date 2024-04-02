@@ -15,8 +15,7 @@ import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/edit
 import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
 import { isEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -26,27 +25,26 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	static readonly ID = BINARY_FILE_EDITOR_ID;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IStorageService storageService: IStorageService
 	) {
 		super(
 			BinaryFileEditor.ID,
+			group,
 			{
 				openInternal: (input, options) => this.openInternal(input, options)
 			},
 			telemetryService,
 			themeService,
-			storageService,
-			instantiationService
+			storageService
 		);
 	}
 
 	private async openInternal(input: EditorInput, options: IEditorOptions | undefined): Promise<void> {
-		if (input instanceof FileEditorInput && this.group?.activeEditor) {
+		if (input instanceof FileEditorInput && this.group.activeEditor) {
 
 			// We operate on the active editor here to support re-opening
 			// diff editors where `input` may just be one side of the
@@ -81,13 +79,13 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 				for (const editor of resolvedEditor.editor instanceof DiffEditorInput ? [resolvedEditor.editor.original, resolvedEditor.editor.modified] : [resolvedEditor.editor]) {
 					if (editor instanceof FileEditorInput) {
 						editor.setForceOpenAsText();
-						editor.setPreferredMode(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
+						editor.setPreferredLanguageId(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
 					}
 				}
 			}
 
 			// Replace the active editor with the picked one
-			await (this.group ?? this.editorGroupService.activeGroup).replaceEditors([{
+			await this.group.replaceEditors([{
 				editor: activeEditor,
 				replacement: resolvedEditor?.editor ?? input,
 				options: {

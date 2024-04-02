@@ -17,16 +17,17 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 export interface IExplorerService {
 	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrderConfiguration: ISortOrderConfiguration;
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[];
+	getContext(respectMultiSelection: boolean, ignoreNestedChildren?: boolean): ExplorerItem[];
 	hasViewFocus(): boolean;
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
-	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
+	getEditable(): { stat: ExplorerItem; data: IEditableData } | undefined;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
 	// If undefined is passed checks if any element is currently being edited.
 	isEditable(stat: ExplorerItem | undefined): boolean;
@@ -35,7 +36,7 @@ export interface IExplorerService {
 	refresh(): Promise<void>;
 	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
 	isCut(stat: ExplorerItem): boolean;
-	applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void>;
+	applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void>;
 
 	/**
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
@@ -49,19 +50,25 @@ export interface IExplorerService {
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 export interface IExplorerView {
+	autoReveal: boolean | 'force' | 'focusNoScroll';
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
-	refresh(recursive: boolean, item?: ExplorerItem): Promise<void>;
-	selectResource(resource: URI | undefined, reveal?: boolean | string): Promise<void>;
+	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing?: boolean): Promise<void>;
+	selectResource(resource: URI | undefined, reveal?: boolean | string, retry?: number): Promise<void>;
 	setTreeInput(): Promise<void>;
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
 	isItemVisible(item: ExplorerItem): boolean;
+	isItemCollapsed(item: ExplorerItem): boolean;
 	hasFocus(): boolean;
+	getFocus(): ExplorerItem[];
+	focusNext(): void;
+	focusLast(): void;
 }
 
 function getFocus(listService: IListService): unknown | undefined {
-	let list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const list = listService.lastFocusedList;
+	const element = list?.getHTMLElement();
+	if (element && isActiveElement(element)) {
 		let focus: unknown;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
@@ -100,11 +107,12 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 
 export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, explorerService: IExplorerService): Array<URI> {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && isActiveElement(element)) {
 		// Explorer
 		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
 			// Explorer
-			const context = explorerService.getContext(true);
+			const context = explorerService.getContext(true, true);
 			if (context.length) {
 				return context.map(c => c.resource);
 			}
@@ -135,7 +143,8 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 
 export function getOpenEditorsViewMultiSelection(listService: IListService, editorGroupService: IEditorGroupsService): Array<IEditorIdentifier> | undefined {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && isActiveElement(element)) {
 		// Open editors view
 		if (list instanceof List) {
 			const selection = coalesce(list.getSelectedElements().filter(s => s instanceof OpenEditor));
@@ -149,6 +158,7 @@ export function getOpenEditorsViewMultiSelection(listService: IListService, edit
 			if (selection.some(s => s === mainEditor)) {
 				return selection;
 			}
+			return mainEditor ? [mainEditor] : undefined;
 		}
 	}
 

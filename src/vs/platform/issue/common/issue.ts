@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
@@ -20,6 +23,12 @@ export const enum IssueType {
 	Bug,
 	PerformanceIssue,
 	FeatureRequest
+}
+
+export enum IssueSource {
+	VSCode = 'vscode',
+	Extension = 'extension',
+	Marketplace = 'marketplace'
 }
 
 export interface IssueReporterStyles extends WindowStyles {
@@ -50,18 +59,28 @@ export interface IssueReporterExtensionData {
 	displayName: string | undefined;
 	repositoryUrl: string | undefined;
 	bugsUrl: string | undefined;
+	extensionData?: string;
+	extensionTemplate?: string;
+	hasIssueUriRequestHandler?: boolean;
+	hasIssueDataProviders?: boolean;
+	data?: string;
+	uri?: UriComponents;
 }
 
 export interface IssueReporterData extends WindowData {
 	styles: IssueReporterStyles;
 	enabledExtensions: IssueReporterExtensionData[];
 	issueType?: IssueType;
+	issueSource?: IssueSource;
 	extensionId?: string;
 	experiments?: string;
 	restrictedMode: boolean;
+	isUnsupported: boolean;
 	githubAccessToken: string;
-	readonly issueTitle?: string;
-	readonly issueBody?: string;
+	issueTitle?: string;
+	issueBody?: string;
+	data?: string;
+	uri?: UriComponents;
 }
 
 export interface ISettingSearchResult {
@@ -79,6 +98,10 @@ export interface ProcessExplorerStyles extends WindowStyles {
 	listActiveSelectionBackground?: string;
 	listActiveSelectionForeground?: string;
 	listHoverOutline?: string;
+	scrollbarShadowColor?: string;
+	scrollbarSliderBackgroundColor?: string;
+	scrollbarSliderHoverBackgroundColor?: string;
+	scrollbarSliderActiveBackgroundColor?: string;
 }
 
 export interface ProcessExplorerData extends WindowData {
@@ -88,13 +111,6 @@ export interface ProcessExplorerData extends WindowData {
 	applicationName: string;
 }
 
-export interface ICommonIssueService {
-	readonly _serviceBrand: undefined;
-	openReporter(data: IssueReporterData): Promise<void>;
-	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
-	getSystemStatus(): Promise<string>;
-}
-
 export interface IssueReporterWindowConfiguration extends ISandboxConfiguration {
 	disableExtensions: boolean;
 	data: IssueReporterData;
@@ -102,9 +118,33 @@ export interface IssueReporterWindowConfiguration extends ISandboxConfiguration 
 		type: string;
 		arch: string;
 		release: string;
-	}
+	};
 }
 
 export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
 	data: ProcessExplorerData;
+}
+
+export const IIssueMainService = createDecorator<IIssueMainService>('issueService');
+
+export interface IIssueMainService {
+	readonly _serviceBrand: undefined;
+	stopTracing(): Promise<void>;
+	openReporter(data: IssueReporterData): Promise<void>;
+	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
+	getSystemStatus(): Promise<string>;
+
+	// Used by the issue reporter
+
+	$getSystemInfo(): Promise<SystemInfo>;
+	$getPerformanceInfo(): Promise<PerformanceInfo>;
+	$reloadWithExtensionsDisabled(): Promise<void>;
+	$showConfirmCloseDialog(): Promise<void>;
+	$showClipboardDialog(): Promise<boolean>;
+	$getIssueReporterUri(extensionId: string): Promise<URI>;
+	$getIssueReporterData(extensionId: string): Promise<string>;
+	$getIssueReporterTemplate(extensionId: string): Promise<string>;
+	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]>;
+	$sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
+	$closeReporter(): Promise<void>;
 }

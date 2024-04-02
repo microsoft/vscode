@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
+import { IEncryptionService, KnownStorageProvider } from 'vs/platform/encryption/common/encryptionService';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class EncryptionService {
+export class EncryptionService implements IEncryptionService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -17,6 +17,18 @@ export class EncryptionService {
 	decrypt(value: string): Promise<string> {
 		return Promise.resolve(value);
 	}
+
+	isEncryptionAvailable(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
+	getKeyStorageProvider(): Promise<KnownStorageProvider> {
+		return Promise.resolve(KnownStorageProvider.basicText);
+	}
+
+	setUsePlainTextEncryption(): Promise<void> {
+		return Promise.resolve(undefined);
+	}
 }
 
-registerSingleton(IEncryptionService, EncryptionService, true);
+registerSingleton(IEncryptionService, EncryptionService, InstantiationType.Delayed);

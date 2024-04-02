@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILinkDescriptor } from 'vs/platform/opener/browser/link';
-
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IBannerItem {
 	readonly id: string;
-	readonly icon: Codicon | URI | undefined;
+	readonly icon: ThemeIcon | URI | undefined;
 	readonly message: string | MarkdownString;
 	readonly actions?: ILinkDescriptor[];
 	readonly ariaLabel?: string;
 	readonly onClose?: () => void;
+	readonly closeLabel?: string;
 }
 
 export const IBannerService = createDecorator<IBannerService>('bannerService');

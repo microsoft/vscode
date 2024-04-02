@@ -1,0 +1,212 @@
+trigger:
+  - main
+  - release/*
+
+pr:
+  branches:
+    include: ["main", "release/*"]
+
+variables:
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: NPM_REGISTRY
+    value: "none"
+  - name: CARGO_REGISTRY
+    value: "none"
+  - name: VSCODE_CIBUILD
+    value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+  - name: VSCODE_QUALITY
+    value: oss
+  - name: VSCODE_STEP_ON_IT
+    value: false
+
+jobs:
+  - ${{ if ne(variables['VSCODE_CIBUILD'], true) }}:
+    - job: Compile
+      displayName: Compile & Hygiene
+      pool: 1es-oss-ubuntu-20.04-x64
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+      steps:
+        - template: product-compile.yml@self
+          parameters:
+            VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+    - job: Linuxx64UnitTest
+      displayName: Linux (Unit Tests)
+      pool: 1es-oss-ubuntu-20.04-x64
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+        NPM_ARCH: x64
+        DISPLAY: ":10"
+      steps:
+        - template: linux/product-build-linux.yml@self
+          parameters:
+            VSCODE_ARCH: x64
+            VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+            VSCODE_RUN_UNIT_TESTS: true
+            VSCODE_RUN_INTEGRATION_TESTS: false
+            VSCODE_RUN_SMOKE_TESTS: false
+
+    - job: Linuxx64IntegrationTest
+      displayName: Linux (Integration Tests)
+      pool: 1es-oss-ubuntu-20.04-x64
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+        NPM_ARCH: x64
+        DISPLAY: ":10"
+      steps:
+        - template: linux/product-build-linux.yml@self
+          parameters:
+            VSCODE_ARCH: x64
+            VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+            VSCODE_RUN_UNIT_TESTS: false
+            VSCODE_RUN_INTEGRATION_TESTS: true
+            VSCODE_RUN_SMOKE_TESTS: false
+
+    - job: Linuxx64SmokeTest
+      displayName: Linux (Smoke Tests)
+      pool: 1es-oss-ubuntu-20.04-x64
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+        NPM_ARCH: x64
+        DISPLAY: ":10"
+      steps:
+        - template: linux/product-build-linux.yml@self
+          parameters:
+            VSCODE_ARCH: x64
+            VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+            VSCODE_RUN_UNIT_TESTS: false
+            VSCODE_RUN_INTEGRATION_TESTS: false
+            VSCODE_RUN_SMOKE_TESTS: true
+
+    - job: LinuxCLI
+      displayName: Linux (CLI)
+      pool: 1es-oss-ubuntu-20.04-x64
+      timeoutInMinutes: 30
+      steps:
+        - template: cli/test.yml@self
+
+    - job: Windowsx64UnitTests
+      displayName: Windows (Unit Tests)
+      pool: 1es-oss-windows-2019-x64
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+        NPM_ARCH: x64
+      steps:
+        - template: win32/product-build-win32.yml@self
+          parameters:
+            VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_ARCH: x64
+            VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+            VSCODE_RUN_UNIT_TESTS: true
+            VSCODE_RUN_INTEGRATION_TESTS: false
+            VSCODE_RUN_SMOKE_TESTS: false
+
+    - job: Windowsx64IntegrationTests
+      displayName: Windows (Integration Tests)
+      pool: 1es-oss-windows-2019-x64
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+        NPM_ARCH: x64
+      steps:
+        - template: win32/product-build-win32.yml@self
+          parameters:
+            VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_ARCH: x64
+            VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+            VSCODE_RUN_UNIT_TESTS: false
+            VSCODE_RUN_INTEGRATION_TESTS: true
+            VSCODE_RUN_SMOKE_TESTS: false
+
+    # - job: Windowsx64SmokeTests
+    #   displayName: Windows (Smoke Tests)
+    #   pool: 1es-oss-windows-2019-x64
+    #   timeoutInMinutes: 30
+    #   variables:
+    #     VSCODE_ARCH: x64
+    #     NPM_ARCH: x64
+    #   steps:
+    #     - template: win32/product-build-win32.yml@self
+    #       parameters:
+    #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+    #         VSCODE_ARCH: x64
+    #         VSCODE_RUN_UNIT_TESTS: false
+    #         VSCODE_RUN_INTEGRATION_TESTS: false
+    #         VSCODE_RUN_SMOKE_TESTS: true
+
+  - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+    - job: Linuxx64MaintainNodeModulesCache
+      displayName: Linux (Maintain node_modules cache)
+      pool: 1es-oss-ubuntu-20.04-x64
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+      steps:
+        - template: oss/product-build-pr-cache-linux.yml@self
+
+    - job: Windowsx64MaintainNodeModulesCache
+      displayName: Windows (Maintain node_modules cache)
+      pool: 1es-oss-windows-2019-x64
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+      steps:
+        - template: oss/product-build-pr-cache-win32.yml@self
+
+  # - job: macOSUnitTest
+  #   displayName: macOS (Unit Tests)
+  #   pool:
+  #     vmImage: macOS-11
+  #   timeoutInMinutes: 60
+  #   variables:
+  #     BUILDSECMON_OPT_IN: true
+  #     VSCODE_ARCH: x64
+  #   steps:
+  #     - template: darwin/product-build-darwin.yml@self
+  #       parameters:
+  #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+  #         VSCODE_RUN_UNIT_TESTS: true
+  #         VSCODE_RUN_INTEGRATION_TESTS: false
+  #         VSCODE_RUN_SMOKE_TESTS: false
+  # - job: macOSIntegrationTest
+  #   displayName: macOS (Integration Tests)
+  #   pool:
+  #     vmImage: macOS-11
+  #   timeoutInMinutes: 60
+  #   variables:
+  #     BUILDSECMON_OPT_IN: true
+  #     VSCODE_ARCH: x64
+  #   steps:
+  #     - template: darwin/product-build-darwin.yml@self
+  #       parameters:
+  #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+  #         VSCODE_RUN_UNIT_TESTS: false
+  #         VSCODE_RUN_INTEGRATION_TESTS: true
+  #         VSCODE_RUN_SMOKE_TESTS: false
+  # - job: macOSSmokeTest
+  #   displayName: macOS (Smoke Tests)
+  #   pool:
+  #     vmImage: macOS-11
+  #   timeoutInMinutes: 60
+  #   variables:
+  #     BUILDSECMON_OPT_IN: true
+  #     VSCODE_ARCH: x64
+  #   steps:
+  #     - template: darwin/product-build-darwin.yml@self
+  #       parameters:
+  #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+  #         VSCODE_RUN_UNIT_TESTS: false
+  #         VSCODE_RUN_INTEGRATION_TESTS: false
+  #         VSCODE_RUN_SMOKE_TESTS: true

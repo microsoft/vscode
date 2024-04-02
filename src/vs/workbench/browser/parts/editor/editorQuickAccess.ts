@@ -10,13 +10,14 @@ import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorsOrder, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 interface IEditorQuickPickItem extends IQuickPickItemWithResource, IPickerQuickAccessItem {
 	groupId: GroupIdentifier;
@@ -46,7 +47,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super(prefix,
 			{
@@ -156,12 +157,12 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 					return isDirty ? localize('entryAriaLabelDirty', "{0}, unsaved changes", nameAndDescription) : nameAndDescription;
 				})(),
 				description,
-				iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(editor.getLabelExtraClasses()),
+				iconClasses: getIconClasses(this.modelService, this.languageService, resource, undefined, editor.getIcon()).concat(editor.getLabelExtraClasses()),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
 				buttons: (() => {
 					return [
 						{
-							iconClass: isDirty ? ('dirty-editor ' + Codicon.closeDirty.classNames) : Codicon.close.classNames,
+							iconClass: isDirty ? ('dirty-editor ' + ThemeIcon.asClassName(Codicon.closeDirty)) : ThemeIcon.asClassName(Codicon.close),
 							tooltip: localize('closeEditor', "Close Editor"),
 							alwaysVisible: isDirty
 						}
@@ -197,9 +198,9 @@ export class ActiveGroupEditorsByMostRecentlyUsedQuickAccess extends BaseEditorQ
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
+		@ILanguageService languageService: ILanguageService
 	) {
-		super(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, editorGroupService, editorService, modelService, modeService);
+		super(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, editorGroupService, editorService, modelService, languageService);
 	}
 
 	protected doGetEditors(): IEditorIdentifier[] {
@@ -222,9 +223,9 @@ export class AllEditorsByAppearanceQuickAccess extends BaseEditorQuickAccessProv
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
+		@ILanguageService languageService: ILanguageService
 	) {
-		super(AllEditorsByAppearanceQuickAccess.PREFIX, editorGroupService, editorService, modelService, modeService);
+		super(AllEditorsByAppearanceQuickAccess.PREFIX, editorGroupService, editorService, modelService, languageService);
 	}
 
 	protected doGetEditors(): IEditorIdentifier[] {
@@ -253,9 +254,9 @@ export class AllEditorsByMostRecentlyUsedQuickAccess extends BaseEditorQuickAcce
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
+		@ILanguageService languageService: ILanguageService
 	) {
-		super(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, editorGroupService, editorService, modelService, modeService);
+		super(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, editorGroupService, editorService, modelService, languageService);
 	}
 
 	protected doGetEditors(): IEditorIdentifier[] {

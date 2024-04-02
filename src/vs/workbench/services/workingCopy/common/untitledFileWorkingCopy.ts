@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -37,9 +37,9 @@ export interface IUntitledFileWorkingCopyModelContentChangedEvent {
 
 	/**
 	 * Flag that indicates that the content change should
-	 * clear the dirty flag, e.g. because the contents are
+	 * clear the dirty/modified flags, e.g. because the contents are
 	 * back to being empty or back to an initial state that
-	 * should not be considered as dirty.
+	 * should not be considered as modified.
 	 */
 	readonly isInitial: boolean;
 }
@@ -82,17 +82,17 @@ export interface IUntitledFileWorkingCopyInitialContents {
 
 	/**
 	 * If not provided, the untitled file working copy will be marked
-	 * dirty by default given initial contents are provided.
+	 * modified by default given initial contents are provided.
 	 *
 	 * Note: if the untitled file working copy has an associated path
-	 * the dirty state will always be set.
+	 * the modified state will always be set.
 	 */
-	readonly markDirty?: boolean;
+	readonly markModified?: boolean;
 }
 
-export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
+export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M> {
 
-	readonly capabilities = WorkingCopyCapabilities.Untitled;
+	readonly capabilities = this.isScratchpad ? WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad : WorkingCopyCapabilities.Untitled;
 
 	private _model: M | undefined = undefined;
 	get model(): M | undefined { return this._model; }
@@ -104,6 +104,9 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidRevert = this._register(new Emitter<void>());
 	readonly onDidRevert = this._onDidRevert.event;
@@ -118,6 +121,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		readonly resource: URI,
 		readonly name: string,
 		readonly hasAssociatedFilePath: boolean,
+		private readonly isScratchpad: boolean,
 		private readonly initialContents: IUntitledFileWorkingCopyInitialContents | undefined,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
 		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate<M>,
@@ -131,21 +135,27 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		this._register(workingCopyService.registerWorkingCopy(this));
 	}
 
-	//#region Dirty
+	//#region Dirty/Modified
 
-	private dirty = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markDirty !== false);
+	private modified = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markModified !== false);
 
 	isDirty(): boolean {
-		return this.dirty;
+		return this.modified && !this.isScratchpad; // Scratchpad working copies are never dirty
 	}
 
-	private setDirty(dirty: boolean): void {
-		if (this.dirty === dirty) {
+	isModified(): boolean {
+		return this.modified;
+	}
+
+	private setModified(modified: boolean): void {
+		if (this.modified === modified) {
 			return;
 		}
 
-		this.dirty = dirty;
-		this._onDidChangeDirty.fire();
+		this.modified = modified;
+		if (!this.isScratchpad) {
+			this._onDidChangeDirty.fire();
+		}
 	}
 
 	//#endregion
@@ -154,10 +164,10 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	//#region Resolve
 
 	async resolve(): Promise<void> {
-		this.trace('[untitled file working copy] resolve()');
+		this.trace('resolve()');
 
 		if (this.isResolved()) {
-			this.trace('[untitled file working copy] resolve() - exit (already resolved)');
+			this.trace('resolve() - exit (already resolved)');
 
 			// return early if the untitled file working copy is already
 			// resolved assuming that the contents have meanwhile changed
@@ -170,15 +180,15 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		// Check for backups or use initial value or empty
 		const backup = await this.workingCopyBackupService.resolve(this);
 		if (backup) {
-			this.trace('[untitled file working copy] resolve() - with backup');
+			this.trace('resolve() - with backup');
 
 			untitledContents = backup.value;
 		} else if (this.initialContents?.value) {
-			this.trace('[untitled file working copy] resolve() - with initial contents');
+			this.trace('resolve() - with initial contents');
 
 			untitledContents = this.initialContents.value;
 		} else {
-			this.trace('[untitled file working copy] resolve() - empty');
+			this.trace('resolve() - empty');
 
 			untitledContents = emptyStream();
 		}
@@ -186,18 +196,18 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		// Create model
 		await this.doCreateModel(untitledContents);
 
-		// Untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markDirty !== false));
+		// Untitled associated to file path are modified right away as well as untitled with content
+		this.setModified(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markModified !== false));
 
 		// If we have initial contents, make sure to emit this
-		// as the appropiate events to the outside.
+		// as the appropriate events to the outside.
 		if (!!backup || this.initialContents) {
 			this._onDidChangeContent.fire();
 		}
 	}
 
 	private async doCreateModel(contents: VSBufferReadableStream): Promise<void> {
-		this.trace('[untitled file working copy] doCreateModel()');
+		this.trace('doCreateModel()');
 
 		// Create model and dispose it when we get disposed
 		this._model = this._register(await this.modelFactory.createModel(this.resource, contents, CancellationToken.None));
@@ -217,16 +227,16 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	private onModelContentChanged(e: IUntitledFileWorkingCopyModelContentChangedEvent): void {
 
-		// Mark the untitled file working copy as non-dirty once its
+		// Mark the untitled file working copy as non-modified once its
 		// in case provided by the change event and in case we do not
 		// have an associated path set
 		if (!this.hasAssociatedFilePath && e.isInitial) {
-			this.setDirty(false);
+			this.setModified(false);
 		}
 
-		// Turn dirty otherwise
+		// Turn modified otherwise
 		else {
-			this.setDirty(true);
+			this.setModified(true);
 		}
 
 		// Emit as general content change event
@@ -242,12 +252,21 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	//#region Backup
 
-	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+	get backupDelay(): number | undefined {
+		return this.model?.configuration?.backupDelay;
+	}
 
-		// Fill in content if we are resolved
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		let content: VSBufferReadableStream | undefined = undefined;
+
+		// Make sure to check whether this working copy has been
+		// resolved or not and fallback to the initial value -
+		// if any - to prevent backing up an unresolved working
+		// copy and loosing the initial value.
 		if (this.isResolved()) {
 			content = await raceCancellation(this.model.snapshot(token), token);
+		} else if (this.initialContents) {
+			content = this.initialContents.value;
 		}
 
 		return { content };
@@ -258,10 +277,17 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	//#region Save
 
-	save(options?: ISaveOptions): Promise<boolean> {
-		this.trace('[untitled file working copy] save()');
+	async save(options?: ISaveOptions): Promise<boolean> {
+		this.trace('save()');
 
-		return this.saveDelegate(this, options);
+		const result = await this.saveDelegate(this, options);
+
+		// Emit Save Event
+		if (result) {
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
+		}
+
+		return result;
 	}
 
 	//#endregion
@@ -270,10 +296,10 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	//#region Revert
 
 	async revert(): Promise<void> {
-		this.trace('[untitled file working copy] revert()');
+		this.trace('revert()');
 
-		// No longer dirty
-		this.setDirty(false);
+		// No longer modified
+		this.setModified(false);
 
 		// Emit as event
 		this._onDidRevert.fire();
@@ -287,7 +313,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	//#endregion
 
 	override dispose(): void {
-		this.trace('[untitled file working copy] dispose()');
+		this.trace('dispose()');
 
 		this._onWillDispose.fire();
 
@@ -295,6 +321,6 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	}
 
 	private trace(msg: string): void {
-		this.logService.trace(msg, this.resource.toString(true), this.typeId);
+		this.logService.trace(`[untitled file working copy] ${msg}`, this.resource.toString(), this.typeId);
 	}
 }

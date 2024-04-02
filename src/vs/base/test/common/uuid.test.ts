@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as uuid from 'vs/base/common/uuid';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('UUID', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('generation', () => {
 		const asHex = uuid.generateUuid();
 		assert.strictEqual(asHex.length, 36);

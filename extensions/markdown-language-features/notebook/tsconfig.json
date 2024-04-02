@@ -4,6 +4,7 @@
 		"outDir": "./dist/",
 		"jsx": "react",
 		"moduleResolution": "Node",
+		"allowSyntheticDefaultImports": true,
 		"module": "es2020",
 		"lib": [
 			"es2018",

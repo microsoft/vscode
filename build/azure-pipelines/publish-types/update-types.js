@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const cp = require("child_process");
@@ -13,7 +13,7 @@ try {
         .execSync('git describe --tags `git rev-list --tags --max-count=1`')
         .toString()
         .trim();
-    const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vs/vscode.d.ts`;
+    const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vscode-dts/vscode.d.ts`;
     const outPath = path.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/index.d.ts');
     cp.execSync(`curl ${dtsUri} --output ${outPath}`);
     updateDTSFile(outPath, tag);
@@ -70,3 +70,4 @@ function getNewFileHeader(tag) {
     ].join('\n');
     return header;
 }
+//# sourceMappingURL=update-types.js.map

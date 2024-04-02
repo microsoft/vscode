@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface E {
 	value: number;
@@ -29,6 +30,10 @@ suite('DataTree', function () {
 		value: -1,
 		children: []
 	};
+
+	teardown(() => tree.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		const container = document.createElement('div');
@@ -58,19 +63,13 @@ suite('DataTree', function () {
 		};
 
 		const identityProvider = new class implements IIdentityProvider<E> {
-			getId(element: E): { toString(): string; } {
+			getId(element: E): { toString(): string } {
 				return `${element.value}`;
 			}
 		};
 
-		tree = new DataTree<E, E>('test', container, delegate, [renderer], dataSource, {
-			identityProvider
-		});
+		tree = new DataTree<E, E>('test', container, delegate, [renderer], dataSource, { identityProvider });
 		tree.layout(200);
-	});
-
-	teardown(() => {
-		tree.dispose();
 	});
 
 	test('view state is lost implicitly', () => {

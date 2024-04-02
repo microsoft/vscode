@@ -9,10 +9,10 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IPagedModel } from 'vs/base/common/paging';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemable } from 'vs/base/common/styler';
 import 'vs/css!./list';
 import { IListContextMenuEvent, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from './list';
-import { IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, List } from './listWidget';
+import { IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, List, TypeNavigationMode } from './listWidget';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -38,9 +38,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 	}
 
 	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>, height: number | undefined): void {
-		if (data.disposable) {
-			data.disposable.dispose();
-		}
+		data.disposable?.dispose();
 
 		if (!data.data) {
 			return;
@@ -83,7 +81,7 @@ class PagedAccessibilityProvider<T> implements IListAccessibilityProvider<number
 		return this.accessibilityProvider.getWidgetAriaLabel();
 	}
 
-	getAriaLabel(index: number): string | null {
+	getAriaLabel(index: number) {
 		const model = this.modelProvider();
 
 		if (!model.isResolved(index)) {
@@ -95,8 +93,8 @@ class PagedAccessibilityProvider<T> implements IListAccessibilityProvider<number
 }
 
 export interface IPagedListOptions<T> {
-	readonly enableKeyboardNavigation?: boolean;
-	readonly automaticKeyboardNavigation?: boolean;
+	readonly typeNavigationEnabled?: boolean;
+	readonly typeNavigationMode?: TypeNavigationMode;
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
@@ -110,7 +108,8 @@ export interface IPagedListOptions<T> {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
-	readonly additionalScrollHeight?: number;
+	readonly scrollByPage?: boolean;
+	readonly paddingBottom?: number;
 }
 
 function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: IPagedListOptions<T>): IListOptions<number> {
@@ -120,7 +119,7 @@ function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: I
 	};
 }
 
-export class PagedList<T> implements IThemable, IDisposable {
+export class PagedList<T> implements IDisposable {
 
 	private list: List<number>;
 	private _model!: IPagedModel<T>;
@@ -146,7 +145,7 @@ export class PagedList<T> implements IThemable, IDisposable {
 	}
 
 	isDOMFocused(): boolean {
-		return this.list.getHTMLElement() === document.activeElement;
+		return isActiveElement(this.getHTMLElement());
 	}
 
 	domFocus(): void {
@@ -282,8 +281,8 @@ export class PagedList<T> implements IThemable, IDisposable {
 		this.list.layout(height, width);
 	}
 
-	toggleKeyboardNavigation(): void {
-		this.list.toggleKeyboardNavigation();
+	triggerTypeNavigation(): void {
+		this.list.triggerTypeNavigation();
 	}
 
 	reveal(index: number, relativeTop?: number): void {

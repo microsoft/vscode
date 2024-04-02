@@ -6,18 +6,22 @@
 import * as assert from 'assert';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IConfigurationValue, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationServiceImpl';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 suite('TextResourceConfigurationService - Update', () => {
 
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let instantiationService: TestInstantiationService;
 	let configurationValue: IConfigurationValue<any> = {};
 	let updateArgs: any[];
-	let configurationService = new class extends TestConfigurationService {
+	const configurationService = new class extends TestConfigurationService {
 		override inspect() {
 			return configurationValue;
 		}
@@ -30,11 +34,11 @@ suite('TextResourceConfigurationService - Update', () => {
 	let testObject: TextResourceConfigurationService;
 
 	setup(() => {
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(IModelService, <Partial<IModelService>>{ getModel() { return null; } });
-		instantiationService.stub(IModeService, <Partial<IModeService>>{ getModeIdByFilepathOrFirstLine() { return language; } });
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IModelService, { getModel() { return null; } });
+		instantiationService.stub(ILanguageService, { guessLanguageIdByFilepathOrFirstLine() { return language; } });
 		instantiationService.stub(IConfigurationService, configurationService);
-		testObject = instantiationService.createInstance(TextResourceConfigurationService);
+		testObject = disposables.add(instantiationService.createInstance(TextResourceConfigurationService));
 	});
 
 	test('updateValue writes without target and overrides when no language is defined', async () => {

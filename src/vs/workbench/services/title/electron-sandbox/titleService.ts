@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { TitlebarPart } from 'vs/workbench/electron-sandbox/parts/titlebar/titlebarPart';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { NativeTitleService } from 'vs/workbench/electron-sandbox/parts/titlebar/titlebarPart';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 
-registerSingleton(ITitleService, TitlebarPart);
+registerSingleton(ITitleService, NativeTitleService, InstantiationType.Eager);

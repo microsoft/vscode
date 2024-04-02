@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, nativeTheme } from 'electron';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { IPartsSplash } from 'vs/platform/windows/common/windows';
+import { IStateService } from 'vs/platform/state/node/state';
+import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { IColorScheme } from 'vs/platform/window/common/window';
 
 const DEFAULT_BG_LIGHT = '#FFFFFF';
 const DEFAULT_BG_DARK = '#1E1E1E';
 const DEFAULT_BG_HC_BLACK = '#000000';
+const DEFAULT_BG_HC_LIGHT = '#FFFFFF';
 
 const THEME_STORAGE_KEY = 'theme';
 const THEME_BG_STORAGE_KEY = 'themeBackground';
@@ -23,33 +28,97 @@ export interface IThemeMainService {
 
 	readonly _serviceBrand: undefined;
 
+	readonly onDidChangeColorScheme: Event<IColorScheme>;
+
 	getBackgroundColor(): string;
 
 	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void;
 	getWindowSplash(): IPartsSplash | undefined;
+
+	getColorScheme(): IColorScheme;
 }
 
-export class ThemeMainService implements IThemeMainService {
+export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IStateMainService private stateMainService: IStateMainService) { }
+	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
+	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
+
+	constructor(@IStateService private stateService: IStateService, @IConfigurationService private configurationService: IConfigurationService) {
+		super();
+
+		// System Theme
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.systemColorTheme')) {
+				this.updateSystemColorTheme();
+			}
+		}));
+		this.updateSystemColorTheme();
+
+		// Color Scheme changes
+		this._register(Event.fromNodeEventEmitter(nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
+	}
+
+	private updateSystemColorTheme(): void {
+		switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>('window.systemColorTheme')) {
+			case 'dark':
+				nativeTheme.themeSource = 'dark';
+				break;
+			case 'light':
+				nativeTheme.themeSource = 'light';
+				break;
+			case 'auto':
+				switch (this.getBaseTheme()) {
+					case 'vs': nativeTheme.themeSource = 'light'; break;
+					case 'vs-dark': nativeTheme.themeSource = 'dark'; break;
+					default: nativeTheme.themeSource = 'system';
+				}
+				break;
+			default:
+				nativeTheme.themeSource = 'system';
+				break;
+		}
+	}
+
+	getColorScheme(): IColorScheme {
+		if (isWindows) {
+			// high contrast is refelected by the shouldUseInvertedColorScheme property
+			if (nativeTheme.shouldUseHighContrastColors) {
+				// shouldUseInvertedColorScheme is dark, !shouldUseInvertedColorScheme is light
+				return { dark: nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
+			}
+		} else if (isMacintosh) {
+			// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set, reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
+			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
+				return { dark: nativeTheme.shouldUseDarkColors, highContrast: true };
+			}
+		} else if (isLinux) {
+			// ubuntu gnome seems to have 3 states, light dark and high contrast
+			if (nativeTheme.shouldUseHighContrastColors) {
+				return { dark: true, highContrast: true };
+			}
+		}
+		return {
+			dark: nativeTheme.shouldUseDarkColors,
+			highContrast: false
+		};
+	}
 
 	getBackgroundColor(): string {
-		if ((isWindows || isMacintosh) && nativeTheme.shouldUseInvertedColorScheme) {
-			return DEFAULT_BG_HC_BLACK;
+		const colorScheme = this.getColorScheme();
+		if (colorScheme.highContrast && this.configurationService.getValue('window.autoDetectHighContrast')) {
+			return colorScheme.dark ? DEFAULT_BG_HC_BLACK : DEFAULT_BG_HC_LIGHT;
 		}
 
-		let background = this.stateMainService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
+		let background = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
 		if (!background) {
-			let baseTheme: string;
-			if ((isWindows || isMacintosh) && nativeTheme.shouldUseInvertedColorScheme) {
-				baseTheme = 'hc-black';
-			} else {
-				baseTheme = this.stateMainService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
+			switch (this.getBaseTheme()) {
+				case 'vs': background = DEFAULT_BG_LIGHT; break;
+				case 'hc-black': background = DEFAULT_BG_HC_BLACK; break;
+				case 'hc-light': background = DEFAULT_BG_HC_LIGHT; break;
+				default: background = DEFAULT_BG_DARK;
 			}
-
-			background = (baseTheme === 'hc-black') ? DEFAULT_BG_HC_BLACK : (baseTheme === 'vs' ? DEFAULT_BG_LIGHT : DEFAULT_BG_DARK);
 		}
 
 		if (isMacintosh && background.toUpperCase() === DEFAULT_BG_DARK) {
@@ -59,10 +128,20 @@ export class ThemeMainService implements IThemeMainService {
 		return background;
 	}
 
+	private getBaseTheme(): 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' {
+		const baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
+		switch (baseTheme) {
+			case 'vs': return 'vs';
+			case 'hc-black': return 'hc-black';
+			case 'hc-light': return 'hc-light';
+			default: return 'vs-dark';
+		}
+	}
+
 	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void {
 
 		// Update in storage
-		this.stateMainService.setItems([
+		this.stateService.setItems([
 			{ key: THEME_STORAGE_KEY, data: splash.baseTheme },
 			{ key: THEME_BG_STORAGE_KEY, data: splash.colorInfo.background },
 			{ key: THEME_WINDOW_SPLASH, data: splash }
@@ -72,6 +151,9 @@ export class ThemeMainService implements IThemeMainService {
 		if (typeof windowId === 'number') {
 			this.updateBackgroundColor(windowId, splash);
 		}
+
+		// Update system theme
+		this.updateSystemColorTheme();
 	}
 
 	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
@@ -84,6 +166,6 @@ export class ThemeMainService implements IThemeMainService {
 	}
 
 	getWindowSplash(): IPartsSplash | undefined {
-		return this.stateMainService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH);
+		return this.stateService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH);
 	}
 }

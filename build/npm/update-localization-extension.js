@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 'use strict';
 
 let i18n = require("../lib/i18n");
@@ -23,6 +22,10 @@ function update(options) {
 	let location = options.location;
 	if (location !== undefined && !fs.existsSync(location)) {
 		throw new Error(`${location} doesn't exist.`);
+	}
+	let externalExtensionsLocation = options.externalExtensionsLocation;
+	if (externalExtensionsLocation !== undefined && !fs.existsSync(externalExtensionsLocation)) {
+		throw new Error(`${externalExtensionsLocation} doesn't exist.`);
 	}
 	let locExtFolder = idOrPath;
 	if (/^\w{2,3}(-\w+)?$/.test(idOrPath)) {
@@ -68,8 +71,11 @@ function update(options) {
 
 		console.log(`Importing translations for ${languageId} form '${location}' to '${translationDataFolder}' ...`);
 		let translationPaths = [];
-		gulp.src(path.join(location, '**', languageId, '*.xlf'), { silent: false })
-			.pipe(i18n.prepareI18nPackFiles(i18n.externalExtensionsWithTranslations, translationPaths, languageId === 'ps'))
+		gulp.src([
+			path.join(location, '**', languageId, '*.xlf'),
+			...i18n.EXTERNAL_EXTENSIONS.map(extensionId => path.join(externalExtensionsLocation, extensionId, languageId, '*-new.xlf'))
+		], { silent: false })
+			.pipe(i18n.prepareI18nPackFiles(translationPaths))
 			.on('error', (error) => {
 				console.log(`Error occurred while importing translations:`);
 				translationPaths = undefined;
@@ -95,7 +101,7 @@ function update(options) {
 }
 if (path.basename(process.argv[1]) === 'update-localization-extension.js') {
 	var options = minimist(process.argv.slice(2), {
-		string: 'location'
+		string: ['location', 'externalExtensionsLocation']
 	});
 	update(options);
 }

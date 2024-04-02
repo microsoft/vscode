@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
+import { flakySuite } from 'vs/base/test/common/testUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
-suite('IndexedDB', () => {
+flakySuite('IndexedDB', () => {
 
 	let indexedDB: IndexedDB;
 
@@ -15,7 +17,7 @@ suite('IndexedDB', () => {
 	});
 
 	teardown(() => {
-		indexedDB.close();
+		indexedDB?.close();
 	});
 
 	test('runInTransaction', async () => {
@@ -59,4 +61,5 @@ suite('IndexedDB', () => {
 		} catch (error) { }
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

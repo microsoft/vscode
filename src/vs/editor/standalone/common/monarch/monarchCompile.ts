@@ -85,7 +85,8 @@ function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): 
  * @example /@attr/ will be replaced with the value of lexer[attr]
  * @example /@@text/ will not be replaced and will become /@text/.
  */
-function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
+function compileRegExp<S extends true | false>(lexer: monarchCommon.ILexerMin, str: string, handleSn: S): S extends true ? RegExp | DynamicRegExp : RegExp;
+function compileRegExp(lexer: monarchCommon.ILexerMin, str: string, handleSn: true | false): RegExp | DynamicRegExp {
 	// @@ must be interpreted as a literal @, so we replace all occurences of @@ with a placeholder character
 	str = str.replace(/@@/g, `\x01`);
 
@@ -115,7 +116,25 @@ function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
 	// handle escaped @@
 	str = str.replace(/\x01/g, '@');
 
-	let flags = (lexer.ignoreCase ? 'i' : '') + (lexer.unicode ? 'u' : '');
+	const flags = (lexer.ignoreCase ? 'i' : '') + (lexer.unicode ? 'u' : '');
+
+	// handle $Sn
+	if (handleSn) {
+		const match = str.match(/\$[sS](\d\d?)/g);
+		if (match) {
+			let lastState: string | null = null;
+			let lastRegEx: RegExp | null = null;
+			return (state: string) => {
+				if (lastRegEx && lastState === state) {
+					return lastRegEx;
+				}
+				lastState = state;
+				lastRegEx = new RegExp(monarchCommon.substituteMatchesRe(lexer, str, state), flags);
+				return lastRegEx;
+			};
+		}
+	}
+
 	return new RegExp(str, flags);
 }
 
@@ -133,7 +152,7 @@ function selectScrutinee(id: string, matches: string[], state: string, num: numb
 	}
 	if (num >= 100) {
 		num = num - 100;
-		let parts = state.split('.');
+		const parts = state.split('.');
 		parts.unshift(state);
 		if (num < parts.length) {
 			return parts[num];
@@ -179,42 +198,42 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 
 	// special case a regexp that matches just words
 	if ((op === '~' || op === '!~') && /^(\w|\|)*$/.test(pat)) {
-		let inWords = createKeywordMatcher(pat.split('|'), lexer.ignoreCase);
+		const inWords = createKeywordMatcher(pat.split('|'), lexer.ignoreCase);
 		tester = function (s) { return (op === '~' ? inWords(s) : !inWords(s)); };
 	}
 	else if (op === '@' || op === '!@') {
-		let words = lexer[pat];
+		const words = lexer[pat];
 		if (!words) {
 			throw monarchCommon.createError(lexer, 'the @ match target \'' + pat + '\' is not defined, in rule: ' + ruleName);
 		}
 		if (!(isArrayOf(function (elem) { return (typeof (elem) === 'string'); }, words))) {
 			throw monarchCommon.createError(lexer, 'the @ match target \'' + pat + '\' must be an array of strings, in rule: ' + ruleName);
 		}
-		let inWords = createKeywordMatcher(words, lexer.ignoreCase);
+		const inWords = createKeywordMatcher(words, lexer.ignoreCase);
 		tester = function (s) { return (op === '@' ? inWords(s) : !inWords(s)); };
 	}
 	else if (op === '~' || op === '!~') {
 		if (pat.indexOf('$') < 0) {
 			// precompile regular expression
-			let re = compileRegExp(lexer, '^' + pat + '$');
+			const re = compileRegExp(lexer, '^' + pat + '$', false);
 			tester = function (s) { return (op === '~' ? re.test(s) : !re.test(s)); };
 		}
 		else {
 			tester = function (s, id, matches, state) {
-				let re = compileRegExp(lexer, '^' + monarchCommon.substituteMatches(lexer, pat, id, matches, state) + '$');
+				const re = compileRegExp(lexer, '^' + monarchCommon.substituteMatches(lexer, pat, id, matches, state) + '$', false);
 				return re.test(s);
 			};
 		}
 	}
 	else { // if (op==='==' || op==='!=') {
 		if (pat.indexOf('$') < 0) {
-			let patx = monarchCommon.fixCase(lexer, pat);
+			const patx = monarchCommon.fixCase(lexer, pat);
 			tester = function (s) { return (op === '==' ? s === patx : s !== patx); };
 		}
 		else {
-			let patx = monarchCommon.fixCase(lexer, pat);
+			const patx = monarchCommon.fixCase(lexer, pat);
 			tester = function (s, id, matches, state, eos) {
-				let patexp = monarchCommon.substituteMatches(lexer, patx, id, matches, state);
+				const patexp = monarchCommon.substituteMatches(lexer, patx, id, matches, state);
 				return (op === '==' ? s === patexp : s !== patexp);
 			};
 		}
@@ -231,7 +250,7 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 	else {
 		return {
 			name: tkey, value: val, test: function (id, matches, state, eos) {
-				let scrutinee = selectScrutinee(id, matches, state, scrut);
+				const scrutinee = selectScrutinee(id, matches, state, scrut);
 				return tester(!scrutinee ? '' : scrutinee, id, matches, state, eos);
 			}
 		};
@@ -259,7 +278,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 		}
 		else {
 			// only copy specific typed fields (only happens once during compile Lexer)
-			let newAction: monarchCommon.IAction = { token: action.token };
+			const newAction: monarchCommon.IAction = { token: action.token };
 			if (action.token.indexOf('$') >= 0) {
 				newAction.tokenSubst = true;
 			}
@@ -308,7 +327,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 		}
 	}
 	else if (Array.isArray(action)) {
-		let results: monarchCommon.FuzzyAction[] = [];
+		const results: monarchCommon.FuzzyAction[] = [];
 		for (let i = 0, len = action.length; i < len; i++) {
 			results[i] = compileAction(lexer, ruleName, action[i]);
 		}
@@ -316,10 +335,10 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 	}
 	else if (action.cases) {
 		// build an array of test cases
-		let cases: monarchCommon.IBranch[] = [];
+		const cases: monarchCommon.IBranch[] = [];
 
 		// for each case, push a test function and result value
-		for (let tkey in action.cases) {
+		for (const tkey in action.cases) {
 			if (action.cases.hasOwnProperty(tkey)) {
 				const val = compileAction(lexer, ruleName, action.cases[tkey]);
 
@@ -355,11 +374,13 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 	}
 }
 
+type DynamicRegExp = (state: string) => RegExp;
+
 /**
  * Helper class for creating matching rules
  */
 class Rule implements monarchCommon.IRule {
-	public regex: RegExp = new RegExp('');
+	private regex: RegExp | DynamicRegExp = new RegExp('');
 	public action: monarchCommon.FuzzyAction = { token: '' };
 	public matchOnlyAtLineStart: boolean = false;
 	public name: string = '';
@@ -382,11 +403,19 @@ class Rule implements monarchCommon.IRule {
 
 		this.matchOnlyAtLineStart = (sregex.length > 0 && sregex[0] === '^');
 		this.name = this.name + ': ' + sregex;
-		this.regex = compileRegExp(lexer, '^(?:' + (this.matchOnlyAtLineStart ? sregex.substr(1) : sregex) + ')');
+		this.regex = compileRegExp(lexer, '^(?:' + (this.matchOnlyAtLineStart ? sregex.substr(1) : sregex) + ')', true);
 	}
 
 	public setAction(lexer: monarchCommon.ILexerMin, act: monarchCommon.IAction) {
 		this.action = compileAction(lexer, this.name, act);
+	}
+
+	public resolveRegex(state: string): RegExp {
+		if (this.regex instanceof RegExp) {
+			return this.regex;
+		} else {
+			return this.regex(state);
+		}
 	}
 }
 
@@ -405,7 +434,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	}
 
 	// Create our lexer
-	let lexer: monarchCommon.ILexer = <monarchCommon.ILexer>{};
+	const lexer: monarchCommon.ILexer = <monarchCommon.ILexer>{};
 	lexer.languageId = languageId;
 	lexer.includeLF = bool(json.includeLF, false);
 	lexer.noThrow = false; // raise exceptions during compilation
@@ -422,7 +451,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	lexer.usesEmbedded = false; // becomes true if we find a nextEmbedded action
 
 	// For calling compileAction later on
-	let lexerMin: monarchCommon.ILexerMin = <any>json;
+	const lexerMin: monarchCommon.ILexerMin = <any>json;
 	lexerMin.languageId = languageId;
 	lexerMin.includeLF = lexer.includeLF;
 	lexerMin.ignoreCase = lexer.ignoreCase;
@@ -500,7 +529,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	}
 
 	lexer.tokenizer = <any>[];
-	for (let key in json.tokenizer) {
+	for (const key in json.tokenizer) {
 		if (json.tokenizer.hasOwnProperty(key)) {
 			if (!lexer.start) {
 				lexer.start = key;
@@ -526,8 +555,8 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 			{ open: '(', close: ')', token: 'delimiter.parenthesis' },
 			{ open: '<', close: '>', token: 'delimiter.angle' }];
 	}
-	let brackets: IMonarchLanguageBracket[] = [];
-	for (let el of json.brackets) {
+	const brackets: IMonarchLanguageBracket[] = [];
+	for (const el of json.brackets) {
 		let desc: any = el;
 		if (desc && Array.isArray(desc) && desc.length === 3) {
 			desc = { token: desc[2], open: desc[0], close: desc[1] };

@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+export async function retry<T>(fn: (attempt: number) => Promise<T>): Promise<T> {
+	let lastError: Error | undefined;
 
-export async function retry<T>(fn: () => Promise<T>): Promise<T> {
 	for (let run = 1; run <= 10; run++) {
 		try {
-			return await fn();
+			return await fn(run);
 		} catch (err) {
-			if (!/ECONNRESET/.test(err.message)) {
+			if (!/fetch failed|terminated|aborted|timeout|TimeoutError|Timeout Error|RestError|Client network socket disconnected|socket hang up|ECONNRESET|CredentialUnavailableError|endpoints_resolution_error|Audience validation failed|end of central directory record signature not found/i.test(err.message)) {
 				throw err;
 			}
 
-			const millis = (Math.random() * 200) + (50 * Math.pow(1.5, run));
-			console.log(`Failed with ECONNRESET, retrying in ${millis}ms...`);
+			lastError = err;
 
 			// maximum delay is 10th retry: ~3 seconds
+			const millis = Math.floor((Math.random() * 200) + (50 * Math.pow(1.5, run)));
 			await new Promise(c => setTimeout(c, millis));
 		}
 	}
 
-	throw new Error('Retried too many times');
+	console.error(`Too many retries, aborting.`);
+	throw lastError;
 }

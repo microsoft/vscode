@@ -7,7 +7,10 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -18,29 +21,38 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.conditional.cpp",
+		"t": "source.cpp meta.preprocessor.conditional",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"dark_modern": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0F4A85",
+			"light_modern": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
 		"c": "_UCRT",
-		"t": "source.cpp meta.preprocessor.conditional.cpp entity.name.function.preprocessor.cpp",
+		"t": "source.cpp meta.preprocessor.conditional entity.name.function.preprocessor.cpp",
 		"r": {
 			"dark_plus": "entity.name.function.preprocessor: #569CD6",
 			"light_plus": "entity.name.function.preprocessor: #0000FF",
 			"dark_vs": "entity.name.function.preprocessor: #569CD6",
 			"light_vs": "entity.name.function.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function.preprocessor: #569CD6",
+			"hc_light": "entity.name.function.preprocessor: #0F4A85",
+			"light_modern": "entity.name.function.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -51,7 +63,10 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"dark_modern": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0F4A85",
+			"light_modern": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -62,7 +77,10 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -73,7 +91,10 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -84,7 +105,10 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"dark_modern": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0F4A85",
+			"light_modern": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -95,7 +119,10 @@
 			"light_plus": "entity.name.function.preprocessor: #0000FF",
 			"dark_vs": "entity.name.function.preprocessor: #569CD6",
 			"light_vs": "entity.name.function.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function.preprocessor: #569CD6",
+			"hc_light": "entity.name.function.preprocessor: #0F4A85",
+			"light_modern": "entity.name.function.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -106,7 +133,10 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -117,7 +147,10 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	}
 ]

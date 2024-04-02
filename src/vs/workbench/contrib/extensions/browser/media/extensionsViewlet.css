@@ -23,7 +23,11 @@
 	padding: 5px 12px 6px 20px;
 }
 
-.extensions-viewlet > .header > .search-box {
+.extensions-viewlet > .header  > .extensions-search-container {
+	position: relative;
+}
+
+.extensions-viewlet > .header  > .extensions-search-container >  .search-box {
 	width: 100%;
 	height: 28px;
 	line-height: 18px;
@@ -33,6 +37,16 @@
 	-webkit-appearance: textfield;
 	-moz-appearance: textfield;
 }
+
+.extensions-viewlet > .header  > .extensions-search-container >  .extensions-search-actions-container {
+	display: flex;
+	align-items: center;
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: 100%;
+}
+
 
 .extensions-viewlet > .extensions {
 	height: calc(100% - 41px);
@@ -96,15 +110,26 @@
 	background: url('loading.svg') center center no-repeat;
 }
 
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .extension-list-item.loading {
+	background-image: url('loading-dark.svg');
+}
+
+.monaco-workbench.hc-black .extensions-viewlet > .extensions .extension-list-item.loading {
+	background-image: url('loading-hc.svg');
+}
+
 .extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
 	display: none;
 }
-
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container {
+	display: flex;
+	align-items: flex-start;
+	padding-top: 10px;
+}
 .extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
 	width: 24px;
 	height: 24px;
-	padding-top: 8px;
-	padding-right: 6px;
+	padding-right: 8px;
 }
 
 .extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,

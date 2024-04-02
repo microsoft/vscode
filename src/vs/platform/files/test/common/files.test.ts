@@ -5,25 +5,12 @@
 
 import * as assert from 'assert';
 import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { toResource } from 'vs/base/test/common/utils';
-import { FileChangesEvent, FileChangeType, isParent } from 'vs/platform/files/common/files';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
+import { FileChangesEvent, FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
 suite('Files', () => {
-
-	function count(changes?: TernarySearchTree<unknown, unknown>): number {
-		let counter = 0;
-
-		if (changes) {
-			for (const _change of changes) {
-				counter++;
-			}
-		}
-
-		return counter;
-	}
 
 	test('FileChangesEvent - basics', function () {
 		const changes = [
@@ -70,10 +57,11 @@ suite('Files', () => {
 			}
 			assert(!event.contains(toResource.call(this, '/bar/folder2/somefile'), FileChangeType.DELETED));
 
-			assert.strictEqual(1, count(event.rawAdded));
+			assert.strictEqual(1, event.rawAdded.length);
+			assert.strictEqual(2, event.rawUpdated.length);
+			assert.strictEqual(3, event.rawDeleted.length);
 			assert.strictEqual(true, event.gotAdded());
 			assert.strictEqual(true, event.gotUpdated());
-			assert.strictEqual(ignorePathCasing ? 2 : 3, count(event.rawDeleted));
 			assert.strictEqual(true, event.gotDeleted());
 		}
 	});
@@ -111,14 +99,59 @@ suite('Files', () => {
 
 				switch (type) {
 					case FileChangeType.ADDED:
-						assert.strictEqual(8, count(event.rawAdded));
+						assert.strictEqual(8, event.rawAdded.length);
 						break;
 					case FileChangeType.DELETED:
-						assert.strictEqual(8, count(event.rawDeleted));
+						assert.strictEqual(8, event.rawDeleted.length);
 						break;
 				}
 			}
 		}
+	});
+
+	test('FileChangesEvent - correlation', function () {
+		let changes: IFileChange[] = [
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED },
+		];
+
+		let event: FileChangesEvent = new FileChangesEvent(changes, true);
+		assert.strictEqual(event.hasCorrelation(), false);
+		assert.strictEqual(event.correlates(100), false);
+
+		changes = [
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED, cId: 100 },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED, cId: 100 },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED, cId: 100 },
+		];
+
+		event = new FileChangesEvent(changes, true);
+		assert.strictEqual(event.hasCorrelation(), true);
+		assert.strictEqual(event.correlates(100), true);
+		assert.strictEqual(event.correlates(120), false);
+
+		changes = [
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED, cId: 100 },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED, cId: 100 },
+		];
+
+		event = new FileChangesEvent(changes, true);
+		assert.strictEqual(event.hasCorrelation(), false);
+		assert.strictEqual(event.correlates(100), false);
+		assert.strictEqual(event.correlates(120), false);
+
+		changes = [
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED, cId: 100 },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED, cId: 120 },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED, cId: 100 },
+		];
+
+		event = new FileChangesEvent(changes, true);
+		assert.strictEqual(event.hasCorrelation(), false);
+		assert.strictEqual(event.correlates(100), false);
+		assert.strictEqual(event.correlates(120), false);
 	});
 
 	function testIsEqual(testMethod: (pA: string, pB: string, ignoreCase: boolean) => boolean): void {
@@ -261,4 +294,6 @@ suite('Files', () => {
 			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.', true));
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

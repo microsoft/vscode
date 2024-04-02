@@ -5,9 +5,9 @@
 
 import 'vs/css!./linesDecorations';
 import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
@@ -71,16 +71,18 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		const decorations = ctx.getDecorationsInViewport();
-		let r: DecorationToRender[] = [], rLen = 0;
+		const r: DecorationToRender[] = [];
+		let rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const d = decorations[i];
 			const linesDecorationsClassName = d.options.linesDecorationsClassName;
+			const zIndex = d.options.zIndex;
 			if (linesDecorationsClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName);
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName, d.options.linesDecorationsTooltip ?? null, zIndex);
 			}
 			const firstLineDecorationClassName = d.options.firstLineDecorationClassName;
 			if (firstLineDecorationClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.startLineNumber, firstLineDecorationClassName);
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.startLineNumber, firstLineDecorationClassName, d.options.linesDecorationsTooltip ?? null, zIndex);
 			}
 		}
 		return r;
@@ -98,10 +100,15 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			const classNames = toRender[lineIndex];
+			const decorations = toRender[lineIndex].getDecorations();
 			let lineOutput = '';
-			for (let i = 0, len = classNames.length; i < len; i++) {
-				lineOutput += '<div class="cldr ' + classNames[i] + common;
+			for (const decoration of decorations) {
+				let addition = '<div class="cldr ' + decoration.className;
+				if (decoration.tooltip !== null) {
+					addition += '" title="' + decoration.tooltip; // The tooltip is already escaped.
+				}
+				addition += common;
+				lineOutput += addition;
 			}
 			output[lineIndex] = lineOutput;
 		}

@@ -4,23 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { editorBackground, focusBorder, foreground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { settingsHeaderForeground, settingsHeaderHoverForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const $ = DOM.$;
@@ -104,6 +105,7 @@ const TOC_ENTRY_TEMPLATE_ID = 'settings.toc.entry';
 interface ITOCEntryTemplate {
 	labelElement: HTMLElement;
 	countElement: HTMLElement;
+	elementDisposables: DisposableStore;
 }
 
 export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, never, ITOCEntryTemplate> {
@@ -113,17 +115,20 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 	renderTemplate(container: HTMLElement): ITOCEntryTemplate {
 		return {
 			labelElement: DOM.append(container, $('.settings-toc-entry')),
-			countElement: DOM.append(container, $('.settings-toc-count'))
+			countElement: DOM.append(container, $('.settings-toc-count')),
+			elementDisposables: new DisposableStore()
 		};
 	}
 
 	renderElement(node: ITreeNode<SettingsTreeGroupElement>, index: number, template: ITOCEntryTemplate): void {
+		template.elementDisposables.clear();
+
 		const element = node.element;
 		const count = element.count;
 		const label = element.label;
 
 		template.labelElement.textContent = label;
-		template.labelElement.title = label;
+		template.elementDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), template.labelElement, label));
 
 		if (count) {
 			template.countElement.textContent = ` (${count})`;
@@ -133,6 +138,7 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 	}
 
 	disposeTemplate(templateData: ITOCEntryTemplate): void {
+		templateData.elementDisposables.dispose();
 	}
 }
 
@@ -201,10 +207,7 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 		viewState: ISettingsEditorViewState,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		// test open mode
@@ -222,7 +225,8 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true,
 			horizontalScrolling: false,
-			hideTwistiesOfChildlessElements: true
+			hideTwistiesOfChildlessElements: true,
+			renderIndentGuides: RenderIndentGuides.None
 		};
 
 		super(
@@ -231,15 +235,13 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			new TOCTreeDelegate(),
 			[new TOCRenderer()],
 			options,
+			instantiationService,
 			contextKeyService,
 			listService,
-			themeService,
 			configurationService,
-			keybindingService,
-			accessibilityService,
 		);
 
-		this.disposables.add(attachStyler(themeService, {
+		this.style(getListStyles({
 			listBackground: editorBackground,
 			listFocusOutline: focusBorder,
 			listActiveSelectionBackground: editorBackground,
@@ -247,15 +249,15 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: settingsHeaderForeground,
 			listFocusBackground: editorBackground,
-			listFocusForeground: transparent(foreground, 0.9),
-			listHoverForeground: transparent(foreground, 0.9),
+			listFocusForeground: settingsHeaderHoverForeground,
+			listHoverForeground: settingsHeaderHoverForeground,
 			listHoverBackground: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: settingsHeaderForeground,
 			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
-		}, colors => {
-			this.style(colors);
+			listInactiveFocusOutline: editorBackground,
+			treeIndentGuidesStroke: undefined,
+			treeInactiveIndentGuidesStroke: undefined
 		}));
 	}
 }

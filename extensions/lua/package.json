@@ -9,8 +9,9 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/lua.tmbundle Syntaxes/Lua.plist ./syntaxes/lua.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin sumneko/lua.tmbundle Syntaxes/Lua.plist ./syntaxes/lua.tmLanguage.json"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -29,7 +30,10 @@
       {
         "language": "lua",
         "scopeName": "source.lua",
-        "path": "./syntaxes/lua.tmLanguage.json"
+        "path": "./syntaxes/lua.tmLanguage.json",
+        "tokenTypes": {
+          "comment.line.double-dash.doc.lua": "other"
+        }
       }
     ]
   },

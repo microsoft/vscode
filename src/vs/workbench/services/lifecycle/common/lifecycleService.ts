@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Barrier } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILifecycleService, BeforeShutdownEvent, WillShutdownEvent, StartupKind, LifecyclePhase, LifecyclePhaseToString, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownEvent, StartupKind, LifecyclePhase, LifecyclePhaseToString, ShutdownReason, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { mark } from 'vs/base/common/performance';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
@@ -17,7 +17,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
+	protected readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
 	readonly onBeforeShutdown = this._onBeforeShutdown.event;
 
 	protected readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
@@ -25,6 +25,12 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 	protected readonly _onDidShutdown = this._register(new Emitter<void>());
 	readonly onDidShutdown = this._onDidShutdown.event;
+
+	protected readonly _onBeforeShutdownError = this._register(new Emitter<BeforeShutdownErrorEvent>());
+	readonly onBeforeShutdownError = this._onBeforeShutdownError.event;
+
+	protected readonly _onShutdownVeto = this._register(new Emitter<void>());
+	readonly onShutdownVeto = this._onShutdownVeto.event;
 
 	private _startupKind: StartupKind;
 	get startupKind(): StartupKind { return this._startupKind; }
@@ -38,7 +44,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 	constructor(
 		@ILogService protected readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService protected readonly storageService: IStorageService
 	) {
 		super();
 
@@ -46,21 +52,28 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		this._startupKind = this.resolveStartupKind();
 
 		// Save shutdown reason to retrieve on next startup
-		this.storageService.onWillSaveState(e => {
+		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				this.storageService.store(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
-		});
+		}));
 	}
 
 	private resolveStartupKind(): StartupKind {
+		const startupKind = this.doResolveStartupKind() ?? StartupKind.NewWindow;
+		this.logService.trace(`[lifecycle] starting up (startup kind: ${startupKind})`);
+
+		return startupKind;
+	}
+
+	protected doResolveStartupKind(): StartupKind | undefined {
 
 		// Retrieve and reset last shutdown reason
 		const lastShutdownReason = this.storageService.getNumber(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 		this.storageService.remove(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 
 		// Convert into startup kind
-		let startupKind: StartupKind;
+		let startupKind: StartupKind | undefined = undefined;
 		switch (lastShutdownReason) {
 			case ShutdownReason.RELOAD:
 				startupKind = StartupKind.ReloadedWindow;
@@ -68,11 +81,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 			case ShutdownReason.LOAD:
 				startupKind = StartupKind.ReopenedWindow;
 				break;
-			default:
-				startupKind = StartupKind.NewWindow;
 		}
-
-		this.logService.trace(`[lifecycle] starting up (startup kind: ${startupKind})`);
 
 		return startupKind;
 	}
@@ -115,5 +124,5 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 	/**
 	 * Subclasses to implement the explicit shutdown method.
 	 */
-	abstract shutdown(): void;
+	abstract shutdown(): Promise<void>;
 }

@@ -4,24 +4,112 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { Event } from 'vs/base/common/event';
-import { Command } from 'vs/editor/common/modes';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeColor } from 'vs/base/common/themables';
+import { Command } from 'vs/editor/common/languages';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
+
+export interface IStatusbarService extends IStatusbarEntryContainer {
+
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Get the status bar part that is rooted in the provided container.
+	 */
+	getPart(container: HTMLElement): IStatusbarEntryContainer;
+
+	/**
+	 * Creates a new auxililary status bar part in the provided container.
+	 */
+	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart;
+
+	/**
+	 * Create a scoped status bar service that only operates on the provided
+	 * status entry container.
+	 */
+	createScoped(statusbarEntryContainer: IStatusbarEntryContainer, disposables: DisposableStore): IStatusbarService;
+}
 
 export const enum StatusbarAlignment {
 	LEFT,
 	RIGHT
 }
 
+export interface IStatusbarEntryLocation {
+
+	/**
+	 * The identifier of another status bar entry to
+	 * position relative to.
+	 */
+	id: string;
+
+	/**
+	 * The alignment of the status bar entry relative
+	 * to the referenced entry.
+	 */
+	alignment: StatusbarAlignment;
+
+	/**
+	 * Whether to move the entry close to the location
+	 * so that it appears as if both this entry and
+	 * the location belong to each other.
+	 */
+	compact?: boolean;
+}
+
+export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
+	const candidate = thing as IStatusbarEntryLocation | undefined;
+
+	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
+}
+
+export interface IStatusbarEntryPriority {
+
+	/**
+	 * The main priority of the entry that
+	 * defines the order of appearance:
+	 * either a number or a reference to
+	 * another status bar entry to position
+	 * relative to.
+	 *
+	 * May not be unique across all entries.
+	 */
+	readonly primary: number | IStatusbarEntryLocation;
+
+	/**
+	 * The secondary priority of the entry
+	 * is used in case the main priority
+	 * matches another one's priority.
+	 *
+	 * Should be unique across all entries.
+	 */
+	readonly secondary: number;
+}
+
+export function isStatusbarEntryPriority(thing: unknown): thing is IStatusbarEntryPriority {
+	const candidate = thing as IStatusbarEntryPriority | undefined;
+
+	return (typeof candidate?.primary === 'number' || isStatusbarEntryLocation(candidate?.primary)) && typeof candidate?.secondary === 'number';
+}
+
 export const ShowTooltipCommand: Command = {
 	id: 'statusBar.entry.showTooltip',
 	title: ''
 };
+
+export interface IStatusbarStyleOverride {
+	readonly priority: number; // lower has higher priority
+	readonly foreground?: ColorIdentifier;
+	readonly background?: ColorIdentifier;
+	readonly border?: ColorIdentifier;
+}
+
+export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
+export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
 
 /**
  * A declarative way of describing a status bar entry
@@ -58,12 +146,16 @@ export interface IStatusbarEntry {
 	readonly tooltip?: string | IMarkdownString | HTMLElement;
 
 	/**
-	 * An optional color to use for the entry
+	 * An optional color to use for the entry.
+	 *
+	 * @deprecated Use `kind` instead to support themable hover styles.
 	 */
 	readonly color?: string | ThemeColor;
 
 	/**
-	 * An optional background color to use for the entry
+	 * An optional background color to use for the entry.
+	 *
+	 * @deprecated Use `kind` instead to support themable hover styles.
 	 */
 	readonly backgroundColor?: string | ThemeColor;
 
@@ -81,70 +173,21 @@ export interface IStatusbarEntry {
 	readonly showBeak?: boolean;
 
 	/**
-	 * Will enable a spinning icon in front of the text to indicate progress.
+	 * Will enable a spinning icon in front of the text to indicate progress. When `true` is
+	 * specified, `syncing` will be used.
 	 */
-	readonly showProgress?: boolean;
-}
-
-export interface IStatusbarService {
-
-	readonly _serviceBrand: undefined;
+	readonly showProgress?: boolean | 'syncing' | 'loading';
 
 	/**
-	 * An event that is triggered when an entry's visibility is changed.
+	 * The kind of status bar entry. This applies different colors to the entry.
 	 */
-	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
+	readonly kind?: StatusbarEntryKind;
 
 	/**
-	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
-	 * to update or remove the statusbar entry.
-	 *
-	 * @param id identifier of the entry is needed to allow users to hide entries via settings
-	 * @param alignment either LEFT or RIGHT side in the status bar
-	 * @param priority items get arranged from highest priority to lowest priority from left to right
-	 * in their respective alignment slot
+	 * Enables the status bar entry to appear in all opened windows. Automatically will add
+	 * the entry to new auxiliary windows opening.
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
-
-	/**
-	 * Adds an entry to the statusbar with the given alignment relative to another entry. Use the returned
-	 * accessor to update or remove the statusbar entry.
-	 *
-	 * @param id identifier of the entry is needed to allow users to hide entries via settings
-	 * @param alignment either LEFT or RIGHT side in the status bar
-	 * @param location a reference to another entry to position relative to
-	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, location?: IStatusbarEntryLocation): IStatusbarEntryAccessor;
-
-	/**
-	 * Return if an entry is visible or not.
-	 */
-	isEntryVisible(id: string): boolean;
-
-	/**
-	 * Allows to update an entry's visibility with the provided ID.
-	 */
-	updateEntryVisibility(id: string, visible: boolean): void;
-
-	/**
-	 * Focused the status bar. If one of the status bar entries was focused, focuses it directly.
-	 */
-	focus(preserveEntryFocus?: boolean): void;
-
-	/**
-	 * Focuses the next status bar entry. If none focused, focuses the first.
-	 */
-	focusNextEntry(): void;
-
-	/**
-	 * Focuses the previous status bar entry. If none focused, focuses the last.
-	 */
-	focusPreviousEntry(): void;
-
-	/**
-	 *	Returns true if a status bar entry is focused.
-	 */
-	isEntryFocused(): boolean;
+	readonly showInAllWindows?: boolean;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

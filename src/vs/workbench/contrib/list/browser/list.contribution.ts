@@ -3,23 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchListAutomaticKeyboardNavigationKey } from 'vs/platform/list/browser/listService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-
-export const WorkbenchListSupportsKeyboardNavigation = new RawContextKey<boolean>('listSupportsKeyboardNavigation', true);
-export const WorkbenchListAutomaticKeyboardNavigation = new RawContextKey<boolean>(WorkbenchListAutomaticKeyboardNavigationKey, true);
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 
 export class ListContext implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.listContext';
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
-		WorkbenchListAutomaticKeyboardNavigation.bindTo(contextKeyService);
+		contextKeyService.createKey<boolean>('listSupportsTypeNavigation', true);
+
+		// @deprecated in favor of listSupportsTypeNavigation
+		contextKeyService.createKey('listSupportsKeyboardNavigation', true);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ListContext, LifecyclePhase.Starting);
+registerWorkbenchContribution2(ListContext.ID, ListContext, WorkbenchPhase.BlockStartup);

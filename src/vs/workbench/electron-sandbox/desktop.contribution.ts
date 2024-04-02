@@ -4,24 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ToggleSharedProcessAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
-import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
+import { ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sandbox/window';
 
 // Actions
 (function registerActions(): void {
@@ -59,8 +65,18 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.quit',
 		weight: KeybindingWeight.WorkbenchContrib,
-		handler(accessor: ServicesAccessor) {
+		async handler(accessor: ServicesAccessor) {
 			const nativeHostService = accessor.get(INativeHostService);
+			const configurationService = accessor.get(IConfigurationService);
+
+			const confirmBeforeClose = configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+			if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed)) {
+				const confirmed = await NativeWindow.confirmOnShutdown(accessor, ShutdownReason.QUIT);
+				if (!confirmed) {
+					return; // quit prevented by user
+				}
+			}
+
 			nativeHostService.quit();
 		},
 		when: undefined,
@@ -70,28 +86,28 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 	// Actions: macOS Native Tabs
 	if (isMacintosh) {
-		[
-			{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: { value: localize('newTab', "New Window Tab"), original: 'New Window Tab' } },
-			{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: { value: localize('showPreviousTab', "Show Previous Window Tab"), original: 'Show Previous Window Tab' } },
-			{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: { value: localize('showNextWindowTab', "Show Next Window Tab"), original: 'Show Next Window Tab' } },
-			{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: { value: localize('moveWindowTabToNewWindow', "Move Window Tab to New Window"), original: 'Move Window Tab to New Window' } },
-			{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: { value: localize('mergeAllWindowTabs', "Merge All Windows"), original: 'Merge All Windows' } },
-			{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: { value: localize('toggleWindowTabsBar', "Toggle Window Tabs Bar"), original: 'Toggle Window Tabs Bar' } }
-		].forEach(command => {
+		for (const command of [
+			{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: localize2('newTab', 'New Window Tab') },
+			{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: localize2('showPreviousTab', 'Show Previous Window Tab') },
+			{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: localize2('showNextWindowTab', 'Show Next Window Tab') },
+			{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: localize2('moveWindowTabToNewWindow', 'Move Window Tab to New Window') },
+			{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: localize2('mergeAllWindowTabs', 'Merge All Windows') },
+			{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: localize2('toggleWindowTabsBar', 'Toggle Window Tabs Bar') }
+		]) {
 			CommandsRegistry.registerCommand(command.id, command.handler);
 
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 				command,
 				when: ContextKeyExpr.equals('config.window.nativeTabs', true)
 			});
-		});
+		}
 	}
 
 	// Actions: Developer
 	registerAction2(ReloadWindowWithExtensionsDisabledAction);
 	registerAction2(ConfigureRuntimeArgumentsAction);
-	registerAction2(ToggleSharedProcessAction);
 	registerAction2(ToggleDevToolsAction);
+	registerAction2(OpenUserDataFolderAction);
 })();
 
 // Menu
@@ -113,6 +129,22 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 (function registerConfiguration(): void {
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
+	// Application
+	registry.registerConfiguration({
+		...applicationConfigurationNodeBase,
+		'properties': {
+			'application.shellEnvironmentResolutionTimeout': {
+				'type': 'number',
+				'default': 10,
+				'minimum': 1,
+				'maximum': 120,
+				'included': !isWindows,
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': localize('application.shellEnvironmentResolutionTimeout', "Controls the timeout in seconds before giving up resolving the shell environment when the application is not already launched from a terminal. See our [documentation](https://go.microsoft.com/fwlink/?linkid=2149667) for more information.")
+			}
+		}
+	});
+
 	// Window
 	registry.registerConfiguration({
 		'id': 'window',
@@ -120,6 +152,11 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 		'title': localize('windowConfigurationTitle', "Window"),
 		'type': 'object',
 		'properties': {
+			'window.confirmSaveUntitledWorkspace': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('confirmSaveUntitledWorkspace', "Controls whether a confirmation dialog shows asking to save or discard an opened untitled workspace in the window when switching to another workspace. Disabling the confirmation dialog will always discard the untitled workspace."),
+			},
 			'window.openWithoutArgumentsInNewWindow': {
 				'type': 'string',
 				'enum': ['on', 'off'],
@@ -154,8 +191,17 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 			'window.zoomLevel': {
 				'type': 'number',
 				'default': 0,
-				'description': localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity."),
-				ignoreSync: true
+				'minimum': MIN_ZOOM_LEVEL,
+				'maximum': MAX_ZOOM_LEVEL,
+				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomLevel' }, "Adjust the default zoom level for all windows. Each increment above `0` (e.g. `1`) or below (e.g. `-1`) represents zooming `20%` larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity. See {0} for configuring if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window.", '`#window.zoomPerWindow#`'),
+				ignoreSync: true,
+				tags: ['accessibility']
+			},
+			'window.zoomPerWindow': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomPerWindow' }, "Controls if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window. See {0} for configuring a default zoom level for all windows.", '`#window.zoomLevel#`'),
+				tags: ['accessibility']
 			},
 			'window.newWindowDimensions': {
 				'type': 'string',
@@ -180,14 +226,26 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 				'type': 'boolean',
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
+				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, this setting will close the window when the application icon in the title bar is double-clicked. The window will not be able to be dragged by the icon. This setting is effective only if `#window.titleBarStyle#` is set to `custom`.")
 			},
 			'window.titleBarStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
 				'default': isLinux ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
+				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
+			},
+			'window.customTitleBarVisibility': {
+				'type': 'string',
+				'enum': ['auto', 'windowed', 'never'],
+				'markdownEnumDescriptions': [
+					localize(`window.customTitleBarVisibility.auto`, "Automatically changes custom title bar visibility."),
+					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. When not in full screen, automatically change custom title bar visibility."),
+					localize(`window.customTitleBarVisibility.never`, "Hide custom titlebar when `#window.titleBarStyle#` is set to `native`."),
+				],
+				'default': isLinux ? 'never' : 'auto',
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in none full screen mode with `never` when `#window.titleBarStyle#` is set to `native`."),
 			},
 			'window.dialogStyle': {
 				'type': 'string',
@@ -201,7 +259,7 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
-				'included': isMacintosh
+				'included': isMacintosh,
 			},
 			'window.nativeFullScreen': {
 				'type': 'boolean',
@@ -261,6 +319,25 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 			}
 		}
 	});
+
+	// Security
+	registry.registerConfiguration({
+		...securityConfigurationNodeBase,
+		'properties': {
+			'security.promptForLocalFileProtocolHandling': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('security.promptForLocalFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a local file or workspace is about to open through a protocol handler.'),
+				'scope': ConfigurationScope.MACHINE
+			},
+			'security.promptForRemoteFileProtocolHandling': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('security.promptForRemoteFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a remote file or workspace is about to open through a protocol handler.'),
+				'scope': ConfigurationScope.MACHINE
+			}
+		}
+	});
 })();
 
 // JSON Schemas
@@ -283,10 +360,6 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 				type: 'boolean',
 				description: localize('argv.disableHardwareAcceleration', 'Disables hardware acceleration. ONLY change this option if you encounter graphic issues.')
 			},
-			'disable-color-correct-rendering': {
-				type: 'boolean',
-				description: localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
-			},
 			'force-color-profile': {
 				type: 'string',
 				markdownDescription: localize('argv.forceColorProfile', 'Allows to override the color profile to use. If you experience colors appear badly, try to set this to `srgb` and restart.')
@@ -307,8 +380,16 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 				}
 			},
 			'log-level': {
-				type: 'string',
-				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
+				type: ['string', 'array'],
+				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
+			},
+			'disable-chromium-sandbox': {
+				type: 'boolean',
+				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running VS Code as elevated on Linux and running under Applocker on Windows.")
+			},
+			'use-inmemory-secretstorage': {
+				type: 'boolean',
+				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running VS Code extension tests or when you're experiencing difficulties with the credential store.")
 			}
 		}
 	};
@@ -316,6 +397,10 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 		schema.properties!['force-renderer-accessibility'] = {
 			type: 'boolean',
 			description: localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.'),
+		};
+		schema.properties!['password-store'] = {
+			type: 'string',
+			description: localize('argv.passwordStore', "Configures the backend used to store secrets on Linux. This argument is ignored on Windows & macOS.")
 		};
 	}
 

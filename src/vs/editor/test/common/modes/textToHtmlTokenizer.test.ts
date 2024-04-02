@@ -4,25 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeLineToHTML, tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { _tokenizeToString, tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
+import { createModelServices } from 'vs/editor/test/common/testTextModel';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
+
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		instantiationService = createModelServices(disposables);
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function toStr(pieces: { className: string; text: string }[]): string {
-		let resultArr = pieces.map((t) => `<span class="${t.className}">${t.text}</span>`);
+		const resultArr = pieces.map((t) => `<span class="${t.className}">${t.text}</span>`);
 		return resultArr.join('');
 	}
 
 	test('TextToHtmlTokenizer 1', () => {
-		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.languageId)!;
+		const mode = disposables.add(instantiationService.createInstance(Mode));
+		const support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = tokenizeToString('.abc..def...gh', new LanguageIdCodec(), support);
-		let expected = [
+		const actual = _tokenizeToString('.abc..def...gh', new LanguageIdCodec(), support);
+		const expected = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
 			{ className: 'mtk7', text: '..' },
@@ -30,19 +49,17 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			{ className: 'mtk7', text: '...' },
 			{ className: 'mtk9', text: 'gh' },
 		];
-		let expectedStr = `<div class="monaco-tokenized-source">${toStr(expected)}</div>`;
+		const expectedStr = `<div class="monaco-tokenized-source">${toStr(expected)}</div>`;
 
 		assert.strictEqual(actual, expectedStr);
-
-		mode.dispose();
 	});
 
 	test('TextToHtmlTokenizer 2', () => {
-		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.languageId)!;
+		const mode = disposables.add(instantiationService.createInstance(Mode));
+		const support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', new LanguageIdCodec(), support);
-		let expected1 = [
+		const actual = _tokenizeToString('.abc..def...gh\n.abc..def...gh', new LanguageIdCodec(), support);
+		const expected1 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
 			{ className: 'mtk7', text: '..' },
@@ -50,7 +67,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			{ className: 'mtk7', text: '...' },
 			{ className: 'mtk9', text: 'gh' },
 		];
-		let expected2 = [
+		const expected2 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
 			{ className: 'mtk7', text: '..' },
@@ -58,44 +75,42 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			{ className: 'mtk7', text: '...' },
 			{ className: 'mtk9', text: 'gh' },
 		];
-		let expectedStr1 = toStr(expected1);
-		let expectedStr2 = toStr(expected2);
-		let expectedStr = `<div class="monaco-tokenized-source">${expectedStr1}<br/>${expectedStr2}</div>`;
+		const expectedStr1 = toStr(expected1);
+		const expectedStr2 = toStr(expected2);
+		const expectedStr = `<div class="monaco-tokenized-source">${expectedStr1}<br/>${expectedStr2}</div>`;
 
 		assert.strictEqual(actual, expectedStr);
-
-		mode.dispose();
 	});
 
 	test('tokenizeLineToHTML', () => {
 		const text = 'Ciao hello world!';
-		const lineTokens = new ViewLineTokens([
-			new ViewLineToken(
+		const lineTokens = new TestLineTokens([
+			new TestLineToken(
 				4,
 				(
 					(3 << MetadataConsts.FOREGROUND_OFFSET)
 					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				5,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				10,
 				(
 					(4 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				11,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				17,
 				(
 					(5 << MetadataConsts.FOREGROUND_OFFSET)
@@ -196,39 +211,39 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 	});
 	test('tokenizeLineToHTML handle spaces #35954', () => {
 		const text = '  Ciao   hello world!';
-		const lineTokens = new ViewLineTokens([
-			new ViewLineToken(
+		const lineTokens = new TestLineTokens([
+			new TestLineToken(
 				2,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				6,
 				(
 					(3 << MetadataConsts.FOREGROUND_OFFSET)
 					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				9,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				14,
 				(
 					(4 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				15,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new TestLineToken(
 				21,
 				(
 					(5 << MetadataConsts.FOREGROUND_OFFSET)
@@ -279,20 +294,23 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 });
 
-class Mode extends MockMode {
+class Mode extends Disposable {
 
-	private static readonly _id = 'textToHtmlTokenizerMode';
+	public readonly languageId = 'textToHtmlTokenizerMode';
 
-	constructor() {
-		super(Mode._id);
+	constructor(
+		@ILanguageService languageService: ILanguageService
+	) {
+		super();
+		this._register(languageService.registerLanguage({ id: this.languageId }));
 		this._register(TokenizationRegistry.register(this.languageId, {
 			getInitialState: (): IState => null!,
 			tokenize: undefined!,
-			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
-				let tokensArr: number[] = [];
-				let prevColor: ColorId = -1;
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+				const tokensArr: number[] = [];
+				let prevColor = -1 as ColorId;
 				for (let i = 0; i < line.length; i++) {
-					let colorId = line.charAt(i) === '.' ? 7 : 9;
+					const colorId = (line.charAt(i) === '.' ? 7 : 9) as ColorId;
 					if (prevColor !== colorId) {
 						tokensArr.push(i);
 						tokensArr.push((
@@ -302,11 +320,11 @@ class Mode extends MockMode {
 					prevColor = colorId;
 				}
 
-				let tokens = new Uint32Array(tokensArr.length);
+				const tokens = new Uint32Array(tokensArr.length);
 				for (let i = 0; i < tokens.length; i++) {
 					tokens[i] = tokensArr[i];
 				}
-				return new TokenizationResult2(tokens, null!);
+				return new EncodedTokenizationResult(tokens, null!);
 			}
 		}));
 	}

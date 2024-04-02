@@ -6,10 +6,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import API from '../utils/api';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
-import { ITypeScriptVersionProvider, localize, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
+import { API } from './api';
+import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
+
 
 export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider {
 
@@ -28,7 +29,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 	public get globalVersion(): TypeScriptVersion | undefined {
 		if (this.configuration?.globalTsdk) {
 			const globals = this.loadVersionsFromSetting(TypeScriptVersionSource.UserSetting, this.configuration.globalTsdk);
-			if (globals && globals.length) {
+			if (globals?.length) {
 				return globals[0];
 			}
 		}
@@ -37,7 +38,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 
 	public get localVersion(): TypeScriptVersion | undefined {
 		const tsdkVersions = this.localTsdkVersions;
-		if (tsdkVersions && tsdkVersions.length) {
+		if (tsdkVersions?.length) {
 			return tsdkVersions[0];
 		}
 
@@ -67,9 +68,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 			return version;
 		}
 
-		vscode.window.showErrorMessage(localize(
-			'noBundledServerFound',
-			'VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
+		vscode.window.showErrorMessage(vscode.l10n.t("VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code."));
 		throw new Error('Could not find bundled tsserver.js');
 	}
 
@@ -190,7 +189,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		} catch (err) {
 			return undefined;
 		}
-		if (!desc || !desc.version) {
+		if (!desc?.version) {
 			return undefined;
 		}
 		return desc.version ? API.fromVersionString(desc.version) : undefined;

@@ -3,67 +3,104 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConfiguration, IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWindowConfiguration, IOSConfiguration } from 'vs/platform/windows/common/windows';
+import { PerformanceMark } from 'vs/base/common/performance';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/window/common/window';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { joinPath } from 'vs/base/common/resources';
 
 export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
-
-export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, INativeWindowConfiguration { }
 
 /**
  * A subclass of the `IWorkbenchEnvironmentService` to be used only in native
  * environments (Windows, Linux, macOS) but not e.g. web.
  */
-export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
+export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnvironmentService, INativeEnvironmentService {
 
+	// --- Window
+	readonly window: {
+		id: number;
+		colorScheme: IColorScheme;
+		maximized?: boolean;
+		accessibilitySupport?: boolean;
+		isInitialStartup?: boolean;
+		isCodeCaching?: boolean;
+		perfMarks: PerformanceMark[];
+	};
+
+	// --- Main
+	readonly mainPid: number;
+	readonly os: IOSConfiguration;
 	readonly machineId: string;
+	readonly sqmId: string;
 
+	// --- Paths
+	readonly execPath: string;
+	readonly backupPath?: string;
+
+	// --- Development
 	readonly crashReporterDirectory?: string;
 	readonly crashReporterId?: string;
 
-	readonly execPath: string;
-
-	readonly log?: string;
-
-	readonly os: IOSConfiguration;
-
-	/**
-	 * @deprecated this property will go away eventually as it
-	 * duplicates many properties of the environment service
-	 *
-	 * Please consider using the environment service directly
-	 * if you can.
-	 */
-	readonly configuration: INativeWorkbenchConfiguration;
+	// --- Editors to --wait
+	readonly filesToWait?: IPathsToWaitFor;
 }
 
 export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	@memoize
+	get mainPid() { return this.configuration.mainPid; }
+
+	@memoize
 	get machineId() { return this.configuration.machineId; }
+
+	@memoize
+	get sqmId() { return this.configuration.sqmId; }
 
 	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize
+	get expectsResolverExtension() { return !!this.configuration.remoteAuthority?.includes('+'); }
+
+	@memoize
 	get execPath() { return this.configuration.execPath; }
 
 	@memoize
-	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	get backupPath() { return this.configuration.backupPath; }
 
 	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+	get window() {
+		return {
+			id: this.configuration.windowId,
+			colorScheme: this.configuration.colorScheme,
+			maximized: this.configuration.maximized,
+			accessibilitySupport: this.configuration.accessibilitySupport,
+			perfMarks: this.configuration.perfMarks,
+			isInitialStartup: this.configuration.isInitialStartup,
+			isCodeCaching: typeof this.configuration.codeCachePath === 'string'
+		};
+	}
 
 	@memoize
-	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
+	get windowLogsPath(): URI { return joinPath(this.logsHome, `window${this.configuration.windowId}`); }
+
+	@memoize
+	get logFile(): URI { return joinPath(this.windowLogsPath, `renderer.log`); }
+
+	@memoize
+	get extHostLogsPath(): URI { return joinPath(this.windowLogsPath, 'exthost'); }
+
+	@memoize
+	get extHostTelemetryLogFile(): URI {
+		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
+	}
 
 	@memoize
 	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }
@@ -78,6 +115,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
 	@memoize
+	get enableSmokeTestDriver(): boolean { return !!this.args['enable-smoke-test-driver']; }
+
+	@memoize
 	get extensionEnabledProposedApi(): string[] | undefined {
 		if (Array.isArray(this.args['enable-proposed-api'])) {
 			return this.args['enable-proposed-api'];
@@ -90,12 +130,23 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 		return undefined;
 	}
 
-	get os(): IOSConfiguration {
-		return this.configuration.os;
-	}
+	@memoize
+	get os(): IOSConfiguration { return this.configuration.os; }
+
+	@memoize
+	get filesToOpenOrCreate(): IPath[] | undefined { return this.configuration.filesToOpenOrCreate; }
+
+	@memoize
+	get filesToDiff(): IPath[] | undefined { return this.configuration.filesToDiff; }
+
+	@memoize
+	get filesToMerge(): IPath[] | undefined { return this.configuration.filesToMerge; }
+
+	@memoize
+	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }
 
 	constructor(
-		readonly configuration: INativeWorkbenchConfiguration,
+		private readonly configuration: INativeWindowConfiguration,
 		productService: IProductService
 	) {
 		super(configuration, { homeDir: configuration.homeDir, tmpDir: configuration.tmpDir, userDataDir: configuration.userDataDir }, productService);

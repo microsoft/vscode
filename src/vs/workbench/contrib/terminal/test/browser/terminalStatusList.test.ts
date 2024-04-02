@@ -7,24 +7,31 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import { Codicon } from 'vs/base/common/codicons';
 import Severity from 'vs/base/common/severity';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ITerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 function statusesEqual(list: TerminalStatusList, expected: [string, Severity][]) {
 	deepStrictEqual(list.statuses.map(e => [e.id, e.severity]), expected);
 }
 
 suite('Workbench - TerminalStatusList', () => {
+	let store: DisposableStore;
 	let list: TerminalStatusList;
 	let configService: TestConfigurationService;
 
 	setup(() => {
+		store = new DisposableStore();
 		configService = new TestConfigurationService();
-		list = new TerminalStatusList(configService);
+		list = store.add(new TerminalStatusList(configService));
 	});
 
-	teardown(() => {
-		list.dispose();
-	});
+	teardown(() => store.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('primary', () => {
 		strictEqual(list.primary?.id, undefined);
@@ -69,7 +76,7 @@ suite('Workbench - TerminalStatusList', () => {
 
 	test('onDidAddStatus', async () => {
 		const result = await new Promise<ITerminalStatus>(r => {
-			list.onDidAddStatus(r);
+			store.add(list.onDidAddStatus(r));
 			list.add({ id: 'test', severity: Severity.Info });
 		});
 		deepStrictEqual(result, { id: 'test', severity: Severity.Info });
@@ -77,7 +84,7 @@ suite('Workbench - TerminalStatusList', () => {
 
 	test('onDidRemoveStatus', async () => {
 		const result = await new Promise<ITerminalStatus>(r => {
-			list.onDidRemoveStatus(r);
+			store.add(list.onDidRemoveStatus(r));
 			list.add({ id: 'test', severity: Severity.Info });
 			list.remove('test');
 		});
@@ -85,12 +92,17 @@ suite('Workbench - TerminalStatusList', () => {
 	});
 
 	test('onDidChangePrimaryStatus', async () => {
-		const result = await new Promise<ITerminalStatus>(r => {
-			list.onDidRemoveStatus(r);
+		const result = await new Promise<ITerminalStatus | undefined>(r => {
+			store.add(list.onDidChangePrimaryStatus(r));
 			list.add({ id: 'test', severity: Severity.Info });
-			list.remove('test');
 		});
 		deepStrictEqual(result, { id: 'test', severity: Severity.Info });
+	});
+
+	test('primary is not updated to status without an icon', async () => {
+		list.add({ id: 'test', severity: Severity.Info, icon: Codicon.check });
+		list.add({ id: 'warning', severity: Severity.Warning });
+		deepStrictEqual(list.primary, { id: 'test', severity: Severity.Info, icon: Codicon.check });
 	});
 
 	test('add', () => {
@@ -114,17 +126,30 @@ suite('Workbench - TerminalStatusList', () => {
 
 	test('add should remove animation', () => {
 		statusesEqual(list, []);
-		list.add({ id: 'info', severity: Severity.Info, icon: new Codicon('loading~spin', Codicon.loading) });
+		list.add({ id: 'info', severity: Severity.Info, icon: spinningLoading });
 		statusesEqual(list, [
 			['info', Severity.Info]
 		]);
-		strictEqual(list.statuses[0].icon!.id, 'play', 'loading~spin should be converted to play');
-		list.add({ id: 'warning', severity: Severity.Warning, icon: new Codicon('zap~spin', Codicon.zap) });
+		strictEqual(list.statuses[0].icon!.id, Codicon.play.id, 'loading~spin should be converted to play');
+		list.add({ id: 'warning', severity: Severity.Warning, icon: ThemeIcon.modify(Codicon.zap, 'spin') });
 		statusesEqual(list, [
 			['info', Severity.Info],
 			['warning', Severity.Warning]
 		]);
-		strictEqual(list.statuses[1].icon!.id, 'zap', 'zap~spin should have animation removed only');
+		strictEqual(list.statuses[1].icon!.id, Codicon.zap.id, 'zap~spin should have animation removed only');
+	});
+
+	test('add should fire onDidRemoveStatus if same status id with a different object reference was added', () => {
+		const eventCalls: string[] = [];
+		store.add(list.onDidAddStatus(() => eventCalls.push('add')));
+		store.add(list.onDidRemoveStatus(() => eventCalls.push('remove')));
+		list.add({ id: 'test', severity: Severity.Info });
+		list.add({ id: 'test', severity: Severity.Info });
+		deepStrictEqual(eventCalls, [
+			'add',
+			'remove',
+			'add'
+		]);
 	});
 
 	test('remove', () => {

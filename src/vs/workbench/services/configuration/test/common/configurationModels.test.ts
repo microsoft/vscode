@@ -11,8 +11,11 @@ import { ResourceMap } from 'vs/base/common/map';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('FolderSettingsModelParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -125,6 +128,8 @@ suite('FolderSettingsModelParser', () => {
 
 suite('StandaloneConfigurationModelParser', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('parse tasks stand alone configuration model', () => {
 		const testObject = new StandaloneConfigurationModelParser('tasks', 'tasks');
 
@@ -141,6 +146,8 @@ suite('StandaloneConfigurationModelParser', () => {
 
 suite('Workspace Configuration', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const defaultConfigurationModel = toConfigurationModel({
 		'editor.lineNumbers': 'on',
 		'editor.fontSize': 12,
@@ -155,14 +162,14 @@ suite('Workspace Configuration', () => {
 
 	test('Test compare same configurations', () => {
 		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('folder1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('folder2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
-		const configuration1 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
+		const configuration1 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
 		configuration1.updateDefaultConfiguration(defaultConfigurationModel);
 		configuration1.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': 'native', '[typescript]': { 'editor.insertSpaces': false } }));
 		configuration1.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.lineNumbers': 'on' }));
 		configuration1.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.fontSize': 14 }));
 		configuration1.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'editor.wordWrap': 'on' }));
 
-		const configuration2 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
+		const configuration2 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
 		configuration2.updateDefaultConfiguration(defaultConfigurationModel);
 		configuration2.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': 'native', '[typescript]': { 'editor.insertSpaces': false } }));
 		configuration2.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.lineNumbers': 'on' }));
@@ -176,14 +183,14 @@ suite('Workspace Configuration', () => {
 
 	test('Test compare different configurations', () => {
 		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('folder1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('folder2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
-		const configuration1 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
+		const configuration1 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
 		configuration1.updateDefaultConfiguration(defaultConfigurationModel);
 		configuration1.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': 'native', '[typescript]': { 'editor.insertSpaces': false } }));
 		configuration1.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.lineNumbers': 'on' }));
 		configuration1.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.fontSize': 14 }));
 		configuration1.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'editor.wordWrap': 'on' }));
 
-		const configuration2 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
+		const configuration2 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
 		configuration2.updateDefaultConfiguration(defaultConfigurationModel);
 		configuration2.updateLocalUserConfiguration(toConfigurationModel({ 'workbench.enableTabs': true, '[typescript]': { 'editor.insertSpaces': true } }));
 		configuration2.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.fontSize': 11 }));

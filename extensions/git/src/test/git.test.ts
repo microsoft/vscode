@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -197,15 +197,88 @@ suite('git', () => {
 		});
 	});
 
+	suite('parseGitRemotes', () => {
+		test('empty', () => {
+			assert.deepStrictEqual(parseGitRemotes(''), []);
+		});
+
+		test('single remote', () => {
+			const sample = `[remote "origin"]
+	url = https://github.com/microsoft/vscode.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), [
+				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'https://github.com/microsoft/vscode.git', isReadOnly: false }
+			]);
+		});
+
+		test('single remote (multiple urls)', () => {
+			const sample = `[remote "origin"]
+	url = https://github.com/microsoft/vscode.git
+	url = https://github.com/microsoft/vscode2.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), [
+				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'https://github.com/microsoft/vscode.git', isReadOnly: false }
+			]);
+		});
+
+		test('multiple remotes', () => {
+			const sample = `[remote "origin"]
+	url = https://github.com/microsoft/vscode.git
+	pushurl = https://github.com/microsoft/vscode1.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[remote "remote2"]
+	url = https://github.com/microsoft/vscode2.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), [
+				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'https://github.com/microsoft/vscode1.git', isReadOnly: false },
+				{ name: 'remote2', fetchUrl: 'https://github.com/microsoft/vscode2.git', pushUrl: 'https://github.com/microsoft/vscode2.git', isReadOnly: false }
+			]);
+		});
+
+		test('remotes (white space)', () => {
+			const sample = ` [remote "origin"]
+	url  =  https://github.com/microsoft/vscode.git
+	pushurl=https://github.com/microsoft/vscode1.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[ remote"remote2"]
+	url = https://github.com/microsoft/vscode2.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), [
+				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'https://github.com/microsoft/vscode1.git', isReadOnly: false },
+				{ name: 'remote2', fetchUrl: 'https://github.com/microsoft/vscode2.git', pushUrl: 'https://github.com/microsoft/vscode2.git', isReadOnly: false }
+			]);
+		});
+
+		test('remotes (invalid section)', () => {
+			const sample = `[remote "origin"
+	url = https://github.com/microsoft/vscode.git
+	pushurl = https://github.com/microsoft/vscode1.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), []);
+		});
+	});
+
 	suite('parseGitCommit', () => {
 		test('single parent commit', function () {
-			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
-John Doe
-john.doe@mail.com
-1580811030
-1580811031
-8e5a374372b8393906c7e380dbb09349c5385554
-This is a commit message.\x00`;
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00';
 
 			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
@@ -215,17 +288,21 @@ This is a commit message.\x00`;
 				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: undefined
 			}]);
 		});
 
 		test('multiple parent commits', function () {
-			const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
-John Doe
-john.doe@mail.com
-1580811030
-1580811031
-8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
-This is a commit message.\x00`;
+			const GIT_OUTPUT_MULTIPLE_PARENTS =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217\n' +
+				'main\n' +
+				'This is a commit message.\x00';
 
 			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_MULTIPLE_PARENTS), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
@@ -235,17 +312,21 @@ This is a commit message.\x00`;
 				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
+				refNames: ['main'],
+				shortStat: undefined
 			}]);
 		});
 
 		test('no parent commits', function () {
-			const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
-John Doe
-john.doe@mail.com
-1580811030
-1580811031
-
-This is a commit message.\x00`;
+			const GIT_OUTPUT_NO_PARENTS =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'\n' +
+				'main\n' +
+				'This is a commit message.\x00';
 
 			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_NO_PARENTS), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
@@ -255,6 +336,192 @@ This is a commit message.\x00`;
 				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
+				refNames: ['main'],
+				shortStat: undefined
+			}]);
+		});
+
+		test('commit with shortstat', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				' 1 file changed, 2 insertions(+), 3 deletion(-)';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 3,
+					files: 1,
+					insertions: 2
+				}
+			}]);
+		});
+
+		test('commit with shortstat (no insertions)', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				' 1 file changed, 3 deletion(-)';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 3,
+					files: 1,
+					insertions: 0
+				}
+			}]);
+		});
+
+		test('commit with shortstat (no deletions)', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				' 1 file changed, 2 insertions(+)';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 0,
+					files: 1,
+					insertions: 2
+				}
+			}]);
+		});
+
+		test('commit list', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				'52c293a05038d865604c2284aa8698bd087915a2\n' +
+				'Jane Doe\n' +
+				'jane.doe@mail.com\n' +
+				'1580811032\n' +
+				'1580811033\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385555\n' +
+				'main,branch\n' +
+				'This is another commit message.\x00';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [
+				{
+					hash: '52c293a05038d865604c2284aa8698bd087915a1',
+					message: 'This is a commit message.',
+					parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+					authorDate: new Date(1580811030000),
+					authorName: 'John Doe',
+					authorEmail: 'john.doe@mail.com',
+					commitDate: new Date(1580811031000),
+					refNames: ['main', 'branch'],
+					shortStat: undefined,
+				},
+				{
+					hash: '52c293a05038d865604c2284aa8698bd087915a2',
+					message: 'This is another commit message.',
+					parents: ['8e5a374372b8393906c7e380dbb09349c5385555'],
+					authorDate: new Date(1580811032000),
+					authorName: 'Jane Doe',
+					authorEmail: 'jane.doe@mail.com',
+					commitDate: new Date(1580811033000),
+					refNames: ['main', 'branch'],
+					shortStat: undefined,
+				},
+			]);
+		});
+
+		test('commit list with shortstat', function () {
+			const GIT_OUTPUT_SINGLE_PARENT = '52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				' 5 file changed, 12 insertions(+), 13 deletion(-)\n' +
+				'52c293a05038d865604c2284aa8698bd087915a2\n' +
+				'Jane Doe\n' +
+				'jane.doe@mail.com\n' +
+				'1580811032\n' +
+				'1580811033\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385555\n' +
+				'main,branch\n' +
+				'This is another commit message.\x00\n' +
+				' 6 file changed, 22 insertions(+), 23 deletion(-)';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 13,
+					files: 5,
+					insertions: 12
+				}
+			},
+			{
+				hash: '52c293a05038d865604c2284aa8698bd087915a2',
+				message: 'This is another commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385555'],
+				authorDate: new Date(1580811032000),
+				authorName: 'Jane Doe',
+				authorEmail: 'jane.doe@mail.com',
+				commitDate: new Date(1580811033000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 23,
+					files: 6,
+					insertions: 22
+				}
 			}]);
 		});
 	});

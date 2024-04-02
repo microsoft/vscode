@@ -3,16 +3,12 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
-  "enableProposedApi": true,
   "publisher": "vscode",
   "license": "MIT",
   "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.39.0"
   },
-  "categories": [
-    "Programming Languages"
-  ],
   "main": "./out/extension.js",
   "browser": "./dist/extension.js",
   "activationEvents": [
@@ -28,6 +24,9 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "documentFiltersExclusive"
+  ],
   "contributes": {
     "configurationDefaults": {
       "[search-result]": {

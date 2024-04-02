@@ -5,32 +5,37 @@
 
 import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, UndoConfirmLevel, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
-import { basename, joinPath } from 'vs/base/common/resources';
+import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
+import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
-import { triggerDownload, WebFileSystemAccess } from 'vs/base/browser/dom';
+import { getActiveWindow, isDragEvent, triggerDownload } from 'vs/base/browser/dom';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { listenStream } from 'vs/base/common/stream';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { coalesce } from 'vs/base/common/arrays';
+import { canceled } from 'vs/base/common/errors';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -62,7 +67,7 @@ interface IWebkitDataTransferItemEntry {
 }
 
 interface IWebkitDataTransferItemEntryReader {
-	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void
+	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void;
 }
 
 export class BrowserFileUpload {
@@ -100,7 +105,7 @@ export class BrowserFileUpload {
 	}
 
 	private toTransfer(source: DragEvent | FileList): IWebkitDataTransfer {
-		if (source instanceof DragEvent) {
+		if (isDragEvent(source)) {
 			return source.dataTransfer as unknown as IWebkitDataTransfer;
 		}
 
@@ -138,7 +143,7 @@ export class BrowserFileUpload {
 			entries.push(item.webkitGetAsEntry());
 		}
 
-		const results: { isFile: boolean, resource: URI }[] = [];
+		const results: { isFile: boolean; resource: URI }[] = [];
 		const operation: IBrowserUploadOperation = {
 			startTime: Date.now(),
 			progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
@@ -192,7 +197,7 @@ export class BrowserFileUpload {
 		}
 	}
 
-	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
+	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean; resource: URI } | undefined> {
 		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
 			return undefined;
 		}
@@ -386,16 +391,18 @@ export class ExternalFileImport {
 		@IFileService private readonly fileService: IFileService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IProgressService private readonly progressService: IProgressService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
-	async import(target: ExplorerItem, source: DragEvent): Promise<void> {
+	async import(target: ExplorerItem, source: DragEvent, targetWindow: Window): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		// Indicate progress globally
@@ -406,7 +413,7 @@ export class ExternalFileImport {
 				cancellable: true,
 				title: localize('copyingFiles', "Copying...")
 			},
-			async () => await this.doImport(target, source, cts.token),
+			async () => await this.doImport(target, source, targetWindow, cts.token),
 			() => cts.dispose(true)
 		);
 
@@ -416,10 +423,10 @@ export class ExternalFileImport {
 		return importPromise;
 	}
 
-	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
+	private async doImport(target: ExplorerItem, source: DragEvent, targetWindow: Window, token: CancellationToken): Promise<void> {
 
 		// Activate all providers for the resources dropped
-		const candidateFiles = coalesce(extractEditorsDropData(source).map(editor => editor.resource));
+		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, source))).map(editor => editor.resource));
 		await Promise.all(candidateFiles.map(resource => this.fileService.activateProvider(resource.scheme)));
 
 		// Check for dropped external files to be folders
@@ -431,16 +438,23 @@ export class ExternalFileImport {
 		}
 
 		// Pass focus to window
-		this.hostService.focus();
+		this.hostService.focus(targetWindow);
 
 		// Handle folders by adding to workspace if we are in workspace context and if dropped on top
 		const folders = resolvedFiles.filter(resolvedFile => resolvedFile.success && resolvedFile.stat?.isDirectory).map(resolvedFile => ({ uri: resolvedFile.stat!.resource }));
 		if (folders.length > 0 && target.isRoot) {
-			const buttons = [
-				folders.length > 1 ?
-					localize('copyFolders', "&&Copy Folders") :
-					localize('copyFolder', "&&Copy Folder"),
-				localize('cancel', "Cancel")
+			enum ImportChoice {
+				Copy = 1,
+				Add = 2
+			}
+
+			const buttons: IPromptButton<ImportChoice | undefined>[] = [
+				{
+					label: folders.length > 1 ?
+						localize('copyFolders', "&&Copy Folders") :
+						localize('copyFolder', "&&Copy Folder"),
+					run: () => ImportChoice.Copy
+				}
 			];
 
 			let message: string;
@@ -448,7 +462,12 @@ export class ExternalFileImport {
 			// We only allow to add a folder to the workspace if there is already a workspace folder with that scheme
 			const workspaceFolderSchemas = this.contextService.getWorkspace().folders.map(folder => folder.uri.scheme);
 			if (folders.some(folder => workspaceFolderSchemas.indexOf(folder.uri.scheme) >= 0)) {
-				buttons.unshift(folders.length > 1 ? localize('addFolders', "&&Add Folders to Workspace") : localize('addFolder', "&&Add Folder to Workspace"));
+				buttons.unshift({
+					label: folders.length > 1 ?
+						localize('addFolders', "&&Add Folders to Workspace") :
+						localize('addFolder', "&&Add Folder to Workspace"),
+					run: () => ImportChoice.Add
+				});
 				message = folders.length > 1 ?
 					localize('dropFolders', "Do you want to copy the folders or add the folders to the workspace?") :
 					localize('dropFolder', "Do you want to copy '{0}' or add '{0}' as a folder to the workspace?", basename(folders[0].uri));
@@ -458,15 +477,20 @@ export class ExternalFileImport {
 					localize('copyfolder', "Are you sure to want to copy '{0}'?", basename(folders[0].uri));
 			}
 
-			const { choice } = await this.dialogService.show(Severity.Info, message, buttons);
+			const { result } = await this.dialogService.prompt({
+				type: Severity.Info,
+				message,
+				buttons,
+				cancelButton: true
+			});
 
 			// Add folders
-			if (choice === buttons.length - 3) {
+			if (result === ImportChoice.Add) {
 				return this.workspaceEditingService.addFolders(folders);
 			}
 
 			// Copy resources
-			if (choice === buttons.length - 2) {
+			if (result === ImportChoice.Copy) {
 				return this.importResources(target, files, token);
 			}
 		}
@@ -527,14 +551,16 @@ export class ExternalFileImport {
 				return new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true });
 			});
 
+			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
-					localize('copyFile', "Copy {0}", basename(resourcesFiltered[0])) :
-					localize('copynFile', "Copy {0} resources", resourcesFiltered.length),
+					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the number of files that were imported'], key: 'importnFile' }, "Import {0} resources", resourcesFiltered.length),
 				progressLabel: resourcesFiltered.length === 1 ?
-					localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) :
-					localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length),
-				progressLocation: ProgressLocation.Window
+					localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length),
+				progressLocation: ProgressLocation.Window,
+				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
 			});
 
 			// if we only add one file, just open it directly
@@ -565,12 +591,15 @@ interface IDownloadOperation {
 
 export class FileDownload {
 
+	private static readonly LAST_USED_DOWNLOAD_PATH_STORAGE_KEY = 'workbench.explorer.downloadPath';
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ILogService private readonly logService: ILogService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 	}
 
@@ -625,9 +654,10 @@ export class FileDownload {
 		const preferFileSystemAccessWebApis = stat.isDirectory || stat.size > maxBlobDownloadSize;
 
 		// Folder: use FS APIs to download files and folders if available and preferred
-		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(activeWindow)) {
 			try {
-				const parentFolder: FileSystemDirectoryHandle = await window.showDirectoryPicker();
+				const parentFolder: FileSystemDirectoryHandle = await activeWindow.showDirectoryPicker();
 				const operation: IDownloadOperation = {
 					startTime: Date.now(),
 					progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
@@ -657,9 +687,9 @@ export class FileDownload {
 		else if (stat.isFile) {
 			let bufferOrUri: Uint8Array | URI;
 			try {
-				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } })).value.buffer;
+				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } }, cts.token)).value.buffer;
 			} catch (error) {
-				bufferOrUri = FileAccess.asBrowserUri(stat.resource);
+				bufferOrUri = FileAccess.uriToBrowserUri(stat.resource);
 			}
 
 			if (!cts.token.isCancellationRequested) {
@@ -669,7 +699,7 @@ export class FileDownload {
 	}
 
 	private async downloadFileBufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFileStream(resource);
+		const contents = await this.fileService.readFileStream(resource, undefined, token);
 		if (token.isCancellationRequested) {
 			target.close();
 			return;
@@ -681,20 +711,15 @@ export class FileDownload {
 			const disposables = new DisposableStore();
 			disposables.add(toDisposable(() => target.close()));
 
-			let disposed = false;
-			disposables.add(toDisposable(() => disposed = true));
-
-			disposables.add(once(token.onCancellationRequested)(() => {
+			disposables.add(createSingleCallFunction(token.onCancellationRequested)(() => {
 				disposables.dispose();
-				reject();
+				reject(canceled());
 			}));
 
 			listenStream(sourceStream, {
 				onData: data => {
-					if (!disposed) {
-						target.write(data.buffer);
-						this.reportProgress(contents.name, contents.size, data.byteLength, operation);
-					}
+					target.write(data.buffer);
+					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
 				},
 				onError: error => {
 					disposables.dispose();
@@ -704,12 +729,12 @@ export class FileDownload {
 					disposables.dispose();
 					resolve();
 				}
-			});
+			}, token);
 		});
 	}
 
 	private async downloadFileUnbufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFile(resource);
+		const contents = await this.fileService.readFile(resource, undefined, token);
 		if (!token.isCancellationRequested) {
 			target.write(contents.value.buffer);
 			this.reportProgress(contents.name, contents.size, contents.value.byteLength, operation);
@@ -787,12 +812,18 @@ export class FileDownload {
 	private async doDownloadNative(explorerItem: ExplorerItem, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
 		progress.report({ message: explorerItem.name });
 
-		const defaultUri = joinPath(
-			explorerItem.isDirectory ?
-				await this.fileDialogService.defaultFolderPath(Schemas.file) :
-				await this.fileDialogService.defaultFilePath(Schemas.file),
-			explorerItem.name
-		);
+		let defaultUri: URI;
+		const lastUsedDownloadPath = this.storageService.get(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, StorageScope.APPLICATION);
+		if (lastUsedDownloadPath) {
+			defaultUri = joinPath(URI.file(lastUsedDownloadPath), explorerItem.name);
+		} else {
+			defaultUri = joinPath(
+				explorerItem.isDirectory ?
+					await this.fileDialogService.defaultFolderPath(Schemas.file) :
+					await this.fileDialogService.defaultFilePath(Schemas.file),
+				explorerItem.name
+			);
+		}
 
 		const destination = await this.fileDialogService.showSaveDialog({
 			availableFileSystems: [Schemas.file],
@@ -802,6 +833,11 @@ export class FileDownload {
 		});
 
 		if (destination) {
+
+			// Remember as last used download folder
+			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			// Perform download
 			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
 				undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
 				progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),

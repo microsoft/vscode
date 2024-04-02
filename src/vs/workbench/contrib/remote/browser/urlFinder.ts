@@ -17,7 +17,7 @@ export class UrlFinder extends Disposable {
 	 * http://:8080 - Beego Golang
 	 * http://0.0.0.0:4000 - Elixir Phoenix
 	 */
-	private static readonly localUrlRegex = /\b\w{2,20}:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|:\d{2,5})[\w\-\.\~:\/\?\#[\]\@!\$&\(\)\*\+\,\;\=]*/gim;
+	private static readonly localUrlRegex = /\b\w{0,20}(?::\/\/)?(?:localhost|127\.0\.0\.1|0\.0\.0\.0|:\d{2,5})[\w\-\.\~:\/\?\#[\]\@!\$&\(\)\*\+\,\;\=]*/gim;
 	private static readonly extractPortRegex = /(localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{1,5})/;
 	/**
 	 * https://github.com/microsoft/vscode-remote-release/issues/3949
@@ -26,7 +26,7 @@ export class UrlFinder extends Disposable {
 
 	private static readonly excludeTerminals = ['Dev Containers'];
 
-	private _onDidMatchLocalUrl: Emitter<{ host: string, port: number }> = new Emitter();
+	private _onDidMatchLocalUrl: Emitter<{ host: string; port: number }> = new Emitter();
 	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
 	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
 
@@ -52,7 +52,7 @@ export class UrlFinder extends Disposable {
 				}));
 			}
 		}));
-		this._register(debugService.onDidEndSession(session => {
+		this._register(debugService.onDidEndSession(({ session }) => {
 			if (this.listeners.has(session.getId())) {
 				this.listeners.get(session.getId())?.dispose();
 				this.listeners.delete(session.getId());
@@ -68,7 +68,7 @@ export class UrlFinder extends Disposable {
 		}
 	}
 
-	private replPositions: Map<string, { position: number, tail: IReplElement }> = new Map();
+	private replPositions: Map<string, { position: number; tail: IReplElement }> = new Map();
 	private processNewReplElements(session: IDebugSession) {
 		const oldReplPosition = this.replPositions.get(session.getId());
 		const replElements = session.getReplElements();

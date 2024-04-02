@@ -3,7 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
+import * as semver from 'vs/base/common/semver/semver';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -57,7 +62,7 @@ export function parseVersion(version: string): IParsedVersion | null {
 		};
 	}
 
-	let m = version.match(VERSION_REGEXP);
+	const m = version.match(VERSION_REGEXP);
 	if (!m) {
 		return null;
 	}
@@ -79,12 +84,12 @@ export function normalizeVersion(version: IParsedVersion | null): INormalizedVer
 		return null;
 	}
 
-	let majorBase = version.majorBase,
-		majorMustEqual = version.majorMustEqual,
-		minorBase = version.minorBase,
-		minorMustEqual = version.minorMustEqual,
-		patchBase = version.patchBase,
-		patchMustEqual = version.patchMustEqual;
+	const majorBase = version.majorBase;
+	const majorMustEqual = version.majorMustEqual;
+	const minorBase = version.minorBase;
+	let minorMustEqual = version.minorMustEqual;
+	const patchBase = version.patchBase;
+	let patchMustEqual = version.patchMustEqual;
 
 	if (version.hasCaret) {
 		if (majorBase === 0) {
@@ -142,14 +147,14 @@ export function isValidVersion(_inputVersion: string | INormalizedVersion, _inpu
 		return false;
 	}
 
-	let majorBase = version.majorBase;
-	let minorBase = version.minorBase;
-	let patchBase = version.patchBase;
+	const majorBase = version.majorBase;
+	const minorBase = version.minorBase;
+	const patchBase = version.patchBase;
 
 	let desiredMajorBase = desiredVersion.majorBase;
 	let desiredMinorBase = desiredVersion.minorBase;
 	let desiredPatchBase = desiredVersion.patchBase;
-	let desiredNotBefore = desiredVersion.notBefore;
+	const desiredNotBefore = desiredVersion.notBefore;
 
 	let majorMustEqual = desiredVersion.majorMustEqual;
 	let minorMustEqual = desiredVersion.minorMustEqual;
@@ -232,24 +237,100 @@ export function isValidVersion(_inputVersion: string | INormalizedVersion, _inpu
 	return true;
 }
 
-export interface IReducedExtensionDescription {
-	isBuiltin: boolean;
-	engines: {
-		vscode: string;
-	};
-	main?: string;
-}
-
 type ProductDate = string | Date | undefined;
 
-export function isValidExtensionVersion(version: string, date: ProductDate, extensionDesc: IReducedExtensionDescription, notices: string[]): boolean {
+export function validateExtensionManifest(productVersion: string, productDate: ProductDate, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean): readonly [Severity, string][] {
+	const validations: [Severity, string][] = [];
+	if (typeof extensionManifest.publisher !== 'undefined' && typeof extensionManifest.publisher !== 'string') {
+		validations.push([Severity.Error, nls.localize('extensionDescription.publisher', "property publisher must be of type `string`.")]);
+		return validations;
+	}
+	if (typeof extensionManifest.name !== 'string') {
+		validations.push([Severity.Error, nls.localize('extensionDescription.name', "property `{0}` is mandatory and must be of type `string`", 'name')]);
+		return validations;
+	}
+	if (typeof extensionManifest.version !== 'string') {
+		validations.push([Severity.Error, nls.localize('extensionDescription.version', "property `{0}` is mandatory and must be of type `string`", 'version')]);
+		return validations;
+	}
+	if (!extensionManifest.engines) {
+		validations.push([Severity.Error, nls.localize('extensionDescription.engines', "property `{0}` is mandatory and must be of type `object`", 'engines')]);
+		return validations;
+	}
+	if (typeof extensionManifest.engines.vscode !== 'string') {
+		validations.push([Severity.Error, nls.localize('extensionDescription.engines.vscode', "property `{0}` is mandatory and must be of type `string`", 'engines.vscode')]);
+		return validations;
+	}
+	if (typeof extensionManifest.extensionDependencies !== 'undefined') {
+		if (!isStringArray(extensionManifest.extensionDependencies)) {
+			validations.push([Severity.Error, nls.localize('extensionDescription.extensionDependencies', "property `{0}` can be omitted or must be of type `string[]`", 'extensionDependencies')]);
+			return validations;
+		}
+	}
+	if (typeof extensionManifest.activationEvents !== 'undefined') {
+		if (!isStringArray(extensionManifest.activationEvents)) {
+			validations.push([Severity.Error, nls.localize('extensionDescription.activationEvents1', "property `{0}` can be omitted or must be of type `string[]`", 'activationEvents')]);
+			return validations;
+		}
+		if (typeof extensionManifest.main === 'undefined' && typeof extensionManifest.browser === 'undefined') {
+			validations.push([Severity.Error, nls.localize('extensionDescription.activationEvents2', "property `{0}` should be omitted if the extension doesn't have a `{1}` or `{2}` property.", 'activationEvents', 'main', 'browser')]);
+			return validations;
+		}
+	}
+	if (typeof extensionManifest.extensionKind !== 'undefined') {
+		if (typeof extensionManifest.main === 'undefined') {
+			validations.push([Severity.Warning, nls.localize('extensionDescription.extensionKind', "property `{0}` can be defined only if property `main` is also defined.", 'extensionKind')]);
+			// not a failure case
+		}
+	}
+	if (typeof extensionManifest.main !== 'undefined') {
+		if (typeof extensionManifest.main !== 'string') {
+			validations.push([Severity.Error, nls.localize('extensionDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main')]);
+			return validations;
+		} else {
+			const mainLocation = joinPath(extensionLocation, extensionManifest.main);
+			if (!isEqualOrParent(mainLocation, extensionLocation)) {
+				validations.push([Severity.Warning, nls.localize('extensionDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", mainLocation.path, extensionLocation.path)]);
+				// not a failure case
+			}
+		}
+	}
+	if (typeof extensionManifest.browser !== 'undefined') {
+		if (typeof extensionManifest.browser !== 'string') {
+			validations.push([Severity.Error, nls.localize('extensionDescription.browser1', "property `{0}` can be omitted or must be of type `string`", 'browser')]);
+			return validations;
+		} else {
+			const browserLocation = joinPath(extensionLocation, extensionManifest.browser);
+			if (!isEqualOrParent(browserLocation, extensionLocation)) {
+				validations.push([Severity.Warning, nls.localize('extensionDescription.browser2', "Expected `browser` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", browserLocation.path, extensionLocation.path)]);
+				// not a failure case
+			}
+		}
+	}
 
-	if (extensionDesc.isBuiltin || typeof extensionDesc.main === 'undefined') {
+	if (!semver.valid(extensionManifest.version)) {
+		validations.push([Severity.Error, nls.localize('notSemver', "Extension version is not semver compatible.")]);
+		return validations;
+	}
+
+	const notices: string[] = [];
+	const isValid = isValidExtensionVersion(productVersion, productDate, extensionManifest, extensionIsBuiltin, notices);
+	if (!isValid) {
+		for (const notice of notices) {
+			validations.push([Severity.Error, notice]);
+		}
+	}
+	return validations;
+}
+
+export function isValidExtensionVersion(productVersion: string, productDate: ProductDate, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean, notices: string[]): boolean {
+
+	if (extensionIsBuiltin || (typeof extensionManifest.main === 'undefined' && typeof extensionManifest.browser === 'undefined')) {
 		// No version check for builtin or declarative extensions
 		return true;
 	}
 
-	return isVersionValid(version, date, extensionDesc.engines.vscode, notices);
+	return isVersionValid(productVersion, productDate, extensionManifest.engines.vscode, notices);
 }
 
 export function isEngineValid(engine: string, version: string, date: ProductDate): boolean {
@@ -259,7 +340,7 @@ export function isEngineValid(engine: string, version: string, date: ProductDate
 
 function isVersionValid(currentVersion: string, date: ProductDate, requestedVersion: string, notices: string[] = []): boolean {
 
-	let desiredVersion = normalizeVersion(parseVersion(requestedVersion));
+	const desiredVersion = normalizeVersion(parseVersion(requestedVersion));
 	if (!desiredVersion) {
 		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^1.22.0, ^1.22.x, etc.", requestedVersion));
 		return false;
@@ -287,5 +368,17 @@ function isVersionValid(currentVersion: string, date: ProductDate, requestedVers
 		return false;
 	}
 
+	return true;
+}
+
+function isStringArray(arr: string[]): boolean {
+	if (!Array.isArray(arr)) {
+		return false;
+	}
+	for (let i = 0, len = arr.length; i < len; i++) {
+		if (typeof arr[i] !== 'string') {
+			return false;
+		}
+	}
 	return true;
 }

@@ -1,0 +1,25 @@
+{
+  newText: "some code\nover\nmultiple lines content with vuln\nand\nnewlinesmore code\nwith newlinecontent with vuln\nand\nnewlines",
+  vulnerabilities: [
+    {
+      title: "title",
+      description: "vuln",
+      range: {
+        startLineNumber: 3,
+        startColumn: 16,
+        endLineNumber: 5,
+        endColumn: 9
+      }
+    },
+    {
+      title: "title",
+      description: "vuln",
+      range: {
+        startLineNumber: 6,
+        startColumn: 13,
+        endLineNumber: 8,
+        endColumn: 9
+      }
+    }
+  ]
+}

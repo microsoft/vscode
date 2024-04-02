@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostNotebookRenderersShape, IMainContext, MainContext, MainThreadNotebookRenderersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostNotebookEditor } from 'vs/workbench/api/common/extHostNotebookEditor';
@@ -12,7 +12,7 @@ import * as vscode from 'vscode';
 
 
 export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
-	private readonly _rendererMessageEmitters = new Map<string /* rendererId */, Emitter<{ editor: vscode.NotebookEditor, message: any }>>();
+	private readonly _rendererMessageEmitters = new Map<string /* rendererId */, Emitter<{ editor: vscode.NotebookEditor; message: any }>>();
 	private readonly proxy: MainThreadNotebookRenderersShape;
 
 	constructor(mainContext: IMainContext, private readonly _extHostNotebook: ExtHostNotebookController) {
@@ -24,34 +24,21 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 		this._rendererMessageEmitters.get(rendererId)?.fire({ editor: editor.apiEditor, message });
 	}
 
-	public createRendererMessaging(manifest: IExtensionManifest, rendererId: string): vscode.NotebookRendererMessaging {
+	public createRendererMessaging(manifest: IExtensionDescription, rendererId: string): vscode.NotebookRendererMessaging {
 		if (!manifest.contributes?.notebookRenderer?.some(r => r.id === rendererId)) {
 			throw new Error(`Extensions may only call createRendererMessaging() for renderers they contribute (got ${rendererId})`);
 		}
 
-		// In the stable API, the editor is given as an empty object, and this map
-		// is used to maintain references. This can be removed after editor finalization.
-		const notebookEditorVisible = !!manifest.enableProposedApi;
-		const notebookEditorAliases = new WeakMap<{}, vscode.NotebookEditor>();
-
 		const messaging: vscode.NotebookRendererMessaging = {
 			onDidReceiveMessage: (listener, thisArg, disposables) => {
-				const wrappedListener = notebookEditorVisible ? listener : (evt: { editor: vscode.NotebookEditor, message: any }) => {
-					const obj = {};
-					notebookEditorAliases.set(obj, evt.editor);
-					listener({ editor: obj as vscode.NotebookEditor, message: evt.message });
-				};
-
-				return this.getOrCreateEmitterFor(rendererId).event(wrappedListener, thisArg, disposables);
+				return this.getOrCreateEmitterFor(rendererId).event(listener, thisArg, disposables);
 			},
 			postMessage: (message, editorOrAlias) => {
 				if (ExtHostNotebookEditor.apiEditorsToExtHost.has(message)) { // back compat for swapped args
 					[message, editorOrAlias] = [editorOrAlias, message];
 				}
 
-
-				const editor = notebookEditorVisible ? editorOrAlias : notebookEditorAliases.get(editorOrAlias!);
-				const extHostEditor = editor && ExtHostNotebookEditor.apiEditorsToExtHost.get(editor);
+				const extHostEditor = editorOrAlias && ExtHostNotebookEditor.apiEditorsToExtHost.get(editorOrAlias);
 				return this.proxy.$postMessage(extHostEditor?.id, rendererId, message);
 			},
 		};
@@ -66,7 +53,7 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 		}
 
 		emitter = new Emitter({
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				emitter?.dispose();
 				this._rendererMessageEmitters.delete(rendererId);
 			}

@@ -8,9 +8,22 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionEditorTab, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { join } from 'vs/base/common/path';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+const ExtensionEditorIcon = registerIcon('extensions-editor-label-icon', Codicon.extensions, localize('extensionsEditorLabelIcon', 'Icon of the extensions editor label.'));
+
+export interface IExtensionEditorOptions extends IEditorOptions {
+	showPreReleaseVersion?: boolean;
+	tab?: ExtensionEditorTab;
+	feature?: string;
+	sideByside?: boolean;
+}
 
 export class ExtensionsInput extends EditorInput {
 
@@ -31,22 +44,18 @@ export class ExtensionsInput extends EditorInput {
 		});
 	}
 
-	constructor(
-		private _extension: IExtension,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
-	) {
+	constructor(private _extension: IExtension) {
 		super();
-		this._register(extensionsWorkbenchService.onChange(extension => {
-			if (extension && areSameExtensions(this._extension.identifier, extension.identifier)) {
-				this._extension = extension;
-			}
-		}));
 	}
 
 	get extension(): IExtension { return this._extension; }
 
 	override getName(): string {
 		return localize('extensionsInputName', "Extension: {0}", this._extension.displayName);
+	}
+
+	override getIcon(): ThemeIcon | undefined {
+		return ExtensionEditorIcon;
 	}
 
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {

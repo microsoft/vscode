@@ -3,26 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as spdlog from 'spdlog';
+import type * as spdlog from '@vscode/spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
 
-async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number): Promise<spdlog.Logger | null> {
+enum SpdLogLevel {
+	Trace,
+	Debug,
+	Info,
+	Warning,
+	Error,
+	Critical,
+	Off
+}
+
+async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number, donotUseFormatters: boolean): Promise<spdlog.Logger | null> {
 	// Do not crash if spdlog cannot be loaded
 	try {
-		const _spdlog = await import('spdlog');
-		_spdlog.setFlushOn(LogLevel.Trace);
-		return _spdlog.createAsyncRotatingLogger(name, logfilePath, filesize, filecount);
+		const _spdlog = await import('@vscode/spdlog');
+		_spdlog.setFlushOn(SpdLogLevel.Trace);
+		const logger = await _spdlog.createAsyncRotatingLogger(name, logfilePath, filesize, filecount);
+		if (donotUseFormatters) {
+			logger.clearFormatters();
+		} else {
+			logger.setPattern('%Y-%m-%d %H:%M:%S.%e [%l] %v');
+		}
+		return logger;
 	} catch (e) {
 		console.error(e);
 	}
 	return null;
-}
-
-export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): Promise<spdlog.Logger> {
-	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
-	_spdlog.setFlushOn(LogLevel.Trace);
-	return _spdlog.createRotatingLogger(name, filename, filesize, filecount);
 }
 
 interface ILog {
@@ -37,8 +47,20 @@ function log(logger: spdlog.Logger, level: LogLevel, message: string): void {
 		case LogLevel.Info: logger.info(message); break;
 		case LogLevel.Warning: logger.warn(message); break;
 		case LogLevel.Error: logger.error(message); break;
-		case LogLevel.Critical: logger.critical(message); break;
-		default: throw new Error('Invalid log level');
+		case LogLevel.Off: /* do nothing */ break;
+		default: throw new Error(`Invalid log level ${level}`);
+	}
+}
+
+function setLogLevel(logger: spdlog.Logger, level: LogLevel): void {
+	switch (level) {
+		case LogLevel.Trace: logger.setLevel(SpdLogLevel.Trace); break;
+		case LogLevel.Debug: logger.setLevel(SpdLogLevel.Debug); break;
+		case LogLevel.Info: logger.setLevel(SpdLogLevel.Info); break;
+		case LogLevel.Warning: logger.setLevel(SpdLogLevel.Warning); break;
+		case LogLevel.Error: logger.setLevel(SpdLogLevel.Error); break;
+		case LogLevel.Off: logger.setLevel(SpdLogLevel.Off); break;
+		default: throw new Error(`Invalid log level ${level}`);
 	}
 }
 
@@ -49,35 +71,34 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 	private _logger: spdlog.Logger | undefined;
 
 	constructor(
-		private readonly name: string,
-		private readonly filepath: string,
-		private readonly rotating: boolean,
-		level: LogLevel
+		name: string,
+		filepath: string,
+		rotating: boolean,
+		donotUseFormatters: boolean,
+		level: LogLevel,
 	) {
 		super();
 		this.setLevel(level);
-		this._loggerCreationPromise = this._createSpdLogLogger();
+		this._loggerCreationPromise = this._createSpdLogLogger(name, filepath, rotating, donotUseFormatters);
 		this._register(this.onDidChangeLogLevel(level => {
 			if (this._logger) {
-				this._logger.setLevel(level);
+				setLogLevel(this._logger, level);
 			}
 		}));
 	}
 
-	private _createSpdLogLogger(): Promise<void> {
-		const filecount = this.rotating ? 6 : 1;
+	private async _createSpdLogLogger(name: string, filepath: string, rotating: boolean, donotUseFormatters: boolean): Promise<void> {
+		const filecount = rotating ? 6 : 1;
 		const filesize = (30 / filecount) * ByteSize.MB;
-		return createSpdLogLogger(this.name, this.filepath, filesize, filecount)
-			.then(logger => {
-				if (logger) {
-					this._logger = logger;
-					this._logger.setLevel(this.getLevel());
-					for (const { level, message } of this.buffer) {
-						log(this._logger, level, message);
-					}
-					this.buffer = [];
-				}
-			});
+		const logger = await createSpdLogLogger(name, filepath, filesize, filecount, donotUseFormatters);
+		if (logger) {
+			this._logger = logger;
+			setLogLevel(this._logger, this.getLevel());
+			for (const { level, message } of this.buffer) {
+				log(this._logger, level, message);
+			}
+			this.buffer = [];
+		}
 	}
 
 	protected log(level: LogLevel, message: string): void {
@@ -85,14 +106,6 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 			log(this._logger, level, message);
 		} else if (this.getLevel() <= level) {
 			this.buffer.push({ level, message });
-		}
-	}
-
-	clearFormatters(): void {
-		if (this._logger) {
-			this._logger.clearFormatters();
-		} else {
-			this._loggerCreationPromise.then(() => this.clearFormatters());
 		}
 	}
 
@@ -110,6 +123,7 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 		} else {
 			this._loggerCreationPromise.then(() => this.disposeLogger());
 		}
+		super.dispose();
 	}
 
 	private disposeLogger(): void {

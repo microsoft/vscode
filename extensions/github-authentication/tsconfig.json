@@ -5,9 +5,13 @@
 		"experimentalDecorators": true,
 		"typeRoots": [
 			"./node_modules/@types"
+		],
+		"lib": [
+			"WebWorker"
 		]
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts"
 	]
 }

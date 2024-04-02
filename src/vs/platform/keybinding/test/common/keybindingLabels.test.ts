@@ -2,16 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { createKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
 
 suite('KeybindingLabels', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function assertUSLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
+		const usResolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS)!;
 		assert.strictEqual(usResolvedKeybinding.getLabel(), expected);
 	}
 
@@ -116,18 +119,18 @@ suite('KeybindingLabels', () => {
 
 	test('Aria label', () => {
 		function assertAriaLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
+			const usResolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS)!;
 			assert.strictEqual(usResolvedKeybinding.getAriaLabel(), expected);
 		}
 
 		assertAriaLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KeyA, 'Control+Shift+Alt+Windows+A');
 		assertAriaLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KeyA, 'Control+Shift+Alt+Super+A');
-		assertAriaLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KeyA, 'Control+Shift+Alt+Command+A');
+		assertAriaLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KeyA, 'Control+Shift+Option+Command+A');
 	});
 
 	test('Electron Accelerator label', () => {
 		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string | null): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
+			const usResolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS)!;
 			assert.strictEqual(usResolvedKeybinding.getElectronAccelerator(), expected);
 		}
 
@@ -154,7 +157,7 @@ suite('KeybindingLabels', () => {
 
 	test('User Settings label', () => {
 		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
+			const usResolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS)!;
 			assert.strictEqual(usResolvedKeybinding.getUserSettingsLabel(), expected);
 		}
 

@@ -22,7 +22,7 @@ yaserver.createServer({
 		}, (err) => {
 			console.error(err);
 			process.exit(1);
-		})
+		});
 	});
 });
 
@@ -48,5 +48,5 @@ function runTest(browser) {
 				reject(code);
 			}
 		});
-	})
+	});
 }

@@ -102,7 +102,7 @@ export function righttest(node: TreeNode): TreeNode {
 	return node;
 }
 
-export function calculateSize(node: TreeNode): number {
+function calculateSize(node: TreeNode): number {
 	if (node === SENTINEL) {
 		return 0;
 	}
@@ -110,7 +110,7 @@ export function calculateSize(node: TreeNode): number {
 	return node.size_left + node.piece.length + calculateSize(node.right);
 }
 
-export function calculateLF(node: TreeNode): number {
+function calculateLF(node: TreeNode): number {
 	if (node === SENTINEL) {
 		return 0;
 	}
@@ -118,12 +118,12 @@ export function calculateLF(node: TreeNode): number {
 	return node.lf_left + node.piece.lineFeedCnt + calculateLF(node.right);
 }
 
-export function resetSentinel(): void {
+function resetSentinel(): void {
 	SENTINEL.parent = SENTINEL;
 }
 
 export function leftRotate(tree: PieceTreeBase, x: TreeNode) {
-	let y = x.right;
+	const y = x.right;
 
 	// fix size_left
 	y.size_left += x.size_left + (x.piece ? x.piece.length : 0);
@@ -146,7 +146,7 @@ export function leftRotate(tree: PieceTreeBase, x: TreeNode) {
 }
 
 export function rightRotate(tree: PieceTreeBase, y: TreeNode) {
-	let x = y.left;
+	const x = y.left;
 	y.left = x.right;
 	if (x.right !== SENTINEL) {
 		x.right.parent = y;
@@ -196,7 +196,7 @@ export function rbDelete(tree: PieceTreeBase, z: TreeNode) {
 		return;
 	}
 
-	let yWasRed = (y.color === NodeColor.Red);
+	const yWasRed = (y.color === NodeColor.Red);
 
 	if (y === y.parent.left) {
 		y.parent.left = x;
@@ -248,11 +248,11 @@ export function rbDelete(tree: PieceTreeBase, z: TreeNode) {
 	z.detach();
 
 	if (x.parent.left === x) {
-		let newSizeLeft = calculateSize(x);
-		let newLFLeft = calculateLF(x);
+		const newSizeLeft = calculateSize(x);
+		const newLFLeft = calculateLF(x);
 		if (newSizeLeft !== x.parent.size_left || newLFLeft !== x.parent.lf_left) {
-			let delta = newSizeLeft - x.parent.size_left;
-			let lf_delta = newLFLeft - x.parent.lf_left;
+			const delta = newSizeLeft - x.parent.size_left;
+			const lf_delta = newLFLeft - x.parent.lf_left;
 			x.parent.size_left = newSizeLeft;
 			x.parent.lf_left = newLFLeft;
 			updateTreeMetadata(tree, x.parent, delta, lf_delta);

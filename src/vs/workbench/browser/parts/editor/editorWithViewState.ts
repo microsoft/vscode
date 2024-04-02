@@ -11,14 +11,12 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtUri } from 'vs/base/common/resources';
 import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * Base class of editors that want to store and restore view state.
@@ -33,6 +31,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		viewStateStorageKey: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -42,17 +41,17 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, telemetryService, themeService, storageService);
+		super(id, group, telemetryService, themeService, storageService);
 
 		this.viewState = this.getEditorMemento<T>(editorGroupService, textResourceConfigurationService, viewStateStorageKey, 100);
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean): void {
 
 		// Listen to close events to trigger `onWillCloseEditorInGroup`
-		this.groupListener.value = group?.onWillCloseEditor(e => this.onWillCloseEditor(e));
+		this.groupListener.value = this.group.onWillCloseEditor(e => this.onWillCloseEditor(e));
 
-		super.setEditorVisible(visible, group);
+		super.setEditorVisible(visible);
 	}
 
 	private onWillCloseEditor(e: IEditorCloseEvent): void {
@@ -63,14 +62,6 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 			// been disposed and we can safely persist the view state.
 			this.updateEditorViewState(editor);
 		}
-	}
-
-	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-
-		// Preserve current input view state before opening new
-		this.updateEditorViewState(this.input);
-
-		await super.setInput(input, options, context, token);
 	}
 
 	override clearInput(): void {
@@ -120,7 +111,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		// - the user configured to not restore view state unless the editor is still opened in the group
 		if (
 			(input.isDisposed() && !this.tracksDisposedEditorViewState()) ||
-			(!this.shouldRestoreEditorViewState(input) && (!this.group || !this.group.contains(input)))
+			(!this.shouldRestoreEditorViewState(input) && !this.group.contains(input))
 		) {
 			this.clearEditorViewState(resource, this.group);
 		}
@@ -157,10 +148,6 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	}
 
 	private saveEditorViewState(resource: URI): void {
-		if (!this.group) {
-			return;
-		}
-
 		const editorViewState = this.computeEditorViewState(resource);
 		if (!editorViewState) {
 			return;
@@ -170,7 +157,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	}
 
 	protected loadEditorViewState(input: EditorInput | undefined, context?: IEditorOpenContext): T | undefined {
-		if (!input || !this.group) {
+		if (!input) {
 			return undefined; // we need valid input
 		}
 
@@ -218,7 +205,9 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	 *
 	 * @param resource the expected `URI` for the view state. This
 	 * should be used as a way to ensure the view state in the
-	 * editor control is matching the resource expected.
+	 * editor control is matching the resource expected, for example
+	 * by comparing with the underlying model (this was a fix for
+	 * https://github.com/microsoft/vscode/issues/40114).
 	 */
 	protected abstract computeEditorViewState(resource: URI): T | undefined;
 

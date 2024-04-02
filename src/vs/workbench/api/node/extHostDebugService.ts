@@ -3,28 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import type * as vscode from 'vscode';
+import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
-import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
-import { IExtHostConfiguration, ExtHostConfigProvider } from '../common/extHostConfiguration';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostDebugServiceBase, ExtHostDebugSession, ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
+import * as nls from 'vs/nls';
+import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
-import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
+import { ExtHostDebugServiceBase, ExtHostDebugSession } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
+import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
+import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
+import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
+import { ExecutableDebugAdapter, NamedPipeDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
+import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import type * as vscode from 'vscode';
+import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
+import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { createHash } from 'crypto';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -37,12 +40,13 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostRpcService extHostRpcService: IExtHostRpcService,
 		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
-		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
-		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
+		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
+		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
+		@IExtHostCommands commands: IExtHostCommands,
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
+		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands);
 	}
 
 	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -86,8 +90,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
 
-			const shellConfig = JSON.stringify({ shell, shellArgs });
-			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
+			const termKey = createKeyForShell(shell, shellArgs, args);
+			let terminal = await this._integratedTerminalInstances.checkout(termKey, terminalName, true);
 
 			let cwdForPrepareCommand: string | undefined;
 			let giveShellTimeToInitialize = false;
@@ -99,13 +103,17 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					cwd: args.cwd,
 					name: terminalName,
 					iconPath: new ThemeIcon('debug'),
+					env: args.env,
 				};
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, {
 					isFeatureTerminal: true,
+					// Since debug termnials are REPLs, we want shell integration to be enabled.
+					// Ignore isFeatureTerminal when evaluating shell integration enablement.
+					forceShellIntegration: true,
 					useShellEnvironment: true
 				});
-				this._integratedTerminalInstances.insert(terminal, shellConfig);
+				this._integratedTerminalInstances.insert(terminal, termKey);
 
 			} else {
 				cwdForPrepareCommand = args.cwd;
@@ -119,6 +127,10 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				// give a new terminal some time to initialize the shell
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			} else {
+				if (terminal.state.isInteractedWith) {
+					terminal.sendText('\u0003'); // Ctrl+C for #106743. Not part of the same command for #107969
+				}
+
 				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
 					// clear terminal before reusing it
 					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
@@ -133,13 +145,13 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				}
 			}
 
-			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
+			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand);
 			terminal.sendText(command);
 
 			// Mark terminal as unused when its session ends, see #112055
 			const sessionListener = this.onDidTerminateDebugSession(s => {
 				if (s.id === sessionId) {
-					this._integratedTerminalInstances.free(terminal!);
+					this._integratedTerminalInstances.free(terminal);
 					sessionListener.dispose();
 				}
 			});
@@ -151,10 +163,32 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		}
 		return super.$runInTerminal(args, sessionId);
 	}
+}
 
-	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs, this._workspaceService);
+/** Creates a key that determines how terminals get reused */
+function createKeyForShell(shell: string, shellArgs: string | string[], args: DebugProtocol.RunInTerminalRequestArguments) {
+	const hash = createHash('sha256');
+	hash.update(JSON.stringify({ shell, shellArgs }));
+	hash.update(JSON.stringify(Object.entries(args.env || {}).sort(([k1], [k2]) => k1.localeCompare(k2))));
+	return hash.digest('base64');
+}
+
+let externalTerminalService: IExternalTerminalService | undefined = undefined;
+
+function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
+	if (!externalTerminalService) {
+		if (platform.isWindows) {
+			externalTerminalService = new WindowsExternalTerminalService();
+		} else if (platform.isMacintosh) {
+			externalTerminalService = new MacExternalTerminalService();
+		} else if (platform.isLinux) {
+			externalTerminalService = new LinuxExternalTerminalService();
+		} else {
+			throw new Error('external terminals not supported on this platform');
+		}
 	}
+	const config = configProvider.getConfiguration('terminal');
+	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 }
 
 class DebugTerminalCollection {
@@ -163,9 +197,9 @@ class DebugTerminalCollection {
 	 */
 	private static minUseDelay = 1000;
 
-	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
+	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number; config: string }>();
 
-	public async checkout(config: string, name: string) {
+	public async checkout(config: string, name: string, cleanupOthersByName = false) {
 		const entries = [...this._terminalInstances.entries()];
 		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
 
@@ -185,6 +219,9 @@ class DebugTerminalCollection {
 			}
 
 			if (termInfo.config !== config) {
+				if (cleanupOthersByName) {
+					terminal.dispose();
+				}
 				return null;
 			}
 

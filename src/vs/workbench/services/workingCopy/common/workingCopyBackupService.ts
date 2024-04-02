@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, isEqual, joinPath } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { coalesce } from 'vs/base/common/arrays';
 import { equals, deepClone } from 'vs/base/common/objects';
@@ -23,7 +23,7 @@ import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/w
 
 export class WorkingCopyBackupsModel {
 
-	private readonly cache = new ResourceMap<{ versionId?: number, meta?: IWorkingCopyBackupMeta }>();
+	private readonly cache = new ResourceMap<{ versionId?: number; meta?: IWorkingCopyBackupMeta }>();
 
 	static async create(backupRoot: URI, fileService: IFileService): Promise<WorkingCopyBackupsModel> {
 		const model = new WorkingCopyBackupsModel(backupRoot, fileService);
@@ -47,6 +47,13 @@ export class WorkingCopyBackupsModel {
 						const backupSchemaFolderStat = await this.fileService.resolve(backupSchemaFolder.resource);
 
 						// Remember known backups in our caches
+						//
+						// Note: this does NOT account for resolving
+						// associated meta data because that requires
+						// opening the backup and reading the meta
+						// preamble. Instead, when backups are actually
+						// resolved, the meta data will be added via
+						// additional `update` calls.
 						if (backupSchemaFolderStat.children) {
 							for (const backupForSchema of backupSchemaFolderStat.children) {
 								if (!backupForSchema.isDirectory) {
@@ -62,7 +69,17 @@ export class WorkingCopyBackupsModel {
 	}
 
 	add(resource: URI, versionId = 0, meta?: IWorkingCopyBackupMeta): void {
-		this.cache.set(resource, { versionId, meta: deepClone(meta) }); // make sure to not store original meta in our cache...
+		this.cache.set(resource, {
+			versionId,
+			meta: deepClone(meta)
+		});
+	}
+
+	update(resource: URI, meta?: IWorkingCopyBackupMeta): void {
+		const entry = this.cache.get(resource);
+		if (entry) {
+			entry.meta = deepClone(meta);
+		}
 	}
 
 	count(): number {
@@ -94,36 +111,30 @@ export class WorkingCopyBackupsModel {
 		this.cache.delete(resource);
 	}
 
-	move(source: URI, target: URI): void {
-		const entry = this.cache.get(source);
-		if (entry) {
-			this.cache.delete(source);
-			this.cache.set(target, entry);
-		}
-	}
-
 	clear(): void {
 		this.cache.clear();
 	}
 }
 
-export abstract class WorkingCopyBackupService implements IWorkingCopyBackupService {
+export abstract class WorkingCopyBackupService extends Disposable implements IWorkingCopyBackupService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private impl: NativeWorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService;
+	private impl: WorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService;
 
 	constructor(
 		backupWorkspaceHome: URI | undefined,
 		@IFileService protected fileService: IFileService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.impl = this.initialize(backupWorkspaceHome);
+		super();
+
+		this.impl = this._register(this.initialize(backupWorkspaceHome));
 	}
 
-	private initialize(backupWorkspaceHome: URI | undefined): NativeWorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService {
+	private initialize(backupWorkspaceHome: URI | undefined): WorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService {
 		if (backupWorkspaceHome) {
-			return new NativeWorkingCopyBackupServiceImpl(backupWorkspaceHome, this.fileService, this.logService);
+			return new WorkingCopyBackupServiceImpl(backupWorkspaceHome, this.fileService, this.logService);
 		}
 
 		return new InMemoryWorkingCopyBackupService();
@@ -132,7 +143,7 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 	reinitialize(backupWorkspaceHome: URI | undefined): void {
 
 		// Re-init implementation (unless we are running in-memory)
-		if (this.impl instanceof NativeWorkingCopyBackupServiceImpl) {
+		if (this.impl instanceof WorkingCopyBackupServiceImpl) {
 			if (backupWorkspaceHome) {
 				this.impl.initialize(backupWorkspaceHome);
 			} else {
@@ -145,16 +156,16 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		return this.impl.hasBackups();
 	}
 
-	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
-		return this.impl.hasBackupSync(identifier, versionId);
+	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number, meta?: IWorkingCopyBackupMeta): boolean {
+		return this.impl.hasBackupSync(identifier, versionId, meta);
 	}
 
 	backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		return this.impl.backup(identifier, content, versionId, meta, token);
 	}
 
-	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
-		return this.impl.discardBackup(identifier);
+	discardBackup(identifier: IWorkingCopyIdentifier, token?: CancellationToken): Promise<void> {
+		return this.impl.discardBackup(identifier, token);
 	}
 
 	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
@@ -172,9 +183,13 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		return this.impl.toBackupResource(identifier);
 	}
+
+	joinBackups(): Promise<void> {
+		return this.impl.joinBackups();
+	}
 }
 
-class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBackupService {
+class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBackupService {
 
 	private static readonly PREAMBLE_END_MARKER = '\n';
 	private static readonly PREAMBLE_END_MARKER_CHARCODE = '\n'.charCodeAt(0);
@@ -209,54 +224,26 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		// Create backup model
 		this.model = await WorkingCopyBackupsModel.create(this.backupWorkspaceHome, this.fileService);
 
-		// Migrate hashes as needed. We used to hash with a MD5
-		// sum of the path but switched to our own simpler hash
-		// to avoid a node.js dependency. We still want to
-		// support the older hash to prevent dataloss, so we:
-		// - iterate over all backups
-		// - detect if the file name length is 32 (MD5 length)
-		// - read the backup's target file path
-		// - rename the backup to the new hash
-		// - update the backup in our model
-		for (const backupResource of this.model.get()) {
-			if (basename(backupResource).length !== 32) {
-				continue; // not a MD5 hash, already uses new hash function
-			}
-
-			try {
-				const identifier = await this.resolveIdentifier(backupResource);
-				if (!identifier) {
-					this.logService.warn(`Backup: Unable to read target URI of backup ${backupResource} for migration to new hash.`);
-					continue;
-				}
-
-				const expectedBackupResource = this.toBackupResource(identifier);
-				if (!isEqual(expectedBackupResource, backupResource)) {
-					await this.fileService.move(backupResource, expectedBackupResource, true);
-					this.model.move(backupResource, expectedBackupResource);
-				}
-			} catch (error) {
-				this.logService.error(`Backup: Unable to migrate backup ${backupResource} to new hash.`);
-			}
-		}
-
 		return this.model;
 	}
 
 	async hasBackups(): Promise<boolean> {
 		const model = await this.ready;
 
+		// Ensure to await any pending backup operations
+		await this.joinBackups();
+
 		return model.count() > 0;
 	}
 
-	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
+	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number, meta?: IWorkingCopyBackupMeta): boolean {
 		if (!this.model) {
 			return false;
 		}
 
 		const backupResource = this.toBackupResource(identifier);
 
-		return this.model.has(backupResource, versionId);
+		return this.model.has(backupResource, versionId, meta);
 	}
 
 	async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
@@ -267,11 +254,19 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 
 		const backupResource = this.toBackupResource(identifier);
 		if (model.has(backupResource, versionId, meta)) {
-			return; // return early if backup version id matches requested one
+			// return early if backup version id matches requested one
+			return;
 		}
 
-		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		return this.ioOperationQueues.queueFor(backupResource, async () => {
 			if (token?.isCancellationRequested) {
+				return;
+			}
+
+			if (model.has(backupResource, versionId, meta)) {
+				// return early if backup version id matches requested one
+				// this can happen when multiple backup IO operations got
+				// scheduled, racing against each other.
 				return;
 			}
 
@@ -279,7 +274,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 			// and respect max length restrictions in case
 			// meta is too large.
 			let preamble = this.createPreamble(identifier, meta);
-			if (preamble.length >= NativeWorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH) {
+			if (preamble.length >= WorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH) {
 				preamble = this.createPreamble(identifier);
 			}
 
@@ -294,15 +289,21 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 				backupBuffer = VSBuffer.concat([preambleBuffer, VSBuffer.fromString('')]);
 			}
 
+			// Write backup via file service
 			await this.fileService.writeFile(backupResource, backupBuffer);
 
+			//
 			// Update model
+			//
+			// Note: not checking for cancellation here because a successful
+			// write into the backup file should be noted in the model to
+			// prevent the model being out of sync with the backup file
 			model.add(backupResource, versionId, meta);
 		});
 	}
 
 	private createPreamble(identifier: IWorkingCopyIdentifier, meta?: IWorkingCopyBackupMeta): string {
-		return `${identifier.resource.toString()}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR}${JSON.stringify({ ...meta, typeId: identifier.typeId })}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER}`;
+		return `${identifier.resource.toString()}${WorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR}${JSON.stringify({ ...meta, typeId: identifier.typeId })}${WorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER}`;
 	}
 
 	async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
@@ -331,18 +332,32 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		}
 	}
 
-	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
+	discardBackup(identifier: IWorkingCopyIdentifier, token?: CancellationToken): Promise<void> {
 		const backupResource = this.toBackupResource(identifier);
 
-		return this.doDiscardBackup(backupResource);
+		return this.doDiscardBackup(backupResource, token);
 	}
 
-	private async doDiscardBackup(backupResource: URI): Promise<void> {
+	private async doDiscardBackup(backupResource: URI, token?: CancellationToken): Promise<void> {
 		const model = await this.ready;
+		if (token?.isCancellationRequested) {
+			return;
+		}
 
-		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+		return this.ioOperationQueues.queueFor(backupResource, async () => {
+			if (token?.isCancellationRequested) {
+				return;
+			}
+
+			// Delete backup file ignoring any file not found errors
 			await this.deleteIgnoreFileNotFound(backupResource);
 
+			//
+			// Update model
+			//
+			// Note: not checking for cancellation here because a successful
+			// delete of the backup file should be noted in the model to
+			// prevent the model being out of sync with the backup file
 			model.remove(backupResource);
 		});
 	}
@@ -360,51 +375,60 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 	async getBackups(): Promise<IWorkingCopyIdentifier[]> {
 		const model = await this.ready;
 
-		const backups = await Promise.all(model.get().map(backupResource => this.resolveIdentifier(backupResource)));
+		// Ensure to await any pending backup operations
+		await this.joinBackups();
+
+		const backups = await Promise.all(model.get().map(backupResource => this.resolveIdentifier(backupResource, model)));
 
 		return coalesce(backups);
 	}
 
-	private async resolveIdentifier(backupResource: URI): Promise<IWorkingCopyIdentifier | undefined> {
+	private async resolveIdentifier(backupResource: URI, model: WorkingCopyBackupsModel): Promise<IWorkingCopyIdentifier | undefined> {
+		let res: IWorkingCopyIdentifier | undefined = undefined;
 
-		// Read the entire backup preamble by reading up to
-		// `PREAMBLE_MAX_LENGTH` in the backup file until
-		// the `PREAMBLE_END_MARKER` is found
-		const backupPreamble = await this.readToMatchingString(backupResource, NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER, NativeWorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH);
-		if (!backupPreamble) {
-			return undefined;
-		}
-
-		// Figure out the offset in the preamble where meta
-		// information possibly starts. This can be `-1` for
-		// older backups without meta.
-		const metaStartIndex = backupPreamble.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
-
-		// Extract the preamble content for resource and meta
-		let resourcePreamble: string;
-		let metaPreamble: string | undefined;
-		if (metaStartIndex > 0) {
-			resourcePreamble = backupPreamble.substring(0, metaStartIndex);
-			metaPreamble = backupPreamble.substr(metaStartIndex + 1);
-		} else {
-			resourcePreamble = backupPreamble;
-			metaPreamble = undefined;
-		}
-
-		// Try to find the `typeId` in the meta data if possible
-		let typeId: string | undefined = undefined;
-		if (metaPreamble) {
-			try {
-				typeId = JSON.parse(metaPreamble).typeId;
-			} catch (error) {
-				// ignore JSON parse errors
+		await this.ioOperationQueues.queueFor(backupResource, async () => {
+			if (!model.has(backupResource)) {
+				return; // require backup to be present
 			}
-		}
 
-		return {
-			typeId: typeId ?? NO_TYPE_ID,
-			resource: URI.parse(resourcePreamble)
-		};
+			// Read the entire backup preamble by reading up to
+			// `PREAMBLE_MAX_LENGTH` in the backup file until
+			// the `PREAMBLE_END_MARKER` is found
+			const backupPreamble = await this.readToMatchingString(backupResource, WorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER, WorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH);
+			if (!backupPreamble) {
+				return;
+			}
+
+			// Figure out the offset in the preamble where meta
+			// information possibly starts. This can be `-1` for
+			// older backups without meta.
+			const metaStartIndex = backupPreamble.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
+
+			// Extract the preamble content for resource and meta
+			let resourcePreamble: string;
+			let metaPreamble: string | undefined;
+			if (metaStartIndex > 0) {
+				resourcePreamble = backupPreamble.substring(0, metaStartIndex);
+				metaPreamble = backupPreamble.substr(metaStartIndex + 1);
+			} else {
+				resourcePreamble = backupPreamble;
+				metaPreamble = undefined;
+			}
+
+			// Try to parse the meta preamble for figuring out
+			// `typeId` and `meta` if defined.
+			const { typeId, meta } = this.parsePreambleMeta(metaPreamble);
+
+			// Update model entry with now resolved meta
+			model.update(backupResource, meta);
+
+			res = {
+				typeId: typeId ?? NO_TYPE_ID,
+				resource: URI.parse(resourcePreamble)
+			};
+		});
+
+		return res;
 	}
 
 	private async readToMatchingString(backupResource: URI, matchingString: string, maximumBytesToRead: number): Promise<string | undefined> {
@@ -423,36 +447,67 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		const backupResource = this.toBackupResource(identifier);
 
 		const model = await this.ready;
-		if (!model.has(backupResource)) {
-			return undefined; // require backup to be present
-		}
 
-		// Load the backup content and peek into the first chunk
-		// to be able to resolve the meta data
-		const backupStream = await this.fileService.readFileStream(backupResource);
-		const peekedBackupStream = await peekStream(backupStream.value, 1);
-		const firstBackupChunk = VSBuffer.concat(peekedBackupStream.buffer);
+		let res: IResolvedWorkingCopyBackup<T> | undefined = undefined;
 
-		// We have seen reports (e.g. https://github.com/microsoft/vscode/issues/78500) where
-		// if VSCode goes down while writing the backup file, the file can turn empty because
-		// it always first gets truncated and then written to. In this case, we will not find
-		// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
-		// here if that is the case.
-		const preambleEndIndex = firstBackupChunk.buffer.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER_CHARCODE);
-		if (preambleEndIndex === -1) {
-			this.logService.trace(`Backup: Could not find meta end marker in ${backupResource}. The file is probably corrupt (filesize: ${backupStream.size}).`);
+		await this.ioOperationQueues.queueFor(backupResource, async () => {
+			if (!model.has(backupResource)) {
+				return; // require backup to be present
+			}
 
-			return undefined;
-		}
+			// Load the backup content and peek into the first chunk
+			// to be able to resolve the meta data
+			const backupStream = await this.fileService.readFileStream(backupResource);
+			const peekedBackupStream = await peekStream(backupStream.value, 1);
+			const firstBackupChunk = VSBuffer.concat(peekedBackupStream.buffer);
 
-		const preambelRaw = firstBackupChunk.slice(0, preambleEndIndex).toString();
+			// We have seen reports (e.g. https://github.com/microsoft/vscode/issues/78500) where
+			// if VSCode goes down while writing the backup file, the file can turn empty because
+			// it always first gets truncated and then written to. In this case, we will not find
+			// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
+			// here if that is the case.
+			const preambleEndIndex = firstBackupChunk.buffer.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER_CHARCODE);
+			if (preambleEndIndex === -1) {
+				this.logService.trace(`Backup: Could not find meta end marker in ${backupResource}. The file is probably corrupt (filesize: ${backupStream.size}).`);
 
-		// Extract meta data (if any)
-		let meta: T | undefined;
-		const metaStartIndex = preambelRaw.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
-		if (metaStartIndex !== -1) {
+				return undefined;
+			}
+
+			const preambelRaw = firstBackupChunk.slice(0, preambleEndIndex).toString();
+
+			// Extract meta data (if any)
+			let meta: T | undefined;
+			const metaStartIndex = preambelRaw.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
+			if (metaStartIndex !== -1) {
+				meta = this.parsePreambleMeta(preambelRaw.substr(metaStartIndex + 1)).meta as T;
+			}
+
+			// Update model entry with now resolved meta
+			model.update(backupResource, meta);
+
+			// Build a new stream without the preamble
+			const firstBackupChunkWithoutPreamble = firstBackupChunk.slice(preambleEndIndex + 1);
+			let value: VSBufferReadableStream;
+			if (peekedBackupStream.ended) {
+				value = bufferToStream(firstBackupChunkWithoutPreamble);
+			} else {
+				value = prefixedBufferStream(firstBackupChunkWithoutPreamble, peekedBackupStream.stream);
+			}
+
+			res = { value, meta };
+		});
+
+		return res;
+	}
+
+	private parsePreambleMeta<T extends IWorkingCopyBackupMeta>(preambleMetaRaw: string | undefined): { typeId: string | undefined; meta: T | undefined } {
+		let typeId: string | undefined = undefined;
+		let meta: T | undefined = undefined;
+
+		if (preambleMetaRaw) {
 			try {
-				meta = JSON.parse(preambelRaw.substr(metaStartIndex + 1));
+				meta = JSON.parse(preambleMetaRaw);
+				typeId = meta?.typeId;
 
 				// `typeId` is a property that we add so we
 				// remove it when returning to clients.
@@ -468,30 +523,27 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 			}
 		}
 
-		// Build a new stream without the preamble
-		const firstBackupChunkWithoutPreamble = firstBackupChunk.slice(preambleEndIndex + 1);
-		let value: VSBufferReadableStream;
-		if (peekedBackupStream.ended) {
-			value = bufferToStream(firstBackupChunkWithoutPreamble);
-		} else {
-			value = prefixedBufferStream(firstBackupChunkWithoutPreamble, peekedBackupStream.stream);
-		}
-
-		return { value, meta };
+		return { typeId, meta };
 	}
 
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		return joinPath(this.backupWorkspaceHome, identifier.resource.scheme, hashIdentifier(identifier));
 	}
+
+	joinBackups(): Promise<void> {
+		return this.ioOperationQueues.whenDrained();
+	}
 }
 
-export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupService {
+export class InMemoryWorkingCopyBackupService extends Disposable implements IWorkingCopyBackupService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private backups = new ResourceMap<{ typeId: string, content: VSBuffer, meta?: IWorkingCopyBackupMeta }>();
+	private backups = new ResourceMap<{ typeId: string; content: VSBuffer; meta?: IWorkingCopyBackupMeta }>();
 
-	constructor() { }
+	constructor() {
+		super();
+	}
 
 	async hasBackups(): Promise<boolean> {
 		return this.backups.size > 0;
@@ -550,6 +602,10 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		return URI.from({ scheme: Schemas.inMemory, path: hashIdentifier(identifier) });
+	}
+
+	async joinBackups(): Promise<void> {
+		return;
 	}
 }
 

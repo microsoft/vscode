@@ -13,12 +13,15 @@ export interface IAccessibilityService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeScreenReaderOptimized: Event<void>;
+	readonly onDidChangeReducedMotion: Event<void>;
 
 	alwaysUnderlineAccessKeys(): Promise<boolean>;
 	isScreenReaderOptimized(): boolean;
+	isMotionReduced(): boolean;
 	getAccessibilitySupport(): AccessibilitySupport;
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
 	alert(message: string): void;
+	status(message: string): void;
 }
 
 export const enum AccessibilitySupport {
@@ -38,3 +41,10 @@ export interface IAccessibilityInformation {
 	label: string;
 	role?: string;
 }
+
+export function isAccessibilityInformation(obj: any): obj is IAccessibilityInformation {
+	return obj && typeof obj === 'object'
+		&& typeof obj.label === 'string'
+		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
+}
+

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
 import { memoize } from 'vs/base/common/decorators';
@@ -13,10 +13,13 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { localize } from 'vs/nls';
 import { getMediaOrTextMime } from 'vs/base/common/mime';
 import { basename } from 'vs/base/common/resources';
-import { triggerDownload, triggerUpload, WebFileSystemAccess } from 'vs/base/browser/dom';
+import { getActiveWindow, triggerDownload, triggerUpload } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { extractFilesDropData } from 'vs/workbench/browser/dnd';
+import { extractFileListData } from 'vs/platform/dnd/browser/dnd';
+import { Iterable } from 'vs/base/common/iterator';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -33,7 +36,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileFolderAndOpenSimplified(schema, options, false);
+			return super.pickFileFolderAndOpenSimplified(schema, options, false);
 		}
 
 		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
@@ -52,21 +55,28 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileAndOpenSimplified(schema, options, false);
+			return super.pickFileAndOpenSimplified(schema, options, false);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (!WebFileSystemAccess.supported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
 		try {
-			([fileHandle] = await window.showOpenFilePicker({ multiple: false }));
+			([fileHandle] = await activeWindow.showOpenFilePicker({ multiple: false }));
 		} catch (error) {
 			return; // `showOpenFilePicker` will throw an error when the user cancels
 		}
 
-		const uri = this.fileSystemProvider.registerFileHandle(fileHandle);
+		if (!WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+			return;
+		}
+
+		const uri = await this.fileSystemProvider.registerFileHandle(fileHandle);
+
+		this.addFileToRecentlyOpened(uri);
 
 		await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 	}
@@ -79,7 +89,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickFolderAndOpenSimplified(schema, options);
+			return super.pickFolderAndOpenSimplified(schema, options);
 		}
 
 		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
@@ -94,7 +104,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickWorkspaceAndOpenSimplified(schema, options);
+			return super.pickWorkspaceAndOpenSimplified(schema, options);
 		}
 
 		throw new Error(localize('pickWorkspaceAndOpen', "Can't open workspaces, try adding a folder to the workspace instead."));
@@ -105,18 +115,25 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileToSaveSimplified(schema, options);
+			return super.pickFileToSaveSimplified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (!WebFileSystemAccess.supported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories);
+
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri) } });
+			fileHandle = await activeWindow.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri), startIn } });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
+		}
+
+		if (!WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+			return undefined;
 		}
 
 		return this.fileSystemProvider.registerFileHandle(fileHandle);
@@ -140,18 +157,25 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const schema = this.getFileSystemSchema(options);
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.showSaveDialogSimplified(schema, options);
+			return super.showSaveDialogSimplified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (!WebFileSystemAccess.supported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories);
+
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined });
+			fileHandle = await activeWindow.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined, ...{ startIn } });
 		} catch (error) {
-			return; // `showSaveFilePicker` will throw an error when the user cancels
+			return undefined; // `showSaveFilePicker` will throw an error when the user cancels
+		}
+
+		if (!WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+			return undefined;
 		}
 
 		return this.fileSystemProvider.registerFileHandle(fileHandle);
@@ -161,23 +185,26 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const schema = this.getFileSystemSchema(options);
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.showOpenDialogSimplified(schema, options);
+			return super.showOpenDialogSimplified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (!WebFileSystemAccess.supported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
 		let uri: URI | undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories) ?? 'documents';
+
 		try {
 			if (options.canSelectFiles) {
-				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters) });
-				if (handle.length === 1) {
-					uri = this.fileSystemProvider.registerFileHandle(handle[0]);
+				const handle = await activeWindow.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
+				if (handle.length === 1 && WebFileSystemAccess.isFileSystemFileHandle(handle[0])) {
+					uri = await this.fileSystemProvider.registerFileHandle(handle[0]);
 				}
 			} else {
-				const handle = await window.showDirectoryPicker();
-				uri = this.fileSystemProvider.registerDirectoryHandle(handle);
+				const handle = await activeWindow.showDirectoryPicker({ ...{ startIn } });
+				uri = await this.fileSystemProvider.registerDirectoryHandle(handle);
 			}
 		} catch (error) {
 			// ignore - `showOpenFilePicker` / `showDirectoryPicker` will throw an error when the user cancels
@@ -191,62 +218,62 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		// When saving, try to just download the contents
 		// of the active text editor if any as a workaround
 		if (context === 'save') {
-			const activeTextModel = this.codeEditorService.getActiveCodeEditor()?.getModel();
-			if (activeTextModel) {
-				triggerDownload(VSBuffer.fromString(activeTextModel.getValue()).buffer, basename(activeTextModel.uri));
-				return;
+			const activeCodeEditor = this.codeEditorService.getActiveCodeEditor();
+			if (!(activeCodeEditor instanceof EmbeddedCodeEditorWidget)) {
+				const activeTextModel = activeCodeEditor?.getModel();
+				if (activeTextModel) {
+					triggerDownload(VSBuffer.fromString(activeTextModel.getValue()).buffer, basename(activeTextModel.uri));
+					return;
+				}
 			}
 		}
 
 		// Otherwise inform the user about options
 
-		const buttons = context === 'open' ?
-			[localize('openRemote', "Open Remote..."), localize('openFiles', "Open Files..."), localize('learnMore', "Learn More")] :
-			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More")];
-
-		const res = await this.dialogService.show(
-			Severity.Warning,
-			localize('unsupportedBrowserMessage', "Local File System Access is Unsupported"),
-			buttons,
+		const buttons: IPromptButton<void>[] = [
 			{
-				detail: localize('unsupportedBrowserDetail', "Your current browser doesn't support local file system access.\nYou can either open single files or open a remote repository."),
-				cancelId: -1 // no "Cancel" button offered
+				label: localize({ key: 'openRemote', comment: ['&& denotes a mnemonic'] }, "&&Open Remote..."),
+				run: async () => { await this.commandService.executeCommand('workbench.action.remote.showMenu'); }
+			},
+			{
+				label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+				run: async () => { await this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess'); }
 			}
-		);
-
-		switch (res.choice) {
-
-			// Open Remote...
-			case 0:
-				this.commandService.executeCommand('workbench.action.remote.showMenu');
-				break;
-
-			// Open Files... (context === 'open')
-			case 1:
-				if (context === 'open') {
+		];
+		if (context === 'open') {
+			buttons.push({
+				label: localize({ key: 'openFiles', comment: ['&& denotes a mnemonic'] }, "Open &&Files..."),
+				run: async () => {
 					const files = await triggerUpload();
 					if (files) {
-						this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
-							this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() });
-						}));
+						const filesData = (await this.instantiationService.invokeFunction(accessor => extractFileListData(accessor, files))).filter(fileData => !fileData.isDirectory);
+						if (filesData.length > 0) {
+							this.editorService.openEditors(filesData.map(fileData => {
+								return {
+									resource: fileData.resource,
+									contents: fileData.contents?.toString(),
+									options: { pinned: true }
+								};
+							}));
+						}
 					}
-					break;
-				} else {
-					// Fallthrough for "Learn More"
 				}
-
-			// Learn More
-			case 2:
-				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
-				break;
+			});
 		}
+
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('unsupportedBrowserMessage', "Opening Local Folders is Unsupported"),
+			detail: localize('unsupportedBrowserDetail', "Your browser doesn't support opening local folders.\nYou can either open single files or open a remote repository."),
+			buttons
+		});
 
 		return undefined;
 	}
 
 	private shouldUseSimplified(scheme: string): boolean {
-		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(scheme);
+		return ![Schemas.file, Schemas.vscodeUserData, Schemas.tmp].includes(scheme);
 	}
 }
 
-registerSingleton(IFileDialogService, FileDialogService, true);
+registerSingleton(IFileDialogService, FileDialogService, InstantiationType.Delayed);

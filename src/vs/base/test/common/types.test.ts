@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import * as types from 'vs/base/common/types';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Types', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('isFunction', () => {
 		assert(!types.isFunction(undefined));
@@ -80,24 +83,6 @@ suite('Types', () => {
 		assert(!types.isEmptyObject({ foo: 'bar' }));
 
 		assert(types.isEmptyObject({}));
-	});
-
-	test('isArray', () => {
-		assert(!types.isArray(undefined));
-		assert(!types.isArray(null));
-		assert(!types.isArray('foo'));
-		assert(!types.isArray(5));
-		assert(!types.isArray(true));
-		assert(!types.isArray({}));
-		assert(!types.isArray(/test/));
-		assert(!types.isArray(new RegExp('')));
-		assert(!types.isArray(new Date()));
-		assert(!types.isArray(assert));
-		assert(!types.isArray(function foo() { /**/ }));
-		assert(!types.isArray({ foo: 'bar' }));
-
-		assert(types.isArray([]));
-		assert(types.isArray([1, 2, '3']));
 	});
 
 	test('isString', () => {

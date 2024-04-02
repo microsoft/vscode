@@ -3,17 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { randomPath } from 'vs/base/common/extpath';
 import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import * as testUtils from 'vs/base/test/common/testUtils';
 
 export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
-	return join(tmpdir, ...segments, generateUuid());
-}
-
-export function getPathFromAmdModule(requirefn: typeof require, relativePath: string): string {
-	return URI.parse(requirefn.toUrl(relativePath)).fsPath;
+	return randomPath(join(tmpdir, ...segments));
 }
 
 export import flakySuite = testUtils.flakySuite;

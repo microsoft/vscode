@@ -21,7 +21,7 @@ export function mergeLines() {
 	}
 
 	return editor.edit(editBuilder => {
-		editor.selections.reverse().forEach(selection => {
+		Array.from(editor.selections).reverse().forEach(selection => {
 			const textEdit = getRangesToReplace(editor.document, selection, rootNode);
 			if (textEdit) {
 				editBuilder.replace(textEdit.range, textEdit.newText);

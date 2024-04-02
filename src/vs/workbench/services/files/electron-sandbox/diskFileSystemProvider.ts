@@ -3,40 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
-import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability, IFileChange } from 'vs/platform/files/common/files';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
-import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/common/watcher';
-import { ParcelFileWatcher } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
+import { ILogMessage, AbstractUniversalWatcherClient } from 'vs/platform/files/common/watcher';
+import { UniversalWatcherClient } from 'vs/workbench/services/files/electron-sandbox/watcherClient';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
+import { LogService } from 'vs/platform/log/common/logService';
 
 /**
  * A sandbox ready disk file system provider that delegates almost all calls
- * to the main process via `IPCFileSystemProvider` except for recursive file
- * watching that is done via shared process workers due to CPU intensity.
+ * to the main process via `DiskFileSystemProviderServer` except for recursive
+ * file watching that is done via shared process workers due to CPU intensity.
  */
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
-	IFileSystemProviderWithFileFolderCopyCapability {
+	IFileSystemProviderWithFileFolderCopyCapability,
+	IFileSystemProviderWithFileAtomicReadCapability,
+	IFileSystemProviderWithFileCloneCapability {
 
-	private readonly provider = this._register(new IPCFileSystemProvider(this.mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux, trash: true }));
+	private readonly provider = this._register(new DiskFileSystemProviderClient(this.mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux, trash: true }));
 
 	constructor(
 		private readonly mainProcessService: IMainProcessService,
-		private readonly sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
-		logService: ILogService
+		private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
+		logService: ILogService,
+		private readonly loggerService: ILoggerService
 	) {
-		super(logService);
+		super(logService, { watcher: { forceUniversal: true /* send all requests to universal watcher process */ } });
 
 		this.registerListeners();
 	}
@@ -44,8 +48,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	private registerListeners(): void {
 
 		// Forward events from the embedded provider
-		this.provider.onDidChangeFile(e => this._onDidChangeFile.fire(e));
-		this.provider.onDidErrorOccur(e => this._onDidErrorOccur.fire(e));
+		this._register(this.provider.onDidChangeFile(changes => this._onDidChangeFile.fire(changes)));
+		this._register(this.provider.onDidWatchError(error => this._onDidWatchError.fire(error)));
 	}
 
 	//#region File Capabilities
@@ -70,19 +74,19 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Reading/Writing
 
-	readFile(resource: URI): Promise<Uint8Array> {
-		return this.provider.readFile(resource);
+	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array> {
+		return this.provider.readFile(resource, opts);
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		return this.provider.readFileStream(resource, opts, token);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		return this.provider.writeFile(resource, content, opts);
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 		return this.provider.open(resource, opts);
 	}
 
@@ -106,49 +110,57 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.mkdir(resource);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		return this.provider.delete(resource, opts);
 	}
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.provider.rename(from, to, opts);
 	}
 
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.provider.copy(from, to, opts);
+	}
+
+	//#endregion
+
+	//#region Clone File
+
+	cloneFile(from: URI, to: URI): Promise<void> {
+		return this.provider.cloneFile(from, to);
 	}
 
 	//#endregion
 
 	//#region File Watching
 
-	override watch(resource: URI, opts: IWatchOptions): IDisposable {
-
-		// Recursive: via parcel file watcher from `createRecursiveWatcher`
-		if (opts.recursive) {
-			return super.watch(resource, opts);
-		}
-
-		// Non-recursive: via main process services
-		return this.provider.watch(resource, opts);
-	}
-
-	protected createRecursiveWatcher(
-		folders: number,
-		onChange: (changes: IDiskFileChange[]) => void,
+	protected createUniversalWatcher(
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
-	): WatcherService {
-		return new ParcelFileWatcher(
-			changes => onChange(changes),
-			msg => onLogMessage(msg),
-			verboseLogging,
-			this.sharedProcessWorkerWorkbenchService
-		);
+	): AbstractUniversalWatcherClient {
+		return new UniversalWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging, this.utilityProcessWorkerWorkbenchService);
 	}
 
 	protected createNonRecursiveWatcher(): never {
-		throw new Error('Method not implemented in sandbox.');
+		throw new Error('Method not implemented in sandbox.'); // we never expect this to be called given we set `forceUniversal: true`
+	}
+
+	private _watcherLogService: ILogService | undefined = undefined;
+	private get watcherLogService(): ILogService {
+		if (!this._watcherLogService) {
+			this._watcherLogService = new LogService(this.loggerService.createLogger('fileWatcher', { name: localize('fileWatcher', "File Watcher") }));
+		}
+
+		return this._watcherLogService;
+	}
+
+	protected override logWatcherMessage(msg: ILogMessage): void {
+		this.watcherLogService[msg.type](msg.message);
+
+		if (msg.type !== 'trace' && msg.type !== 'debug') {
+			super.logWatcherMessage(msg); // allow non-verbose log messages in window log
+		}
 	}
 
 	//#endregion

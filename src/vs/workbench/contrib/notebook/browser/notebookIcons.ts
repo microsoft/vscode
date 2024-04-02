@@ -7,9 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-export const configureKernelIcon = registerIcon('notebook-kernel-configure', Codicon.gear, localize('configureKernel', 'Configure icon in kernel configuration widget in notebook editors.'));
 export const selectKernelIcon = registerIcon('notebook-kernel-select', Codicon.serverEnvironment, localize('selectKernelIcon', 'Configure icon to select a kernel in notebook editors.'));
-
 export const executeIcon = registerIcon('notebook-execute', Codicon.play, localize('executeIcon', 'Icon to execute in notebook editors.'));
 export const executeAboveIcon = registerIcon('notebook-execute-above', Codicon.runAbove, localize('executeAboveIcon', 'Icon to execute above cells in notebook editors.'));
 export const executeBelowIcon = registerIcon('notebook-execute-below', Codicon.runBelow, localize('executeBelowIcon', 'Icon to execute below cells in notebook editors.'));
@@ -22,8 +20,6 @@ export const moveUpIcon = registerIcon('notebook-move-up', Codicon.arrowUp, loca
 export const moveDownIcon = registerIcon('notebook-move-down', Codicon.arrowDown, localize('moveDownIcon', 'Icon to move down a cell in notebook editors.'));
 export const clearIcon = registerIcon('notebook-clear', Codicon.clearAll, localize('clearIcon', 'Icon to clear cell outputs in notebook editors.'));
 export const splitCellIcon = registerIcon('notebook-split-cell', Codicon.splitVertical, localize('splitCellIcon', 'Icon to split a cell in notebook editors.'));
-export const unfoldIcon = registerIcon('notebook-unfold', Codicon.unfold, localize('unfoldIcon', 'Icon to unfold a cell in notebook editors.'));
-
 export const successStateIcon = registerIcon('notebook-state-success', Codicon.check, localize('successStateIcon', 'Icon to indicate a success state in notebook editors.'));
 export const errorStateIcon = registerIcon('notebook-state-error', Codicon.error, localize('errorStateIcon', 'Icon to indicate an error state in notebook editors.'));
 export const pendingStateIcon = registerIcon('notebook-state-pending', Codicon.clock, localize('pendingStateIcon', 'Icon to indicate a pending state in notebook editors.'));
@@ -35,3 +31,9 @@ export const openAsTextIcon = registerIcon('notebook-open-as-text', Codicon.file
 export const revertIcon = registerIcon('notebook-revert', Codicon.discard, localize('revertIcon', 'Icon to revert in notebook editors.'));
 export const renderOutputIcon = registerIcon('notebook-render-output', Codicon.preview, localize('renderOutputIcon', 'Icon to render output in diff editor.'));
 export const mimetypeIcon = registerIcon('notebook-mimetype', Codicon.code, localize('mimetypeIcon', 'Icon for a mime type in notebook editors.'));
+export const copyIcon = registerIcon('notebook-copy', Codicon.copy, localize('copyIcon', 'Icon to copy content to clipboard'));
+
+export const previousChangeIcon = registerIcon('notebook-diff-editor-previous-change', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
+export const nextChangeIcon = registerIcon('notebook-diff-editor-next-change', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
+
+export const variablesViewIcon = registerIcon('variables-view-icon', Codicon.debugAlt, localize('variablesViewIcon', 'View icon of the variables view.'));

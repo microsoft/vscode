@@ -37,12 +37,13 @@ module.exports = class FullJsonStreamReporter extends BaseRunner {
 			test.expected = err.expected;
 			test.actualJSON = err.actualJSON;
 			test.expectedJSON = err.expectedJSON;
+			test.snapshotPath = err.snapshotPath;
 			test.err = err.message;
 			test.stack = err.stack || null;
 			writeEvent(['fail', test]);
 		});
 	}
-}
+};
 
 function writeEvent(event) {
 	process.stdout.write(JSON.stringify(event) + '\n');

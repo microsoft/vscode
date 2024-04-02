@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ensureAllNewCellsHaveCellIds } from './cellIdService';
 import { NotebookSerializer } from './notebookSerializer';
+import { activate as keepNotebookModelStoreInSync } from './notebookModelStoreSync';
+import { notebookImagePasteSetup } from './notebookImagePaste';
+import { AttachmentCleaner } from './notebookAttachmentCleaner';
+import { useCustomPropertyInMetadata } from './common';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
 type NotebookMetadata = {
@@ -22,22 +25,109 @@ type NotebookMetadata = {
 		pygments_lexer?: string;
 		[propName: string]: unknown;
 	};
-	orig_nbformat: number;
+	orig_nbformat?: number;
 	[propName: string]: unknown;
 };
 
 export function activate(context: vscode.ExtensionContext) {
 	const serializer = new NotebookSerializer(context);
-	ensureAllNewCellsHaveCellIds(context);
+	keepNotebookModelStoreInSync(context);
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
 		transientOutputs: false,
-		transientCellMetadata: {
+		transientCellMetadata: useCustomPropertyInMetadata() ? {
 			breakpointMargin: true,
-			custom: false
+			custom: false,
+			attachments: false
+		} : {
+			breakpointMargin: true,
+			id: false,
+			metadata: false,
+			attachments: false
+		},
+		cellContentMetadata: {
+			attachments: true
 		}
+	} as vscode.NotebookDocumentContentOptions));
+
+	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('interactive', serializer, {
+		transientOutputs: false,
+		transientCellMetadata: useCustomPropertyInMetadata() ? {
+			breakpointMargin: true,
+			custom: false,
+			attachments: false
+		} : {
+			breakpointMargin: true,
+			id: false,
+			metadata: false,
+			attachments: false
+		},
+		cellContentMetadata: {
+			attachments: true
+		}
+	} as vscode.NotebookDocumentContentOptions));
+
+	vscode.languages.registerCodeLensProvider({ pattern: '**/*.ipynb' }, {
+		provideCodeLenses: (document) => {
+			if (
+				document.uri.scheme === 'vscode-notebook-cell' ||
+				document.uri.scheme === 'vscode-notebook-cell-metadata' ||
+				document.uri.scheme === 'vscode-notebook-cell-output'
+			) {
+				return [];
+			}
+			const codelens = new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), { title: 'Open in Notebook Editor', command: 'ipynb.openIpynbInNotebookEditor', arguments: [document.uri] });
+			return [codelens];
+		}
+	});
+
+	context.subscriptions.push(vscode.commands.registerCommand('ipynb.newUntitledIpynb', async () => {
+		const language = 'python';
+		const cell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '', language);
+		const data = new vscode.NotebookData([cell]);
+		data.metadata = useCustomPropertyInMetadata() ? {
+			custom: {
+				cells: [],
+				metadata: {},
+				nbformat: 4,
+				nbformat_minor: 2
+			}
+		} : {
+			cells: [],
+			metadata: {},
+			nbformat: 4,
+			nbformat_minor: 2
+		};
+		const doc = await vscode.workspace.openNotebookDocument('jupyter-notebook', data);
+		await vscode.window.showNotebookDocument(doc);
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand('ipynb.openIpynbInNotebookEditor', async (uri: vscode.Uri) => {
+		if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) {
+			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		}
+		const document = await vscode.workspace.openNotebookDocument(uri);
+		await vscode.window.showNotebookDocument(document);
+	}));
+
+	context.subscriptions.push(notebookImagePasteSetup());
+
+	const enabled = vscode.workspace.getConfiguration('ipynb').get('pasteImagesAsAttachments.enabled', false);
+	if (enabled) {
+		const cleaner = new AttachmentCleaner();
+		context.subscriptions.push(cleaner);
+	}
+
+	// Update new file contribution
+	vscode.extensions.onDidChange(() => {
+		vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
+	});
+	vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
+
+
 	return {
+		get dropCustomMetadata() {
+			return !useCustomPropertyInMetadata();
+		},
 		exportNotebook: (notebook: vscode.NotebookData): string => {
 			return exportNotebook(notebook, serializer);
 		},
@@ -48,16 +138,26 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookMetadata(resource, {
-				...document.metadata,
-				custom: {
-					...(document.metadata.custom ?? {}),
+			if (useCustomPropertyInMetadata()) {
+				edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
+					...document.metadata,
+					custom: {
+						...(document.metadata.custom ?? {}),
+						metadata: <NotebookMetadata>{
+							...(document.metadata.custom?.metadata ?? {}),
+							...metadata
+						},
+					}
+				})]);
+			} else {
+				edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
+					...document.metadata,
 					metadata: <NotebookMetadata>{
-						...(document.metadata.custom?.metadata ?? {}),
+						...(document.metadata.metadata ?? {}),
 						...metadata
 					},
-				}
-			});
+				})]);
+			}
 			return vscode.workspace.applyEdit(edit);
 		},
 	};

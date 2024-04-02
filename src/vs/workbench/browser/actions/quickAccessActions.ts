@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { MenuRegistry, MenuId, Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
+import { localize, localize2 } from 'vs/nls';
+import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -12,6 +12,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
+import { ILocalizedString } from 'vs/platform/action/common/action';
+import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
+import { Codicon } from 'vs/base/common/codicons';
 
 //#region Quick access management commands and keys
 
@@ -20,21 +23,6 @@ const globalQuickAccessKeybinding = {
 	secondary: [KeyMod.CtrlCmd | KeyCode.KeyE],
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyP, secondary: undefined }
 };
-
-const QUICKACCESS_ACTION_ID = 'workbench.action.quickOpen';
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: { id: QUICKACCESS_ACTION_ID, title: { value: localize('quickOpen', "Go to File..."), original: 'Go to File...' } }
-});
-
-KeybindingsRegistry.registerKeybindingRule({
-	id: QUICKACCESS_ACTION_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: undefined,
-	primary: globalQuickAccessKeybinding.primary,
-	secondary: globalQuickAccessKeybinding.secondary,
-	mac: globalQuickAccessKeybinding.mac
-});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.closeQuickOpen',
@@ -130,21 +118,58 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: QUICKACCESS_ACTION_ID,
-	handler: async function (accessor: ServicesAccessor, prefix: unknown) {
-		const quickInputService = accessor.get(IQuickInputService);
+registerAction2(class QuickAccessAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpen',
+			title: localize2('quickOpen', "Go to File..."),
+			metadata: {
+				description: `Quick access`,
+				args: [{
+					name: 'prefix',
+					schema: {
+						'type': 'string'
+					}
+				}]
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: globalQuickAccessKeybinding.primary,
+				secondary: globalQuickAccessKeybinding.secondary,
+				mac: globalQuickAccessKeybinding.mac
+			},
+			f1: true
+		});
+	}
 
+	run(accessor: ServicesAccessor, prefix: undefined): void {
+		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
-	},
-	description: {
-		description: `Quick access`,
-		args: [{
-			name: 'prefix',
-			schema: {
-				'type': 'string'
+	}
+});
+
+registerAction2(class QuickAccessAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenWithModes',
+			title: localize('quickOpenWithModes', "Quick Open"),
+			icon: Codicon.search,
+			menu: {
+				id: MenuId.CommandCenterCenter,
+				order: 100
 			}
-		}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.quickAccess.show(undefined, {
+			preserveValue: true,
+			providerOptions: {
+				includeHelp: true,
+				from: 'commandCenter',
+			} as AnythingQuickAccessProviderRunOptions
+		});
 	}
 });
 
@@ -184,14 +209,14 @@ class BaseQuickAccessNavigateAction extends Action2 {
 class QuickAccessNavigateNextAction extends BaseQuickAccessNavigateAction {
 
 	constructor() {
-		super('workbench.action.quickOpenNavigateNext', { value: localize('quickNavigateNext', "Navigate Next in Quick Open"), original: 'Navigate Next in Quick Open' }, true, true);
+		super('workbench.action.quickOpenNavigateNext', localize2('quickNavigateNext', 'Navigate Next in Quick Open'), true, true);
 	}
 }
 
 class QuickAccessNavigatePreviousAction extends BaseQuickAccessNavigateAction {
 
 	constructor() {
-		super('workbench.action.quickOpenNavigatePrevious', { value: localize('quickNavigatePrevious', "Navigate Previous in Quick Open"), original: 'Navigate Previous in Quick Open' }, false, true);
+		super('workbench.action.quickOpenNavigatePrevious', localize2('quickNavigatePrevious', 'Navigate Previous in Quick Open'), false, true);
 	}
 }
 
@@ -200,7 +225,7 @@ class QuickAccessSelectNextAction extends BaseQuickAccessNavigateAction {
 	constructor() {
 		super(
 			'workbench.action.quickOpenSelectNext',
-			{ value: localize('quickSelectNext', "Select Next in Quick Open"), original: 'Select Next in Quick Open' },
+			localize2('quickSelectNext', 'Select Next in Quick Open'),
 			true,
 			false,
 			{
@@ -218,7 +243,7 @@ class QuickAccessSelectPreviousAction extends BaseQuickAccessNavigateAction {
 	constructor() {
 		super(
 			'workbench.action.quickOpenSelectPrevious',
-			{ value: localize('quickSelectPrevious', "Select Previous in Quick Open"), original: 'Select Previous in Quick Open' },
+			localize2('quickSelectPrevious', 'Select Previous in Quick Open'),
 			false,
 			false,
 			{

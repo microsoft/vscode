@@ -10,10 +10,10 @@ import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn } from 'vs/workbench/services/search/common/search';
 import { FileSearchProvider, FileSearchOptions } from 'vs/workbench/services/search/common/searchExtTypes';
 
-export interface IInternalFileMatch {
+interface IInternalFileMatch {
 	base: URI;
 	original?: URI;
 	relativePath?: string; // Not present for extraFiles or absolute path matches
@@ -21,13 +21,13 @@ export interface IInternalFileMatch {
 	size?: number;
 }
 
-export interface IDirectoryEntry {
+interface IDirectoryEntry {
 	base: URI;
 	relativePath: string;
 	basename: string;
 }
 
-export interface IDirectoryTree {
+interface IDirectoryTree {
 	rootEntries: IDirectoryEntry[];
 	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
 }
@@ -172,6 +172,7 @@ class FileSearchEngine {
 			includes,
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
+			useParentIgnoreFiles: !fq.disregardParentIgnoreFiles,
 			followSymlinks: !fq.ignoreSymlinks,
 			maxResults: this.config.maxResults,
 			session: this.sessionToken
@@ -216,15 +217,15 @@ class FileSearchEngine {
 		const self = this;
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
-			const hasSibling = glob.hasSiblingFn(() => entries.map(entry => entry.basename));
+			const hasSibling = hasSiblingFn(() => entries.map(entry => entry.basename));
 			for (let i = 0, n = entries.length; i < n; i++) {
 				const entry = entries[i];
 				const { relativePath, basename } = entry;
 
 				// Check exclude pattern
 				// If the user searches for the exact file name, we adjust the glob matching
-				// to ignore filtering by siblings because the user seems to know what she
-				// is searching for and we want to include the result in that case anyway
+				// to ignore filtering by siblings because the user seems to know what they
+				// are searching for and we want to include the result in that case anyway
 				if (queryTester.matchesExcludesSync(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
 					continue;
 				}
@@ -299,9 +300,7 @@ export class FileSearchManager {
 
 	clearCache(cacheKey: string): void {
 		const sessionTokenSource = this.getSessionTokenSource(cacheKey);
-		if (sessionTokenSource) {
-			sessionTokenSource.cancel();
-		}
+		sessionTokenSource?.cancel();
 	}
 
 	private getSessionTokenSource(cacheKey: string | undefined): CancellationTokenSource | undefined {
@@ -330,7 +329,7 @@ export class FileSearchManager {
 	}
 
 	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void, token: CancellationToken): Promise<IInternalSearchComplete> {
-		token.onCancellationRequested(() => {
+		const listener = token.onCancellationRequested(() => {
 			engine.cancel();
 		});
 
@@ -350,12 +349,14 @@ export class FileSearchManager {
 				onResultBatch(batch);
 			}
 
+			listener.dispose();
 			return result;
 		}, error => {
 			if (batch.length) {
 				onResultBatch(batch);
 			}
 
+			listener.dispose();
 			return Promise.reject(error);
 		});
 	}

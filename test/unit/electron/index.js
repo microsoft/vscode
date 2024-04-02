@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+'use strict';
+
 // mocha disables running through electron by default. Note that this must
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, crashReporter } = require('electron');
+const product = require('../../../product.json');
 const { tmpdir } = require('os');
-const { join } = require('path');
+const { existsSync, mkdirSync } = require('fs');
 const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
@@ -19,33 +23,95 @@ const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
 
-// Disable render process reuse, we still have
-// non-context aware native modules in the renderer.
-app.allowRendererProcessReuse = false;
+const minimist = require('minimist');
 
-const optimist = require('optimist')
-	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	.describe('run', 'only run tests from <file>').string('run')
-	.describe('runGlob', 'only run tests matching <file_pattern>').alias('runGlob', 'glob').alias('runGlob', 'runGrep').string('runGlob')
-	.describe('build', 'run with build output (out-build)').boolean('build')
-	.describe('coverage', 'generate coverage report').boolean('coverage')
-	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
-	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', 'spec')
-	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
-	.describe('wait-server', 'port to connect to and wait before running tests')
-	.describe('timeout', 'timeout for tests')
-	.describe('tfs').string('tfs')
-	.describe('help', 'show the help').alias('help', 'h');
+/**
+ * @type {{
+ * grep: string;
+ * run: string;
+ * runGlob: string;
+ * dev: boolean;
+ * reporter: string;
+ * 'reporter-options': string;
+ * 'waitServer': string;
+ * timeout: string;
+ * 'crash-reporter-directory': string;
+ * tfs: string;
+ * build: boolean;
+ * coverage: boolean;
+ * coveragePath: string;
+ * coverageFormats: string | string[];
+ * help: boolean;
+ * }}
+ */
+const args = minimist(process.argv.slice(2), {
+	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats'],
+	boolean: ['build', 'coverage', 'help', 'dev'],
+	alias: {
+		'grep': ['g', 'f'],
+		'runGlob': ['glob', 'runGrep'],
+		'dev': ['dev-tools', 'devTools'],
+		'help': 'h'
+	},
+	default: {
+		'reporter': 'spec',
+		'reporter-options': ''
+	}
+});
 
-const argv = optimist.argv;
+if (args.help) {
+	console.log(`Usage: node ${process.argv[1]} [options]
 
-if (argv.help) {
-	optimist.showHelp();
+Options:
+--grep, -g, -f <pattern>      only run tests matching <pattern>
+--run <file>                  only run tests from <file>
+--runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
+--build                       run with build output (out-build)
+--coverage                    generate coverage report
+--dev, --dev-tools, --devTools <window> open dev tools, keep window open, reuse app data
+--reporter <reporter>         the mocha reporter (default: "spec")
+--reporter-options <options> the mocha reporter options (default: "")
+--waitServer <port>          port to connect to and wait before running tests
+--timeout <ms>                timeout for tests
+--crash-reporter-directory <path> crash reporter directory
+--tfs <url>                   TFS server URL
+--help, -h                    show the help`);
 	process.exit(0);
 }
 
-if (!argv.debug) {
-	app.setPath('userData', join(tmpdir(), `vscode-tests-${Date.now()}`));
+let crashReporterDirectory = args['crash-reporter-directory'];
+if (crashReporterDirectory) {
+	crashReporterDirectory = path.normalize(crashReporterDirectory);
+
+	if (!path.isAbsolute(crashReporterDirectory)) {
+		console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory must be absolute.`);
+		app.exit(1);
+	}
+
+	if (!existsSync(crashReporterDirectory)) {
+		try {
+			mkdirSync(crashReporterDirectory);
+		} catch (error) {
+			console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
+			app.exit(1);
+		}
+	}
+
+	// Crashes are stored in the crashDumps directory by default, so we
+	// need to change that directory to the provided one
+	console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
+	app.setPath('crashDumps', crashReporterDirectory);
+
+	crashReporter.start({
+		companyName: 'Microsoft',
+		productName: process.env['VSCODE_DEV'] ? `${product.nameShort} Dev` : product.nameShort,
+		uploadToServer: false,
+		compress: true
+	});
+}
+
+if (!args.dev) {
+	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}`));
 }
 
 function deserializeSuite(suite) {
@@ -123,7 +189,7 @@ class IPCRunner extends events.EventEmitter {
 app.on('ready', () => {
 
 	ipcMain.on('error', (_, err) => {
-		if (!argv.debug) {
+		if (!args.dev) {
 			console.error(err);
 			app.exit(1);
 		}
@@ -153,24 +219,23 @@ app.on('ready', () => {
 		width: 800,
 		show: false,
 		webPreferences: {
-			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-browser', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
+			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-sandbox', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
 			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
 			contextIsolation: false,
 			enableWebSQL: false,
-			spellcheck: false,
-			nativeWindowOpen: true
+			spellcheck: false
 		}
 	});
 
 	win.webContents.on('did-finish-load', () => {
-		if (argv.debug) {
+		if (args.dev) {
 			win.show();
 			win.webContents.openDevTools();
 		}
 
-		if (argv.waitServer) {
-			waitForServer(Number(argv.waitServer)).then(sendRun);
+		if (args.waitServer) {
+			waitForServer(Number(args.waitServer)).then(sendRun);
 		} else {
 			sendRun();
 		}
@@ -184,16 +249,16 @@ app.on('ready', () => {
 			socket = net.connect(port, '127.0.0.1');
 			socket.on('error', e => {
 				console.error('error connecting to waitServer', e);
-				resolve();
+				resolve(undefined);
 			});
 
 			socket.on('close', () => {
-				resolve();
+				resolve(undefined);
 			});
 
 			timeout = setTimeout(() => {
 				console.error('timed out waiting for before starting tests debugger');
-				resolve();
+				resolve(undefined);
 			}, 15000);
 		}).finally(() => {
 			if (socket) {
@@ -204,7 +269,7 @@ app.on('ready', () => {
 	}
 
 	function sendRun() {
-		win.webContents.send('run', argv);
+		win.webContents.send('run', args);
 	}
 
 	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
@@ -220,12 +285,12 @@ app.on('ready', () => {
 		}
 	});
 
-	if (argv.tfs) {
+	if (args.tfs) {
 		new mocha.reporters.Spec(runner);
 		new MochaJUnitReporter(runner, {
 			reporterOptions: {
-				testsuitesTitle: `${argv.tfs} ${process.platform}`,
-				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+				testsuitesTitle: `${args.tfs} ${process.platform}`,
+				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 			}
 		});
 	} else {
@@ -239,10 +304,10 @@ app.on('ready', () => {
 			});
 		}
 
-		applyReporter(runner, argv);
+		applyReporter(runner, args);
 	}
 
-	if (!argv.debug) {
+	if (!args.dev) {
 		ipcMain.on('all done', () => app.exit(runner.didFail ? 1 : 0));
 	}
 });

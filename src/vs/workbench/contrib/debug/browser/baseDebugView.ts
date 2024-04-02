@@ -4,32 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IExpression, IDebugService, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { Codicon } from 'vs/base/common/codicons';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { createSingleCallFunction } from 'vs/base/common/functional';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { localize } from 'vs/nls';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { COPY_EVALUATE_PATH_ID, COPY_VALUE_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { IDebugService, IExpression, IExpressionValue } from 'vs/workbench/contrib/debug/common/debug';
+import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
 import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
-import { once } from 'vs/base/common/functional';
 
-export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
-export const twistiePixels = 20;
-const booleanRegex = /^true|false$/i;
+const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
+const booleanRegex = /^(true|false)$/i;
 const stringRegex = /^(['"]).*\1$/;
 const $ = dom.$;
 
 export interface IRenderValueOptions {
 	showChanged?: boolean;
 	maxValueLength?: number;
-	showHover?: boolean;
+	/** If set, a hover will be shown on the element. Requires a disposable store for usage. */
+	hover?: DisposableStore | {
+		store: DisposableStore;
+		commands: { id: string; args: unknown[] }[];
+		commandService: ICommandService;
+	};
 	colorize?: boolean;
 	linkDetector?: LinkDetector;
 }
@@ -39,6 +51,7 @@ export interface IVariableTemplateData {
 	name: HTMLElement;
 	value: HTMLElement;
 	label: HighlightedLabel;
+	lazyButton: HTMLElement;
 }
 
 export function renderViewTree(container: HTMLElement): HTMLElement {
@@ -48,7 +61,7 @@ export function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-export function renderExpressionValue(expressionOrValue: IExpressionContainer | string, container: HTMLElement, options: IRenderValueOptions): void {
+export function renderExpressionValue(expressionOrValue: IExpressionValue | string, container: HTMLElement, options: IRenderValueOptions): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes
@@ -59,26 +72,28 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 		if (value !== Expression.DEFAULT_VALUE) {
 			container.classList.add('error');
 		}
-	} else if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
-		// value changed color has priority over other colors.
-		container.className = 'value changed';
-		expressionOrValue.valueChanged = false;
-	}
+	} else {
+		if (typeof expressionOrValue !== 'string' && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
+			// value changed color has priority over other colors.
+			container.className = 'value changed';
+			expressionOrValue.valueChanged = false;
+		}
 
-	if (options.colorize && typeof expressionOrValue !== 'string') {
-		if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
-			container.classList.add(expressionOrValue.type);
-		} else if (!isNaN(+value)) {
-			container.classList.add('number');
-		} else if (booleanRegex.test(value)) {
-			container.classList.add('boolean');
-		} else if (stringRegex.test(value)) {
-			container.classList.add('string');
+		if (options.colorize && typeof expressionOrValue !== 'string') {
+			if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
+				container.classList.add(expressionOrValue.type);
+			} else if (!isNaN(+value)) {
+				container.classList.add('number');
+			} else if (booleanRegex.test(value)) {
+				container.classList.add('boolean');
+			} else if (stringRegex.test(value)) {
+				container.classList.add('string');
+			}
 		}
 	}
 
 	if (options.maxValueLength && value && value.length > options.maxValueLength) {
-		value = value.substr(0, options.maxValueLength) + '...';
+		value = value.substring(0, options.maxValueLength) + '...';
 	}
 	if (!value) {
 		value = '';
@@ -87,16 +102,35 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 	if (options.linkDetector) {
 		container.textContent = '';
 		const session = (expressionOrValue instanceof ExpressionContainer) ? expressionOrValue.getSession() : undefined;
-		container.appendChild(options.linkDetector.linkify(value, false, session ? session.root : undefined));
+		container.appendChild(options.linkDetector.linkify(value, false, session ? session.root : undefined, true));
 	} else {
 		container.textContent = value;
 	}
-	if (options.showHover) {
-		container.title = value || '';
+
+	if (options.hover) {
+		const { store, commands, commandService } = options.hover instanceof DisposableStore ? { store: options.hover, commands: [], commandService: undefined } : options.hover;
+		store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), container, () => {
+			const container = dom.$('div');
+			const markdownHoverElement = dom.$('div.hover-row');
+			const hoverContentsElement = dom.append(markdownHoverElement, dom.$('div.hover-contents'));
+			const hoverContentsPre = dom.append(hoverContentsElement, dom.$('pre.debug-var-hover-pre'));
+			hoverContentsPre.textContent = value;
+			container.appendChild(markdownHoverElement);
+			return container;
+		}, {
+			actions: commands.map(({ id, args }) => {
+				const description = CommandsRegistry.getCommand(id)?.metadata?.description;
+				return {
+					label: typeof description === 'string' ? description : description ? description.value : id,
+					commandId: id,
+					run: () => commandService!.executeCommand(id, ...args),
+				};
+			})
+		}));
 	}
 }
 
-export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
+export function renderVariable(store: DisposableStore, commandService: ICommandService, variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
 	if (variable.available) {
 		let text = variable.name;
 		if (variable.value && typeof variable.name === 'string') {
@@ -109,10 +143,18 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 		data.label.set(':');
 	}
 
+	data.expression.classList.toggle('lazy', !!variable.presentationHint?.lazy);
+	const commands = [
+		{ id: COPY_VALUE_ID, args: [variable, [variable]] as unknown[] }
+	];
+	if (variable.evaluateName) {
+		commands.push({ id: COPY_EVALUATE_PATH_ID, args: [{ variable }] });
+	}
+
 	renderExpressionValue(variable, data.value, {
 		showChanged,
 		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-		showHover: true,
+		hover: { store, commands, commandService },
 		colorize: true,
 		linkDetector
 	});
@@ -131,42 +173,98 @@ export interface IExpressionTemplateData {
 	name: HTMLSpanElement;
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
-	toDispose: IDisposable;
+	actionBar?: ActionBar;
+	elementDisposable: DisposableStore;
+	templateDisposable: IDisposable;
 	label: HighlightedLabel;
+	lazyButton: HTMLElement;
+	currentElement: IExpression | undefined;
 }
 
-export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpression, FuzzyScore, IExpressionTemplateData> {
+export abstract class AbstractExpressionDataSource<Input, Element extends IExpression> implements IAsyncDataSource<Input, Element> {
+	constructor(
+		@IDebugService protected debugService: IDebugService,
+		@IDebugVisualizerService protected debugVisualizer: IDebugVisualizerService,
+	) { }
+
+	public abstract hasChildren(element: Input | Element): boolean;
+
+	public async getChildren(element: Input | Element): Promise<Element[]> {
+		const vm = this.debugService.getViewModel();
+		const children = await this.doGetChildren(element);
+		return Promise.all(children.map(async r => {
+			const vizOrTree = vm.getVisualizedExpression(r as IExpression);
+			if (typeof vizOrTree === 'string') {
+				const viz = await this.debugVisualizer.getVisualizedNodeFor(vizOrTree, r);
+				if (viz) {
+					vm.setVisualizedExpression(r, viz);
+					return viz as IExpression as Element;
+				}
+			} else if (vizOrTree) {
+				return vizOrTree as Element;
+			}
+
+
+			return r;
+		}));
+	}
+
+	protected abstract doGetChildren(element: Input | Element): Promise<Element[]>;
+}
+
+export abstract class AbstractExpressionsRenderer<T = IExpression> implements ITreeRenderer<T, FuzzyScore, IExpressionTemplateData> {
 
 	constructor(
 		@IDebugService protected debugService: IDebugService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService
 	) { }
 
 	abstract get templateId(): string;
 
 	renderTemplate(container: HTMLElement): IExpressionTemplateData {
+		const templateDisposable = new DisposableStore();
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
+		const lazyButton = dom.append(expression, $('span.lazy-button'));
+		lazyButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.eye));
+		templateDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
 		const value = dom.append(expression, $('span.value'));
-		const label = new HighlightedLabel(name, false);
+
+		const label = templateDisposable.add(new HighlightedLabel(name));
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
 
-		return { expression, name, value, label, inputBoxContainer, toDispose: Disposable.None };
+		let actionBar: ActionBar | undefined;
+		if (this.renderActionBar) {
+			dom.append(expression, $('.span.actionbar-spacer'));
+			actionBar = templateDisposable.add(new ActionBar(expression));
+		}
+
+		const template: IExpressionTemplateData = { expression, name, value, label, inputBoxContainer, actionBar, elementDisposable: new DisposableStore(), templateDisposable, lazyButton, currentElement: undefined };
+
+		templateDisposable.add(dom.addDisposableListener(lazyButton, dom.EventType.CLICK, () => {
+			if (template.currentElement) {
+				this.debugService.getViewModel().evaluateLazyExpression(template.currentElement);
+			}
+		}));
+
+		return template;
 	}
 
-	renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
-		data.toDispose.dispose();
-		data.toDispose = Disposable.None;
-		const { element } = node;
-		this.renderExpression(element, data, createMatches(node.filterData));
+	public abstract renderElement(node: ITreeNode<T, FuzzyScore>, index: number, data: IExpressionTemplateData): void;
+
+	protected renderExpressionElement(element: IExpression, node: ITreeNode<T, FuzzyScore>, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
+		data.currentElement = element;
+		this.renderExpression(node.element, data, createMatches(node.filterData));
+		if (data.actionBar) {
+			this.renderActionBar!(data.actionBar, element, data);
+		}
 		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
 		if (element === selectedExpression?.expression || (element instanceof Variable && element.errorMessage)) {
 			const options = this.getInputBoxOptions(element, !!selectedExpression?.settingWatch);
 			if (options) {
-				data.toDispose = this.renderInputBox(data.name, data.value, data.inputBoxContainer, options);
-				return;
+				data.elementDisposable.add(this.renderInputBox(data.name, data.value, data.inputBoxContainer, options));
 			}
 		}
 	}
@@ -175,17 +273,17 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		nameElement.style.display = 'none';
 		valueElement.style.display = 'none';
 		inputBoxContainer.style.display = 'initial';
+		dom.clearNode(inputBoxContainer);
 
-		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, options);
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
+		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, { ...options, inputBoxStyles: defaultInputBoxStyles });
 
 		inputBox.value = options.initialValue;
 		inputBox.focus();
 		inputBox.select();
 
-		const done = once((success: boolean, finishEditing: boolean) => {
-			nameElement.style.display = 'initial';
-			valueElement.style.display = 'initial';
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
+			nameElement.style.display = '';
+			valueElement.style.display = '';
 			inputBoxContainer.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
@@ -214,8 +312,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 				// Do not expand / collapse selected elements
 				e.preventDefault();
 				e.stopPropagation();
-			}),
-			styler
+			})
 		];
 
 		return toDisposable(() => {
@@ -223,14 +320,17 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		});
 	}
 
-	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void;
+	protected abstract renderExpression(expression: T, data: IExpressionTemplateData, highlights: IHighlight[]): void;
 	protected abstract getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions | undefined;
 
-	disposeElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
-		templateData.toDispose.dispose();
+	protected renderActionBar?(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData): void;
+
+	disposeElement(node: ITreeNode<T, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
+		templateData.elementDisposable.clear();
 	}
 
 	disposeTemplate(templateData: IExpressionTemplateData): void {
-		templateData.toDispose.dispose();
+		templateData.elementDisposable.dispose();
+		templateData.templateDisposable.dispose();
 	}
 }

@@ -3,15 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
-export interface IEditorModel {
-
-	/**
-	 * Emitted when the model is about to be disposed.
-	 */
-	readonly onWillDispose: Event<void>;
+export interface IResolvableEditorModel extends IDisposable {
 
 	/**
 	 * Resolves the model.
@@ -22,16 +17,13 @@ export interface IEditorModel {
 	 * Find out if the editor model was resolved or not.
 	 */
 	isResolved(): boolean;
+}
 
-	/**
-	 * Find out if this model has been disposed.
-	 */
-	isDisposed(): boolean;
+export function isResolvedEditorModel(model: IDisposable | undefined | null): model is IResolvableEditorModel {
+	const candidate = model as IResolvableEditorModel | undefined | null;
 
-	/**
-	 * Dispose associated resources
-	 */
-	dispose(): void;
+	return typeof candidate?.resolve === 'function'
+		&& typeof candidate?.isResolved === 'function';
 }
 
 export interface IBaseUntypedEditorInput {
@@ -88,10 +80,10 @@ export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
 	encoding?: string;
 
 	/**
-	 * The identifier of the language mode of the text input
+	 * The identifier of the language id of the text input
 	 * if known to use when displaying the contents.
 	 */
-	mode?: string;
+	languageId?: string;
 }
 
 export interface IResourceEditorInput extends IBaseResourceEditorInput {
@@ -167,17 +159,12 @@ export enum EditorResolution {
 	PICK,
 
 	/**
-	 * Disables editor resolving.
-	 */
-	DISABLED,
-
-	/**
 	 * Only exclusive editors are considered.
 	 */
 	EXCLUSIVE_ONLY
 }
 
-export enum EditorOpenContext {
+export enum EditorOpenSource {
 
 	/**
 	 * Default: the editor is opening via a programmatic call
@@ -265,6 +252,15 @@ export interface IEditorOptions {
 	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
+
+	/**
+	 * In case of an error opening the editor, will not present this error to the user (e.g. by showing
+	 * a generic placeholder in the editor area). So it is up to the caller to provide error information
+	 * in that case.
+	 *
+	 * By default, an error when opening an editor will result in a placeholder editor that shows the error.
+	 * In certain cases a modal dialog may be presented to ask the user for further action.
+	 */
 	ignoreError?: boolean;
 
 	/**
@@ -278,20 +274,33 @@ export interface IEditorOptions {
 	/**
 	 * A optional hint to signal in which context the editor opens.
 	 *
-	 * If configured to be `EditorOpenContext.USER`, this hint can be
+	 * If configured to be `EditorOpenSource.USER`, this hint can be
 	 * used in various places to control the experience. For example,
 	 * if the editor to open fails with an error, a notification could
 	 * inform about this in a modal dialog. If the editor opened through
 	 * some background task, the notification would show in the background,
 	 * not as a modal dialog.
 	 */
-	context?: EditorOpenContext;
+	source?: EditorOpenSource;
 
 	/**
 	 * An optional property to signal that certain view state should be
-	 * applied when opening the editor. 
+	 * applied when opening the editor.
 	 */
 	viewState?: object;
+
+	/**
+	 * A transient editor will attempt to appear as preview and certain components
+	 * (such as history tracking) may decide to ignore the editor when it becomes
+	 * active.
+	 * This option is meant to be used only when the editor is used for a short
+	 * period of time, for example when opening a preview of the editor from a
+	 * picker control in the background while navigating through results of the picker.
+	 *
+	 * Note: an editor that is already opened in a group that is not transient, will
+	 * not turn transient.
+	 */
+	transient?: boolean;
 }
 
 export interface ITextEditorSelection {
@@ -324,6 +333,31 @@ export const enum TextEditorSelectionRevealType {
 	NearTopIfOutsideViewport = 3,
 }
 
+export const enum TextEditorSelectionSource {
+
+	/**
+	 * Programmatic source indicates a selection change that
+	 * was not triggered by the user via keyboard or mouse
+	 * but through text editor APIs.
+	 */
+	PROGRAMMATIC = 'api',
+
+	/**
+	 * Navigation source indicates a selection change that
+	 * was caused via some command or UI component such as
+	 * an outline tree.
+	 */
+	NAVIGATION = 'code.navigation',
+
+	/**
+	 * Jump source indicates a selection change that
+	 * was caused from within the text editor to another
+	 * location in the same or different text editor such
+	 * as "Go to definition".
+	 */
+	JUMP = 'code.jump'
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
@@ -336,4 +370,9 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
 	selectionRevealType?: TextEditorSelectionRevealType;
+
+	/**
+	 * Source of the call that caused the selection.
+	 */
+	selectionSource?: TextEditorSelectionSource | string;
 }

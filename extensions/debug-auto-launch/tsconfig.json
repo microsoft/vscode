@@ -2,9 +2,13 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"downlevelIteration": true
+		"downlevelIteration": true,
+		"types": [
+			"node"
+		]
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts"
 	]
 }

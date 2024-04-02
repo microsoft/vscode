@@ -27,7 +27,23 @@ suite('Tests for Emmet actions on html tags', () => {
 	</div>
 	`;
 
-	let contentsWithTemplate = `
+	const spacedContents = `
+	<div class="hello">
+		<ul>
+
+			<li><span>Hello</span></li>
+
+			<li><span>There</span></li>
+
+			<div><li><span>Bye</span></li></div>
+
+
+		</ul>
+		<span/>
+	</div>
+	`;
+
+	const contentsWithTemplate = `
 	<script type="text/template">
 		<ul>
 			<li><span>Hello</span></li>
@@ -114,7 +130,7 @@ suite('Tests for Emmet actions on html tags', () => {
 	// #endregion
 
 	// #region remove tag
-	test('remove tag with mutliple cursors', () => {
+	test('remove tag with multiple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
@@ -168,11 +184,9 @@ suite('Tests for Emmet actions on html tags', () => {
 	test('remove tag with template', () => {
 		const expectedContents = `
 	<script type="text/template">
-\t\t
 		<li><span>Hello</span></li>
 		<li><span>There</span></li>
 		<div><li><span>Bye</span></li></div>
-\t\t
 		<span/>
 	</script>
 	`;
@@ -187,10 +201,33 @@ suite('Tests for Emmet actions on html tags', () => {
 			});
 		});
 	});
+
+	test('remove tag with extra trim', () => {
+		const expectedContents = `
+	<div class="hello">
+		<li><span>Hello</span></li>
+
+		<li><span>There</span></li>
+
+		<div><li><span>Bye</span></li></div>
+		<span/>
+	</div>
+	`;
+		return withRandomFileEditor(spacedContents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 4, 2, 4), // cursor inside ul tag
+			];
+
+			return removeTag()!.then(() => {
+				assert.strictEqual(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
 	// #endregion
 
 	// #region split/join tag
-	test('split/join tag with mutliple cursors', () => {
+	test('split/join tag with multiple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
@@ -291,7 +328,7 @@ suite('Tests for Emmet actions on html tags', () => {
 	// #endregion
 
 	// #region match tag
-	test('match tag with mutliple cursors', () => {
+	test('match tag with multiple cursors', () => {
 		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [
 				new Selection(1, 0, 1, 0), // just before tag starts, i.e before <
@@ -316,7 +353,7 @@ suite('Tests for Emmet actions on html tags', () => {
 	});
 
 	test('match tag with template scripts', () => {
-		let templateScript = `
+		const templateScript = `
 	<script type="text/template">
 		<div>
 			Hello

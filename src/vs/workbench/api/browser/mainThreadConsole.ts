@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadConsoleShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRemoteConsoleLog, log } from 'vs/base/common/console';
 import { logRemoteEntry, logRemoteEntryIfError } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';

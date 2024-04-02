@@ -6,6 +6,8 @@
 import './menuPreventer';
 import './accessibility/accessibility';
 import './diffEditorHelper';
+import './editorFeatures';
+import './editorSettingsMigration';
 import './inspectKeybindings';
 import './largeFileOptimizations';
 import './inspectEditorTokens/inspectEditorTokens';
@@ -18,5 +20,7 @@ import './toggleMultiCursorModifier';
 import './toggleRenderControlCharacter';
 import './toggleRenderWhitespace';
 import './toggleWordWrap';
-import './untitledTextEditorHint';
+import './emptyTextEditorHint/emptyTextEditorHint';
 import './workbenchReferenceSearch';
+import './editorLineNumberMenu';
+import './dictation/editorDictation';

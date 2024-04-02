@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { IDisposable, Disposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
-import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import { localize } from 'vs/nls';
-import { FileService } from 'vs/platform/files/common/fileService';
+import { INotificationService, Severity, NeverShowAgainScope, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { isAbsolute } from 'vs/base/common/path';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -19,10 +18,10 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class WorkspaceWatcher extends Disposable {
 
-	private readonly watches = new ResourceMap<IDisposable>();
+	private readonly watchedWorkspaces = new ResourceMap<IDisposable>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
-		@IFileService private readonly fileService: FileService,
+		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -41,7 +40,7 @@ export class WorkspaceWatcher extends Disposable {
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onDidChangeWorkspaceFolders(e)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
-		this._register(this.fileService.onError(error => this.onError(error)));
+		this._register(this.fileService.onDidWatchError(error => this.onDidWatchError(error)));
 	}
 
 	private onDidChangeWorkspaceFolders(e: IWorkspaceFoldersChangeEvent): void {
@@ -67,14 +66,14 @@ export class WorkspaceWatcher extends Disposable {
 		}
 	}
 
-	private onError(error: Error): void {
+	private onDidWatchError(error: Error): void {
 		const msg = error.toString();
 
 		// Detect if we run into ENOSPC issues
 		if (msg.indexOf('ENOSPC') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('enospcError', "Unable to watch for file changes in this large workspace folder. Please follow the instructions link to resolve this issue."),
+				localize('enospcError', "Unable to watch for file changes. Please follow the instructions link to resolve this issue."),
 				[{
 					label: localize('learnMore', "Instructions"),
 					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
@@ -90,14 +89,14 @@ export class WorkspaceWatcher extends Disposable {
 		else if (msg.indexOf('EUNKNOWN') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('eshutdownError', "File changes watcher stopped unexpectedly. Please reload the window to enable the watcher again."),
+				localize('eshutdownError', "File changes watcher stopped unexpectedly. A reload of the window may enable the watcher again unless the workspace cannot be watched for file changes."),
 				[{
 					label: localize('reload', "Reload"),
 					run: () => this.hostService.reload()
 				}],
 				{
 					sticky: true,
-					silent: true // reduce potential spam since we don't really know how often this fires
+					priority: NotificationPriority.SILENT // reduce potential spam since we don't really know how often this fires
 				}
 			);
 		}
@@ -110,7 +109,7 @@ export class WorkspaceWatcher extends Disposable {
 		const config = this.configurationService.getValue<IFilesConfiguration>({ resource: workspace.uri });
 		if (config.files?.watcherExclude) {
 			for (const key in config.files.watcherExclude) {
-				if (config.files.watcherExclude[key] === true) {
+				if (key && config.files.watcherExclude[key] === true) {
 					excludes.push(key);
 				}
 			}
@@ -149,13 +148,13 @@ export class WorkspaceWatcher extends Disposable {
 		for (const [, pathToWatch] of pathsToWatch) {
 			disposables.add(this.fileService.watch(pathToWatch, { recursive: true, excludes }));
 		}
-		this.watches.set(workspace.uri, disposables);
+		this.watchedWorkspaces.set(workspace.uri, disposables);
 	}
 
 	private unwatchWorkspace(workspace: IWorkspaceFolder): void {
-		if (this.watches.has(workspace.uri)) {
-			dispose(this.watches.get(workspace.uri));
-			this.watches.delete(workspace.uri);
+		if (this.watchedWorkspaces.has(workspace.uri)) {
+			dispose(this.watchedWorkspaces.get(workspace.uri));
+			this.watchedWorkspaces.delete(workspace.uri);
 		}
 	}
 
@@ -171,8 +170,10 @@ export class WorkspaceWatcher extends Disposable {
 	}
 
 	private unwatchWorkspaces(): void {
-		this.watches.forEach(disposable => dispose(disposable));
-		this.watches.clear();
+		for (const [, disposable] of this.watchedWorkspaces) {
+			disposable.dispose();
+		}
+		this.watchedWorkspaces.clear();
 	}
 
 	override dispose(): void {

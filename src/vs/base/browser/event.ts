@@ -14,12 +14,15 @@ export interface IDomEvent {
 	(element: EventHandler, type: string, useCapture?: boolean): BaseEvent<unknown>;
 }
 
-export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap {
+export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap, WindowEventMap {
 	'-monaco-gesturetap': GestureEvent;
 	'-monaco-gesturechange': GestureEvent;
 	'-monaco-gesturestart': GestureEvent;
 	'-monaco-gesturesend': GestureEvent;
 	'-monaco-gesturecontextmenu': GestureEvent;
+	'compositionstart': CompositionEvent;
+	'compositionupdate': CompositionEvent;
+	'compositionend': CompositionEvent;
 }
 
 export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
@@ -30,32 +33,18 @@ export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
 		return this.emitter.event;
 	}
 
+	constructor(element: Window & typeof globalThis, type: WindowEventMap, useCapture?: boolean);
 	constructor(element: Document, type: DocumentEventMap, useCapture?: boolean);
 	constructor(element: EventHandler, type: K, useCapture?: boolean);
 	constructor(element: EventHandler, type: K, useCapture?: boolean) {
 		const fn = (e: Event) => this.emitter.fire(e as DOMEventMap[K]);
 		this.emitter = new Emitter({
-			onFirstListenerAdd: () => element.addEventListener(type, fn, useCapture),
-			onLastListenerRemove: () => element.removeEventListener(type, fn, useCapture)
+			onWillAddFirstListener: () => element.addEventListener(type, fn, useCapture),
+			onDidRemoveLastListener: () => element.removeEventListener(type, fn, useCapture)
 		});
 	}
 
 	dispose(): void {
 		this.emitter.dispose();
 	}
-}
-
-export interface CancellableEvent {
-	preventDefault(): void;
-	stopPropagation(): void;
-}
-
-export function stopEvent<T extends CancellableEvent>(event: T): T {
-	event.preventDefault();
-	event.stopPropagation();
-	return event;
-}
-
-export function stop<T extends CancellableEvent>(event: BaseEvent<T>): BaseEvent<T> {
-	return BaseEvent.map(event, stopEvent);
 }

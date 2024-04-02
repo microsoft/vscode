@@ -19,12 +19,18 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-sandbox/reportExtensionIssueAction';
+import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/common/reportExtensionIssueAction';
 import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IV8Profile, Utils } from 'vs/platform/profiling/common/profiling';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
+import { IExtensionFeaturesManagementService } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -60,6 +66,7 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 	private _profileSessionState: IContextKey<string>;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -71,9 +78,11 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 		@IStorageService storageService: IStorageService,
 		@ILabelService labelService: ILabelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IClipboardService clipboardService: IClipboardService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+		@IExtensionFeaturesManagementService extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 	) {
-		super(telemetryService, themeService, contextKeyService, extensionsWorkbenchService, extensionService, notificationService, contextMenuService, instantiationService, storageService, labelService, environmentService);
+		super(group, telemetryService, themeService, contextKeyService, extensionsWorkbenchService, extensionService, notificationService, contextMenuService, instantiationService, storageService, labelService, environmentService, clipboardService, extensionFeaturesManagementService);
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
 		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
 		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
@@ -106,12 +115,7 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 
 	protected _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null {
 		if (element.marketplaceInfo) {
-			return this._instantiationService.createInstance(ReportExtensionIssueAction, {
-				description: element.description,
-				marketplaceInfo: element.marketplaceInfo,
-				status: element.status,
-				unresponsiveProfile: element.unresponsiveProfile
-			});
+			return this._instantiationService.createInstance(ReportExtensionIssueAction, element.description);
 		}
 		return null;
 	}
@@ -172,10 +176,10 @@ export class SaveExtensionHostProfileAction extends Action {
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 	) {
 		super(id, label, undefined, false);
 		this._extensionHostProfileService.onDidChangeLastProfile(() => {
@@ -188,33 +192,31 @@ export class SaveExtensionHostProfileAction extends Action {
 	}
 
 	private async _asyncRun(): Promise<any> {
-		let picked = await this._nativeHostService.showSaveDialog({
-			title: 'Save Extension Host Profile',
-			buttonLabel: 'Save',
-			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
+		const picked = await this._fileDialogService.showSaveDialog({
+			title: nls.localize('saveprofile.dialogTitle', "Save Extension Host Profile"),
+			availableFileSystems: [Schemas.file],
+			defaultUri: joinPath(await this._fileDialogService.defaultFilePath(), `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`),
 			filters: [{
 				name: 'CPU Profiles',
 				extensions: ['cpuprofile', 'txt']
 			}]
 		});
 
-		if (!picked || !picked.filePath || picked.canceled) {
+		if (!picked) {
 			return;
 		}
 
 		const profileInfo = this._extensionHostProfileService.lastProfile;
 		let dataToWrite: object = profileInfo ? profileInfo.data : {};
 
-		let savePath = picked.filePath;
+		let savePath = picked.fsPath;
 
 		if (this._environmentService.isBuilt) {
-			const profiler = await import('v8-inspect-profiler');
 			// when running from a not-development-build we remove
 			// absolute filenames because we don't want to reveal anything
 			// about users. We also append the `.txt` suffix to make it
 			// easier to attach these files to GH issues
-			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
-			dataToWrite = tmp.profile;
+			dataToWrite = Utils.rewriteAbsolutePaths(dataToWrite as IV8Profile, 'piiRemoved');
 
 			savePath = savePath + '.txt';
 		}

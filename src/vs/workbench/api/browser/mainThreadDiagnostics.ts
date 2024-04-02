@@ -5,8 +5,8 @@
 
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MainThreadDiagnosticsShape, MainContext, IExtHostContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainThreadDiagnosticsShape, MainContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
@@ -37,9 +37,14 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	private _forwardMarkers(resources: readonly URI[]): void {
 		const data: [UriComponents, IMarkerData[]][] = [];
 		for (const resource of resources) {
-			const markerData = this._markerService.read({ resource }).filter(marker => !this._activeOwners.has(marker.owner));
-			if (markerData.length > 0) {
-				data.push([resource, markerData]);
+			const allMarkerData = this._markerService.read({ resource });
+			if (allMarkerData.length === 0) {
+				data.push([resource, []]);
+			} else {
+				const forgeinMarkerData = allMarkerData.filter(marker => !this._activeOwners.has(marker.owner));
+				if (forgeinMarkerData.length > 0) {
+					data.push([resource, forgeinMarkerData]);
+				}
 			}
 		}
 		if (data.length > 0) {
@@ -48,8 +53,8 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	}
 
 	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
-		for (let entry of entries) {
-			let [uri, markers] = entry;
+		for (const entry of entries) {
+			const [uri, markers] = entry;
 			if (markers) {
 				for (const marker of markers) {
 					if (marker.relatedInformation) {

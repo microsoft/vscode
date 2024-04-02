@@ -9,11 +9,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { SymbolKinds, Location, SymbolTag } from 'vs/editor/common/modes';
+import { SymbolKinds, Location, SymbolTag } from 'vs/editor/common/languages';
 import { compare } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export class Call {
 	constructor(
@@ -85,7 +86,7 @@ export class IdentityProvider implements IIdentityProvider<Call> {
 		public getDirection: () => CallHierarchyDirection
 	) { }
 
-	getId(element: Call): { toString(): string; } {
+	getId(element: Call): { toString(): string } {
 		let res = this.getDirection() + JSON.stringify(element.item.uri) + JSON.stringify(element.item.range);
 		if (element.parent) {
 			res += this.getId(element.parent);
@@ -109,7 +110,7 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 
 	renderTemplate(container: HTMLElement): CallRenderingTemplate {
 		container.classList.add('callhierarchy-element');
-		let icon = document.createElement('div');
+		const icon = document.createElement('div');
 		container.appendChild(icon);
 		const label = new IconLabel(container, { supportHighlights: true });
 		return new CallRenderingTemplate(icon, label);
@@ -118,7 +119,8 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 	renderElement(node: ITreeNode<Call, FuzzyScore>, _index: number, template: CallRenderingTemplate): void {
 		const { element, filterData } = node;
 		const deprecated = element.item.tags?.includes(SymbolTag.Deprecated);
-		template.icon.className = SymbolKinds.toCssClassName(element.item.kind, true);
+		template.icon.className = '';
+		template.icon.classList.add('inline', ...ThemeIcon.asClassNameArray(SymbolKinds.toIcon(element.item.kind)));
 		template.label.setLabel(
 			element.item.name,
 			element.item.detail,

@@ -5,18 +5,17 @@
 
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
+import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { ConflictDetector } from 'vs/workbench/contrib/bulkEdit/browser/conflicts';
 import { ResourceMap } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
@@ -24,6 +23,8 @@ import { extUri } from 'vs/base/common/resources';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Codicon } from 'vs/base/common/codicons';
 import { generateUuid } from 'vs/base/common/uuid';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 
 export class CheckedStates<T extends object> {
 
@@ -83,7 +84,7 @@ export const enum BulkFileOperationType {
 
 export class BulkFileOperation {
 
-	type: BulkFileOperationType = 0;
+	type = 0;
 	textEdits: BulkTextEdit[] = [];
 	originalEdits = new Map<number, ResourceTextEdit | ResourceFileEdit>();
 	newUri?: URI;
@@ -105,7 +106,7 @@ export class BulkFileOperation {
 	}
 
 	needsConfirmation(): boolean {
-		for (let [, edit] of this.originalEdits) {
+		for (const [, edit] of this.originalEdits) {
 			if (!this.parent.checked.isChecked(edit)) {
 				return true;
 			}
@@ -239,7 +240,7 @@ export class BulkFileOperations {
 			insert(uri, operationByResource);
 
 			// insert into "this" category
-			let key = BulkCategory.keyOf(edit.metadata);
+			const key = BulkCategory.keyOf(edit.metadata);
 			let category = operationByCategory.get(key);
 			if (!category) {
 				category = new BulkCategory(edit.metadata);
@@ -254,7 +255,7 @@ export class BulkFileOperations {
 		// "correct" invalid parent-check child states that is
 		// unchecked file edits (rename, create, delete) uncheck
 		// all edits for a file, e.g no text change without rename
-		for (let file of this.fileOperations) {
+		for (const file of this.fileOperations) {
 			if (file.type !== BulkFileOperationType.TextEdit) {
 				let checked = true;
 				for (const edit of file.originalEdits.values()) {
@@ -306,18 +307,18 @@ export class BulkFileOperations {
 		return result;
 	}
 
-	getFileEdits(uri: URI): IIdentifiedSingleEditOperation[] {
+	getFileEdits(uri: URI): ISingleEditOperation[] {
 
-		for (let file of this.fileOperations) {
+		for (const file of this.fileOperations) {
 			if (file.uri.toString() === uri.toString()) {
 
-				const result: IIdentifiedSingleEditOperation[] = [];
+				const result: ISingleEditOperation[] = [];
 				let ignoreAll = false;
 
 				for (const edit of file.originalEdits.values()) {
 					if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
-							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), edit.textEdit.text));
+							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text)));
 						}
 
 					} else if (!this.checked.isChecked(edit)) {
@@ -337,7 +338,7 @@ export class BulkFileOperations {
 	}
 
 	getUriOfEdit(edit: ResourceEdit): URI {
-		for (let file of this.fileOperations) {
+		for (const file of this.fileOperations) {
 			for (const value of file.originalEdits.values()) {
 				if (value === edit) {
 					return file.uri;
@@ -350,7 +351,7 @@ export class BulkFileOperations {
 
 export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
-	static readonly Schema = 'vscode-bulkeditpreview';
+	private static readonly Schema = 'vscode-bulkeditpreview-editor';
 
 	static emptyPreview = URI.from({ scheme: BulkEditPreviewProvider.Schema, fragment: 'empty' });
 
@@ -361,12 +362,12 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _ready: Promise<any>;
-	private readonly _modelPreviewEdits = new Map<string, IIdentifiedSingleEditOperation[]>();
+	private readonly _modelPreviewEdits = new Map<string, ISingleEditOperation[]>();
 	private readonly _instanceId = generateUuid();
 
 	constructor(
 		private readonly _operations: BulkFileOperations,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService
 	) {
@@ -383,10 +384,10 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	}
 
 	private async _init() {
-		for (let operation of this._operations.fileOperations) {
+		for (const operation of this._operations.fileOperations) {
 			await this._applyTextEditsToPreviewModel(operation.uri);
 		}
-		this._disposables.add(this._operations.checked.onDidChange(e => {
+		this._disposables.add(Event.debounce(this._operations.checked.onDidChange, (_last, e) => e, MicrotaskDelay)(e => {
 			const uri = this._operations.getUriOfEdit(e);
 			this._applyTextEditsToPreviewModel(uri);
 		}));
@@ -396,7 +397,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 		const model = await this._getOrCreatePreviewModel(uri);
 
 		// undo edits that have been done before
-		let undoEdits = this._modelPreviewEdits.get(model.id);
+		const undoEdits = this._modelPreviewEdits.get(model.id);
 		if (undoEdits) {
 			model.applyEdits(undoEdits);
 		}
@@ -416,7 +417,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 				const sourceModel = ref.object.textEditorModel;
 				model = this._modelService.createModel(
 					createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
-					this._modeService.create(sourceModel.getLanguageId()),
+					this._languageService.createById(sourceModel.getLanguageId()),
 					previewUri
 				);
 				ref.dispose();
@@ -425,7 +426,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 				// create NEW model
 				model = this._modelService.createModel(
 					'',
-					this._modeService.createByFilepathOrFirstLine(previewUri),
+					this._languageService.createByFilepathOrFirstLine(previewUri),
 					previewUri
 				);
 			}

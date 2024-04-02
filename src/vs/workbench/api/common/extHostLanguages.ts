@@ -14,6 +14,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtHostLanguages implements ExtHostLanguagesShape {
 
@@ -42,7 +43,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 		await this._proxy.$changeLanguage(uri, languageId);
 		const data = this._documents.getDocumentData(uri);
 		if (!data) {
-			throw new Error(`document '${uri.toString}' NOT found`);
+			throw new Error(`document '${uri.toString()}' NOT found`);
 		}
 		return data.document;
 	}
@@ -90,7 +91,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 		}
 		ids.add(fullyQualifiedId);
 
-		const data: Omit<vscode.LanguageStatusItem, 'dispose'> = {
+		const data: Omit<vscode.LanguageStatusItem, 'dispose' | 'text2'> = {
 			selector,
 			id,
 			name: extension.displayName ?? extension.name,
@@ -98,12 +99,20 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			command: undefined,
 			text: '',
 			detail: '',
+			busy: false
 		};
 
+
 		let soonHandle: IDisposable | undefined;
-		let commandDisposables = new DisposableStore();
+		const commandDisposables = new DisposableStore();
 		const updateAsync = () => {
 			soonHandle?.dispose();
+
+			if (!ids.has(fullyQualifiedId)) {
+				console.warn(`LanguageStatusItem (${id}) from ${extension.identifier.value} has been disposed and CANNOT be updated anymore`);
+				return; // disposed in the meantime
+			}
+
 			soonHandle = disposableTimeout(() => {
 				commandDisposables.clear();
 				this._proxy.$setLanguageStatus(handle, {
@@ -115,7 +124,8 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 					detail: data.detail ?? '',
 					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info,
 					command: data.command && this._commands.toInternal(data.command, commandDisposables),
-					accessibilityInfo: data.accessibilityInformation
+					accessibilityInfo: data.accessibilityInformation,
+					busy: data.busy
 				});
 			}, 0);
 		};
@@ -151,6 +161,15 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 				data.text = value;
 				updateAsync();
 			},
+			set text2(value) {
+				checkProposedApiEnabled(extension, 'languageStatusText');
+				data.text = value;
+				updateAsync();
+			},
+			get text2() {
+				checkProposedApiEnabled(extension, 'languageStatusText');
+				return data.text;
+			},
 			get detail() {
 				return data.detail;
 			},
@@ -177,6 +196,13 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			},
 			set command(value) {
 				data.command = value;
+				updateAsync();
+			},
+			get busy() {
+				return data.busy;
+			},
+			set busy(value: boolean) {
+				data.busy = value;
 				updateAsync();
 			}
 		};

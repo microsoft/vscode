@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -10,9 +11,9 @@ import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { reviveWebviewContentOptions } from 'vs/workbench/api/browser/mainThreadWebviews';
-import { ExtHostContext, ExtHostEditorInsetsShape, IExtHostContext, IWebviewOptions, MainContext, MainThreadEditorInsetsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostEditorInsetsShape, IWebviewContentOptions, MainContext, MainThreadEditorInsetsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IWebviewService, IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
-import { extHostNamedCustomer } from '../common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 // todo@jrieken move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
@@ -43,7 +44,7 @@ class EditorWebviewZone implements IViewZone {
 		this.heightInLines = height;
 
 		editor.changeViewZones(accessor => this._id = accessor.addZone(this));
-		webview.mountTo(this.domNode);
+		webview.mountTo(this.domNode, getWindow(editor.getDomNode()));
 	}
 
 	dispose(): void {
@@ -70,7 +71,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		this._disposables.dispose();
 	}
 
-	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
+	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewContentOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
 
 		let editor: IActiveCodeEditor | undefined;
 		id = id.substr(0, id.indexOf(',')); //todo@jrieken HACK
@@ -89,9 +90,14 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const disposables = new DisposableStore();
 
-		const webview = this._webviewService.createWebviewElement('' + handle, {
-			enableFindWidget: false,
-		}, reviveWebviewContentOptions(options), { id: extensionId, location: URI.revive(extensionLocation) });
+		const webview = this._webviewService.createWebviewElement({
+			title: undefined,
+			options: {
+				enableFindWidget: false,
+			},
+			contentOptions: reviveWebviewContentOptions(options),
+			extension: { id: extensionId, location: URI.revive(extensionLocation) }
+		});
 
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
 
@@ -118,10 +124,10 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 	$setHtml(handle: number, value: string): void {
 		const inset = this.getInset(handle);
-		inset.webview.html = value;
+		inset.webview.setHtml(value);
 	}
 
-	$setOptions(handle: number, options: IWebviewOptions): void {
+	$setOptions(handle: number, options: IWebviewContentOptions): void {
 		const inset = this.getInset(handle);
 		inset.webview.contentOptions = reviveWebviewContentOptions(options);
 	}

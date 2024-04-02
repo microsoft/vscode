@@ -5,23 +5,23 @@
 
 import { ITextModel, ITextBufferFactory, ITextSnapshot, ModelConstants } from 'vs/editor/common/model';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageDetectionService, LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { localize } from 'vs/nls';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
-export class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
+export class BaseTextEditorModel extends EditorModel implements ITextEditorModel, ILanguageSupport {
 
 	private static readonly AUTO_DETECT_LANGUAGE_THROTTLE_DELAY = 600;
 
@@ -34,7 +34,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 	constructor(
 		@IModelService protected modelService: IModelService,
-		@IModeService protected modeService: IModeService,
+		@ILanguageService protected languageService: ILanguageService,
 		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		textEditorModelHandle?: URI
@@ -71,34 +71,47 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
-	isReadonly(): boolean {
+	isReadonly(): boolean | IMarkdownString {
 		return true;
 	}
 
-	private _hasModeSetExplicitly: boolean = false;
-	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
+	private _hasLanguageSetExplicitly: boolean = false;
+	get hasLanguageSetExplicitly(): boolean { return this._hasLanguageSetExplicitly; }
 
-	setMode(mode: string): void {
+	setLanguageId(languageId: string, source?: string): void {
 
-		// Remember that an explicit mode was set
-		this._hasModeSetExplicitly = true;
+		// Remember that an explicit language was set
+		this._hasLanguageSetExplicitly = true;
 
-		this.setModeInternal(mode);
+		this.setLanguageIdInternal(languageId, source);
 	}
 
-	private setModeInternal(mode: string): void {
+	private setLanguageIdInternal(languageId: string, source?: string): void {
 		if (!this.isResolved()) {
 			return;
 		}
 
-		if (!mode || mode === this.textEditorModel.getLanguageId()) {
+		if (!languageId || languageId === this.textEditorModel.getLanguageId()) {
 			return;
 		}
 
-		this.modelService.setMode(this.textEditorModel, this.modeService.create(mode));
+		this.textEditorModel.setLanguage(this.languageService.createById(languageId), source);
 	}
 
-	getMode(): string | undefined {
+	protected installModelListeners(model: ITextModel): void {
+
+		// Setup listener for lower level language changes
+		const disposable = this._register(model.onDidChangeLanguage((e) => {
+			if (e.source === LanguageDetectionLanguageEventSource) {
+				return;
+			}
+
+			this._hasLanguageSetExplicitly = true;
+			disposable.dispose();
+		}));
+	}
+
+	getLanguageId(): string | undefined {
 		return this.textEditorModel?.getLanguageId();
 	}
 
@@ -108,30 +121,29 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 	private async doAutoDetectLanguage(): Promise<void> {
 		if (
-			this.hasModeSetExplicitly || 															// skip detection when the user has made an explicit choice on the mode
-			!this.textEditorModelHandle ||															// require a URI to run the detection for
-			!this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)	// require a valid mode that is enlisted for detection
+			this.hasLanguageSetExplicitly || 																	// skip detection when the user has made an explicit choice on the language
+			!this.textEditorModelHandle ||																		// require a URI to run the detection for
+			!this.languageDetectionService.isEnabledForLanguage(this.getLanguageId() ?? PLAINTEXT_LANGUAGE_ID)	// require a valid language that is enlisted for detection
 		) {
 			return;
 		}
 
 		const lang = await this.languageDetectionService.detectLanguage(this.textEditorModelHandle);
-		if (lang && !this.isDisposed()) {
-			this.setModeInternal(lang);
-			const languageName = this.modeService.getLanguageName(lang);
-			if (languageName) {
-				this.accessibilityService.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName));
-			}
+		const prevLang = this.getLanguageId();
+		if (lang && lang !== prevLang && !this.isDisposed()) {
+			this.setLanguageIdInternal(lang, LanguageDetectionLanguageEventSource);
+			const languageName = this.languageService.getLanguageName(lang);
+			this.accessibilityService.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName ?? lang));
 		}
 	}
 
 	/**
-	 * Creates the text editor model with the provided value, optional preferred mode
+	 * Creates the text editor model with the provided value, optional preferred language
 	 * (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, preferredMode?: string): ITextModel {
+	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, preferredLanguageId?: string): ITextModel {
 		const firstLineText = this.getFirstLineText(value);
-		const languageSelection = this.getOrCreateMode(resource, this.modeService, preferredMode, firstLineText);
+		const languageSelection = this.getOrCreateLanguage(resource, this.languageService, preferredLanguageId, firstLineText);
 
 		return this.doCreateTextEditorModel(value, languageSelection, resource);
 	}
@@ -167,25 +179,25 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	}
 
 	/**
-	 * Gets the mode for the given identifier. Subclasses can override to provide their own implementation of this lookup.
+	 * Gets the language for the given identifier. Subclasses can override to provide their own implementation of this lookup.
 	 *
-	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
+	 * @param firstLineText optional first line of the text buffer to set the language on. This can be used to guess a language from content.
 	 */
-	protected getOrCreateMode(resource: URI | undefined, modeService: IModeService, preferredMode: string | undefined, firstLineText?: string): ILanguageSelection {
+	protected getOrCreateLanguage(resource: URI | undefined, languageService: ILanguageService, preferredLanguage: string | undefined, firstLineText?: string): ILanguageSelection {
 
-		// lookup mode via resource path if the provided mode is unspecific
-		if (!preferredMode || preferredMode === PLAINTEXT_MODE_ID) {
-			return modeService.createByFilepathOrFirstLine(withUndefinedAsNull(resource), firstLineText);
+		// lookup language via resource path if the provided language is unspecific
+		if (!preferredLanguage || preferredLanguage === PLAINTEXT_LANGUAGE_ID) {
+			return languageService.createByFilepathOrFirstLine(resource ?? null, firstLineText);
 		}
 
-		// otherwise take the preferred mode for granted
-		return modeService.create(preferredMode);
+		// otherwise take the preferred language for granted
+		return languageService.createById(preferredLanguage);
 	}
 
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	updateTextEditorModel(newValue?: ITextBufferFactory, preferredMode?: string): void {
+	updateTextEditorModel(newValue?: ITextBufferFactory, preferredLanguageId?: string): void {
 		if (!this.isResolved()) {
 			return;
 		}
@@ -195,9 +207,9 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			this.modelService.updateModel(this.textEditorModel, newValue);
 		}
 
-		// mode (only if specific and changed)
-		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getLanguageId() !== preferredMode) {
-			this.modelService.setMode(this.textEditorModel, this.modeService.create(preferredMode));
+		// language (only if specific and changed)
+		if (preferredLanguageId && preferredLanguageId !== PLAINTEXT_LANGUAGE_ID && this.textEditorModel.getLanguageId() !== preferredLanguageId) {
+			this.textEditorModel.setLanguage(this.languageService.createById(preferredLanguageId));
 		}
 	}
 

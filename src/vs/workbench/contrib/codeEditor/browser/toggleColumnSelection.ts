@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class ToggleColumnSelectionAction extends Action2 {
@@ -24,9 +23,8 @@ export class ToggleColumnSelectionAction extends Action2 {
 		super({
 			id: ToggleColumnSelectionAction.ID,
 			title: {
-				value: localize('toggleColumnSelection', "Toggle Column Selection Mode"),
+				...localize2('toggleColumnSelection', "Toggle Column Selection Mode"),
 				mnemonicTitle: localize({ key: 'miColumnSelection', comment: ['&& denotes a mnemonic'] }, "Column &&Selection Mode"),
-				original: 'Toggle Column Selection Mode'
 			},
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.editor.columnSelection', true),
@@ -61,7 +59,7 @@ export class ToggleColumnSelectionAction extends Action2 {
 				position: modelSelectionStart,
 				viewPosition: viewSelectionStart
 			});
-			const visibleColumn = CursorColumns.visibleColumnFromColumn2(viewModel.cursorConfig, viewModel, viewPosition);
+			const visibleColumn = viewModel.cursorConfig.visibleColumnFromColumn(viewModel, viewPosition);
 			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel, {
 				position: modelPosition,
 				viewPosition: viewPosition,
@@ -70,9 +68,9 @@ export class ToggleColumnSelectionAction extends Action2 {
 			});
 		} else {
 			const columnSelectData = viewModel.getCursorColumnSelectData();
-			const fromViewColumn = CursorColumns.columnFromVisibleColumn2(viewModel.cursorConfig, viewModel, columnSelectData.fromViewLineNumber, columnSelectData.fromViewVisualColumn);
+			const fromViewColumn = viewModel.cursorConfig.columnFromVisibleColumn(viewModel, columnSelectData.fromViewLineNumber, columnSelectData.fromViewVisualColumn);
 			const fromPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(columnSelectData.fromViewLineNumber, fromViewColumn));
-			const toViewColumn = CursorColumns.columnFromVisibleColumn2(viewModel.cursorConfig, viewModel, columnSelectData.toViewLineNumber, columnSelectData.toViewVisualColumn);
+			const toViewColumn = viewModel.cursorConfig.columnFromVisibleColumn(viewModel, columnSelectData.toViewLineNumber, columnSelectData.toViewVisualColumn);
 			const toPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(columnSelectData.toViewLineNumber, toViewColumn));
 
 			codeEditor.setSelection(new Selection(fromPosition.lineNumber, fromPosition.column, toPosition.lineNumber, toPosition.column));

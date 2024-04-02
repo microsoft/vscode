@@ -9,11 +9,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { compare } from 'vs/base/common/strings';
 import { ITextModel } from 'vs/editor/common/model';
-import { Command } from 'vs/editor/common/modes';
-import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { LanguageSelector } from 'vs/editor/common/modes/languageSelector';
+import { Command } from 'vs/editor/common/languages';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface ILanguageStatus {
@@ -21,15 +21,16 @@ export interface ILanguageStatus {
 	readonly name: string;
 	readonly selector: LanguageSelector;
 	readonly severity: Severity;
-	readonly label: string;
+	readonly label: string | { value: string; shortValue: string };
 	readonly detail: string;
+	readonly busy: boolean;
 	readonly source: string;
 	readonly command: Command | undefined;
 	readonly accessibilityInfo: IAccessibilityInformation | undefined;
 }
 
 export interface ILanguageStatusProvider {
-	provideLanguageStatus(langId: string, token: CancellationToken): Promise<ILanguageStatus | undefined>
+	provideLanguageStatus(langId: string, token: CancellationToken): Promise<ILanguageStatus | undefined>;
 }
 
 export const ILanguageStatusService = createDecorator<ILanguageStatusService>('ILanguageStatusService');
@@ -72,4 +73,4 @@ class LanguageStatusServiceImpl implements ILanguageStatusService {
 	}
 }
 
-registerSingleton(ILanguageStatusService, LanguageStatusServiceImpl, true);
+registerSingleton(ILanguageStatusService, LanguageStatusServiceImpl, InstantiationType.Delayed);

@@ -18,10 +18,8 @@ const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const product = require('../product.json');
 
-// Avoid Monkey Patches from Application Insights
-bootstrap.avoidMonkeyPatchFromAppInsights();
-
 // Enable portable support
+// @ts-ignore
 bootstrapNode.configurePortable(product);
 
 // Enable ASAR support

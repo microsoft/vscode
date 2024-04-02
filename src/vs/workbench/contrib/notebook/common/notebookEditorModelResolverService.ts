@@ -7,9 +7,21 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IReference } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+import { Event, IWaitUntil } from 'vs/base/common/event';
+import { IFileReadLimits } from 'vs/platform/files/common/files';
 
 export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookModelResolverService');
+
+/**
+ * A notebook file can only be opened ONCE per notebook type.
+ * This event fires when a file is already open as type A
+ * and there is request to open it as type B. Listeners must
+ * do cleanup (close editor, release references) or the request fails
+ */
+export interface INotebookConflictEvent extends IWaitUntil {
+	resource: URI;
+	viewType: string;
+}
 
 export interface IUntitledNotebookResource {
 	/**
@@ -34,8 +46,10 @@ export interface INotebookEditorModelResolverService {
 	readonly onDidSaveNotebook: Event<URI>;
 	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel>;
 
+	readonly onWillFailWithConflict: Event<INotebookConflictEvent>;
+
 	isDirty(resource: URI): boolean;
 
-	resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
-	resolve(resource: IUntitledNotebookResource, viewType: string): Promise<IReference<IResolvedNotebookEditorModel>>;
+	resolve(resource: URI, viewType?: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>>;
+	resolve(resource: IUntitledNotebookResource, viewType: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>>;
 }

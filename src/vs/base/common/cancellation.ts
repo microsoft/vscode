@@ -46,12 +46,12 @@ export namespace CancellationToken {
 	}
 
 
-	export const None: CancellationToken = Object.freeze({
+	export const None = Object.freeze<CancellationToken>({
 		isCancellationRequested: false,
 		onCancellationRequested: Event.None
 	});
 
-	export const Cancelled: CancellationToken = Object.freeze({
+	export const Cancelled = Object.freeze<CancellationToken>({
 		isCancellationRequested: true,
 		onCancellationRequested: shortcutEvent
 	});
@@ -129,9 +129,7 @@ export class CancellationTokenSource {
 		if (cancel) {
 			this.cancel();
 		}
-		if (this._parentListener) {
-			this._parentListener.dispose();
-		}
+		this._parentListener?.dispose();
 		if (!this._token) {
 			// ensure to initialize with an empty token if we had none
 			this._token = CancellationToken.None;

@@ -5,6 +5,7 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { ExtUri, IExtUri } from 'vs/base/common/resources';
+import { UriComponents } from 'vs/base/common/uri';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostFileSystemInfoShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -33,11 +34,11 @@ export class ExtHostFileSystemInfo implements ExtHostFileSystemInfoShape {
 		});
 	}
 
-	$acceptProviderInfos(scheme: string, capabilities: number | null): void {
+	$acceptProviderInfos(uri: UriComponents, capabilities: number | null): void {
 		if (capabilities === null) {
-			this._providerInfo.delete(scheme);
+			this._providerInfo.delete(uri.scheme);
 		} else {
-			this._providerInfo.set(scheme, capabilities);
+			this._providerInfo.set(uri.scheme, capabilities);
 		}
 	}
 

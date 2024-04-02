@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
-import { disposableTimeout, Throttler } from 'vs/base/common/async';
+import { Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -46,20 +44,20 @@ export class ContributedStatusBarItemController extends Disposable implements IN
 	}
 
 	private _updateVisibleCells(e: {
-		added: CellViewModel[];
+		added: ICellViewModel[];
 		removed: { handle: number }[];
 	}): void {
-		const vm = this._notebookEditor._getViewModel();
+		const vm = this._notebookEditor.getViewModel();
 		if (!vm) {
 			return;
 		}
 
-		for (let newCell of e.added) {
+		for (const newCell of e.added) {
 			const helper = new CellStatusBarHelper(vm, newCell, this._notebookCellStatusBarService);
 			this._visibleCells.set(newCell.handle, helper);
 		}
 
-		for (let oldCell of e.removed) {
+		for (const oldCell of e.removed) {
 			this._visibleCells.get(oldCell.handle)?.dispose();
 			this._visibleCells.delete(oldCell.handle);
 		}
@@ -78,11 +76,12 @@ class CellStatusBarHelper extends Disposable {
 	private _currentItemLists: INotebookCellStatusBarItemList[] = [];
 
 	private _activeToken: CancellationTokenSource | undefined;
+	private _isDisposed = false;
 
-	private readonly _updateThrottler = new Throttler();
+	private readonly _updateThrottler = this._register(new Throttler());
 
 	constructor(
-		private readonly _notebookViewModel: NotebookViewModel,
+		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly _cell: ICellViewModel,
 		private readonly _notebookCellStatusBarService: INotebookCellStatusBarService
 	) {
@@ -102,9 +101,11 @@ class CellStatusBarHelper extends Disposable {
 	}
 	private _updateSoon(): void {
 		// Wait a tick to make sure that the event is fired to the EH before triggering status bar providers
-		this._register(disposableTimeout(() => {
-			this._updateThrottler.queue(() => this._update());
-		}, 0));
+		setTimeout(() => {
+			if (!this._isDisposed) {
+				this._updateThrottler.queue(() => this._update());
+			}
+		}, 0);
 	}
 
 	private async _update() {
@@ -120,7 +121,7 @@ class CellStatusBarHelper extends Disposable {
 			return;
 		}
 
-		const items = flatten(itemLists.map(itemList => itemList.items));
+		const items = itemLists.map(itemList => itemList.items).flat();
 		const newIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
 
 		this._currentItemLists.forEach(itemList => itemList.dispose && itemList.dispose());
@@ -130,6 +131,7 @@ class CellStatusBarHelper extends Disposable {
 
 	override dispose() {
 		super.dispose();
+		this._isDisposed = true;
 		this._activeToken?.dispose(true);
 
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);

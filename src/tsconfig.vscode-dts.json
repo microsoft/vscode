@@ -13,10 +13,10 @@
 		"forceConsistentCasingInFileNames": true,
 		"types": [],
 		"lib": [
-			"es5",
+			"ES2022"
 		],
 	},
 	"include": [
-		"vs/vscode.d.ts"
+		"vscode-dts/vscode.d.ts"
 	]
 }

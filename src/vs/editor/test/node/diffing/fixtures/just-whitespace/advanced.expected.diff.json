@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "console.log('foo'); ",
+		"fileName": "./1.js"
+	},
+	"modified": {
+		"content": "console.log('foo');",
+		"fileName": "./2.js"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,20 -> 1,21 EOL]",
+					"modifiedRange": "[1,20 -> 1,20 EOL]"
+				}
+			]
+		}
+	]
+}

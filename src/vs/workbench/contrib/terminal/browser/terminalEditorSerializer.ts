@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ISerializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 export class TerminalInputSerializer implements IEditorSerializer {
@@ -16,25 +14,23 @@ export class TerminalInputSerializer implements IEditorSerializer {
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) { }
 
-	public canSerialize(editorInput: TerminalEditorInput): boolean {
-		return !!editorInput.terminalInstance?.persistentProcessId;
+	public canSerialize(editorInput: TerminalEditorInput): editorInput is TerminalEditorInput & { readonly terminalInstance: ITerminalInstance } {
+		return typeof editorInput.terminalInstance?.persistentProcessId === 'number' && editorInput.terminalInstance.shouldPersist;
 	}
 
 	public serialize(editorInput: TerminalEditorInput): string | undefined {
-		if (!editorInput.terminalInstance?.persistentProcessId) {
+		if (!this.canSerialize(editorInput)) {
 			return;
 		}
-		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));
-		return term;
+		return JSON.stringify(this._toJson(editorInput.terminalInstance));
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
-		terminalInstance.resource = URI.parse(terminalInstance.resource);
 		return this._terminalEditorService.reviveInput(terminalInstance);
 	}
 
-	private _toJson(instance: ITerminalInstance): SerializedTerminalEditorInput {
+	private _toJson(instance: ITerminalInstance): ISerializedTerminalEditorInput {
 		return {
 			id: instance.persistentProcessId!,
 			pid: instance.processId || 0,
@@ -43,27 +39,11 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			cwd: '',
 			icon: instance.icon,
 			color: instance.color,
-			resource: instance.resource.toString(),
-			hasChildProcesses: instance.hasChildProcesses
+			hasChildProcesses: instance.hasChildProcesses,
+			isFeatureTerminal: instance.shellLaunchConfig.isFeatureTerminal,
+			hideFromUser: instance.shellLaunchConfig.hideFromUser,
+			reconnectionProperties: instance.shellLaunchConfig.reconnectionProperties,
+			shellIntegrationNonce: instance.shellIntegrationNonce
 		};
 	}
-}
-
-interface TerminalEditorInputObject {
-	readonly id: number;
-	readonly pid: number;
-	readonly title: string;
-	readonly titleSource: TitleEventSource;
-	readonly cwd: string;
-	readonly icon: TerminalIcon | undefined;
-	readonly color: string | undefined;
-	readonly hasChildProcesses?: boolean;
-}
-
-export interface SerializedTerminalEditorInput extends TerminalEditorInputObject {
-	readonly resource: string
-}
-
-export interface DeserializedTerminalEditorInput extends TerminalEditorInputObject {
-	readonly resource: URI
 }

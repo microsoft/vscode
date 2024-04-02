@@ -4,7 +4,10 @@
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "resolvers",
+    "tunnels"
+  ],
   "private": true,
   "engines": {
     "vscode": "^1.25.0"
@@ -20,6 +23,7 @@
   "activationEvents": [
     "onResolveRemoteAuthority:test",
     "onCommand:vscode-testresolver.newWindow",
+    "onCommand:vscode-testresolver.currentWindow",
     "onCommand:vscode-testresolver.newWindowWithError",
     "onCommand:vscode-testresolver.showLog",
     "onCommand:vscode-testresolver.openTunnel",
@@ -27,8 +31,9 @@
     "onCommand:vscode-testresolver.toggleConnectionPause"
   ],
   "main": "./out/extension",
+  "browser": "./dist/browser/testResolverMain",
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "18.x"
   },
   "capabilities": {
     "untrustedWorkspaces": {
@@ -57,6 +62,16 @@
         "command": "vscode-testresolver.newWindow"
       },
       {
+        "title": "Connect to TestResolver in Current Window",
+        "category": "Remote-TestResolver",
+        "command": "vscode-testresolver.currentWindow"
+      },
+      {
+        "title": "Connect to TestResolver in Current Window with Managed Connection",
+        "category": "Remote-TestResolver",
+        "command": "vscode-testresolver.currentWindowManaged"
+      },
+      {
         "title": "Show TestResolver Log",
         "category": "Remote-TestResolver",
         "command": "vscode-testresolver.showLog"
@@ -80,6 +95,11 @@
         "title": "Pause Connection (Test Reconnect)",
         "category": "Remote-TestResolver",
         "command": "vscode-testresolver.toggleConnectionPause"
+      },
+      {
+        "title": "Slowdown Connection (Test Slow Down Indicator)",
+        "category": "Remote-TestResolver",
+        "command": "vscode-testresolver.toggleConnectionSlowdown"
       }
     ],
     "menus": {

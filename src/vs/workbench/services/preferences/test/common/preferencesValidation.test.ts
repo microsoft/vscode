@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { createValidator, getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
 
 suite('Preferences Validation', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	class Tester {
 		private validator: (value: any) => string | null;
 
@@ -27,7 +30,7 @@ suite('Preferences Validation', () => {
 					(message: string) => {
 						const actual = this.validator(input);
 						assert.ok(actual);
-						assert(actual!.indexOf(message) > -1,
+						assert(actual.indexOf(message) > -1,
 							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
 					}
 			};
@@ -279,6 +282,31 @@ suite('Preferences Validation', () => {
 		}
 	});
 
+	test('numerical objects work', () => {
+		{
+			const obj = new Tester({ type: 'object', properties: { 'b': { type: 'number' } } });
+			obj.accepts({ 'b': 2.5 });
+			obj.accepts({ 'b': -2.5 });
+			obj.accepts({ 'b': 0 });
+			obj.accepts({ 'b': '0.12' });
+			obj.rejects({ 'b': 'abc' });
+			obj.rejects({ 'b': [] });
+			obj.rejects({ 'b': false });
+			obj.rejects({ 'b': null });
+			obj.rejects({ 'b': undefined });
+		}
+		{
+			const obj = new Tester({ type: 'object', properties: { 'b': { type: 'integer', minimum: 2, maximum: 5.5 } } });
+			obj.accepts({ 'b': 2 });
+			obj.accepts({ 'b': 3 });
+			obj.accepts({ 'b': '3.0' });
+			obj.accepts({ 'b': 5 });
+			obj.rejects({ 'b': 1 });
+			obj.rejects({ 'b': 6 });
+			obj.rejects({ 'b': 5.5 });
+		}
+	});
+
 	test('patterns work', () => {
 		{
 			const urls = new Tester({ pattern: '^(hello)*$', type: 'string' });
@@ -296,6 +324,12 @@ suite('Preferences Validation', () => {
 			urls.rejects('hellohel').withMessage('err: must be friendly');
 			urls.accepts('hellohello');
 		}
+		{
+			const unicodePattern = new Tester({ type: 'string', pattern: '^[\\p{L}\\d_. -]*$', minLength: 3 });
+			unicodePattern.accepts('_autoload');
+			unicodePattern.rejects('#hash');
+			unicodePattern.rejects('');
+		}
 	});
 
 	test('custom error messages are shown', () => {
@@ -312,7 +346,7 @@ suite('Preferences Validation', () => {
 			this.validator = createValidator(settings)!;
 		}
 
-		public accepts(input: string[]) {
+		public accepts(input: unknown[]) {
 			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
 		}
 
@@ -323,7 +357,7 @@ suite('Preferences Validation', () => {
 					(message: string) => {
 						const actual = this.validator(input);
 						assert.ok(actual);
-						assert(actual!.indexOf(message) > -1,
+						assert(actual.indexOf(message) > -1,
 							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
 					}
 			};
@@ -365,6 +399,39 @@ suite('Preferences Validation', () => {
 		}
 	});
 
+	test('array of numbers', () => {
+		// We accept parseable strings since the view handles strings
+		{
+			const arr = new ArrayTester({ type: 'array', items: { type: 'number' } });
+			arr.accepts([]);
+			arr.accepts([2]);
+			arr.accepts([2, 3]);
+			arr.accepts(['2', '3']);
+			arr.accepts([6.6, '3', 7]);
+			arr.rejects(76);
+			arr.rejects(7.6);
+			arr.rejects([6, 'a', 7]);
+		}
+		{
+			const arr = new ArrayTester({ type: 'array', items: { type: 'integer', minimum: -2, maximum: 3 }, maxItems: 4 });
+			arr.accepts([]);
+			arr.accepts([-2, 3]);
+			arr.accepts([2, 3]);
+			arr.accepts(['2', '3']);
+			arr.accepts(['-2', '0', '3']);
+			arr.accepts(['-2', 0.0, '3']);
+			arr.rejects(2);
+			arr.rejects(76);
+			arr.rejects([6, '3', 7]);
+			arr.rejects([2, 'a', 3]);
+			arr.rejects([-2, 4]);
+			arr.rejects([-1.2, 2.1]);
+			arr.rejects([-3, 3]);
+			arr.rejects([-3, 4]);
+			arr.rejects([2, 2, 2, 2, 2]);
+		}
+	});
+
 	test('min-max and enum', () => {
 		const arr = new ArrayTester({ type: 'array', items: { type: 'string', enum: ['a', 'b'] }, minItems: 1, maxItems: 2 });
 
@@ -377,6 +444,13 @@ suite('Preferences Validation', () => {
 
 		arr.accepts(['hello']);
 		arr.rejects(['a']).withMessage(`Value 'a' must match regex`);
+	});
+
+	test('Unicode pattern', () => {
+		const arr = new ArrayTester({ type: 'array', items: { type: 'string', pattern: '^[\\p{L}\\d_. -]*$' } });
+
+		arr.accepts(['hello', 'world']);
+		arr.rejects(['hello', '#world']).withMessage(`Value '#world' must match regex`);
 	});
 
 	test('pattern with error message', () => {

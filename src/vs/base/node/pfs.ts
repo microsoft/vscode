@@ -6,14 +6,13 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
-import { ResourceQueue } from 'vs/base/common/async';
-import { isEqualOrParent, isRootOrDriveLetter } from 'vs/base/common/extpath';
+import { ResourceQueue, timeout } from 'vs/base/common/async';
+import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 
 //#region rimraf
 
@@ -38,32 +37,48 @@ export enum RimRafMode {
  * - `UNLINK`: direct removal from disk
  * - `MOVE`: faster variant that first moves the target to temp dir and then
  *           deletes it in the background without waiting for that to finish.
+ *           the optional `moveToPath` allows to override where to rename the
+ *           path to before deleting it.
  */
-async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
+async function rimraf(path: string, mode: RimRafMode.UNLINK): Promise<void>;
+async function rimraf(path: string, mode: RimRafMode.MOVE, moveToPath?: string): Promise<void>;
+async function rimraf(path: string, mode?: RimRafMode, moveToPath?: string): Promise<void>;
+async function rimraf(path: string, mode = RimRafMode.UNLINK, moveToPath?: string): Promise<void> {
 	if (isRootOrDriveLetter(path)) {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	// delete: via rmDir
+	// delete: via rm
 	if (mode === RimRafMode.UNLINK) {
 		return rimrafUnlink(path);
 	}
 
 	// delete: via move
-	return rimrafMove(path);
+	return rimrafMove(path, moveToPath);
 }
 
-async function rimrafMove(path: string): Promise<void> {
+async function rimrafMove(path: string, moveToPath = randomPath(tmpdir())): Promise<void> {
 	try {
-		const pathInTemp = join(tmpdir(), generateUuid());
 		try {
-			await Promises.rename(path, pathInTemp);
+			// Intentionally using `fs.promises` here to skip
+			// the patched graceful-fs method that can result
+			// in very long running `rename` calls when the
+			// folder is locked by a file watcher. We do not
+			// really want to slow down this operation more
+			// than necessary and we have a fallback to delete
+			// via unlink.
+			// https://github.com/microsoft/vscode/issues/139908
+			await fs.promises.rename(path, moveToPath);
 		} catch (error) {
-			return rimrafUnlink(path); // if rename fails, delete without tmp dir
+			if (error.code === 'ENOENT') {
+				return; // ignore - path to delete did not exist
+			}
+
+			return rimrafUnlink(path); // otherwise fallback to unlink
 		}
 
 		// Delete but do not return as promise
-		rimrafUnlink(pathInTemp).catch(error => {/* ignore */ });
+		rimrafUnlink(moveToPath).catch(error => {/* ignore */ });
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			throw error;
@@ -72,7 +87,7 @@ async function rimrafMove(path: string): Promise<void> {
 }
 
 async function rimrafUnlink(path: string): Promise<void> {
-	return Promises.rmdir(path, { recursive: true, maxRetries: 3 });
+	return promisify(fs.rm)(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 export function rimrafSync(path: string): void {
@@ -80,7 +95,7 @@ export function rimrafSync(path: string): void {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	fs.rmdirSync(path, { recursive: true });
+	fs.rmSync(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 //#endregion
@@ -348,7 +363,7 @@ export namespace SymlinkSupport {
 
 //#region Write File
 
-// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
+// According to node.js docs (https://nodejs.org/docs/v14.16.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
 // it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
 const writeQueues = new ResourceQueue();
@@ -365,11 +380,11 @@ function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Pro
 function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
 function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
 function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
-	return writeQueues.queueFor(URI.file(path), extUriBiasedIgnorePathCase).queue(() => {
+	return writeQueues.queueFor(URI.file(path), () => {
 		const ensuredOptions = ensureWriteOptions(options);
 
 		return new Promise((resolve, reject) => doWriteFileAndFlush(path, data, ensuredOptions, error => error ? reject(error) : resolve()));
-	});
+	}, extUriBiasedIgnorePathCase);
 }
 
 interface IWriteFileOptions {
@@ -383,6 +398,9 @@ interface IEnsuredWriteFileOptions extends IWriteFileOptions {
 }
 
 let canFlush = true;
+export function configureFlushOnWrite(enabled: boolean): void {
+	canFlush = enabled;
+}
 
 // Calls fs.writeFile() followed by a fs.sync() call to flush the changes to disk
 // We do this in cases where we want to make sure the data is really on disk and
@@ -414,7 +432,7 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 				// In that case we disable flushing and warn to the console
 				if (syncError) {
 					console.warn('[node.js fs] fdatasync is now disabled for this session because it failed: ', syncError);
-					canFlush = false;
+					configureFlushOnWrite(false);
 				}
 
 				return fs.close(fd, closeError => callback(closeError));
@@ -448,7 +466,7 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 			fs.fdatasyncSync(fd); // https://github.com/microsoft/vscode/issues/9589
 		} catch (syncError) {
 			console.warn('[node.js fs] fdatasyncSync is now disabled for this session because it failed: ', syncError);
-			canFlush = false;
+			configureFlushOnWrite(false);
 		}
 	} finally {
 		fs.closeSync(fd);
@@ -472,40 +490,25 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 
 /**
  * A drop-in replacement for `fs.rename` that:
- * - updates the `mtime` of the `source` after the operation
  * - allows to move across multiple disks
+ * - attempts to retry the operation for certain error codes on Windows
  */
-async function move(source: string, target: string): Promise<void> {
+async function rename(source: string, target: string, windowsRetryTimeout: number | false = 60000 /* matches graceful-fs */): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
 
-	// We have been updating `mtime` for move operations for files since the
-	// beginning for reasons that are no longer quite clear, but changing
-	// this could be risky as well. As such, trying to reason about it:
-	// It is very common as developer to have file watchers enabled that watch
-	// the current workspace for changes. Updating the `mtime` might make it
-	// easier for these watchers to recognize an actual change. Since changing
-	// a source code file also updates the `mtime`, moving a file should do so
-	// as well because conceptually it is a change of a similar category.
-	async function updateMtime(path: string): Promise<void> {
-		try {
-			const stat = await Promises.lstat(path);
-			if (stat.isDirectory() || stat.isSymbolicLink()) {
-				return; // only for files
-			}
-
-			await Promises.utimes(path, stat.atime, new Date());
-		} catch (error) {
-			// Ignore any error
-		}
-	}
-
 	try {
-		await Promises.rename(source, target);
-		await updateMtime(target);
+		if (isWindows && typeof windowsRetryTimeout === 'number') {
+			// On Windows, a rename can fail when either source or target
+			// is locked by AV software. We do leverage graceful-fs to iron
+			// out these issues, however in case the target file exists,
+			// graceful-fs will immediately return without retry for fs.rename().
+			await renameWithRetry(source, target, Date.now(), windowsRetryTimeout);
+		} else {
+			await promisify(fs.rename)(source, target);
+		}
 	} catch (error) {
-
 		// In two cases we fallback to classic copy and delete:
 		//
 		// 1.) The EXDEV error indicates that source and target are on different devices
@@ -517,15 +520,52 @@ async function move(source: string, target: string): Promise<void> {
 		if (source.toLowerCase() !== target.toLowerCase() && error.code === 'EXDEV' || source.endsWith('.')) {
 			await copy(source, target, { preserveSymlinks: false /* copying to another device */ });
 			await rimraf(source, RimRafMode.MOVE);
-			await updateMtime(target);
 		} else {
 			throw error;
 		}
 	}
 }
 
+async function renameWithRetry(source: string, target: string, startTime: number, retryTimeout: number, attempt = 0): Promise<void> {
+	try {
+		return await promisify(fs.rename)(source, target);
+	} catch (error) {
+		if (error.code !== 'EACCES' && error.code !== 'EPERM' && error.code !== 'EBUSY') {
+			throw error; // only for errors we think are temporary
+		}
+
+		if (Date.now() - startTime >= retryTimeout) {
+			console.error(`[node.js fs] rename failed after ${attempt} retries with error: ${error}`);
+
+			throw error; // give up after configurable timeout
+		}
+
+		if (attempt === 0) {
+			let abortRetry = false;
+			try {
+				const { stat } = await SymlinkSupport.stat(target);
+				if (!stat.isFile()) {
+					abortRetry = true; // if target is not a file, EPERM error may be raised and we should not attempt to retry
+				}
+			} catch (error) {
+				// Ignore
+			}
+
+			if (abortRetry) {
+				throw error;
+			}
+		}
+
+		// Delay with incremental backoff up to 100ms
+		await timeout(Math.min(100, attempt * 10));
+
+		// Attempt again
+		return renameWithRetry(source, target, startTime, retryTimeout, attempt + 1);
+	}
+}
+
 interface ICopyPayload {
-	readonly root: { source: string, target: string };
+	readonly root: { source: string; target: string };
 	readonly options: { preserveSymlinks: boolean };
 	readonly handledSourcePaths: Set<string>;
 }
@@ -568,7 +608,6 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 				return await doCopySymlink(source, target, payload);
 			} catch (error) {
 				// in any case of an error fallback to normal copy via dereferencing
-				console.warn('[node.js fs] copy of symlink failed: ', error);
 			}
 		}
 
@@ -656,17 +695,50 @@ export const Promises = new class {
 	get lstat() { return promisify(fs.lstat); }
 	get utimes() { return promisify(fs.utimes); }
 
-	get read() { return promisify(fs.read); }
+	get read() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes read, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number, length: number, position: number | null) => {
+			return new Promise<{ bytesRead: number; buffer: Uint8Array }>((resolve, reject) => {
+				fs.read(fd, buffer, offset, length, position, (err, bytesRead, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesRead, buffer });
+				});
+			});
+		};
+	}
 	get readFile() { return promisify(fs.readFile); }
 
-	get write() { return promisify(fs.write); }
+	get write() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes written, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number | undefined | null, length: number | undefined | null, position: number | undefined | null) => {
+			return new Promise<{ bytesWritten: number; buffer: Uint8Array }>((resolve, reject) => {
+				fs.write(fd, buffer, offset, length, position, (err, bytesWritten, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesWritten, buffer });
+				});
+			});
+		};
+	}
 
 	get appendFile() { return promisify(fs.appendFile); }
 
 	get fdatasync() { return promisify(fs.fdatasync); }
 	get truncate() { return promisify(fs.truncate); }
 
-	get rename() { return promisify(fs.rename); }
 	get copyFile() { return promisify(fs.copyFile); }
 
 	get open() { return promisify(fs.open); }
@@ -705,7 +777,7 @@ export const Promises = new class {
 
 	get rm() { return rimraf; }
 
-	get move() { return move; }
+	get rename() { return rename; }
 	get copy() { return copy; }
 
 	//#endregion

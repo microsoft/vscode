@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals, INodeProcess, isMacintosh, isWindows, setImmediate } from 'vs/base/common/platform';
+import { INodeProcess, isMacintosh, isWindows } from 'vs/base/common/platform';
 
-let safeProcess: Omit<INodeProcess, 'arch'> & { nextTick: (callback: (...args: any[]) => void) => void; arch: string | undefined; };
+let safeProcess: Omit<INodeProcess, 'arch'> & { arch: string | undefined };
 declare const process: INodeProcess;
 
 // Native sandbox environment
-if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
-	const sandboxProcess: INodeProcess = globals.vscode.process;
+const vscodeGlobal = (globalThis as any).vscode;
+if (typeof vscodeGlobal !== 'undefined' && typeof vscodeGlobal.process !== 'undefined') {
+	const sandboxProcess: INodeProcess = vscodeGlobal.process;
 	safeProcess = {
 		get platform() { return sandboxProcess.platform; },
 		get arch() { return sandboxProcess.arch; },
 		get env() { return sandboxProcess.env; },
-		cwd() { return sandboxProcess.cwd(); },
-		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); }
+		cwd() { return sandboxProcess.cwd(); }
 	};
 }
 
@@ -26,8 +26,7 @@ else if (typeof process !== 'undefined') {
 		get platform() { return process.platform; },
 		get arch() { return process.arch; },
 		get env() { return process.env; },
-		cwd() { return process.env['VSCODE_CWD'] || process.cwd(); },
-		nextTick(callback: (...args: any[]) => void): void { return process.nextTick!(callback); }
+		cwd() { return process.env['VSCODE_CWD'] || process.cwd(); }
 	};
 }
 
@@ -38,7 +37,6 @@ else {
 		// Supported
 		get platform() { return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux'; },
 		get arch() { return undefined; /* arch is undefined in web */ },
-		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); },
 
 		// Unsupported
 		get env() { return {}; },
@@ -51,6 +49,8 @@ else {
  * environments.
  *
  * Note: in web, this property is hardcoded to be `/`.
+ *
+ * @skipMangle
  */
 export const cwd = safeProcess.cwd;
 
@@ -67,12 +67,6 @@ export const env = safeProcess.env;
  * environments.
  */
 export const platform = safeProcess.platform;
-
-/**
- * Provides safe access to the `nextTick` method in node.js, sandboxed or web
- * environments.
- */
-export const nextTick = safeProcess.nextTick;
 
 /**
  * Provides safe access to the `arch` method in node.js, sandboxed or web

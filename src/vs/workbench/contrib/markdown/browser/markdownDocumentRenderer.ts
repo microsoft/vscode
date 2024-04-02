@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hookDomPurifyHrefAndSrcSanitizer, basicMarkupHtmlTags } from 'vs/base/browser/dom';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import * as marked from 'vs/base/common/marked/marked';
+import { allowedMarkdownAttr } from 'vs/base/browser/markdownRenderer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
-import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { escape } from 'vs/base/common/strings';
+import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
 
 export const DEFAULT_MARKDOWN_STYLES = `
 body {
@@ -65,15 +69,13 @@ table {
 	border-collapse: collapse;
 }
 
-table > thead > tr > th {
+th {
 	text-align: left;
 	border-bottom: 1px solid;
 }
 
-table > thead > tr > th,
-table > thead > tr > td,
-table > tbody > tr > th,
-table > tbody > tr > td {
+th,
+td {
 	padding: 5px 10px;
 }
 
@@ -93,17 +95,19 @@ code {
 	font-family: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
 }
 
+pre {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
 pre code {
 	font-family: var(--vscode-editor-font-family);
 	font-weight: var(--vscode-editor-font-weight);
 	font-size: var(--vscode-editor-font-size);
 	line-height: 1.5;
-}
-
-code > div {
-	padding: 16px;
-	border-radius: 3px;
-	overflow: auto;
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
 }
 
 .monaco-tokenized-source {
@@ -112,82 +116,71 @@ code > div {
 
 /** Theming */
 
-.vscode-light code > div {
-	background-color: rgba(220, 220, 220, 0.4);
-}
-
-.vscode-dark code > div {
-	background-color: rgba(10, 10, 10, 0.4);
-}
-
-.vscode-high-contrast code > div {
-	background-color: rgb(0, 0, 0);
+.pre {
+	background-color: var(--vscode-textCodeBlock-background);
 }
 
 .vscode-high-contrast h1 {
 	border-color: rgb(0, 0, 0);
 }
 
-.vscode-light table > thead > tr > th {
+.vscode-light th {
 	border-color: rgba(0, 0, 0, 0.69);
 }
 
-.vscode-dark table > thead > tr > th {
+.vscode-dark th {
 	border-color: rgba(255, 255, 255, 0.69);
 }
 
 .vscode-light h1,
 .vscode-light hr,
-.vscode-light table > tbody > tr + tr > td {
+.vscode-light td {
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
 .vscode-dark h1,
 .vscode-dark hr,
-.vscode-dark table > tbody > tr + tr > td {
+.vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);
 }
 
+@media (forced-colors: active) and (prefers-color-scheme: light){
+	body {
+		forced-color-adjust: none;
+	}
+}
+
+@media (forced-colors: active) and (prefers-color-scheme: dark){
+	body {
+		forced-color-adjust: none;
+	}
+}
 `;
 
 const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
 function sanitize(documentContent: string, allowUnknownProtocols: boolean): string {
 
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// build an anchor to map URLs to
-		const anchor = document.createElement('a');
-
-		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
-					node.removeAttribute(attr);
-				}
-			}
-		}
-	});
+	const hook = hookDomPurifyHrefAndSrcSanitizer(allowedProtocols, true);
 
 	try {
 		return dompurify.sanitize(documentContent, {
 			...{
 				ALLOWED_TAGS: [
-					'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
-					'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
-					'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
-					'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr', 'checkbox', 'checklist', 'vertically-centered'
+					...basicMarkupHtmlTags,
+					'checkbox',
+					'checklist',
 				],
 				ALLOWED_ATTR: [
-					'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
-					'width', 'height', 'align', 'x-dispatch',
+					...allowedMarkdownAttr,
+					'data-command', 'name', 'id', 'role', 'tabindex',
+					'x-dispatch',
 					'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
 				],
 			},
 			...(allowUnknownProtocols ? { ALLOW_UNKNOWN_PROTOCOLS: true } : {}),
 		});
 	} finally {
-		dompurify.removeHook('afterSanitizeAttributes');
+		hook.dispose();
 	}
 }
 
@@ -199,29 +192,43 @@ function sanitize(documentContent: string, allowUnknownProtocols: boolean): stri
 export async function renderMarkdownDocument(
 	text: string,
 	extensionService: IExtensionService,
-	modeService: IModeService,
+	languageService: ILanguageService,
 	shouldSanitize: boolean = true,
 	allowUnknownProtocols: boolean = false,
+	token?: CancellationToken,
+	settingRenderer?: SimpleSettingRenderer
 ): Promise<string> {
 
-	const highlight = (code: string, lang: string, callback: ((error: any, code: string) => void) | undefined): any => {
+	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
 		if (!callback) {
 			return code;
 		}
+
+		if (typeof lang !== 'string') {
+			callback(null, escape(code));
+			return '';
+		}
+
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			let support: ITokenizationSupport | undefined;
-			const languageId = modeService.getModeIdForLanguageName(lang);
-			if (languageId) {
-				modeService.triggerMode(languageId);
-				support = await TokenizationRegistry.getPromise(languageId) ?? undefined;
+			if (token?.isCancellationRequested) {
+				callback(null, '');
+				return;
 			}
-			callback(null, `<code>${tokenizeToString(code, modeService.languageIdCodec, support)}</code>`);
+
+			const languageId = languageService.getLanguageIdByLanguageName(lang) ?? languageService.getLanguageIdByLanguageName(lang.split(/\s+|:|,|(?!^)\{|\?]/, 1)[0]);
+			const html = await tokenizeToString(languageService, code, languageId);
+			callback(null, html);
 		});
 		return '';
 	};
 
+	const renderer = new marked.Renderer();
+	if (settingRenderer) {
+		renderer.html = settingRenderer.getHtmlRenderer();
+	}
+
 	return new Promise<string>((resolve, reject) => {
-		marked(text, { highlight }, (err, value) => err ? reject(err) : resolve(value));
+		marked(text, { highlight, renderer }, (err, value) => err ? reject(err) : resolve(value));
 	}).then(raw => {
 		if (shouldSanitize) {
 			return sanitize(raw, allowUnknownProtocols);

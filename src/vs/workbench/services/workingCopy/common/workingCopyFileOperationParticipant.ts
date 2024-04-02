@@ -24,6 +24,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
 		const remove = this.participants.push(participant);
+
 		return toDisposable(() => remove());
 	}
 
@@ -45,5 +46,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 
 	override dispose(): void {
 		this.participants.clear();
+
+		super.dispose();
 	}
 }

@@ -21,7 +21,7 @@ export function splitJoinTag() {
 	}
 
 	return editor.edit(editBuilder => {
-		editor.selections.reverse().forEach(selection => {
+		Array.from(editor.selections).reverse().forEach(selection => {
 			const documentText = document.getText();
 			const offset = document.offsetAt(selection.start);
 			const nodeToUpdate = getHtmlFlatNode(documentText, rootNode, offset, true);

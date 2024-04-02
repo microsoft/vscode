@@ -8,8 +8,8 @@ import { getHtmlFlatNode, offsetRangeToSelection, validate } from './util';
 import { getRootNode } from './parseDocument';
 import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 
-let balanceOutStack: Array<vscode.Selection[]> = [];
-let lastBalancedSelections: vscode.Selection[] = [];
+let balanceOutStack: Array<readonly vscode.Selection[]> = [];
+let lastBalancedSelections: readonly vscode.Selection[] = [];
 
 export function balanceOut() {
 	balance(true);
@@ -31,10 +31,8 @@ function balance(out: boolean) {
 	}
 
 	const rangeFn = out ? getRangeToBalanceOut : getRangeToBalanceIn;
-	let newSelections: vscode.Selection[] = [];
-	editor.selections.forEach(selection => {
-		const range = rangeFn(document, rootNode, selection);
-		newSelections.push(range);
+	let newSelections: readonly vscode.Selection[] = editor.selections.map(selection => {
+		return rangeFn(document, rootNode, selection);
 	});
 
 	// check whether we are starting a balance elsewhere
@@ -122,7 +120,7 @@ function getRangeToBalanceIn(document: vscode.TextDocument, rootNode: HtmlFlatNo
 	return offsetRangeToSelection(document, firstChild.start, firstChild.end);
 }
 
-function areSameSelections(a: vscode.Selection[], b: vscode.Selection[]): boolean {
+function areSameSelections(a: readonly vscode.Selection[], b: readonly vscode.Selection[]): boolean {
 	if (a.length !== b.length) {
 		return false;
 	}

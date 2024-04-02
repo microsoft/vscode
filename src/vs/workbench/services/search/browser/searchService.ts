@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -16,8 +16,8 @@ import { SearchService } from 'vs/workbench/services/search/common/searchService
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
@@ -25,6 +25,8 @@ import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { revive } from 'vs/base/common/marshalling';
 
 export class RemoteSearchService extends SearchService {
 	constructor(
@@ -34,7 +36,7 @@ export class RemoteSearchService extends SearchService {
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
@@ -49,15 +51,16 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
 	protected readonly _workerFactory: DefaultWorkerFactory;
 
-	private readonly _onDidRecieveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>, queryId: number }>();
-	readonly onDidRecieveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>, queryId: number }> = this._onDidRecieveTextSearchMatch.event;
+	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
+	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
 
-	private cache: { key: string, cache: ISearchComplete } | undefined;
+	private cache: { key: string; cache: ISearchComplete } | undefined;
 
 	private queryId: number = 0;
 
 	constructor(
 		@IFileService private fileService: IFileService,
+		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._worker = null;
@@ -65,7 +68,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	}
 
 	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void {
-		this._onDidRecieveTextSearchMatch.fire({ match, queryId });
+		this._onDidReceiveTextSearchMatch.fire({ match, queryId });
 	}
 
 	@memoize
@@ -91,26 +94,29 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				const queryId = this.queryId++;
 				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-				const handle = await this.fileSystemProvider.getHandle(fq.folder);
-				if (!handle || handle.kind !== 'directory') {
+				const handle: FileSystemHandle | undefined = await this.fileSystemProvider.getHandle(fq.folder);
+				if (!handle || !WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
 					console.error('Could not get directory handle for ', fq);
 					return;
 				}
 
+				// force resource to revive using URI.revive.
+				// TODO @andrea see why we can't just use `revive()` below. For some reason, (<MarshalledObject>obj).$mid was undefined for result.resource
 				const reviveMatch = (result: IFileMatch<UriComponents>): IFileMatch => ({
 					resource: URI.revive(result.resource),
-					results: result.results
+					results: revive(result.results)
 				});
 
-				queryDisposables.add(this.onDidRecieveTextSearchMatch(e => {
+				queryDisposables.add(this.onDidReceiveTextSearchMatch(e => {
 					if (e.queryId === queryId) {
 						onProgress?.(reviveMatch(e.match));
 					}
 				}));
 
-				const folderResults = await proxy.searchDirectory(handle, query, fq, queryId);
+				const ignorePathCasing = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
+				const folderResults = await proxy.searchDirectory(handle, query, fq, ignorePathCasing, queryId);
 				for (const folderResult of folderResults.results) {
-					results.push(reviveMatch(folderResult));
+					results.push(revive(folderResult));
 				}
 
 				if (folderResults.limitHit) {
@@ -144,13 +150,13 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				const queryId = this.queryId++;
 				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-				const handle = await this.fileSystemProvider.getHandle(fq.folder);
-				if (!handle || handle.kind !== 'directory') {
+				const handle: FileSystemHandle | undefined = await this.fileSystemProvider.getHandle(fq.folder);
+				if (!handle || !WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
 					console.error('Could not get directory handle for ', fq);
 					return;
 				}
-
-				const folderResults = await proxy.listDirectory(handle, query, fq, queryId);
+				const caseSensitive = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
+				const folderResults = await proxy.listDirectory(handle, query, fq, caseSensitive, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push({ resource: URI.joinPath(fq.folder, folderResult) });
 				}
@@ -193,4 +199,4 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	}
 }
 
-registerSingleton(ISearchService, RemoteSearchService, true);
+registerSingleton(ISearchService, RemoteSearchService, InstantiationType.Delayed);

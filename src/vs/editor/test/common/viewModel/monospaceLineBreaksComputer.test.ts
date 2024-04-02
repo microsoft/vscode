@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { WrappingIndent, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { EditorOptions, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ILineBreaksComputerFactory, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+import { ILineBreaksComputerFactory, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 
-function parseAnnotatedText(annotatedText: string): { text: string; indices: number[]; } {
+function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
 	let currentLineIndex = 0;
-	let indices: number[] = [];
+	const indices: number[] = [];
 	for (let i = 0, len = annotatedText.length; i < len; i++) {
 		if (annotatedText.charAt(i) === '|') {
 			currentLineIndex++;
@@ -23,13 +24,13 @@ function parseAnnotatedText(annotatedText: string): { text: string; indices: num
 	return { text: text, indices: indices };
 }
 
-function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): string {
+function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | null): string {
 	// Insert line break markers again, according to algorithm
 	let actualAnnotatedText = '';
 	if (lineBreakData) {
 		let previousLineIndex = 0;
 		for (let i = 0, len = text.length; i < len; i++) {
-			let r = lineBreakData.translateToOutputPosition(i);
+			const r = lineBreakData.translateToOutputPosition(i);
 			if (previousLineIndex !== r.outputLineIndex) {
 				previousLineIndex = r.outputLineIndex;
 				actualAnnotatedText += '|';
@@ -43,14 +44,14 @@ function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): str
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakData: LineBreakData | null): LineBreakData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
-		zoomLevel: 0,
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
 		fontWeight: 'normal',
 		fontSize: 14,
 		fontFeatureSettings: '',
+		fontVariationSettings: '',
 		lineHeight: 19,
 		letterSpacing: 0,
 		isMonospace: true,
@@ -62,16 +63,16 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		wsmiddotWidth: 7,
 		maxDigitWidth: 7
 	}, false);
-	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent);
-	const previousLineBreakDataClone = previousLineBreakData ? new LineBreakData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
+	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak);
+	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(text, null, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
 }
 
-function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): LineBreakData | null {
+function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None, wordBreak: 'normal' | 'keepAll' = 'normal'): ModelLineProjectionData | null {
 	// Create version of `annotatedText` with line break markers removed
 	const text = parseAnnotatedText(annotatedText).text;
-	const lineBreakData = getLineBreakData(factory, tabSize, breakAfter, 2, wrappingIndent, text, null);
+	const lineBreakData = getLineBreakData(factory, tabSize, breakAfter, 2, wrappingIndent, wordBreak, text, null);
 	const actualAnnotatedText = toAnnotatedText(text, lineBreakData);
 
 	assert.strictEqual(actualAnnotatedText, annotatedText);
@@ -80,9 +81,12 @@ function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, 
 }
 
 suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('MonospaceLineBreaksComputer', () => {
 
-		let factory = new MonospaceLineBreaksComputerFactory('(', '\t).');
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t).');
 
 		// Empty string
 		assertLineBreaks(factory, 4, 5, '');
@@ -117,12 +121,12 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aaa))|).aaa');
 		assertLineBreaks(factory, 4, 5, 'aaa))|).|aaaa');
 		assertLineBreaks(factory, 4, 5, 'aaa)|().|aaa');
-		assertLineBreaks(factory, 4, 5, 'aaa(|().|aaa');
-		assertLineBreaks(factory, 4, 5, 'aa.(|().|aaa');
-		assertLineBreaks(factory, 4, 5, 'aa.(.|).aaa');
+		assertLineBreaks(factory, 4, 5, 'aaa|(().|aaa');
+		assertLineBreaks(factory, 4, 5, 'aa.|(().|aaa');
+		assertLineBreaks(factory, 4, 5, 'aa.|(.).|aaa');
 	});
 
-	function assertLineBreakDataEqual(a: LineBreakData | null, b: LineBreakData | null): void {
+	function assertLineBreakDataEqual(a: ModelLineProjectionData | null, b: ModelLineProjectionData | null): void {
 		if (!a || !b) {
 			assert.deepStrictEqual(a, b);
 			return;
@@ -141,20 +145,20 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assert.strictEqual(text, parseAnnotatedText(annotatedText2).text);
 
 		// check that the direct mapping is ok for 1
-		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, text, null);
+		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', text, null);
 		assert.strictEqual(toAnnotatedText(text, directLineBreakData1), annotatedText1);
 
 		// check that the direct mapping is ok for 2
-		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, text, null);
+		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', text, null);
 		assert.strictEqual(toAnnotatedText(text, directLineBreakData2), annotatedText2);
 
 		// check that going from 1 to 2 is ok
-		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, text, directLineBreakData1);
+		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', text, directLineBreakData1);
 		assert.strictEqual(toAnnotatedText(text, lineBreakData2from1), annotatedText2);
 		assertLineBreakDataEqual(lineBreakData2from1, directLineBreakData2);
 
 		// check that going from 2 to 1 is ok
-		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, text, directLineBreakData2);
+		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', text, directLineBreakData2);
 		assert.strictEqual(toAnnotatedText(text, lineBreakData1from2), annotatedText1);
 		assertLineBreakDataEqual(lineBreakData1from2, directLineBreakData1);
 	}
@@ -243,7 +247,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	});
 
 	test('MonospaceLineBreaksComputer - CJK and Kinsoku Shori', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
 		assertLineBreaks(factory, 4, 5, 'aa \u5b89|\u5b89');
 		assertLineBreaks(factory, 4, 5, '\u3042 \u5b89|\u5b89');
 		assertLineBreaks(factory, 4, 5, '\u3042\u3042|\u5b89\u5b89');
@@ -253,23 +257,23 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	});
 
 	test('MonospaceLineBreaksComputer - WrappingIndent.Same', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
+		const factory = new MonospaceLineBreaksComputerFactory('', '\t ');
 		assertLineBreaks(factory, 4, 38, ' *123456789012345678901234567890123456|7890', WrappingIndent.Same);
 	});
 
 	test('issue #16332: Scroll bar overlaying on top of text', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
+		const factory = new MonospaceLineBreaksComputerFactory('', '\t ');
 		assertLineBreaks(factory, 4, 24, 'a/ very/long/line/of/tex|t/that/expands/beyon|d/your/typical/line/|of/code/', WrappingIndent.Indent);
 	});
 
 	test('issue #35162: wrappingIndent not consistently working', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
-		let mapper = assertLineBreaks(factory, 4, 24, '                t h i s |i s |a l |o n |g l |i n |e', WrappingIndent.Indent);
+		const factory = new MonospaceLineBreaksComputerFactory('', '\t ');
+		const mapper = assertLineBreaks(factory, 4, 24, '                t h i s |i s |a l |o n |g l |i n |e', WrappingIndent.Indent);
 		assert.strictEqual(mapper!.wrappedTextIndentLength, '                    '.length);
 	});
 
 	test('issue #75494: surrogate pairs', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('\t', ' ');
+		const factory = new MonospaceLineBreaksComputerFactory('\t', ' ');
 		assertLineBreaks(factory, 4, 49, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼|🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼|🐇👬', WrappingIndent.Same);
 	});
 
@@ -284,8 +288,8 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	});
 
 	test('MonospaceLineBreaksComputer - WrappingIndent.DeepIndent', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
-		let mapper = assertLineBreaks(factory, 4, 26, '        W e A r e T e s t |i n g D e |e p I n d |e n t a t |i o n', WrappingIndent.DeepIndent);
+		const factory = new MonospaceLineBreaksComputerFactory('', '\t ');
+		const mapper = assertLineBreaks(factory, 4, 26, '        W e A r e T e s t |i n g D e |e p I n d |e n t a t |i o n', WrappingIndent.DeepIndent);
 		assert.strictEqual(mapper!.wrappedTextIndentLength, '                '.length);
 	});
 
@@ -294,8 +298,23 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 23, 'this is a line of |text, text that sits |on a line', WrappingIndent.Same);
 	});
 
+	test('issue #152773: Word wrap algorithm behaves differently with bracket followed by comma', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+		assertLineBreaks(factory, 4, 24, 'this is a line of |(text), text that sits |on a line', WrappingIndent.Same);
+	});
+
 	test('issue #112382: Word wrap doesn\'t work well with control characters', () => {
 		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
 		assertLineBreaks(factory, 4, 6, '\x06\x06\x06|\x06\x06\x06', WrappingIndent.Same);
+	});
+
+	test('Word break work well with Chinese/Japanese/Korean (CJK) text when setting normal', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+		assertLineBreaks(factory, 4, 5, '你好|1111', WrappingIndent.Same, 'normal');
+	});
+
+	test('Word break work well with Chinese/Japanese/Korean (CJK) text when setting keepAll', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+		assertLineBreaks(factory, 4, 8, '你好1111', WrappingIndent.Same, 'keepAll');
 	});
 });
