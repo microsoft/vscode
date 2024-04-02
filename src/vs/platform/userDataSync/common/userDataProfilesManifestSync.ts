@@ -187,19 +187,17 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 
 		if (localChange !== Change.None) {
 			await this.backupLocal(stringifyLocalProfiles(this.getLocalUserDataProfiles(), false));
+			await Promise.all(local.removed.map(async profile => {
+				this.logService.trace(`${this.syncResourceLogLabel}: Removing '${profile.name}' profile...`);
+				await this.userDataProfilesService.removeProfile(profile);
+				this.logService.info(`${this.syncResourceLogLabel}: Removed profile '${profile.name}'.`);
+			}));
 			const promises: Promise<any>[] = [];
 			for (const profile of local.added) {
 				promises.push((async () => {
 					this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
 					await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
 					this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
-				})());
-			}
-			for (const profile of local.removed) {
-				promises.push((async () => {
-					this.logService.trace(`${this.syncResourceLogLabel}: Removing '${profile.name}' profile...`);
-					await this.userDataProfilesService.removeProfile(profile);
-					this.logService.info(`${this.syncResourceLogLabel}: Removed profile '${profile.name}'.`);
 				})());
 			}
 			for (const profile of local.updated) {
