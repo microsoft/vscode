@@ -192,27 +192,21 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 				await this.userDataProfilesService.removeProfile(profile);
 				this.logService.info(`${this.syncResourceLogLabel}: Removed profile '${profile.name}'.`);
 			}));
-			const promises: Promise<any>[] = [];
-			for (const profile of local.added) {
-				promises.push((async () => {
-					this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
-					await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
-					this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
-				})());
-			}
-			for (const profile of local.updated) {
+			await Promise.all(local.added.map(async profile => {
+				this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
+				await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+				this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
+			}));
+			await Promise.all(local.updated.map(async profile => {
 				const localProfile = this.userDataProfilesService.profiles.find(p => p.id === profile.id);
 				if (localProfile) {
-					promises.push((async () => {
-						this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
-						await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
-						this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
-					})());
+					this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
+					await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+					this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
 				} else {
 					this.logService.info(`${this.syncResourceLogLabel}: Could not find profile with id '${profile.id}' to update.`);
 				}
-			}
-			await Promise.all(promises);
+			}));
 		}
 
 		if (remoteChange !== Change.None) {
