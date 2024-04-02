@@ -48,8 +48,13 @@ class CodeActionOracle extends Disposable {
 	}
 
 	public trigger(trigger: CodeActionTrigger): void {
-		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
-		this._signalChange(selection ? { trigger, selection } : undefined);
+		try {
+			const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
+			this._signalChange(selection ? { trigger, selection } : undefined);
+		} finally {
+			// dispose after finishing (and after our _delay has passed)
+			setTimeout(() => this.dispose(), 300);
+		}
 	}
 
 	private _onMarkerChanges(resources: readonly URI[]): void {
@@ -194,6 +199,7 @@ export class CodeActionModel extends Disposable {
 			return;
 		}
 		this._disposed = true;
+		this.disposables.dispose();
 
 		super.dispose();
 		this.setState(CodeActionsState.Empty, true);
@@ -234,6 +240,7 @@ export class CodeActionModel extends Disposable {
 						const codeActionSet = this.disposables.add(await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
+							this.disposables.delete(codeActionSet);
 							return emptyCodeActionSet;
 						}
 
