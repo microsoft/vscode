@@ -357,7 +357,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 		const activeElement = window.document.activeElement;
 		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
-			e.preventDefault(); // We will handle selection in editor code.
+			// The input element will handle this.
 			return;
 		}
 
