@@ -584,9 +584,9 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 		} else {
 			const newFolderIsOldFolder = resources.extUriIgnorePathCase.isEqual(this.currentFolder, valueUri);
 			const newFolderIsSubFolder = resources.extUriIgnorePathCase.isEqual(this.currentFolder, resources.dirname(valueUri));
-			const newFolderIsParent = !newFolderIsOldFolder && resources.extUriIgnorePathCase.isEqualOrParent(this.currentFolder, resources.dirname(valueUri));
-			const newFolderIsUnrelated = !newFolderIsOldFolder && !newFolderIsParent && !newFolderIsSubFolder;
-			if (this.endsWithSlash(value) || newFolderIsParent || newFolderIsUnrelated) {
+			const newFolderIsParent = resources.extUriIgnorePathCase.isEqualOrParent(this.currentFolder, resources.dirname(valueUri));
+			const newFolderIsUnrelated = !newFolderIsParent && !newFolderIsSubFolder;
+			if (!newFolderIsOldFolder && (this.endsWithSlash(value) || newFolderIsParent || newFolderIsUnrelated)) {
 				let stat: IFileStatWithPartialMetadata | undefined;
 				try {
 					stat = await this.fileService.stat(valueUri);
