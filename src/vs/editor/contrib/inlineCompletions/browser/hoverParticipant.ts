@@ -113,7 +113,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			constObservable(null),
 			model.selectedInlineCompletionIndex,
 			model.inlineCompletionsCount,
-			model.selectedInlineCompletion.map(v => /** @description commands */ v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+			model.activeCommands,
 		);
 		context.fragment.appendChild(w.getDomNode());
 
