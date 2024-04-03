@@ -3452,7 +3452,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						if (group) {
 							if (typeof group === 'string' && group === TaskGroup.Build._id) {
 								defaultBuildTask = defaultTasks[0];
-							} else if ((group as any)._id === TaskGroup.Build._id) {
+							} else {
 								defaultBuildTask = defaultTasks[0];
 							}
 						}
