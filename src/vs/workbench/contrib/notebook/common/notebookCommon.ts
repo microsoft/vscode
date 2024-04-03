@@ -533,6 +533,13 @@ export interface IWorkspaceNotebookCellEdit {
 	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
 }
 
+export interface IWorkspaceNotebookCellEditDto {
+	metadata?: WorkspaceEditMetadata;
+	resource: URI;
+	notebookVersionId: number | undefined;
+	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
+}
+
 export interface NotebookData {
 	readonly cells: ICellDto2[];
 	readonly metadata: NotebookDocumentMetadata;
