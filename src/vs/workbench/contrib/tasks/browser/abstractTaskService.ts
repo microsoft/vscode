@@ -3061,7 +3061,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				case 1:
 					// A single default task was returned, just run it directly
 					return resolveTaskAndRun(groupTasks[0]);
-
 				default:
 					// Multiple default tasks returned, show the quickPicker
 					return handleMultipleTasks(false);
