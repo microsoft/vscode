@@ -164,6 +164,9 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentOnDropE
 		}
 
 		const resolvedEdit = await resolve(edit, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		const combinedWorkspaceEdit = createCombinedWorkspaceEdit(model.uri, ranges, resolvedEdit);
 
@@ -174,6 +177,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentOnDropE
 			options: { description: 'paste-line-suffix', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }
 		}]);
 
+		this._editor.focus();
 		let editResult: IBulkEditResult;
 		let editRange: Range | null;
 		try {
@@ -181,6 +185,10 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentOnDropE
 			editRange = model.getDecorationRange(editTrackingDecoration[0]);
 		} finally {
 			model.deltaDecorations(editTrackingDecoration, []);
+		}
+
+		if (token.isCancellationRequested) {
+			return;
 		}
 
 		if (canShowWidget && editResult.isApplied && edits.allEdits.length > 1) {
