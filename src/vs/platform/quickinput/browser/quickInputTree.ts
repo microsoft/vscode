@@ -27,7 +27,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isDark } from 'vs/platform/theme/common/theme';
 import { URI } from 'vs/base/common/uri';
-import { IHoverWidget, ITooltipMarkdownString } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { ITooltipMarkdownString } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { quickInputButtonToAction } from 'vs/platform/quickinput/browser/quickInputUtils';
 import { Lazy } from 'vs/base/common/lazy';
 import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
@@ -37,6 +37,7 @@ import { ltrim } from 'vs/base/common/strings';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
+import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 const $ = dom.$;
 

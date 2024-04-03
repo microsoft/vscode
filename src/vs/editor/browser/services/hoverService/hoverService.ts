@@ -6,7 +6,7 @@
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService, IHoverOptions } from 'vs/platform/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/editor/browser/services/hoverService/hoverWidget';
@@ -19,8 +19,8 @@ import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { mainWindow } from 'vs/base/browser/window';
-import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ContextViewHandler } from 'vs/platform/contextview/browser/contextViewService';
+import type { IHoverOptions, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;

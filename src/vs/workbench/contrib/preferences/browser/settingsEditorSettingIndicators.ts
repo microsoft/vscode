@@ -21,8 +21,8 @@ import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
-import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import type { IHoverOptions, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 const $ = DOM.$;
 
