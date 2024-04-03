@@ -2973,7 +2973,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: strings.fetching
 		};
 		const promise = (async () => {
-			let groupTasks: (Task | ConfiguringTask)[] = [];
 
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
@@ -3001,33 +3000,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						});
 				});
 			};
-			let globTasksDetected = false;
-			// First check for globs before checking for the default tasks of the task group
-			const absoluteURI = EditorResourceAccessor.getOriginalUri(this._editorService.activeEditor);
-			if (absoluteURI) {
-				const workspaceFolder = this._contextService.getWorkspaceFolder(absoluteURI);
-				if (workspaceFolder) {
-					const configuredTasks = this._getConfiguration(workspaceFolder)?.config?.tasks;
-					if (configuredTasks) {
-						globTasksDetected = configuredTasks.filter(task => task.group && typeof task.group !== 'string' && typeof task.group.isDefault === 'string').length > 0;
-						// This will activate extensions, so only do so if necessary #185960
-						if (globTasksDetected) {
-							// Fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
-							const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
-
-							groupTasks = await this._findWorkspaceTasks((task) => {
-								const currentTaskGroup = task.configurationProperties.group;
-								if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
-									return (currentTaskGroup._id === taskGroup._id && glob.match(currentTaskGroup.isDefault, relativePath));
-								}
-
-								return false;
-							});
-						}
-					}
-				}
-			}
-
+			let groupTasks: (Task | ConfiguringTask)[] = [];
+			const { globGroupTasks, globTasksDetected } = await this._getGlobTasks(taskGroup._id);
+			groupTasks = [...globGroupTasks];
 			if (!globTasksDetected && groupTasks.length === 0) {
 				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, true);
 			}
@@ -3087,6 +3062,39 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return handleMultipleTasks(false);
 		})();
 		this._progressService.withProgress(options, () => promise);
+	}
+
+	private async _getGlobTasks(taskGroupId: string): Promise<{ globGroupTasks: (Task | ConfiguringTask)[]; globTasksDetected: boolean }> {
+		let globTasksDetected = false;
+		// First check for globs before checking for the default tasks of the task group
+		const absoluteURI = EditorResourceAccessor.getOriginalUri(this._editorService.activeEditor);
+		if (absoluteURI) {
+			const workspaceFolder = this._contextService.getWorkspaceFolder(absoluteURI);
+			if (workspaceFolder) {
+				const configuredTasks = this._getConfiguration(workspaceFolder)?.config?.tasks;
+				if (configuredTasks) {
+					globTasksDetected = configuredTasks.filter(task => task.group && typeof task.group !== 'string' && typeof task.group.isDefault === 'string').length > 0;
+					// This will activate extensions, so only do so if necessary #185960
+					if (globTasksDetected) {
+						// Fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
+						const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
+
+						const globGroupTasks = await this._findWorkspaceTasks((task) => {
+							const currentTaskGroup = task.configurationProperties.group;
+							if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
+								return (currentTaskGroup._id === taskGroupId && glob.match(currentTaskGroup.isDefault, relativePath));
+							}
+
+							globTasksDetected = false;
+							return false;
+						});
+						return { globGroupTasks, globTasksDetected };
+					}
+				}
+			}
+		}
+		return { globGroupTasks: [], globTasksDetected };
+
 	}
 
 	private _runBuildCommand(): void {
@@ -3432,10 +3440,25 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const entries: QuickPickInput<TaskQuickPickEntryType>[] = [];
 				let selectedTask: Task | undefined;
 				let selectedEntry: TaskQuickPickEntryType | undefined;
-				this._showIgnoredFoldersMessage().then(() => {
+				this._showIgnoredFoldersMessage().then(async () => {
+					const { globGroupTasks } = await this._getGlobTasks(TaskGroup.Build._id);
+					let defaultTasks = globGroupTasks;
+					if (!defaultTasks?.length) {
+						defaultTasks = this._getDefaultTasks(tasks, false);
+					}
+					let defaultBuildTask;
+					if (defaultTasks.length === 1) {
+						const group: string | TaskGroup | undefined = defaultTasks[0].configurationProperties.group;
+						if (group) {
+							if (typeof group === 'string' && group === TaskGroup.Build._id) {
+								defaultBuildTask = defaultTasks[0];
+							} else {
+								defaultBuildTask = defaultTasks[0];
+							}
+						}
+					}
 					for (const task of tasks) {
-						const taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
-						if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Build._id) {
+						if (task === defaultBuildTask) {
 							const label = nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', TaskQuickPick.getTaskLabelWithIcon(task, task.getQualifiedLabel()));
 							selectedTask = task;
 							selectedEntry = { label, task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined };
