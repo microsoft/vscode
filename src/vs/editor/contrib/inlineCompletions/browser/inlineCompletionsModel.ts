@@ -60,6 +60,7 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _suggestPreviewMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _inlineSuggestMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _enabled: IObservable<boolean>,
+		private readonly _enabledForScreenReader: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -107,7 +108,7 @@ export class InlineCompletionsModel extends Disposable {
 		},
 	}, (reader, changeSummary) => {
 		this._forceUpdateExplicitlySignal.read(reader);
-		const shouldUpdate = (this._enabled.read(reader) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader);
+		const shouldUpdate = (this._enabled.read(reader) && this._enabledForScreenReader.read(reader) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader);
 		if (!shouldUpdate) {
 			this._source.cancelUpdate();
 			return undefined;

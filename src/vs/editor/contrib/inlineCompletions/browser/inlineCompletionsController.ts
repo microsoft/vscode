@@ -32,6 +32,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
 import { ISettableObservable, observableValueOpts } from 'vs/base/common/observableInternal/base';
 import { itemsEquals, itemEquals } from 'vs/base/common/equals';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -56,6 +57,9 @@ export class InlineCompletionsController extends Disposable {
 		}
 	));
 	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
+	private readonly _enabledForScreenReader = observableFromEvent(this._accessibilityService.onDidChangeScreenReaderOptimized, () => !this._accessibilityService.isScreenReaderOptimized() || this._contextKeyService.getContextKeyValue('voiceChatInProgress') === false);
+	private readonly _isEnabled = this._enabled.get() && this._enabledForScreenReader.get();
+
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
 	private readonly _ghostTexts = derived(this, (reader) => {
@@ -95,6 +99,7 @@ export class InlineCompletionsController extends Disposable {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -120,6 +125,7 @@ export class InlineCompletionsController extends Disposable {
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).previewMode),
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).mode),
 						this._enabled,
+						this._enabledForScreenReader
 					);
 					this.model.set(model, tx);
 				}
@@ -159,7 +165,7 @@ export class InlineCompletionsController extends Disposable {
 		this._register(editor.onDidType(() => transaction(tx => {
 			/** @description InlineCompletionsController.onDidType */
 			this.updateObservables(tx, VersionIdChangeReason.Other);
-			if (this._enabled.get()) {
+			if (this._isEnabled) {
 				this.model.get()?.trigger(tx);
 			}
 		})));
@@ -173,7 +179,7 @@ export class InlineCompletionsController extends Disposable {
 				inlineSuggestCommitId,
 				'acceptSelectedSuggestion',
 			]);
-			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
+			if (commands.has(e.commandId) && editor.hasTextFocus() && this._isEnabled) {
 				transaction(tx => {
 					/** @description onDidExecuteCommand */
 					this.model.get()?.trigger(tx);
