@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
@@ -36,7 +36,7 @@ class BaseDropdown extends ActionRunner {
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
-	private hover: ICustomHover | undefined;
+	private hover: IUpdatableHover | undefined;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();

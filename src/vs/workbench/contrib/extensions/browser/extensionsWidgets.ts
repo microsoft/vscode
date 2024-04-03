@@ -31,7 +31,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { Color } from 'vs/base/common/color';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -126,7 +126,7 @@ export class InstallCountWidget extends ExtensionWidget {
 
 export class RatingsWidget extends ExtensionWidget {
 
-	private readonly containerHover: ICustomHover;
+	private readonly containerHover: IUpdatableHover;
 
 	constructor(
 		private container: HTMLElement,
@@ -191,7 +191,7 @@ export class RatingsWidget extends ExtensionWidget {
 export class VerifiedPublisherWidget extends ExtensionWidget {
 
 	private disposables = this._register(new DisposableStore());
-	private readonly containerHover: ICustomHover;
+	private readonly containerHover: IUpdatableHover;
 
 	constructor(
 		private container: HTMLElement,
@@ -383,7 +383,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 class RemoteBadge extends Disposable {
 
 	readonly element: HTMLElement;
-	readonly elementHover: ICustomHover;
+	readonly elementHover: IUpdatableHover;
 
 	constructor(
 		private readonly tooltip: boolean,

@@ -21,7 +21,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { spinningLoading, syncing } from 'vs/platform/theme/common/iconRegistry';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
@@ -41,7 +41,7 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly focusListener = this._register(new MutableDisposable());
 	private readonly focusOutListener = this._register(new MutableDisposable());
 
-	private hover: ICustomHover | undefined = undefined;
+	private hover: IUpdatableHover | undefined = undefined;
 
 	readonly labelContainer: HTMLElement;
 	readonly beakContainer: HTMLElement;

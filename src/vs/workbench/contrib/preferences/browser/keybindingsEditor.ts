@@ -58,7 +58,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -902,7 +902,7 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 
 interface ICommandColumnTemplateData {
 	commandColumn: HTMLElement;
-	commandColumnHover: ICustomHover;
+	commandColumnHover: IUpdatableHover;
 	commandLabelContainer: HTMLElement;
 	commandLabel: HighlightedLabel;
 	commandDefaultLabelContainer: HTMLElement;
@@ -1005,7 +1005,7 @@ class KeybindingColumnRenderer implements ITableRenderer<IKeybindingItemEntry, I
 
 interface ISourceColumnTemplateData {
 	sourceColumn: HTMLElement;
-	sourceColumnHover: ICustomHover;
+	sourceColumnHover: IUpdatableHover;
 	sourceLabel: HighlightedLabel;
 	extensionContainer: HTMLElement;
 	extensionLabel: HTMLAnchorElement;

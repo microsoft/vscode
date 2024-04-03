@@ -51,7 +51,7 @@ export interface IUpdatableHoverOptions {
 	linkHandler?(url: string): void;
 }
 
-export interface ICustomHover extends IDisposable {
+export interface IUpdatableHover extends IDisposable {
 
 	/**
 	 * Allows to programmatically open the hover.
@@ -171,7 +171,7 @@ function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement):
 	return element;
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContentOrFactory, options?: IUpdatableHoverOptions): ICustomHover {
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContentOrFactory, options?: IUpdatableHoverOptions): IUpdatableHover {
 	htmlElement.setAttribute('custom-hover', 'true');
 
 	if (htmlElement.title !== '') {
@@ -275,7 +275,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		focusDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.FOCUS, onFocus, true);
 	}
 
-	const hover: ICustomHover = {
+	const hover: IUpdatableHover = {
 		show: focus => {
 			hideHover(false, true); // terminate a ongoing mouse over preparation
 			triggerShowHover(0, focus); // show hover immediately

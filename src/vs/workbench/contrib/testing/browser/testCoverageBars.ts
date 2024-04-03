@@ -5,7 +5,7 @@
 
 import { h } from 'vs/base/browser/dom';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { assertNever } from 'vs/base/common/assert';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
@@ -63,7 +63,7 @@ export class ManagedTestCoverageBars extends Disposable {
 	});
 
 	private readonly visibleStore = this._register(new DisposableStore());
-	private readonly customHovers: ICustomHover[] = [];
+	private readonly customHovers: IUpdatableHover[] = [];
 
 	/** Gets whether coverage is currently visible for the resource. */
 	public get visible() {

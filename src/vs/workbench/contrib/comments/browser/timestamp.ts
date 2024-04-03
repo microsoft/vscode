@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { fromNow } from 'vs/base/common/date';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
@@ -17,7 +17,7 @@ export class TimestampWidget extends Disposable {
 	private _timestamp: Date | undefined;
 	private _useRelativeTime: boolean;
 
-	private hover: ICustomHover;
+	private hover: IUpdatableHover;
 
 	constructor(private configurationService: IConfigurationService, container: HTMLElement, timeStamp?: Date) {
 		super();

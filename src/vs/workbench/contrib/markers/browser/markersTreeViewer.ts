@@ -51,7 +51,7 @@ import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/marker
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import Severity from 'vs/base/common/severity';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 interface IResourceMarkersTemplateData {
@@ -287,7 +287,7 @@ class MarkerWidget extends Disposable {
 	private readonly icon: HTMLElement;
 	private readonly iconContainer: HTMLElement;
 	private readonly messageAndDetailsContainer: HTMLElement;
-	private readonly messageAndDetailsContainerHover: ICustomHover;
+	private readonly messageAndDetailsContainerHover: IUpdatableHover;
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(

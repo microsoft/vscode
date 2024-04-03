@@ -11,6 +11,9 @@ let baseHoverDelegate: IHoverDelegate2 = {
 	showAndFocusLastHover: () => undefined,
 };
 
+/**
+ * Sets the hover delegate for use **only in the `base/` layer**.
+ */
 export function setBaseLayerHoverDelegate(hoverDelegate: IHoverDelegate2): void {
 	baseHoverDelegate = hoverDelegate;
 }

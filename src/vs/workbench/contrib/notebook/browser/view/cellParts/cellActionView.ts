@@ -9,7 +9,7 @@ import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IActionProvider } from 'vs/base/browser/ui/dropdown/dropdown';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -48,7 +48,7 @@ export class ActionViewWithLabel extends MenuEntryActionViewItem {
 }
 export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 	private _actionLabel?: HTMLAnchorElement;
-	private _hover?: ICustomHover;
+	private _hover?: IUpdatableHover;
 	private _primaryAction: IAction | undefined;
 
 	constructor(

@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -60,7 +60,7 @@ export class KeybindingLabel extends Disposable {
 
 	private readonly keyElements = new Set<HTMLSpanElement>();
 
-	private hover: ICustomHover;
+	private hover: IUpdatableHover;
 	private keybinding: ResolvedKeybinding | undefined;
 	private matches: Matches | undefined;
 	private didEverRender: boolean;

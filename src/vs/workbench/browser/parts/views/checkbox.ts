@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -27,7 +27,7 @@ export class TreeItemCheckbox extends Disposable {
 	public toggle: Toggle | undefined;
 	private checkboxContainer: HTMLDivElement;
 	public isDisposed = false;
-	private hover: ICustomHover | undefined;
+	private hover: IUpdatableHover | undefined;
 
 	public static readonly checkboxClass = 'custom-view-tree-node-item-checkbox';
 

@@ -9,7 +9,7 @@ import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewI
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -446,7 +446,7 @@ class ResultSummaryView extends Disposable {
 	private elementsWereAttached = false;
 	private badgeType: TestingCountBadge;
 	private lastBadge?: NumberBadge | IconBadge;
-	private countHover: ICustomHover;
+	private countHover: IUpdatableHover;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly renderLoop = this._register(new RunOnceScheduler(() => this.render(), SUMMARY_RENDER_INTERVAL));
 	private readonly elements = dom.h('div.result-summary', [

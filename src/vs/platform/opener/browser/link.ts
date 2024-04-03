@@ -12,7 +12,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import 'vs/css!./link';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
@@ -32,7 +32,7 @@ export interface ILinkOptions {
 export class Link extends Disposable {
 
 	private el: HTMLAnchorElement;
-	private hover?: ICustomHover;
+	private hover?: IUpdatableHover;
 	private hoverDelegate: IHoverDelegate;
 
 	private _enabled: boolean = true;

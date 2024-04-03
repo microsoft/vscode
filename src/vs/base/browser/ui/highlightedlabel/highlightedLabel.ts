@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
@@ -42,7 +42,7 @@ export class HighlightedLabel extends Disposable {
 	private highlights: readonly IHighlight[] = [];
 	private supportIcons: boolean;
 	private didEverRender: boolean = false;
-	private customHover: ICustomHover | undefined;
+	private customHover: IUpdatableHover | undefined;
 
 	/**
 	 * Create a new {@link HighlightedLabel}.
