@@ -57,8 +57,10 @@ export class InlineCompletionsController extends Disposable {
 		}
 	));
 	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
-	private readonly _enabledForScreenReader = observableFromEvent(this._accessibilityService.onDidChangeScreenReaderOptimized, () => !this._accessibilityService.isScreenReaderOptimized() || this._contextKeyService.getContextKeyValue('voiceChatInProgress') === false);
-	private readonly _isEnabled = this._enabled.get() && this._enabledForScreenReader.get();
+	private readonly _isScreenReaderEnabled = observableFromEvent(this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
+	private readonly _voiceChatInProgress = observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('voiceChatInProgress') === true);
+
+	private readonly _isEnabled = this._enabled.get() && (!this._isScreenReaderEnabled.get() || !this._voiceChatInProgress.get());
 
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
@@ -125,7 +127,8 @@ export class InlineCompletionsController extends Disposable {
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).previewMode),
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).mode),
 						this._enabled,
-						this._enabledForScreenReader
+						this._isScreenReaderEnabled,
+						this._voiceChatInProgress
 					);
 					this.model.set(model, tx);
 				}
@@ -165,6 +168,7 @@ export class InlineCompletionsController extends Disposable {
 		this._register(editor.onDidType(() => transaction(tx => {
 			/** @description InlineCompletionsController.onDidType */
 			this.updateObservables(tx, VersionIdChangeReason.Other);
+			console.log('enabled', this._isEnabled);
 			if (this._isEnabled) {
 				this.model.get()?.trigger(tx);
 			}
