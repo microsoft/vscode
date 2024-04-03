@@ -270,20 +270,18 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (!mouseEvent) {
 			return;
 		}
-
-		if (this._contentWidget?.shouldHideHoverOnMouseEvent(mouseEvent)) {
+		const contentWidget = this._getOrCreateContentWidget();
+		if (contentWidget.shouldHideHoverOnMouseEvent(mouseEvent)) {
 			this._hideWidgets();
 			return;
 		}
-
-		const target = mouseEvent.target;
-		const contentWidget = this._getOrCreateContentWidget();
 
 		if (contentWidget.showsOrWillShow(mouseEvent)) {
 			this._glyphWidget?.hide();
 			return;
 		}
 
+		const target = mouseEvent.target;
 		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position && target.detail.glyphMarginLane) {
 			this._contentWidget?.hide();
 			const glyphWidget = this._getOrCreateGlyphWidget();

@@ -354,7 +354,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public shouldHideHoverOnMouseEvent(mouseEvent: IEditorMouseEvent): boolean {
-		return this._participants.some(p => p.shouldHideHoverOnMouseEvent?.(mouseEvent) ?? false);
+		return this._participants.some(p => p.shouldHideHoverOnMouseEvent?.(mouseEvent));
 	}
 
 	public getWidgetContent(): string | undefined {
