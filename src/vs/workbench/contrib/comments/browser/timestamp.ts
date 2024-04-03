@@ -6,11 +6,11 @@
 import * as dom from 'vs/base/browser/dom';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { fromNow } from 'vs/base/common/date';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import type { IHoverService } from 'vs/platform/hover/browser/hover';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 
 export class TimestampWidget extends Disposable {
@@ -20,12 +20,17 @@ export class TimestampWidget extends Disposable {
 
 	private hover: IUpdatableHover;
 
-	constructor(private configurationService: IConfigurationService, container: HTMLElement, timeStamp?: Date) {
+	constructor(
+		private configurationService: IConfigurationService,
+		hoverService: IHoverService,
+		container: HTMLElement,
+		timeStamp?: Date
+	) {
 		super();
 		this._date = dom.append(container, dom.$('span.timestamp'));
 		this._date.style.display = 'none';
 		this._useRelativeTime = this.useRelativeTimeSetting;
-		this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._date, ''));
+		this.hover = this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this._date, ''));
 		this.setTimestamp(timeStamp);
 	}
 

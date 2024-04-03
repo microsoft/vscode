@@ -6,12 +6,12 @@
 import * as DOM from 'vs/base/browser/dom';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import type { IHoverService } from 'vs/platform/hover/browser/hover';
 import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ITreeItem, ITreeItemCheckboxState } from 'vs/workbench/common/views';
 
@@ -35,7 +35,12 @@ export class TreeItemCheckbox extends Disposable {
 	private readonly _onDidChangeState = new Emitter<boolean>();
 	readonly onDidChangeState: Event<boolean> = this._onDidChangeState.event;
 
-	constructor(container: HTMLElement, private checkboxStateHandler: CheckboxStateHandler, private readonly hoverDelegate: IHoverDelegate) {
+	constructor(
+		container: HTMLElement,
+		private checkboxStateHandler: CheckboxStateHandler,
+		private readonly hoverDelegate: IHoverDelegate,
+		private readonly hoverService: IHoverService
+	) {
 		super();
 		this.checkboxContainer = <HTMLDivElement>container;
 	}
@@ -82,7 +87,7 @@ export class TreeItemCheckbox extends Disposable {
 	private setHover(checkbox: ITreeItemCheckboxState) {
 		if (this.toggle) {
 			if (!this.hover) {
-				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox)));
+				this.hover = this._register(this.hoverService.setupUpdatableHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox)));
 			} else {
 				this.hover.update(checkbox.tooltip);
 			}

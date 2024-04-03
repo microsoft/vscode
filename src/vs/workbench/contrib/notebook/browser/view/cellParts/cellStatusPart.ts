@@ -27,7 +27,6 @@ import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cell
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -285,6 +284,7 @@ class CellStatusBarItem extends Disposable {
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -328,7 +328,7 @@ class CellStatusBarItem extends Disposable {
 
 		if (item.tooltip) {
 			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip } as IUpdatableHoverTooltipMarkdownString;
-			this._itemDisposables.add(setupCustomHover(this._hoverDelegate, this.container, hoverContent));
+			this._itemDisposables.add(this._hoverService.setupUpdatableHover(this._hoverDelegate, this.container, hoverContent));
 		}
 
 		this.container.classList.toggle('cell-status-item-has-command', !!item.command);

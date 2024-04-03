@@ -18,6 +18,7 @@ import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/browser/findM
 import { withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -35,9 +36,10 @@ class TestFindController extends CommonFindController {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(editor, contextKeyService, storageService, clipboardService, notificationService);
+		super(editor, contextKeyService, storageService, clipboardService, notificationService, hoverService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 		this.hasFocus = false;

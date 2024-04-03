@@ -29,9 +29,9 @@ import { Event } from 'vs/base/common/event';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -340,6 +340,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -378,14 +379,14 @@ export class NotificationTemplateRenderer extends Disposable {
 		this.renderSeverity(notification);
 
 		// Message
-		const messageCustomHover = this.inputDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), this.template.message, ''));
+		const messageCustomHover = this.inputDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.template.message, ''));
 		const messageOverflows = this.renderMessage(notification, messageCustomHover);
 
 		// Secondary Actions
 		this.renderSecondaryActions(notification, messageOverflows);
 
 		// Source
-		const sourceCustomHover = this.inputDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), this.template.source, ''));
+		const sourceCustomHover = this.inputDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.template.source, ''));
 		this.renderSource(notification, sourceCustomHover);
 
 		// Buttons
