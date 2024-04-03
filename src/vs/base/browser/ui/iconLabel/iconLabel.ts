@@ -7,7 +7,6 @@ import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { setupNativeHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IMatch } from 'vs/base/common/filters';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
@@ -15,6 +14,8 @@ import { Range } from 'vs/base/common/range';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { isString } from 'vs/base/common/types';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -190,6 +191,16 @@ export class IconLabel extends Disposable {
 		}
 
 		if (this.hoverDelegate.showNativeHover) {
+			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
+				if (isString(tooltip)) {
+					// Icons don't render in the native hover so we strip them out
+					htmlElement.title = stripIcons(tooltip);
+				} else if (tooltip?.markdownNotSupportedFallback) {
+					htmlElement.title = tooltip.markdownNotSupportedFallback;
+				} else {
+					htmlElement.removeAttribute('title');
+				}
+			}
 			setupNativeHover(htmlElement, tooltip);
 		} else {
 			const hoverDisposable = getBaseLayerHoverDelegate().setupUpdatableHover(this.hoverDelegate, htmlElement, tooltip);
