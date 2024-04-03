@@ -17,6 +17,7 @@ import type { IHoverWidget, IUpdatableHover, IUpdatableHoverContent, IUpdatableH
 
 type IUpdatableHoverResolvedContent = IMarkdownString | string | HTMLElement | undefined;
 
+// TODO: Create equivalent in IHoverService
 export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
 	if (isString(tooltip)) {
 		// Icons don't render in the native hover so we strip them out
@@ -130,6 +131,9 @@ function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement):
 	return element;
 }
 
+/**
+ * @deprecated Use `IHoverService.createUpdatableHover` instead.
+ */
 export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IUpdatableHoverContentOrFactory, options?: IUpdatableHoverOptions): IUpdatableHover {
 	htmlElement.setAttribute('custom-hover', 'true');
 

@@ -23,6 +23,10 @@ export function setHoverDelegateFactory(hoverDelegateProvider: ((placement: 'mou
 	hoverDelegateFactory = hoverDelegateProvider;
 }
 
+/**
+ * @deprecated If in the `base/` layer use `getBaseLayerHoverDelegate` instead, if in `platform/`
+ * and higher use `IHoverService.setupUpdatableHover` instead.
+ */
 export function getDefaultHoverDelegate(placement: 'mouse' | 'element'): IHoverDelegate {
 	if (placement === 'element') {
 		return defaultHoverDelegateElement.value;
@@ -30,6 +34,7 @@ export function getDefaultHoverDelegate(placement: 'mouse' | 'element'): IHoverD
 	return defaultHoverDelegateMouse.value;
 }
 
+// TODO: Create equivalent in IHoverService
 export function createInstantHoverDelegate(): IScopedHoverDelegate {
 	// Creates a hover delegate with instant hover enabled.
 	// This hover belongs to the consumer and requires the them to dispose it.
