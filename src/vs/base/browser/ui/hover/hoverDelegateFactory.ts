@@ -16,17 +16,12 @@ let hoverDelegateFactory: (placement: 'mouse' | 'element', enableInstantHover: b
 const defaultHoverDelegateMouse = new Lazy<IHoverDelegate>(() => hoverDelegateFactory('mouse', false));
 const defaultHoverDelegateElement = new Lazy<IHoverDelegate>(() => hoverDelegateFactory('element', false));
 
-/**
- * @deprecated Use `setBaseLayerHoverDelegate` instead.
- */
+// TODO: Remove when getDefaultHoverDelegate is no longer used
 export function setHoverDelegateFactory(hoverDelegateProvider: ((placement: 'mouse' | 'element', enableInstantHover: boolean) => IScopedHoverDelegate)): void {
 	hoverDelegateFactory = hoverDelegateProvider;
 }
 
-/**
- * @deprecated If in the `base/` layer use `getBaseLayerHoverDelegate` instead, if in `platform/`
- * and higher use `IHoverService.setupUpdatableHover` instead.
- */
+// TODO: Refine type for use in new IHoverService interface
 export function getDefaultHoverDelegate(placement: 'mouse' | 'element'): IHoverDelegate {
 	if (placement === 'element') {
 		return defaultHoverDelegateElement.value;

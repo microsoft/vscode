@@ -132,7 +132,8 @@ function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement):
 }
 
 /**
- * @deprecated Use `IHoverService.createUpdatableHover` instead.
+ * @deprecated If in the `base/` layer use `getBaseLayerHoverDelegate.setupUpdatableHover` instead,
+ * if in `platform/` and higher use `IHoverService.setupUpdatableHover` instead.
  */
 export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IUpdatableHoverContentOrFactory, options?: IUpdatableHoverOptions): IUpdatableHover {
 	htmlElement.setAttribute('custom-hover', 'true');

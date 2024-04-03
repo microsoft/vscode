@@ -10,7 +10,6 @@ import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionb
 import { Button } from 'vs/base/browser/ui/button/button';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -37,6 +36,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -466,6 +466,7 @@ class ResultSummaryView extends Disposable {
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
@@ -478,7 +479,7 @@ class ResultSummaryView extends Disposable {
 			}
 		}));
 
-		this.countHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
+		this.countHover = this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
 
 		const ab = this._register(new ActionBar(this.elements.rerun, {
 			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
@@ -1317,7 +1318,10 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 
 	private readonly renderer: MarkdownRenderer;
 
-	constructor(@IInstantiationService instantionService: IInstantiationService) {
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService instantionService: IInstantiationService,
+	) {
 		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
 	}
 
@@ -1339,7 +1343,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 			const result = this.renderer.render(element.message, { inline: true });
 			data.label.appendChild(result.element);
 		}
-		data.disposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
+		data.disposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
 	}
 
 	disposeTemplate(data: IErrorTemplateData): void {
@@ -1369,6 +1373,7 @@ class TestItemRenderer extends Disposable
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -1459,7 +1464,7 @@ class TestItemRenderer extends Disposable
 			data.icon.className += ' retired';
 		}
 
-		data.elementDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
+		data.elementDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
 		if (node.element.test.item.label.trim()) {
 			dom.reset(data.label, ...renderLabelWithIcons(node.element.test.item.label));
 		} else {
