@@ -29,6 +29,7 @@ import { AbstractPaneCompositePart, CompositeBarPosition } from 'vs/workbench/br
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class PanelPart extends AbstractPaneCompositePart {
 
@@ -70,6 +71,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -92,6 +94,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			contextMenuService,
 			layoutService,
 			keybindingService,
+			hoverService,
 			instantiationService,
 			themeService,
 			viewDescriptorService,
