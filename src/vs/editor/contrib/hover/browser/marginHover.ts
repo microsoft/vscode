@@ -8,7 +8,7 @@ import { asArray } from 'vs/base/common/arrays';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
@@ -101,7 +101,20 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	public startShowingAt(lineNumber: number, laneOrLine: LaneOrLineNumber): void {
+	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
+		const target = mouseEvent.target;
+		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position && target.detail.glyphMarginLane) {
+			this._startShowingAt(target.position.lineNumber, target.detail.glyphMarginLane);
+			return true;
+		}
+		if (target.type === MouseTargetType.GUTTER_LINE_NUMBERS && target.position) {
+			this._startShowingAt(target.position.lineNumber, 'lineNo');
+			return true;
+		}
+		return false;
+	}
+
+	private _startShowingAt(lineNumber: number, laneOrLine: LaneOrLineNumber): void {
 		if (this._computer.lineNumber === lineNumber && this._computer.lane === laneOrLine) {
 			// We have to show the widget at the exact same line number as before, so no work is needed
 			return;
