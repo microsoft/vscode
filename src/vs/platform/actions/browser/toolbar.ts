@@ -212,26 +212,31 @@ export class WorkbenchToolBar extends ToolBar {
 					}
 				}
 
+				const primaryActions = [];
+
+				if (action instanceof MenuItemAction && action.menuKeybinding) {
+					primaryActions.push(action.menuKeybinding);
+				}
+
 				// add "hide foo" actions
-				let hideAction: IAction;
 				if (!noHide && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
 					if (!action.hideActions) {
 						// no context menu for MenuItemAction instances that support no hiding
 						// those are fake actions and need to be cleaned up
 						return;
 					}
-					hideAction = action.hideActions.hide;
+					primaryActions.push(action.hideActions.hide);
 
 				} else {
-					hideAction = toAction({
+					primaryActions.push(toAction({
 						id: 'label',
 						label: localize('hide', "Hide"),
 						enabled: false,
 						run() { }
-					});
+					}));
 				}
 
-				const actions = Separator.join([hideAction], toggleActions);
+				const actions = Separator.join(primaryActions, toggleActions);
 
 				// add "Reset Menu" action
 				if (this._options?.resetMenu && !menuIds) {
