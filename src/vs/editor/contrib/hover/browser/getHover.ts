@@ -45,10 +45,10 @@ export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>
 
 registerModelAndPositionCommand('_executeHoverProvider', async (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, position, CancellationToken.None);
-	const result = hovers.map(cloneHover);
-	hovers.forEach(hover => hover.dispose());
-	return result;
+	const hover = await getHoverPromise(languageFeaturesService.hoverProvider, model, position, CancellationToken.None);
+	const copiedHover = hover.map(cloneHover);
+	hover.forEach(hover => hover.dispose());
+	return copiedHover;
 });
 
 function isValid(result: Hover) {

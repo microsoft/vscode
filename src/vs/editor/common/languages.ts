@@ -209,7 +209,7 @@ export interface HoverContext<THover = Hover> {
 	/**
 	 * The previous hover for the same position
 	 */
-	previousHover: THover;
+	previousHover?: THover;
 }
 
 export enum HoverVerbosityAction {

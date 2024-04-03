@@ -260,7 +260,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				return {
 					...result,
 					dispose: () => {
-						if (result && result.id) {
+						if (result.id) {
 							this._proxy.$releaseHover(handle, result.id);
 						}
 					}
