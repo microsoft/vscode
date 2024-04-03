@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Buffer } from 'buffer';
 import { BinarySizeStatusBarEntry } from '../binarySizeStatusBarEntry';
 import { MediaPreview, PreviewState, reopenAsText } from '../mediaPreview';
 import { escapeAttribute, getNonce } from '../util/dom';
@@ -200,6 +201,9 @@ class ImagePreview extends MediaPreview {
 			if (stat.size === 0) {
 				return this.emptyPngDataUri;
 			}
+		} else if (resource.scheme !== 'file' && resource.scheme !== 'http' && resource.scheme !== 'https') {
+			const readFile = await vscode.workspace.fs.readFile(resource);
+			return this.asImageDataURI(Buffer.from(readFile)).toString(true);
 		}
 
 		// Avoid adding cache busting if there is already a query string
@@ -211,6 +215,12 @@ class ImagePreview extends MediaPreview {
 
 	private extensionResource(...parts: string[]) {
 		return this.webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
+	}
+
+	private asImageDataURI(contents: Buffer): vscode.Uri {
+		return vscode.Uri.parse(
+			`data:image/jpeg;size:${contents.byteLength};base64,${contents.toString('base64')}`
+		);
 	}
 }
 
