@@ -9,8 +9,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
@@ -107,7 +107,7 @@ class BaseDropdown extends ActionRunner {
 	set tooltip(tooltip: string) {
 		if (this._label) {
 			if (!this.hover && tooltip !== '') {
-				this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._label, tooltip));
+				this.hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this._label, tooltip));
 			} else if (this.hover) {
 				this.hover.update(tooltip);
 			}

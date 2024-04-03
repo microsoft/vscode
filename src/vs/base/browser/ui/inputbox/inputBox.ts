@@ -12,8 +12,8 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IAction } from 'vs/base/common/actions';
@@ -235,7 +235,7 @@ export class InputBox extends Widget {
 	public setTooltip(tooltip: string): void {
 		this.tooltip = tooltip;
 		if (!this.hover) {
-			this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.input, tooltip));
+			this.hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.input, tooltip));
 		} else {
 			this.hover.update(tooltip);
 		}

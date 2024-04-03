@@ -6,8 +6,8 @@
 import * as dom from 'vs/base/browser/dom';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
@@ -141,7 +141,7 @@ export class HighlightedLabel extends Disposable {
 		} else {
 			if (!this.customHover && this.title !== '') {
 				const hoverDelegate = this.options?.hoverDelegate ?? getDefaultHoverDelegate('mouse');
-				this.customHover = this._register(setupCustomHover(hoverDelegate, this.domNode, this.title));
+				this.customHover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(hoverDelegate, this.domNode, this.title));
 			} else if (this.customHover) {
 				this.customHover.update(this.title);
 			}
