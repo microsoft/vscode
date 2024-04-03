@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import type { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import type { CancellationToken } from 'vs/base/common/cancellation';
 import type { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -39,6 +40,9 @@ export interface IHoverDelegate2 {
 	 * simultaneously. #188822
 	 */
 	showAndFocusLastHover(): void;
+
+	// TODO: Change hoverDelegate arg to exclude the actual delegate and instead use the new options
+	setupUpdatableHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IUpdatableHoverContentOrFactory, options?: IUpdatableHoverOptions): IUpdatableHover;
 }
 
 export interface IHoverWidget extends IDisposable {
@@ -237,6 +241,7 @@ export interface IUpdatableHoverTooltipMarkdownString {
 }
 
 export type IUpdatableHoverContent = string | IUpdatableHoverTooltipMarkdownString | HTMLElement | undefined;
+export type IUpdatableHoverContentOrFactory = IUpdatableHoverContent | (() => IUpdatableHoverContent);
 
 export interface IUpdatableHoverOptions {
 	actions?: IHoverAction[];

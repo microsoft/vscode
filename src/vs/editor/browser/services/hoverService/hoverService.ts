@@ -20,7 +20,10 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { mainWindow } from 'vs/base/browser/window';
 import { ContextViewHandler } from 'vs/platform/contextview/browser/contextViewService';
-import type { IHoverOptions, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import type { IHoverOptions, IHoverWidget, IUpdatableHover, IUpdatableHoverContentOrFactory, IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
+import type { IHoverDelegate, IHoverDelegateTarget } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { UpdatableHoverWidget } from 'vs/editor/browser/services/hoverService/updatableHoverWidget';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -183,6 +186,135 @@ export class HoverService extends Disposable implements IHoverService {
 			}
 		}
 	}
+
+	setupUpdatableHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IUpdatableHoverContentOrFactory, options?: IUpdatableHoverOptions | undefined): IUpdatableHover {
+
+		htmlElement.setAttribute('custom-hover', 'true');
+
+		if (htmlElement.title !== '') {
+			console.warn('HTML element already has a title attribute, which will conflict with the custom hover. Please remove the title attribute.');
+			console.trace('Stack trace:', htmlElement.title);
+			htmlElement.title = '';
+		}
+
+		let hoverPreparation: IDisposable | undefined;
+		let hoverWidget: UpdatableHoverWidget | undefined;
+
+		const hideHover = (disposeWidget: boolean, disposePreparation: boolean) => {
+			const hadHover = hoverWidget !== undefined;
+			if (disposeWidget) {
+				hoverWidget?.dispose();
+				hoverWidget = undefined;
+			}
+			if (disposePreparation) {
+				hoverPreparation?.dispose();
+				hoverPreparation = undefined;
+			}
+			if (hadHover) {
+				hoverDelegate.onDidHideHover?.();
+				hoverWidget = undefined;
+			}
+		};
+
+		const triggerShowHover = (delay: number, focus?: boolean, target?: IHoverDelegateTarget) => {
+			return new TimeoutTimer(async () => {
+				if (!hoverWidget || hoverWidget.isDisposed) {
+					hoverWidget = new UpdatableHoverWidget(hoverDelegate, target || htmlElement, delay > 0);
+					await hoverWidget.update(typeof content === 'function' ? content() : content, focus, options);
+				}
+			}, delay);
+		};
+
+		let isMouseDown = false;
+		const mouseDownEmitter = addDisposableListener(htmlElement, EventType.MOUSE_DOWN, () => {
+			isMouseDown = true;
+			hideHover(true, true);
+		}, true);
+		const mouseUpEmitter = addDisposableListener(htmlElement, EventType.MOUSE_UP, () => {
+			isMouseDown = false;
+		}, true);
+		const mouseLeaveEmitter = addDisposableListener(htmlElement, EventType.MOUSE_LEAVE, (e: MouseEvent) => {
+			isMouseDown = false;
+			hideHover(false, (<any>e).fromElement === htmlElement);
+		}, true);
+
+		const onMouseOver = (e: MouseEvent) => {
+			if (hoverPreparation) {
+				return;
+			}
+
+			const toDispose: DisposableStore = new DisposableStore();
+
+			const target: IHoverDelegateTarget = {
+				targetElements: [htmlElement],
+				dispose: () => { }
+			};
+			if (hoverDelegate.placement === undefined || hoverDelegate.placement === 'mouse') {
+				// track the mouse position
+				const onMouseMove = (e: MouseEvent) => {
+					target.x = e.x + 10;
+					if ((e.target instanceof HTMLElement) && getHoverTargetElement(e.target, htmlElement) !== htmlElement) {
+						hideHover(true, true);
+					}
+				};
+				toDispose.add(addDisposableListener(htmlElement, EventType.MOUSE_MOVE, onMouseMove, true));
+			}
+
+			hoverPreparation = toDispose;
+
+			if ((e.target instanceof HTMLElement) && getHoverTargetElement(e.target as HTMLElement, htmlElement) !== htmlElement) {
+				return; // Do not show hover when the mouse is over another hover target
+			}
+
+			toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
+		};
+		const mouseOverDomEmitter = addDisposableListener(htmlElement, EventType.MOUSE_OVER, onMouseOver, true);
+
+		const onFocus = () => {
+			if (isMouseDown || hoverPreparation) {
+				return;
+			}
+			const target: IHoverDelegateTarget = {
+				targetElements: [htmlElement],
+				dispose: () => { }
+			};
+			const toDispose: DisposableStore = new DisposableStore();
+			const onBlur = () => hideHover(true, true);
+			toDispose.add(addDisposableListener(htmlElement, EventType.BLUR, onBlur, true));
+			toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
+			hoverPreparation = toDispose;
+		};
+
+		// Do not show hover when focusing an input or textarea
+		let focusDomEmitter: undefined | IDisposable;
+		const tagName = htmlElement.tagName.toLowerCase();
+		if (tagName !== 'input' && tagName !== 'textarea') {
+			focusDomEmitter = addDisposableListener(htmlElement, EventType.FOCUS, onFocus, true);
+		}
+
+		const hover: IUpdatableHover = {
+			show: focus => {
+				hideHover(false, true); // terminate a ongoing mouse over preparation
+				triggerShowHover(0, focus); // show hover immediately
+			},
+			hide: () => {
+				hideHover(true, true);
+			},
+			update: async (newContent, hoverOptions) => {
+				content = newContent;
+				await hoverWidget?.update(content, undefined, hoverOptions);
+			},
+			dispose: () => {
+				mouseOverDomEmitter.dispose();
+				mouseLeaveEmitter.dispose();
+				mouseDownEmitter.dispose();
+				mouseUpEmitter.dispose();
+				focusDomEmitter?.dispose();
+				hideHover(true, true);
+			}
+		};
+		return hover;
+	}
 }
 
 function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOptions | number | string | undefined {
@@ -225,6 +357,14 @@ class HoverContextViewDelegate implements IDelegate {
 	layout() {
 		this._hover.layout();
 	}
+}
+
+function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement): HTMLElement {
+	stopElement = stopElement ?? getWindow(element).document.body;
+	while (!element.hasAttribute('custom-hover') && element !== stopElement) {
+		element = element.parentElement!;
+	}
+	return element;
 }
 
 registerSingleton(IHoverService, HoverService, InstantiationType.Delayed);

@@ -13,9 +13,8 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isFunction, isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-import type { IHoverWidget, IUpdatableHover, IUpdatableHoverContent, IUpdatableHoverOptions, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import type { IHoverWidget, IUpdatableHover, IUpdatableHoverContent, IUpdatableHoverContentOrFactory, IUpdatableHoverOptions, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 
-type IUpdatableHoverContentOrFactory = IUpdatableHoverContent | (() => IUpdatableHoverContent);
 type IUpdatableHoverResolvedContent = IMarkdownString | string | HTMLElement | undefined;
 
 export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
