@@ -30,6 +30,7 @@ import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineComp
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
 
@@ -460,11 +461,13 @@ enum ContentHoverFocusBehavior {
 	AutoFocusImmediately = 'autoFocusImmediately'
 }
 
+CommandsRegistry.registerCommandAlias('editor.action.showHover', 'editor.action.showOrFocusContentHover');
+
 class ShowOrFocusContentHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showHover',
+			id: 'editor.action.showOrFocusContentHover',
 			label: nls.localize({
 				key: 'showOrFocusContentHover',
 				comment: [
@@ -558,15 +561,8 @@ class HideContentHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel()) {
-			return;
-		}
-		const controller = HoverController.get(editor);
-		if (!controller) {
-			return;
-		}
-		controller.hideContentHoverWidget();
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		HoverController.get(editor)?.hideContentHoverWidget();
 	}
 }
 
