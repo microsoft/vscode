@@ -16,7 +16,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IInternalXtermTerminal, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -126,7 +126,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -147,7 +147,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 
 		// Text area syncing
 		if (this._xterm?.raw.textarea) {
-			const font = this._terminalService.configHelper.getFont(getWindow(this._xterm.raw.textarea));
+			const font = this._terminalConfigurationService.getFont(getWindow(this._xterm.raw.textarea));
 			this._xterm.raw.textarea.style.fontFamily = font.fontFamily;
 			this._xterm.raw.textarea.style.fontSize = `${font.fontSize}px`;
 		}

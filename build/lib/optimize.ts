@@ -16,6 +16,7 @@ import * as bundle from './bundle';
 import { Language, processNlsFiles } from './i18n';
 import { createStatsStream } from './stats';
 import * as util from './util';
+import { gulpPostcss } from './postcss';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -381,7 +382,6 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 
 	return cb => {
 		const cssnano = require('cssnano') as typeof import('cssnano');
-		const postcss = require('gulp-postcss') as typeof import('gulp-postcss');
 		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 		const svgmin = require('gulp-svgmin') as typeof import('gulp-svgmin');
 
@@ -420,7 +420,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			}),
 			jsFilter.restore,
 			cssFilter,
-			postcss([cssnano({ preset: 'default' })]),
+			gulpPostcss([cssnano({ preset: 'default' })]),
 			cssFilter.restore,
 			svgFilter,
 			svgmin(),

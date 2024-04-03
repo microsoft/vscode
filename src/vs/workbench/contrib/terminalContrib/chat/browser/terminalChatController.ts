@@ -381,28 +381,21 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!providerInfo) {
 			return;
 		}
-		const model = this._model.value;
 		const widget = await this._chatWidgetService.revealViewForProvider(providerInfo.id);
-		if (widget) {
-			if (widget.viewModel && model) {
-				for (const request of model.getRequests()) {
-					if (request.response?.response.value || request.response?.result) {
-						this._chatService.addCompleteRequest(widget.viewModel.sessionId,
-							request.message as IParsedChatRequest,
-							request.variableData,
-							{
-								message: request.response.response.value,
-								result: request.response.result,
-								followups: request.response.followups
-							});
-					}
-				}
-				widget.focusLastMessage();
-			} else if (!model) {
-				widget.focusInput();
-			}
-			this._chatWidget?.rawValue?.hide();
+		const request = this._currentRequest;
+		if (!widget || !request?.response) {
+			return;
 		}
+		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
+			request.message.text,
+			request.variableData,
+			{
+				message: request.response!.response.value,
+				result: request.response!.result,
+				followups: request.response!.followups
+			});
+		widget.focusLastMessage();
+		this._chatWidget?.rawValue?.hide();
 	}
 
 	// TODO: Move to register calls, don't override

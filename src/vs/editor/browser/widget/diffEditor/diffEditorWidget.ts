@@ -57,8 +57,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
 		h('div.noModificationsOverlay@overlay', { style: { position: 'absolute', height: '100%', visibility: 'hidden', } }, [$('span', {}, 'No Changes')]),
-		h('div.editor.original@original', { style: { position: 'absolute', height: '100%', zIndex: '1', } }),
-		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', zIndex: '1', } }),
+		h('div.editor.original@original', { style: { position: 'absolute', height: '100%', } }),
+		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', } }),
 		h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
 	]);
 	private readonly _diffModel = observableValue<DiffEditorViewModel | undefined>(this, undefined);

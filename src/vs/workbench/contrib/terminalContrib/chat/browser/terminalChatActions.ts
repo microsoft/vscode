@@ -228,6 +228,7 @@ registerActiveXtermAction({
 		when: TerminalChatContextKeys.requestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Alt | KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt]
 	},
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
@@ -259,6 +260,7 @@ registerActiveXtermAction({
 		when: TerminalChatContextKeys.requestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Alt | KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt]
 	},
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,

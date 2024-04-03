@@ -365,7 +365,7 @@ export class SearchView extends ViewPane {
 	private refreshHasAISetting() {
 		const val = this.shouldShowAIButton();
 		if (val && this.searchWidget.searchInput) {
-			this.searchWidget.searchInput.shouldShowAIButton = val;
+			this.searchWidget.searchInput.sparkleVisible = val;
 		}
 	}
 	private onDidChangeWorkbenchState(): void {

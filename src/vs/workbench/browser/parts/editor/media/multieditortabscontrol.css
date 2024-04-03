@@ -106,6 +106,38 @@
 	padding-left: 10px;
 }
 
+/* Tab Background Color in/active group/tab */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	background-color: var(--vscode-tab-unfocusedInactiveBackground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab {
+	background-color: var(--vscode-tab-inactiveBackground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	background-color: var(--vscode-tab-unfocusedActiveBackground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
+	background-color: var(--vscode-tab-activeBackground);
+}
+
+/* Tab Foreground Color in/active group/tab */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	color: var(--vscode-tab-unfocusedInactiveForeground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab {
+	color: var(--vscode-tab-inactiveForeground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	color: var(--vscode-tab-unfocusedActiveForeground);
+}
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
+	color: var(--vscode-tab-activeForeground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) {
+	box-shadow: none;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
 	margin-right: var(--last-tab-margin-right); /* when tabs wrap, we need a margin away from the absolute positioned editor actions */
 }
