@@ -30,9 +30,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalConfigHelper, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { getColorStyleContent, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
@@ -76,7 +75,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _primaryBackend?: ITerminalBackend;
 	private _terminalHasBeenCreated: IContextKey<boolean>;
 	private _terminalCountContextKey: IContextKey<number>;
-	private _configHelper: TerminalConfigHelper;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
 
@@ -93,7 +91,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _restoredGroupCount: number = 0;
 	get restoredGroupCount(): number { return this._restoredGroupCount; }
 
-	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
@@ -190,7 +187,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	) {
 		super();
 
-		this._configHelper = this._register(this._instantiationService.createInstance(TerminalConfigHelper));
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
@@ -1020,7 +1016,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const xterm = this._instantiationService.createInstance(
 			XtermTerminal,
 			ctor,
-			this._configHelper,
 			options.cols,
 			options.rows,
 			options.colorProvider,
@@ -1178,7 +1173,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
-		this._configHelper.panelContainer = panelContainer;
+		this._terminalConfigurationService.setPanelContainer(panelContainer);
 		this._terminalGroupService.setContainer(terminalContainer);
 	}
 

@@ -82,7 +82,7 @@ export class HoverService extends Disposable implements IHoverService {
 				this._currentHoverOptions = undefined;
 			}
 			hoverDisposables.dispose();
-		});
+		}, undefined, hoverDisposables);
 		// Set the container explicitly to enable aux window support
 		if (!options.container) {
 			const targetElement = options.target instanceof HTMLElement ? options.target : options.target.targetElements[0];
@@ -93,7 +93,7 @@ export class HoverService extends Disposable implements IHoverService {
 			new HoverContextViewDelegate(hover, focus),
 			options.container
 		);
-		hover.onRequestLayout(() => this._contextViewHandler.layout());
+		hover.onRequestLayout(() => this._contextViewHandler.layout(), undefined, hoverDisposables);
 		if (options.persistence?.sticky) {
 			hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
 				if (!isAncestor(e.target as HTMLElement, hover.domNode)) {

@@ -210,7 +210,7 @@ export class SearchWidget extends Widget {
 		this._register(
 			this._notebookFilters.onDidChange(() => {
 				if (this.searchInput) {
-					this.searchInput.updateStyles();
+					this.searchInput.updateFilterStyles();
 				}
 			}));
 		this._register(this.editorService.onDidEditorsChange((e) => {

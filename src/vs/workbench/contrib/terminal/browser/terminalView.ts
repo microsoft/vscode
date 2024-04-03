@@ -33,7 +33,7 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -58,6 +58,7 @@ export class TerminalViewPane extends ViewPane {
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
+	private _disposableStore = this._register(new DisposableStore());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -68,6 +69,7 @@ export class TerminalViewPane extends ViewPane {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -191,8 +193,7 @@ export class TerminalViewPane extends ViewPane {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
-				const configHelper = this._terminalService.configHelper;
-				if (!configHelper.configFontIsMonospace()) {
+				if (!this._terminalConfigurationService.configFontIsMonospace()) {
 					const choices: IPromptChoice[] = [{
 						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
 						run: () => this.configurationService.updateValue(TerminalSettingId.FontFamily, 'monospace'),
@@ -272,6 +273,7 @@ export class TerminalViewPane extends ViewPane {
 			case TerminalCommandId.New: {
 				if (action instanceof MenuItemAction) {
 					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
 					this._newDropdown?.dispose();
 					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate }, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
 					this._updateTabActionBar(this._terminalProfileService.availableProfiles);
@@ -280,6 +282,17 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}
 		return super.getActionViewItem(action, options);
+	}
+
+	/**
+	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
+	 */
+	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
+		this._disposableStore.clear();
+		if (dropdownAction instanceof Action) {
+			this._disposableStore.add(dropdownAction);
+		}
+		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._disposableStore.add(a));
 	}
 
 	private _getDefaultProfileName(): string {
@@ -298,6 +311,7 @@ export class TerminalViewPane extends ViewPane {
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
 		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+		this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
 		this._newDropdown?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 

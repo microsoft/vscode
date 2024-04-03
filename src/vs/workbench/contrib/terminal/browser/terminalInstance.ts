@@ -60,7 +60,6 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IRequestAddInstanceToGroupEvent, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, IXtermColorProvider, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { getColorClass, createColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -339,7 +338,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
-		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -649,7 +647,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return null;
 		}
 
-		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement));
+		const font = this.xterm ? this.xterm.getFont() : this._terminalConfigurationService.getFont(dom.getWindow(this.domElement));
 		const newRC = getXtermScaledDimensions(dom.getWindow(this.domElement), font, dimension.width, dimension.height);
 		if (!newRC) {
 			this._setLastKnownColsAndRows();
@@ -679,7 +677,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _getDimension(width: number, height: number): ICanvasDimensions | undefined {
 		// The font needs to have been initialized
-		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement));
+		const font = this.xterm ? this.xterm.getFont() : this._terminalConfigurationService.getFont(dom.getWindow(this.domElement));
 		if (!font || !font.charWidth || !font.charHeight) {
 			return undefined;
 		}
@@ -727,7 +725,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const xterm = this._scopedInstantiationService.createInstance(
 			XtermTerminal,
 			Terminal,
-			this._configHelper,
 			this._cols,
 			this._rows,
 			this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this),
@@ -1091,13 +1088,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _initDragAndDrop(container: HTMLElement) {
-		const dndController = this._register(this._scopedInstantiationService.createInstance(TerminalInstanceDragAndDropController, container));
-		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
-		dndController.onDropFile(async path => {
+		const store = new DisposableStore();
+		const dndController = store.add(this._scopedInstantiationService.createInstance(TerminalInstanceDragAndDropController, container));
+		store.add(dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e)));
+		store.add(dndController.onDropFile(async path => {
 			this.focus();
 			await this.sendPath(path, false);
-		});
-		this._dndObserver.value = new dom.DragAndDropObserver(container, dndController);
+		}));
+		store.add(new dom.DragAndDropObserver(container, dndController));
+		this._dndObserver.value = store;
 	}
 
 	hasSelection(): boolean {
@@ -1324,7 +1323,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const processManager = this._scopedInstantiationService.createInstance(
 			TerminalProcessManager,
 			this._instanceId,
-			this._configHelper,
 			this.shellLaunchConfig?.cwd,
 			deserializedCollections,
 			this.shellLaunchConfig.attachPersistentProcess?.shellIntegrationNonce
@@ -1859,10 +1857,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			this.xterm.raw.resize(cols, rows);
 			TerminalInstance._lastKnownGridDimensions = { cols, rows };
-
-			if (this._isVisible) {
-				this.xterm.forceUnpause();
-			}
 		}
 
 		if (immediate) {
@@ -2004,7 +1998,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._initDimensions();
 			await this._resize();
 		} else {
-			const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement));
+			const font = this.xterm ? this.xterm.getFont() : this._terminalConfigurationService.getFont(dom.getWindow(this.domElement));
 			const maxColsForTexture = Math.floor(Constants.MaxCanvasWidth / (font.charWidth ?? 20));
 			// Fixed columns should be at least xterm.js' regular column count
 			const proposedCols = Math.max(this.maxCols, Math.min(this.xterm.getLongestViewportWrappedLineLength(), maxColsForTexture));
@@ -2027,7 +2021,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _addScrollbar(): Promise<void> {
-		const charWidth = (this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement))).charWidth;
+		const charWidth = (this.xterm ? this.xterm.getFont() : this._terminalConfigurationService.getFont(dom.getWindow(this.domElement))).charWidth;
 		if (!this.xterm?.raw.element || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}

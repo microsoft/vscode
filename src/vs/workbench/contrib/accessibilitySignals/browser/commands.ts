@@ -43,7 +43,7 @@ export class ShowSignalSoundHelp extends Action2 {
 				tooltip: localize('sounds.help.settings', 'Configure Sound'),
 				alwaysVisible: true
 			}] : []
-		}));
+		})).sort((a, b) => a.label.localeCompare(b.label));
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.sound') !== 'never');
@@ -59,14 +59,12 @@ export class ShowSignalSoundHelp extends Action2 {
 					configurationService.updateValue(signal.settingsKey, { sound });
 				}
 			}
+
 			for (const signal of disabledSounds) {
-				let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(signal.settingsKey);
-				sound = userGestureSignals.includes(signal) ? 'never' : 'off';
-				if (announcement) {
-					configurationService.updateValue(signal.settingsKey, { sound, announcement });
-				} else {
-					configurationService.updateValue(signal.settingsKey, { sound });
-				}
+				const announcement = configurationService.getValue(signal.settingsKey + '.announcement');
+				const sound = getDisabledSettingValue(userGestureSignals.includes(signal), accessibilityService.isScreenReaderOptimized());
+				const value = announcement ? { sound, announcement } : { sound };
+				configurationService.updateValue(signal.settingsKey, value);
 			}
 			qp.hide();
 		});
@@ -80,6 +78,10 @@ export class ShowSignalSoundHelp extends Action2 {
 		qp.canSelectMany = true;
 		await qp.show();
 	}
+}
+
+function getDisabledSettingValue(isUserGestureSignal: boolean, isScreenReaderOptimized: boolean): string {
+	return isScreenReaderOptimized ? (isUserGestureSignal ? 'never' : 'off') : (isUserGestureSignal ? 'never' : 'auto');
 }
 
 export class ShowAccessibilityAnnouncementHelp extends Action2 {
@@ -111,11 +113,17 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 				tooltip: localize('announcement.help.settings', 'Configure Announcement'),
 				alwaysVisible: true,
 			}] : []
-		}));
+		})).sort((a, b) => a.label.localeCompare(b.label));
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isAnnouncementEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.announcement') !== 'never');
+		const screenReaderOptimized = accessibilityService.isScreenReaderOptimized();
 		qp.onDidAccept(() => {
+			if (!screenReaderOptimized) {
+				// announcements are off by default when screen reader is not active
+				qp.hide();
+				return;
+			}
 			const enabledAnnouncements = qp.selectedItems.map(i => i.signal);
 			const disabledAnnouncements = AccessibilitySignal.allAccessibilitySignals.filter(cue => !!cue.legacyAnnouncementSettingsKey && !enabledAnnouncements.includes(cue));
 			for (const signal of enabledAnnouncements) {
@@ -123,17 +131,19 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 				announcement = userGestureSignals.includes(signal) ? 'userGesture' : signal.announcementMessage && accessibilityService.isScreenReaderOptimized() ? 'auto' : undefined;
 				configurationService.updateValue(signal.settingsKey, { sound, announcement });
 			}
+
 			for (const signal of disabledAnnouncements) {
-				const announcement = userGestureSignals.includes(signal) ? 'never' : 'off';
+				const announcement = getDisabledSettingValue(userGestureSignals.includes(signal), true);
 				const sound = configurationService.getValue(signal.settingsKey + '.sound');
-				configurationService.updateValue(signal.settingsKey, announcement ? { sound, announcement } : { sound });
+				const value = announcement ? { sound, announcement } : { sound };
+				configurationService.updateValue(signal.settingsKey, value);
 			}
 			qp.hide();
 		});
 		qp.onDidTriggerItemButton(e => {
 			preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: e.item.signal.settingsKey, edit: true } });
 		});
-		qp.placeholder = localize('announcement.help.placeholder', 'Select an announcement to configure');
+		qp.placeholder = screenReaderOptimized ? localize('announcement.help.placeholder', 'Select an announcement to configure') : localize('announcement.help.placeholder.disabled', 'Screen reader is not active, announcements are disabled by default.');
 		qp.canSelectMany = true;
 		await qp.show();
 	}
