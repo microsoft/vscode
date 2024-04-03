@@ -13,6 +13,7 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isFunction, isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
+import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 export interface ITooltipMarkdownString {
 	markdown: IMarkdownString | string | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
@@ -66,10 +67,6 @@ export interface ICustomHover extends IDisposable {
 	 * Updates the contents of the hover.
 	 */
 	update(tooltip: IHoverContent, options?: IUpdatableHoverOptions): void;
-}
-
-export interface IHoverWidget extends IDisposable {
-	readonly isDisposed: boolean;
 }
 
 class UpdatableHoverWidget implements IDisposable {
