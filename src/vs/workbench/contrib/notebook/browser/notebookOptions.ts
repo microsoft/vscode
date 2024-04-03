@@ -45,7 +45,11 @@ export interface NotebookDisplayOptions { // TODO @Yoyokrazy rename to a more ge
 	outputFontFamily: string;
 	outputLineHeight: number;
 	markupFontSize: number;
-	editorOptionsCustomizations: any | undefined;
+	editorOptionsCustomizations: {
+		'editor.indentSize': 'tabSize' | number;
+		'editor.tabSize': number;
+		'editor.insertSpaces': boolean;
+	} | undefined;
 }
 
 export interface NotebookLayoutConfiguration {
@@ -152,7 +156,11 @@ export class NotebookOptions extends Disposable {
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		const markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
-		const editorOptionsCustomizations = this.configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations);
+		const editorOptionsCustomizations = this.configurationService.getValue<{
+			'editor.indentSize': 'tabSize' | number;
+			'editor.tabSize': number;
+			'editor.insertSpaces': boolean;
+		}>(NotebookSetting.cellEditorOptionsCustomizations);
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
 
 		// TOOD @rebornix remove after a few iterations of deprecated setting
