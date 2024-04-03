@@ -7,7 +7,7 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -21,6 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { Dimension } from 'vs/base/browser/dom';
+import { ColorContribution } from 'vs/editor/contrib/colorPicker/browser/colorContributions';
 
 export class ColorHover implements IHoverPart {
 
@@ -88,6 +89,11 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
 		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
+	}
+
+	public shouldHideHoverOnMouseEvent(mouseEvent: IEditorMouseEvent): boolean {
+		const colorContribution = this._editor.getContribution<ColorContribution>(ColorContribution.ID);
+		return colorContribution?.shouldHideHoverOnMouseEvent(mouseEvent) ?? false;
 	}
 }
 

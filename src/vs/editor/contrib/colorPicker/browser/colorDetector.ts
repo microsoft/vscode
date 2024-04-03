@@ -26,7 +26,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export const ColorDecorationInjectedTextMarker = Object.create({});
 
-
 export class ColorDetector extends Disposable implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.contrib.colorDetector';

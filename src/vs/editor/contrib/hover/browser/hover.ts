@@ -48,7 +48,6 @@ interface IHoverState {
 	mouseDown: boolean;
 	// TODO @aiday-mar maybe not needed, investigate this
 	contentHoverFocused: boolean;
-	activatedByDecoratorClick: boolean;
 }
 
 export class HoverController extends Disposable implements IEditorContribution {
@@ -66,8 +65,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _hoverSettings!: IHoverSettings;
 	private _hoverState: IHoverState = {
 		mouseDown: false,
-		contentHoverFocused: false,
-		activatedByDecoratorClick: false
+		contentHoverFocused: false
 	};
 
 	constructor(
@@ -267,26 +265,12 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		const target = mouseEvent.target;
-		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
-		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
-
-		const enabled = this._hoverSettings.enabled;
-		const activatedByDecoratorClick = this._hoverState.activatedByDecoratorClick;
-		if (
-			(
-				mouseOnDecorator && (
-					(decoratorActivatedOn === 'click' && !activatedByDecoratorClick) ||
-					(decoratorActivatedOn === 'hover' && !enabled && !_sticky) ||
-					(decoratorActivatedOn === 'clickAndHover' && !enabled && !activatedByDecoratorClick))
-			) || (
-				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
-			)
-		) {
+		if (this._contentWidget?.shouldHideHoverOnMouseEvent(mouseEvent)) {
 			this._hideWidgets();
 			return;
 		}
 
+		const target = mouseEvent.target;
 		const contentWidget = this._getOrCreateContentWidget();
 
 		if (contentWidget.showsOrWillShow(mouseEvent)) {
@@ -358,7 +342,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		) {
 			return;
 		}
-		this._hoverState.activatedByDecoratorClick = false;
 		this._hoverState.contentHoverFocused = false;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
@@ -386,10 +369,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		range: Range,
 		mode: HoverStartMode,
 		source: HoverStartSource,
-		focus: boolean,
-		activatedByColorDecoratorClick: boolean = false
+		focus: boolean
 	): void {
-		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
