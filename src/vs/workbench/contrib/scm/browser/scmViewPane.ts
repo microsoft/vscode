@@ -82,6 +82,7 @@ import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/brows
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
+import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -2494,6 +2495,7 @@ class SCMInputWidget {
 				ColorDetector.ID,
 				ContextMenuController.ID,
 				DragAndDropController.ID,
+				CopyPasteController.ID,
 				DropIntoEditorController.ID,
 				LinkDetector.ID,
 				MenuPreventer.ID,
@@ -2505,7 +2507,7 @@ class SCMInputWidget {
 				InlineCompletionsController.ID,
 				CodeActionController.ID,
 				FormatOnType.ID,
-				EditorDictation.ID
+				EditorDictation.ID,
 			])
 		};
 
@@ -2530,6 +2532,11 @@ class SCMInputWidget {
 					this.clearValidation();
 				}
 			}, 0);
+		}));
+
+		this.disposables.add(this.inputEditor.onDidBlurEditorWidget(() => {
+			CopyPasteController.get(this.inputEditor)?.clearWidgets();
+			DropIntoEditorController.get(this.inputEditor)?.clearWidgets();
 		}));
 
 		const firstLineKey = this.contextKeyService.createKey<boolean>('scmInputIsInFirstPosition', false);

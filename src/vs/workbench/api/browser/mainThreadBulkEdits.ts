@@ -12,6 +12,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IWorkspaceEditDto, IWorkspaceFileEditDto, MainContext, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 
 @extHostNamedCustomer(MainContext.MainThreadBulkEdits)
@@ -26,8 +27,8 @@ export class MainThreadBulkEdits implements MainThreadBulkEditsShape {
 
 	dispose(): void { }
 
-	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto, undoRedoGroupId?: number, isRefactoring?: boolean): Promise<boolean> {
-		const edits = reviveWorkspaceEditDto(dto, this._uriIdentService);
+	$tryApplyWorkspaceEdit(dto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean): Promise<boolean> {
+		const edits = reviveWorkspaceEditDto(dto.value, this._uriIdentService);
 		return this._bulkEditService.apply(edits, { undoRedoGroupId, respectAutoSaveConfig: isRefactoring }).then((res) => res.isApplied, err => {
 			this._logService.warn(`IGNORING workspace edit: ${err}`);
 			return false;

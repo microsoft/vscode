@@ -556,6 +556,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				try {
 					await this.doExportProfile(userDataProfilesExportState);
 				} catch (error) {
+					exportAction.enabled = true;
 					this.notificationService.error(error);
 					throw error;
 				}
