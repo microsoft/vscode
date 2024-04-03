@@ -32,6 +32,7 @@ import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
+import { Emitter } from 'vs/base/common/event';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -67,6 +68,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 		mouseDown: false,
 		contentHoverFocused: false
 	};
+
+	private readonly _onContentWidgetHidden = this._register(new Emitter<void>());
+	public readonly onContentWidgetHidden = this._onContentWidgetHidden.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -345,6 +349,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hoverState.contentHoverFocused = false;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
+		this._onContentWidgetHidden.fire();
 	}
 
 	private _getOrCreateContentWidget(): ContentHoverController {

@@ -16,7 +16,7 @@ import { getColorPresentations, getColors } from 'vs/editor/contrib/colorPicker/
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -257,3 +257,5 @@ async function _updateColorPresentations(editorModel: ITextModel, colorPickerMod
 	}, colorHover.provider, CancellationToken.None);
 	colorPickerModel.colorPresentations = colorPresentations || [];
 }
+
+HoverParticipantRegistry.register(ColorHoverParticipant);

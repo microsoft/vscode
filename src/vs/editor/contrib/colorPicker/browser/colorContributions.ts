@@ -10,10 +10,8 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ColorDecorationInjectedTextMarker } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
-import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
 
 enum ColorDecoratorActivatedOn {
 	Hover = 'hover',
@@ -46,7 +44,11 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		this._hoverEnabled = this._editor.getOption(EditorOption.hover).enabled;
 		this._colorDecoratorsActivatedOn = <ColorDecoratorActivatedOn>this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
 		if (this._hoverEnabled) {
-			this._register(this._editor.onMouseDown((e) => this._onMouseDown(e)));
+			this._listenersStore.add(this._editor.onMouseDown((e) => this._onMouseDown(e)));
+			const hoverController = this._editor.getContribution<HoverController>(HoverController.ID);
+			if (hoverController) {
+				this._listenersStore.add(hoverController.onContentWidgetHidden(() => { this._activatedByDecoratorClick = false; }));
+			}
 		}
 	}
 
@@ -97,6 +99,7 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		const mouseOnDecorator = this._onColorDecorator(mouseEvent);
 		const decoratorActivatedOn = this._colorDecoratorsActivatedOn;
 		const enabled = this._hoverEnabled;
+
 		if ((
 			mouseOnDecorator && (
 				(decoratorActivatedOn === 'click' && !this._activatedByDecoratorClick) ||
@@ -118,4 +121,3 @@ export class ColorContribution extends Disposable implements IEditorContribution
 }
 
 registerEditorContribution(ColorContribution.ID, ColorContribution, EditorContributionInstantiation.BeforeFirstInteraction);
-HoverParticipantRegistry.register(ColorHoverParticipant);
