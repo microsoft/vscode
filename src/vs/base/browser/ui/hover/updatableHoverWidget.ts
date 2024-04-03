@@ -13,7 +13,7 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isFunction, isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import type { IHoverAction, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 export interface ITooltipMarkdownString {
 	markdown: IMarkdownString | string | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
@@ -34,17 +34,6 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | ITo
 type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
 type IHoverContentOrFactory = IHoverContent | (() => IHoverContent);
 type IResolvedHoverContent = IMarkdownString | string | HTMLElement | undefined;
-
-/**
- * Copied from src\vs\workbench\services\hover\browser\hover.ts
- * @deprecated Use IHoverService
- */
-interface IHoverAction {
-	label: string;
-	commandId: string;
-	iconClass?: string;
-	run(target: HTMLElement): void;
-}
 
 export interface IUpdatableHoverOptions {
 	actions?: IHoverAction[];
