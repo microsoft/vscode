@@ -395,7 +395,7 @@ export class TestingExplorerView extends ViewPane {
 			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
 				: icons.testingDebugAllIcon,
-		}, undefined, undefined, undefined);
+		}, undefined, undefined, undefined, undefined);
 
 		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
 
@@ -485,7 +485,7 @@ class ResultSummaryView extends Disposable {
 			{ ...new ReRunLastRun().desc, icon: icons.testingRerunIcon },
 			{ ...new DebugLastRun().desc, icon: icons.testingDebugIcon },
 			{},
-			undefined,
+			undefined, undefined
 		), { icon: true, label: false });
 
 		this.render();

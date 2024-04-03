@@ -2029,7 +2029,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			id: SCMInputWidgetCommandId.CancelAction,
 			title: localize('scmInputCancelAction', "Cancel"),
 			icon: Codicon.debugStop,
-		}, undefined, undefined, undefined, contextKeyService, commandService);
+		}, undefined, undefined, undefined, undefined, contextKeyService, commandService);
 	}
 
 	public setInput(input: ISCMInput): void {
