@@ -82,6 +82,7 @@ import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/brows
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
+import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -109,7 +110,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ICustomHover, ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -2492,6 +2492,7 @@ class SCMInputWidget {
 				ColorDetector.ID,
 				ContextMenuController.ID,
 				DragAndDropController.ID,
+				CopyPasteController.ID,
 				DropIntoEditorController.ID,
 				LinkDetector.ID,
 				MenuPreventer.ID,
@@ -2504,8 +2505,6 @@ class SCMInputWidget {
 				CodeActionController.ID,
 				FormatOnType.ID,
 				EditorDictation.ID,
-				CopyPasteController.ID,
-				DropIntoEditorController.ID,
 			])
 		};
 
