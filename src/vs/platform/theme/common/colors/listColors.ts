@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 
 // Import the effects we need
 import { Color } from 'vs/base/common/color';
-import { registerColor, darken, lighten, transparent } from 'vs/platform/theme/common/colorUtils';
+import { registerColor, darken, lighten, transparent, ifDefinedThenElse } from 'vs/platform/theme/common/colorUtils';
 
 // Import the colors we need
 import { foreground, contrastBorder, activeContrastBorder, focusBorder, iconForeground } from 'vs/platform/theme/common/colors/baseColors';
@@ -83,7 +83,7 @@ export const listHighlightForeground = registerColor('list.highlightForeground',
 	nls.localize('highlight', 'List/Tree foreground color of the match highlights when searching inside the list/tree.'));
 
 export const listFocusHighlightForeground = registerColor('list.focusHighlightForeground',
-	{ dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground },
+	{ dark: listHighlightForeground, light: ifDefinedThenElse(listActiveSelectionBackground, listHighlightForeground, '#BBE7FF'), hcDark: listHighlightForeground, hcLight: listHighlightForeground },
 	nls.localize('listFocusHighlightForeground', 'List/Tree foreground color of the match highlights on actively focused items when searching inside the list/tree.'));
 
 export const listInvalidItemForeground = registerColor('list.invalidItemForeground',

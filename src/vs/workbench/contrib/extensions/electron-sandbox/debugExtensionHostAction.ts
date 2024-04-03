@@ -53,7 +53,7 @@ export class DebugExtensionHostAction extends Action {
 			type: 'node',
 			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
 			request: 'attach',
-			port: inspectPorts[0]
+			port: inspectPorts[0].port,
 		});
 	}
 }

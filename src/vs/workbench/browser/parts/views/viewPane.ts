@@ -49,6 +49,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -120,9 +121,10 @@ class ViewWelcomeController {
 		@IOpenerService protected openerService: IOpenerService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		this.delegate.onDidChangeViewWelcomeState(this.onDidChangeViewWelcomeState, this, this.disposables);
-		this.onDidChangeViewWelcomeState();
+		this.disposables.add(Event.runAndSubscribe(this.delegate.onDidChangeViewWelcomeState, () => this.onDidChangeViewWelcomeState()));
+		this.disposables.add(lifecycleService.onWillShutdown(() => this.dispose())); // Fixes https://github.com/microsoft/vscode/issues/208878
 	}
 
 	layout(height: number, width: number) {
@@ -591,7 +593,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected renderBody(container: HTMLElement): void {
-		this.viewWelcomeController = this._register(new ViewWelcomeController(container, this, this.instantiationService, this.openerService, this.telemetryService, this.contextKeyService));
+		this.viewWelcomeController = this._register(this.instantiationService.createInstance(ViewWelcomeController, container, this));
 	}
 
 	protected layoutBody(height: number, width: number): void {

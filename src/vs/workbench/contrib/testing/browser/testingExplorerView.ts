@@ -252,6 +252,7 @@ export class TestingExplorerView extends ViewPane {
 	override render(): void {
 		super.render();
 		this._register(registerNavigableContainer({
+			name: 'testingExplorerView',
 			focusNotifiers: [this],
 			focusNextWidget: () => {
 				if (!this.viewModel.tree.isDOMFocused()) {

@@ -1405,9 +1405,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChat.registerChatProvider(extension, id, provider);
 			},
-			transferChatSession(session: vscode.InteractiveSession, toWorkspace: vscode.Uri) {
+			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
-				return extHostChat.transferChatSession(session, toWorkspace);
+				return extHostChat.transferActiveChat(toWorkspace);
 			}
 		};
 

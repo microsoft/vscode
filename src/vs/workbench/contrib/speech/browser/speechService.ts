@@ -147,6 +147,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 		const sessionStart = Date.now();
 		let sessionRecognized = false;
+		let sessionError = false;
 		let sessionContentLength = 0;
 
 		const disposables = new DisposableStore();
@@ -162,15 +163,17 @@ export class SpeechService extends Disposable implements ISpeechService {
 					owner: 'bpasero';
 					comment: 'An event that fires when a speech to text session is created';
 					context: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Context of the session.' };
-					sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Duration of the session.' };
-					sessionRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If speech was recognized.' };
-					sessionContentLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length of the recognized text.' };
+					sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration of the session.' };
+					sessionRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If speech was recognized.' };
+					sessionError: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If speech resulted in error.' };
+					sessionContentLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of the recognized text.' };
 					sessionLanguage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured language for the session.' };
 				};
 				type SpeechToTextSessionEvent = {
 					context: string;
 					sessionDuration: number;
 					sessionRecognized: boolean;
+					sessionError: boolean;
 					sessionContentLength: number;
 					sessionLanguage: string;
 				};
@@ -178,6 +181,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 					context,
 					sessionDuration: Date.now() - sessionStart,
 					sessionRecognized,
+					sessionError,
 					sessionContentLength,
 					sessionLanguage: language
 				});
@@ -210,6 +214,10 @@ export class SpeechService extends Disposable implements ISpeechService {
 					break;
 				case SpeechToTextStatus.Stopped:
 					onSessionStoppedOrCanceled();
+					break;
+				case SpeechToTextStatus.Error:
+					this.logService.error(`Speech provider error in speech to text session: ${e.text}`);
+					sessionError = true;
 					break;
 			}
 		}));
@@ -294,7 +302,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		type KeywordRecognitionClassification = {
 			owner: 'bpasero';
 			comment: 'An event that fires when a speech keyword detection is started';
-			keywordRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the keyword was recognized.' };
+			keywordRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the keyword was recognized.' };
 		};
 		type KeywordRecognitionEvent = {
 			keywordRecognized: boolean;

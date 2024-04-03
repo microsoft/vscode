@@ -28,6 +28,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { ObjectPool } from './objectPool';
+import { BugIndicatingError } from 'vs/base/common/errors';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -94,7 +95,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	private readonly _totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader) + this._spaceBetweenPx, 0));
 	public readonly activeDiffItem = derived(this, reader => this._viewItems.read(reader).find(i => i.template.read(reader)?.isFocused.read(reader)));
-	public readonly lastActiveDiffItem = derivedObservableWithCache<VirtualizedViewItem | undefined>((reader, lastValue) => this.activeDiffItem.read(reader) ?? lastValue);
+	public readonly lastActiveDiffItem = derivedObservableWithCache<VirtualizedViewItem | undefined>(this, (reader, lastValue) => this.activeDiffItem.read(reader) ?? lastValue);
 	public readonly activeControl = derived(this, reader => this.lastActiveDiffItem.read(reader)?.template.read(reader)?.editor);
 
 	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
@@ -191,15 +192,15 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
 	}
 
-	public reveal(resource: IMultiDiffResource, options?: RevealOptions): void {
+	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {
 		const viewItems = this._viewItems.get();
-		let searchCallback: (item: VirtualizedViewItem) => boolean;
-		if ('original' in resource) {
-			searchCallback = (item) => item.viewModel.originalUri?.toString() === resource.original.toString();
-		} else {
-			searchCallback = (item) => item.viewModel.modifiedUri?.toString() === resource.modified.toString();
+		const index = viewItems.findIndex(
+			(item) => item.viewModel.originalUri?.toString() === resource.original?.toString()
+				&& item.viewModel.modifiedUri?.toString() === resource.modified?.toString()
+		);
+		if (index === -1) {
+			throw new BugIndicatingError('Resource not found in diff editor');
 		}
-		const index = viewItems.findIndex(searchCallback);
 		let scrollTop = 0;
 		for (let i = 0; i < index; i++) {
 			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
@@ -323,12 +324,12 @@ export interface IMultiDiffEditorOptions extends ITextEditorOptions {
 
 export interface IMultiDiffEditorOptionsViewState {
 	revealData?: {
-		resource: IMultiDiffResource;
+		resource: IMultiDiffResourceId;
 		range?: IRange;
 	};
 }
 
-export type IMultiDiffResource = { original: URI } | { modified: URI };
+export type IMultiDiffResourceId = { original: URI | undefined; modified: URI | undefined };
 
 class VirtualizedViewItem extends Disposable {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
