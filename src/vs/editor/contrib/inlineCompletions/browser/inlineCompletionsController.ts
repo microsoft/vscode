@@ -5,6 +5,7 @@
 
 import { createStyleSheet2 } from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
@@ -33,6 +34,7 @@ import { mapObservableArrayCached } from 'vs/base/common/observableInternal/util
 import { ISettableObservable, observableValueOpts } from 'vs/base/common/observableInternal/base';
 import { itemsEquals, itemEquals } from 'vs/base/common/equals';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -58,9 +60,12 @@ export class InlineCompletionsController extends Disposable {
 	));
 	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
 	private readonly _isScreenReaderEnabled = observableFromEvent(this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
-	private readonly _voiceChatInProgress = observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('voiceChatInProgress') === true);
+	private readonly _onDidChangeSpeechToTextSession = Event.any(this._speechService.onDidStartSpeechToTextSession, this._speechService.onDidEndSpeechToTextSession);
+	private readonly _voiceChatInProgress = observableFromEvent(this._onDidChangeSpeechToTextSession, () => this._speechService.hasActiveSpeechToTextSession);
 
-	private readonly _isEnabled = this._enabled.get() && (!this._isScreenReaderEnabled.get() || !this._voiceChatInProgress.get());
+	private get _isEnabled(): boolean {
+		return this._enabled.get() && (!this._isScreenReaderEnabled.get() || !this._voiceChatInProgress.get());
+	}
 
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
@@ -102,6 +107,7 @@ export class InlineCompletionsController extends Disposable {
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ISpeechService private readonly _speechService: ISpeechService,
 	) {
 		super();
 
@@ -156,6 +162,12 @@ export class InlineCompletionsController extends Disposable {
 			/** @description InlineCompletionsController.onDidChangeModelContent */
 			this.updateObservables(tx, getReason(e))
 		)));
+
+		this._register(this._onDidChangeSpeechToTextSession(() => transaction(tx => {
+			/** @description speechService.onDidChangeSpeechToTextSession */
+			this.updateObservables(tx, VersionIdChangeReason.Other);
+			this.model.get()?.stop(tx);
+		})));
 
 		this._register(editor.onDidChangeCursorPosition(e => transaction(tx => {
 			/** @description InlineCompletionsController.onDidChangeCursorPosition */
