@@ -9,7 +9,7 @@ import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IActionProvider } from 'vs/base/browser/ui/dropdown/dropdown';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -18,6 +18,7 @@ import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/ac
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 
 export class CodiconActionViewItem extends MenuEntryActionViewItem {
 

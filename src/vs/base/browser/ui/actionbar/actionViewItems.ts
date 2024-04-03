@@ -11,7 +11,7 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -20,6 +20,7 @@ import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import 'vs/css!./actionbar';
 import * as nls from 'vs/nls';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;

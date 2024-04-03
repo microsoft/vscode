@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import type { CancellationToken } from 'vs/base/common/cancellation';
 import type { IMarkdownString } from 'vs/base/common/htmlContent';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -227,3 +228,37 @@ export interface IHoverTarget extends IDisposable {
 	 */
 	y?: number;
 }
+
+// #region Updatable hover
+
+export interface IUpdatableHoverTooltipMarkdownString {
+	markdown: IMarkdownString | string | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
+	markdownNotSupportedFallback: string | undefined;
+}
+
+export type IUpdatableHoverContent = string | IUpdatableHoverTooltipMarkdownString | HTMLElement | undefined;
+
+export interface IUpdatableHoverOptions {
+	actions?: IHoverAction[];
+	linkHandler?(url: string): void;
+}
+
+export interface IUpdatableHover extends IDisposable {
+
+	/**
+	 * Allows to programmatically open the hover.
+	 */
+	show(focus?: boolean): void;
+
+	/**
+	 * Allows to programmatically hide the hover.
+	 */
+	hide(): void;
+
+	/**
+	 * Updates the contents of the hover.
+	 */
+	update(tooltip: IUpdatableHoverContent, options?: IUpdatableHoverOptions): void;
+}
+
+// #endregion Updatable hover

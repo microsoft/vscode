@@ -7,20 +7,18 @@ import * as dom from 'vs/base/browser/dom';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isFunction, isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-import type { IHoverAction, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import type { IHoverWidget, IUpdatableHover, IUpdatableHoverContent, IUpdatableHoverOptions, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 
-export interface ITooltipMarkdownString {
-	markdown: IMarkdownString | string | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
-	markdownNotSupportedFallback: string | undefined;
-}
+type IUpdatableHoverContentOrFactory = IUpdatableHoverContent | (() => IUpdatableHoverContent);
+type IUpdatableHoverResolvedContent = IMarkdownString | string | HTMLElement | undefined;
 
-export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | ITooltipMarkdownString | undefined): void {
+export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
 	if (isString(tooltip)) {
 		// Icons don't render in the native hover so we strip them out
 		htmlElement.title = stripIcons(tooltip);
@@ -31,33 +29,6 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | ITo
 	}
 }
 
-type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
-type IHoverContentOrFactory = IHoverContent | (() => IHoverContent);
-type IResolvedHoverContent = IMarkdownString | string | HTMLElement | undefined;
-
-export interface IUpdatableHoverOptions {
-	actions?: IHoverAction[];
-	linkHandler?(url: string): void;
-}
-
-export interface IUpdatableHover extends IDisposable {
-
-	/**
-	 * Allows to programmatically open the hover.
-	 */
-	show(focus?: boolean): void;
-
-	/**
-	 * Allows to programmatically hide the hover.
-	 */
-	hide(): void;
-
-	/**
-	 * Updates the contents of the hover.
-	 */
-	update(tooltip: IHoverContent, options?: IUpdatableHoverOptions): void;
-}
-
 class UpdatableHoverWidget implements IDisposable {
 
 	private _hoverWidget: IHoverWidget | undefined;
@@ -66,7 +37,7 @@ class UpdatableHoverWidget implements IDisposable {
 	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget | HTMLElement, private fadeInAnimation: boolean) {
 	}
 
-	async update(content: IHoverContent, focus?: boolean, options?: IUpdatableHoverOptions): Promise<void> {
+	async update(content: IUpdatableHoverContent, focus?: boolean, options?: IUpdatableHoverOptions): Promise<void> {
 		if (this._cancellationTokenSource) {
 			// there's an computation ongoing, cancel it
 			this._cancellationTokenSource.dispose(true);
@@ -107,7 +78,7 @@ class UpdatableHoverWidget implements IDisposable {
 		this.show(resolvedContent, focus, options);
 	}
 
-	private show(content: IResolvedHoverContent, focus?: boolean, options?: IUpdatableHoverOptions): void {
+	private show(content: IUpdatableHoverResolvedContent, focus?: boolean, options?: IUpdatableHoverOptions): void {
 		const oldHoverWidget = this._hoverWidget;
 
 		if (this.hasContent(content)) {
@@ -129,7 +100,7 @@ class UpdatableHoverWidget implements IDisposable {
 		oldHoverWidget?.dispose();
 	}
 
-	private hasContent(content: IResolvedHoverContent): content is NonNullable<IResolvedHoverContent> {
+	private hasContent(content: IUpdatableHoverResolvedContent): content is NonNullable<IUpdatableHoverResolvedContent> {
 		if (!content) {
 			return false;
 		}
@@ -160,7 +131,7 @@ function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement):
 	return element;
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContentOrFactory, options?: IUpdatableHoverOptions): IUpdatableHover {
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IUpdatableHoverContentOrFactory, options?: IUpdatableHoverOptions): IUpdatableHover {
 	htmlElement.setAttribute('custom-hover', 'true');
 
 	if (htmlElement.title !== '') {

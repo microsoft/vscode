@@ -11,7 +11,7 @@ import { renderMarkdown, renderStringAsPlaintext } from 'vs/base/browser/markdow
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -23,6 +23,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./button';
 import { localize } from 'vs/nls';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;

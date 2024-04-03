@@ -27,11 +27,12 @@ import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cell
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 
 const $ = DOM.$;
 
@@ -326,7 +327,7 @@ class CellStatusBarItem extends Disposable {
 		this.container.setAttribute('role', role || '');
 
 		if (item.tooltip) {
-			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip } as ITooltipMarkdownString;
+			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip } as IUpdatableHoverTooltipMarkdownString;
 			this._itemDisposables.add(setupCustomHover(this._hoverDelegate, this.container, hoverContent));
 		}
 

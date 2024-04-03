@@ -58,9 +58,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IUpdatableHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 
 const $ = DOM.$;
 

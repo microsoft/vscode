@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import type { IHoverWidget, IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
