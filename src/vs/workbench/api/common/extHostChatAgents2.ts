@@ -82,35 +82,35 @@ class ChatAgentResponseStream {
 				markdown(value) {
 					throwIfDone(this.markdown);
 					const part = new extHostTypes.ChatResponseMarkdownPart(value);
-					const dto = typeConvert.ChatResponseMarkdownPart.to(part);
+					const dto = typeConvert.ChatResponseMarkdownPart.from(part);
 					_report(dto);
 					return this;
 				},
 				filetree(value, baseUri) {
 					throwIfDone(this.filetree);
 					const part = new extHostTypes.ChatResponseFileTreePart(value, baseUri);
-					const dto = typeConvert.ChatResponseFilesPart.to(part);
+					const dto = typeConvert.ChatResponseFilesPart.from(part);
 					_report(dto);
 					return this;
 				},
 				anchor(value, title?: string) {
 					throwIfDone(this.anchor);
 					const part = new extHostTypes.ChatResponseAnchorPart(value, title);
-					const dto = typeConvert.ChatResponseAnchorPart.to(part);
+					const dto = typeConvert.ChatResponseAnchorPart.from(part);
 					_report(dto);
 					return this;
 				},
 				button(value) {
 					throwIfDone(this.anchor);
 					const part = new extHostTypes.ChatResponseCommandButtonPart(value);
-					const dto = typeConvert.ChatResponseCommandButtonPart.to(part, that._commandsConverter, that._sessionDisposables);
+					const dto = typeConvert.ChatResponseCommandButtonPart.from(part, that._commandsConverter, that._sessionDisposables);
 					_report(dto);
 					return this;
 				},
 				progress(value) {
 					throwIfDone(this.progress);
 					const part = new extHostTypes.ChatResponseProgressPart(value);
-					const dto = typeConvert.ChatResponseProgressPart.to(part);
+					const dto = typeConvert.ChatResponseProgressPart.from(part);
 					_report(dto);
 					return this;
 				},
@@ -130,7 +130,7 @@ class ChatAgentResponseStream {
 							} else {
 								// Participant sent a variableName reference but the variable produced no references. Show variable reference with no value
 								const part = new extHostTypes.ChatResponseReferencePart(value);
-								const dto = typeConvert.ChatResponseReferencePart.to(part);
+								const dto = typeConvert.ChatResponseReferencePart.from(part);
 								references = [dto];
 							}
 
@@ -141,20 +141,33 @@ class ChatAgentResponseStream {
 						}
 					} else {
 						const part = new extHostTypes.ChatResponseReferencePart(value);
-						const dto = typeConvert.ChatResponseReferencePart.to(part);
+						const dto = typeConvert.ChatResponseReferencePart.from(part);
 						_report(dto);
 					}
 
 					return this;
 				},
+				textEdit(target, edits) {
+					throwIfDone(this.textEdit);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const part = new extHostTypes.ChatResponseTextEditPart(target, edits);
+					const dto = typeConvert.ChatResponseTextEditPart.from(part);
+					_report(dto);
+					return this;
+				},
 				push(part) {
 					throwIfDone(this.push);
+
+					if (part instanceof extHostTypes.ChatResponseTextEditPart) {
+						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					}
 
 					if (part instanceof extHostTypes.ChatResponseReferencePart) {
 						// Ensure variable reference values get fixed up
 						this.reference(part.value);
 					} else {
-						const dto = typeConvert.ChatResponsePart.to(part, that._commandsConverter, that._sessionDisposables);
+						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
 						_report(dto);
 					}
 
@@ -277,7 +290,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), h.request.agentId));
 
 			// RESPONSE turn
-			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.fromContent(r, this.commands.converter)));
+			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this.commands.converter)));
 			res.push(new extHostTypes.ChatResponseTurn(parts, result, h.request.agentId, h.request.command));
 		}
 

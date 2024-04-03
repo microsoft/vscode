@@ -50,6 +50,7 @@ import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineC
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { isEqual } from 'vs/base/common/resources';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -697,10 +698,22 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 
+			// if ("1") {
+			// 	return;
+			// }
+
 			// TODO@jrieken
 			const editsShouldBeInstant = false;
 
-			const edits = response.edits.get(this._session!.textModelN.uri) ?? [];
+			const edits = response.response.value.map(part => {
+				if (part.kind === 'textEdit' && isEqual(part.uri, this._session?.textModelN.uri)) {
+					return part.edits;
+				} else {
+					return [];
+				}
+			}).flat();
+
+			// const edits = response.edits.get(this._session!.textModelN.uri) ?? [];
 			const newEdits = edits.slice(lastLength);
 			// console.log('NEW edits', newEdits, edits);
 			if (newEdits.length === 0) {

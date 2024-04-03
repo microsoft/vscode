@@ -298,7 +298,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			if (this._cancellationTokenSource.token.isCancellationRequested) {
 				return;
 			}
-
+			if (model.original.isDisposed() || model.modified.isDisposed()) {
+				return;
+			}
 			result = normalizeDocumentDiff(result, model.original, model.modified);
 			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;

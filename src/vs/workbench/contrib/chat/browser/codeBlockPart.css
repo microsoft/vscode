@@ -111,3 +111,11 @@
 .interactive-result-code-block .interactive-result-vulns-header .monaco-text-button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 }
+
+.interactive-result-code-block.compare.empty .interactive-result-editor  {
+	display: none;
+}
+
+.interactive-result-code-block.compare:not(.empty) .interactive-result-message  {
+	display: none;
+}

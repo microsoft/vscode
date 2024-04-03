@@ -8,19 +8,17 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
 import { revive } from 'vs/base/common/marshalling';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { TextEdit } from 'vs/editor/common/languages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatPromptVariableData {
@@ -54,7 +52,8 @@ export type IChatProgressResponseContent =
 	| IChatTreeData
 	| IChatContentInlineReference
 	| IChatProgressMessage
-	| IChatCommandButton;
+	| IChatCommandButton
+	| IChatTextEdit;
 
 export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>;
 
@@ -78,7 +77,6 @@ export interface IChatResponseModel {
 	readonly slashCommand?: IChatAgentCommand;
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly response: IResponse;
-	readonly edits: ResourceMap<TextEdit[]>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
@@ -180,8 +178,25 @@ export class Response implements IResponse {
 			} else {
 				this._responseParts[responsePartLength] = { content: new MarkdownString(lastResponsePart.content.value + progress.content, lastResponsePart.content), kind: 'markdownContent' };
 			}
-
 			this._updateRepr(quiet);
+
+		} else if (progress.kind === 'textEdit') {
+			if (progress.edits.length > 0) {
+				// merge text edits for the same file no matter when they come in
+				let found = false;
+				for (let i = 0; !found && i < this._responseParts.length; i++) {
+					const candidate = this._responseParts[i];
+					if (candidate.kind === 'textEdit' && isEqual(candidate.uri, progress.uri)) {
+						candidate.edits.push(...progress.edits);
+						found = true;
+					}
+				}
+				if (!found) {
+					this._responseParts.push(progress);
+				}
+				this._updateRepr(quiet);
+			}
+
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -196,6 +211,8 @@ export class Response implements IResponse {
 				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
 			} else if (part.kind === 'command') {
 				return part.command.title;
+			} else if (part.kind === 'textEdit') {
+				return '';
 			} else {
 				return part.content.value;
 			}
@@ -237,11 +254,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _response: Response;
 	public get response(): IResponse {
 		return this._response;
-	}
-
-	private _edits: ResourceMap<TextEdit[]>;
-	public get edits(): ResourceMap<TextEdit[]> {
-		return this._edits;
 	}
 
 	public get result(): IChatAgentResult | undefined {
@@ -314,7 +326,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		this._followups = followups ? [...followups] : undefined;
 		this._response = new Response(_response);
-		this._edits = new ResourceMap<TextEdit[]>();
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
@@ -324,16 +335,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	 */
 	updateContent(responsePart: IChatProgressResponseContent | IChatContent, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
-	}
-
-	updateTextEdits(uri: URI, edits: TextEdit[]) {
-		const array = this._edits.get(uri);
-		if (!array) {
-			this._edits.set(uri, edits);
-		} else {
-			array.push(...edits);
-		}
-		this._onDidChange.fire();
 	}
 
 	/**
@@ -735,7 +736,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (progress.kind === 'vulnerability') {
 			request.response.updateContent({ kind: 'markdownVuln', content: { value: progress.content }, vulnerabilities: progress.vulnerabilities }, quiet);
-		} else if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage' || progress.kind === 'command') {
+		} else if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage' || progress.kind === 'command' || progress.kind === 'textEdit') {
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
@@ -744,8 +745,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
 			}
-		} else if (progress.kind === 'textEdit') {
-			request.response.updateTextEdits(progress.uri, progress.edits);
 		} else {
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		}
