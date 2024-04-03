@@ -176,6 +176,7 @@ export interface ITerminalConfiguration {
 	windowsEnableConpty: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
+	allowedLinkSchemes: string[];
 	unicodeVersion: '6' | '11';
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
