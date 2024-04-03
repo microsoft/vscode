@@ -285,8 +285,9 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(debugService, contextViewService);
+		super(debugService, contextViewService, hoverService);
 	}
 
 	get templateId() {
@@ -314,7 +315,7 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 			hover: data.elementDisposable,
 			colorize: true
-		});
+		}, this.hoverService);
 	}
 
 	protected getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions {

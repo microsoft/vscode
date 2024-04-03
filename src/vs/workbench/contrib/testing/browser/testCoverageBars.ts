@@ -6,7 +6,6 @@
 import { h } from 'vs/base/browser/dom';
 import type { IUpdatableHover, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { assertNever } from 'vs/base/common/assert';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
@@ -17,6 +16,7 @@ import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { asCssVariableName, chartsGreen, chartsRed, chartsYellow } from 'vs/platform/theme/common/colorRegistry';
 import { IExplorerFileContribution } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 import { ITestingCoverageBarThresholds, TestingConfigKeys, TestingDisplayedCoveragePercent, getTestingConfiguration, observeTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
@@ -74,12 +74,13 @@ export class ManagedTestCoverageBars extends Disposable {
 	constructor(
 		protected readonly options: TestCoverageBarsOptions,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 	}
 
 	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IUpdatableHoverTooltipMarkdownString | undefined) {
-		this._register(setupCustomHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
+		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
 	}
 
 	public setCoverageInfo(coverage: CoverageBarSource | undefined) {
@@ -227,9 +228,10 @@ export class ExplorerTestCoverageBars extends ManagedTestCoverageBars implements
 	constructor(
 		options: TestCoverageBarsOptions,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
 		@ITestCoverageService testCoverageService: ITestCoverageService,
 	) {
-		super(options, configurationService);
+		super(options, configurationService, hoverService);
 
 		const isEnabled = observeTestingConfiguration(configurationService, TestingConfigKeys.ShowCoverageInExplorer);
 
