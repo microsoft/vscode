@@ -161,7 +161,7 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(this._contextKeyService.onDidChangeContext((e) => transaction(tx => {
 			if (e.affectsSome(new Set('editorDictation.inProgress'))) {
-				/** @description speechService.onDidChangeSpeechToTextSession */
+				/** @description contextKeyService.editorDictation.inProgress*/
 				this.updateObservables(tx, VersionIdChangeReason.Other);
 				this.model.get()?.stop(tx);
 			}
