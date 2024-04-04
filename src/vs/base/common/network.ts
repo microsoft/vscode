@@ -116,7 +116,7 @@ export namespace Schemas {
 	/**
 	 * Scheme used for input box for creating comments.
 	 */
-	export const commentsInput = 'vscode-comments-input';
+	export const commentsInput = 'comment';
 
 	/**
 	 * Scheme used for special rendering of settings in the release notes
