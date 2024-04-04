@@ -368,4 +368,33 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});
+
+	test.skip('Issue 209537: incorrect outdentation when closing brackets end on same line', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/209537
+
+		const fileContents = [
+			'function f() {',
+			'    if (1) {',
+			'    }}',
+			'    ',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 1);
+	});
+
+	test.skip('Issue 209539: outdentation is expected after }', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/209539
+
+		const fileContents = [
+			'const a = {',
+			'    b: 1}',
+			'    ',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 1);
+	});
 });
