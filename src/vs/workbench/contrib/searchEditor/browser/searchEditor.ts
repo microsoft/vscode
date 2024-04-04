@@ -90,7 +90,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private showingIncludesExcludes: boolean = false;
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
-	private messageDisposables: DisposableStore;
+	private readonly messageDisposables: DisposableStore;
 	private container: HTMLElement;
 	private searchModel: SearchModel;
 	private ongoingOperations: number = 0;

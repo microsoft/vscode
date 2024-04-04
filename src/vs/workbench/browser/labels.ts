@@ -291,7 +291,7 @@ class ResourceLabelWidget extends IconLabel {
 	readonly onDidRender = this._onDidRender.event;
 
 	private label: IResourceLabelProps | undefined = undefined;
-	private decoration = this._register(new MutableDisposable<IDecoration>());
+	private readonly decoration = this._register(new MutableDisposable<IDecoration>());
 	private options: IResourceLabelOptions | undefined = undefined;
 
 	private computedIconClasses: string[] | undefined = undefined;

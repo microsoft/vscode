@@ -751,7 +751,7 @@ export class TunnelPanel extends ViewPane {
 
 	private panelContainer: HTMLElement | undefined;
 	private table!: WorkbenchTable<ITunnelItem>;
-	private tableDisposables: DisposableStore = this._register(new DisposableStore());
+	private readonly tableDisposables: DisposableStore = this._register(new DisposableStore());
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
 	private tunnelPrivacyContext: IContextKey<TunnelPrivacyId | string | undefined>;

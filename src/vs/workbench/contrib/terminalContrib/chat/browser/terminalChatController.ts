@@ -83,7 +83,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private _terminalAgentName = 'terminal';
 	private _terminalAgentId: string | undefined;
 
-	private _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
+	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _instance: ITerminalInstance,

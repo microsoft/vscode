@@ -255,7 +255,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private readonly _userEditingDisposables = this._register(new DisposableStore());
 	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private _widget: NotebookChatWidget | undefined;
-	private _widgetDisposableStore = this._register(new DisposableStore());
+	private readonly _widgetDisposableStore = this._register(new DisposableStore());
 	private _focusTracker: IFocusTracker | undefined;
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,

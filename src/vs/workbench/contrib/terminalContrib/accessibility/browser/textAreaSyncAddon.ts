@@ -19,7 +19,7 @@ export interface ITextAreaData {
 
 export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	private _terminal: Terminal | undefined;
-	private _listeners = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _listeners = this._register(new MutableDisposable<DisposableStore>());
 	private _currentCommand: string | undefined;
 	private _cursorX: number | undefined;
 

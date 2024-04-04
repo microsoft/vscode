@@ -1067,7 +1067,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private compressedDragOverElement: HTMLElement | undefined;
 	private compressedDropTargetDisposable: IDisposable = Disposable.None;
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private dropEnabled = false;
 
 	constructor(

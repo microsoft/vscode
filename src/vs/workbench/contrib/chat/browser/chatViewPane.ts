@@ -43,7 +43,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
-	private modelDisposables = this._register(new DisposableStore());
+	private readonly modelDisposables = this._register(new DisposableStore());
 	private memento: Memento;
 	private readonly viewState: IViewPaneState;
 	private didProviderRegistrationFail = false;

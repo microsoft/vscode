@@ -58,7 +58,7 @@ export class TerminalViewPane extends ViewPane {
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
-	private _disposableStore = this._register(new DisposableStore());
+	private readonly _disposableStore = this._register(new DisposableStore());
 
 	constructor(
 		options: IViewPaneOptions,

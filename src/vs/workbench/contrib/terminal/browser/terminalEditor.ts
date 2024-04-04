@@ -47,7 +47,7 @@ export class TerminalEditor extends EditorPane {
 
 	private _cancelContextMenu: boolean = false;
 
-	private _disposableStore = this._register(new DisposableStore());
+	private readonly _disposableStore = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,

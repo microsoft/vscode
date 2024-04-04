@@ -191,7 +191,7 @@ export class RatingsWidget extends ExtensionWidget {
 
 export class VerifiedPublisherWidget extends ExtensionWidget {
 
-	private disposables = this._register(new DisposableStore());
+	private readonly disposables = this._register(new DisposableStore());
 	private readonly containerHover: IUpdatableHover;
 
 	constructor(
@@ -238,7 +238,7 @@ export class VerifiedPublisherWidget extends ExtensionWidget {
 
 export class SponsorWidget extends ExtensionWidget {
 
-	private disposables = this._register(new DisposableStore());
+	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		private container: HTMLElement,

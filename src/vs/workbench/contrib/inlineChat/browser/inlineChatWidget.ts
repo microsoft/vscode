@@ -138,7 +138,7 @@ export class InlineChatWidget {
 
 	private _isLayouting: boolean = false;
 
-	private _followUpDisposables = this._store.add(new DisposableStore());
+	private readonly _followUpDisposables = this._store.add(new DisposableStore());
 	constructor(
 		location: ChatAgentLocation,
 		options: IInlineChatWidgetConstructionOptions,

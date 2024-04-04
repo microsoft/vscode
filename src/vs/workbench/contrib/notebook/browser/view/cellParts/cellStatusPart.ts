@@ -272,7 +272,7 @@ class CellStatusBarItem extends Disposable {
 	}
 
 	private _currentItem!: INotebookCellStatusBarItem;
-	private _itemDisposables = this._register(new DisposableStore());
+	private readonly _itemDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _context: INotebookCellActionContext,
