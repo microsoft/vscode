@@ -82,8 +82,8 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.SearchCommandIds.ExpandSelectedTreeCommandId,
-			title: nls.localize('search.expandAll', "Expand All"),
+			id: Constants.SearchCommandIds.ExpandRecursivelyCommandId,
+			title: nls.localize('search.expandRecursively', "Expand Recursively"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
