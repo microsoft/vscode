@@ -276,6 +276,9 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 				...nls.localize2('toggleDisassemblyViewSourceCode', "Toggle Source Code in Disassembly View"),
 				mnemonicTitle: nls.localize({ key: 'mitogglesource', comment: ['&& denotes a mnemonic'] }, "&&ToggleSource"),
 			},
+			metadata: {
+				description: nls.localize2('toggleDisassemblyViewSourceCodeDescription', 'Shows or hides source code in disassembly')
+			},
 			f1: true,
 		});
 	}

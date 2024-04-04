@@ -976,6 +976,9 @@ registerAction2(class extends ViewAction<Repl> {
 			id: 'workbench.debug.panel.action.clearReplAction',
 			viewId: REPL_VIEW_ID,
 			title: localize2('clearRepl', 'Clear Console'),
+			metadata: {
+				description: localize2('clearRepl.descriotion', 'Clears all program output from your debug REPL')
+			},
 			f1: true,
 			icon: debugConsoleClearAll,
 			menu: [{
