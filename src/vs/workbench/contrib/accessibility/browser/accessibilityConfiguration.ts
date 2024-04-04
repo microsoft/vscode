@@ -128,6 +128,7 @@ const defaultNoAnnouncement: IConfigurationPropertySchema = {
 
 const configuration: IConfigurationNode = {
 	...accessibilityConfigurationNodeBase,
+	scope: ConfigurationScope.RESOURCE,
 	properties: {
 		[AccessibilityVerbositySettingId.Terminal]: {
 			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused.'),
