@@ -52,7 +52,6 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 
 	constructor(
 		@IContextKeyService private readonly contextService: IContextKeyService,
-		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IProductService private readonly productService: IProductService,

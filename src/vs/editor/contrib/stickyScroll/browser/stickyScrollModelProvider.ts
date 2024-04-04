@@ -52,8 +52,8 @@ export class StickyModelProvider extends Disposable implements IStickyModelProvi
 	constructor(
 		private readonly _editor: IActiveCodeEditor,
 		onProviderUpdate: () => void,
-		@IInstantiationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IInstantiationService _languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
