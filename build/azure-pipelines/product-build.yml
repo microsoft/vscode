@@ -197,6 +197,7 @@ extends:
       - stage: Compile
         jobs:
           - job: Compile
+            timeoutInMinutes: 90
             pool:
               name: 1es-ubuntu-20.04-x64
               os: linux

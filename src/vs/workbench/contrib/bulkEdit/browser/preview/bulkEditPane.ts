@@ -40,6 +40,7 @@ import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { IMultiDiffEditorOptions, IMultiDiffResourceId } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { IRange } from 'vs/editor/common/core/range';
 import { CachedFunction, LRUCachedFunction } from 'vs/base/common/cache';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const enum State {
 	Data = 'data',
@@ -89,10 +90,11 @@ export class BulkEditPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super(
 			{ ...options, titleMenuId: MenuId.BulkEditTitle },
-			keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
+			keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService, hoverService
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');

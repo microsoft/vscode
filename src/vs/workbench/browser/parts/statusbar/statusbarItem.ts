@@ -21,10 +21,11 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { spinningLoading, syncing } from 'vs/platform/theme/common/iconRegistry';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class StatusbarEntryItem extends Disposable {
 
@@ -41,7 +42,7 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly focusListener = this._register(new MutableDisposable());
 	private readonly focusOutListener = this._register(new MutableDisposable());
 
-	private hover: ICustomHover | undefined = undefined;
+	private hover: IUpdatableHover | undefined = undefined;
 
 	readonly labelContainer: HTMLElement;
 	readonly beakContainer: HTMLElement;
@@ -59,6 +60,7 @@ export class StatusbarEntryItem extends Disposable {
 		entry: IStatusbarEntry,
 		private readonly hoverDelegate: IHoverDelegate,
 		@ICommandService private readonly commandService: ICommandService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IThemeService private readonly themeService: IThemeService
@@ -120,7 +122,7 @@ export class StatusbarEntryItem extends Disposable {
 			if (this.hover) {
 				this.hover.update(hoverContents);
 			} else {
-				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
+				this.hover = this._register(this.hoverService.setupUpdatableHover(this.hoverDelegate, this.container, hoverContents));
 			}
 			if (entry.command !== ShowTooltipCommand /* prevents flicker on click */) {
 				this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, e => {
