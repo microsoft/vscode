@@ -10,7 +10,7 @@ import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuI
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Separator, toAction } from 'vs/base/common/actions';
+import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { removeFastWithoutKeepingOrder } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
@@ -162,7 +162,7 @@ class MenuInfo {
 		private readonly _hiddenStates: PersistedMenuHideState,
 		private readonly _collectContextKeysForSubmenus: boolean,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		this.refresh();
 	}
@@ -245,8 +245,8 @@ class MenuInfo {
 					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
 						// MenuItemAction
-						activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService));
-
+						const menuKeybinding = createMenuKeybindingAction(this._id, item.command, this._commandService);
+						activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, menuKeybinding, this._contextKeyService, this._commandService));
 					} else {
 						// SubmenuItemAction
 						const groups = new MenuInfo(item.submenu, this._hiddenStates, this._collectContextKeysForSubmenus, this._commandService, this._contextKeyService).createActionGroups(options);
@@ -336,7 +336,7 @@ class MenuImpl implements IMenu {
 		hiddenStates: PersistedMenuHideState,
 		options: Required<IMenuCreateOptions>,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._menuInfo = new MenuInfo(id, hiddenStates, options.emitEventsForSubmenuChanges, commandService, contextKeyService);
 
@@ -436,4 +436,21 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 		toggle,
 		get isHidden() { return !toggle.checked; },
 	};
+}
+
+function createMenuKeybindingAction(menu: MenuId, command: ICommandAction | ISubmenuItem, commandService: ICommandService): IAction | undefined {
+	if (isISubmenuItem(command)) {
+		return undefined;
+	}
+
+	const configureKeybindingAction = toAction({
+		id: `configureKeybinding/${menu.id}/${command.id}`,
+		label: localize('configure keybinding', "Configure Keybinding"),
+		run() {
+			const when = command.precondition?.serialize();
+			commandService.executeCommand('workbench.action.openGlobalKeybindings', `@command:${command.id}` + (when ? ` +when:${when}` : ''));
+		}
+	});
+
+	return configureKeybindingAction;
 }

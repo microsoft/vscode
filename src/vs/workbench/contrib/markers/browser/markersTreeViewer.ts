@@ -51,8 +51,9 @@ import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/marker
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import Severity from 'vs/base/common/severity';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 interface IResourceMarkersTemplateData {
 	readonly resourceLabel: IResourceLabel;
@@ -236,6 +237,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	constructor(
 		private readonly markersViewState: MarkersViewModel,
+		@IHoverService protected hoverService: IHoverService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
 	) { }
@@ -244,7 +246,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	renderTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.openerService, this.instantiationService);
+		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.hoverService, this.openerService, this.instantiationService);
 		return data;
 	}
 
@@ -287,12 +289,13 @@ class MarkerWidget extends Disposable {
 	private readonly icon: HTMLElement;
 	private readonly iconContainer: HTMLElement;
 	private readonly messageAndDetailsContainer: HTMLElement;
-	private readonly messageAndDetailsContainerHover: ICustomHover;
+	private readonly messageAndDetailsContainerHover: IUpdatableHover;
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		private parent: HTMLElement,
 		private readonly markersViewModel: MarkersViewModel,
+		private readonly _hoverService: IHoverService,
 		private readonly _openerService: IOpenerService,
 		_instantiationService: IInstantiationService
 	) {
@@ -307,7 +310,7 @@ class MarkerWidget extends Disposable {
 		this.iconContainer = dom.append(parent, dom.$(''));
 		this.icon = dom.append(this.iconContainer, dom.$(''));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
-		this.messageAndDetailsContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.messageAndDetailsContainer, ''));
+		this.messageAndDetailsContainerHover = this._register(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.messageAndDetailsContainer, ''));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
@@ -404,7 +407,7 @@ class MarkerWidget extends Disposable {
 					const container = dom.$('.marker-code');
 					const code = this.disposables.add(new HighlightedLabel(container));
 					const link = marker.code.target.toString(true);
-					this.disposables.add(new Link(parent, { href: link, label: container, title: link }, undefined, this._openerService));
+					this.disposables.add(new Link(parent, { href: link, label: container, title: link }, undefined, this._hoverService, this._openerService));
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code.value, codeMatches);
 				}

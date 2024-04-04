@@ -7,8 +7,8 @@ import { localize } from 'vs/nls';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { asArray } from 'vs/base/common/arrays';
-import { IHoverAction } from 'vs/platform/hover/browser/hover';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
 
 export function getInstanceHoverInfo(instance: ITerminalInstance): { content: MarkdownString; actions: IHoverAction[] } {
 	let statusString = '';

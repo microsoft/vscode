@@ -25,6 +25,7 @@ declare module 'vscode' {
 		 * - It may contain line continuation characters and/or parts of the right prompt.
 		 * - It may be inaccurate if the shell integration does not support command line reporting.
 		 */
+		// TODO@API undefined makes using this hard?
 		readonly commandLine: string | undefined;
 
 		/**

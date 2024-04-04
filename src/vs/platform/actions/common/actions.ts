@@ -479,6 +479,7 @@ export class MenuItemAction implements IAction {
 		alt: ICommandAction | undefined,
 		options: IMenuActionOptions | undefined,
 		readonly hideActions: IMenuItemHide | undefined,
+		readonly menuKeybinding: IAction | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {
@@ -513,7 +514,7 @@ export class MenuItemAction implements IAction {
 		}
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, undefined, contextKeyService, _commandService) : undefined;
 		this._options = options;
 		this.class = icon && ThemeIcon.asClassName(icon);
 

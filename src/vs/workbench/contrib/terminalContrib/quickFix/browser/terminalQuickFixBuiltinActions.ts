@@ -238,7 +238,7 @@ export function gitCreatePr(): ITerminalQuickFixInternalOptions {
 		},
 		commandExitResult: 'success',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
-			const link = matchResult?.outputMatch?.regexMatch?.groups?.link;
+			const link = matchResult?.outputMatch?.regexMatch?.groups?.link?.trimEnd();
 			if (!link) {
 				return;
 			}
