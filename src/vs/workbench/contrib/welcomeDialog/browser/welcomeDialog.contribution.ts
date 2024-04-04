@@ -33,13 +33,13 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 		@IStorageService storageService: IStorageService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService readonly contextService: IContextKeyService,
-		@ICodeEditorService readonly codeEditorService: ICodeEditorService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@ICommandService readonly commandService: ICommandService,
-		@ITelemetryService readonly telemetryService: ITelemetryService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@IEditorService readonly editorService: IEditorService
+		@IContextKeyService private readonly contextService: IContextKeyService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 

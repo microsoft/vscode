@@ -67,9 +67,9 @@ export class TerminalVoiceSession extends Disposable {
 	private readonly _disposables: DisposableStore;
 	constructor(
 		@ISpeechService private readonly _speechService: ISpeechService,
-		@ITerminalService readonly _terminalService: ITerminalService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IInstantiationService readonly _instantationService: IInstantiationService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantationService: IInstantiationService
 	) {
 		super();
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
