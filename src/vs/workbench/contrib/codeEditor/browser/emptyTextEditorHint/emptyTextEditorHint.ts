@@ -183,7 +183,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 	private static readonly ID = 'editor.widget.emptyHint';
 
 	private domNode: HTMLElement | undefined;
-	private toDispose: DisposableStore;
+	private readonly toDispose: DisposableStore;
 	private isVisible = false;
 	private ariaLabel: string = '';
 

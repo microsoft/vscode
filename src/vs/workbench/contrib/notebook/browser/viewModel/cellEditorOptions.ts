@@ -32,7 +32,7 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 		lineNumbersMinChars: 3
 	};
 
-	private _localDisposableStore = this._register(new DisposableStore());
+	private readonly _localDisposableStore = this._register(new DisposableStore());
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private _value: IEditorOptions;

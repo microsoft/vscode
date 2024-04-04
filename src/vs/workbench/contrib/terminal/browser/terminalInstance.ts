@@ -169,9 +169,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _containerReadyBarrier: AutoOpenBarrier;
 	private _attachBarrier: AutoOpenBarrier;
 	private _icon: TerminalIcon | undefined;
-	private _messageTitleDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _messageTitleDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _widgetManager: TerminalWidgetManager;
-	private _dndObserver: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _dndObserver: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 	private _hasHadInput: boolean;
 	private _description?: string;

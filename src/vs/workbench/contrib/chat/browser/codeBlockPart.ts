@@ -124,7 +124,7 @@ export class CodeBlockPart extends Disposable {
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
 
-	private disposableStore = this._register(new DisposableStore());
+	private readonly disposableStore = this._register(new DisposableStore());
 
 	constructor(
 		private readonly options: ChatEditorOptions,

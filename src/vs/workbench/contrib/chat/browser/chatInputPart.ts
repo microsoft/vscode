@@ -93,7 +93,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputSideToolbarContainer?: HTMLElement;
 
 	private followupsContainer!: HTMLElement;
-	private followupsDisposables = this._register(new DisposableStore());
+	private readonly followupsDisposables = this._register(new DisposableStore());
 
 	private implicitContextContainer!: HTMLElement;
 	private implicitContextLabel!: HTMLElement;

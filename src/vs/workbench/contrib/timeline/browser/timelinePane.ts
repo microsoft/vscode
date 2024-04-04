@@ -1230,7 +1230,7 @@ const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timeline
 const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
 
 class TimelinePaneCommands extends Disposable {
-	private sourceDisposables: DisposableStore;
+	private readonly sourceDisposables: DisposableStore;
 
 	constructor(
 		private readonly pane: TimelinePane,

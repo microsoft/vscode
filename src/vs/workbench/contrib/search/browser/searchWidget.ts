@@ -172,7 +172,7 @@ export class SearchWidget extends Widget {
 	public contextLinesInput!: InputBox;
 
 	private _notebookFilters: NotebookFindFilters;
-	private _toggleReplaceButtonListener: MutableDisposable<IDisposable>;
+	private readonly _toggleReplaceButtonListener: MutableDisposable<IDisposable>;
 
 	constructor(
 		container: HTMLElement,

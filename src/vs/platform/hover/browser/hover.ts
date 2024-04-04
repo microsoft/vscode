@@ -30,7 +30,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 		return this._delay;
 	}
 
-	private hoverDisposables = this._register(new DisposableStore());
+	private readonly hoverDisposables = this._register(new DisposableStore());
 
 	constructor(
 		public readonly placement: 'mouse' | 'element',

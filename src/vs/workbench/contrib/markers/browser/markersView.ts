@@ -103,7 +103,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	private readonly onVisibleDisposables = this._register(new DisposableStore());
 
 	private widget!: IProblemsWidget;
-	private widgetDisposables = this._register(new DisposableStore());
+	private readonly widgetDisposables = this._register(new DisposableStore());
 	private widgetContainer!: HTMLElement;
 	private widgetIdentityProvider: IIdentityProvider<MarkerElement | MarkerTableItem>;
 	private widgetAccessibilityProvider: MarkersWidgetAccessibilityProvider;

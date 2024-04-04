@@ -707,7 +707,7 @@ export class QuickInputTree extends Disposable {
 	private _elementTree = new Array<IQuickPickElement>();
 	private _itemElements = new Array<QuickPickItemElement>();
 	// Elements that apply to the current set of elements
-	private _elementDisposable = this._register(new DisposableStore());
+	private readonly _elementDisposable = this._register(new DisposableStore());
 	private _lastHover: IHoverWidget | undefined;
 	// This is used to prevent setting the checked state of a single element from firing the checked events
 	// so that we can batch them together. This can probably be improved by handling events differently,

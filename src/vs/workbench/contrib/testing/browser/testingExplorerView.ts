@@ -87,10 +87,10 @@ const enum LastFocusState {
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
-	private filterActionBar = this._register(new MutableDisposable());
+	private readonly filterActionBar = this._register(new MutableDisposable());
 	private container!: HTMLElement;
 	private treeHeader!: HTMLElement;
-	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
+	private readonly discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());
 	private readonly filterFocusListener = this._register(new MutableDisposable());
 	private readonly dimensions = { width: 0, height: 0 };
@@ -583,7 +583,7 @@ const enum WelcomeExperience {
 class TestingExplorerViewModel extends Disposable {
 	public tree: TestingObjectTree<FuzzyScore>;
 	private filter: TestsFilter;
-	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
+	public readonly projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
 	private readonly revealTimeout = new MutableDisposable();
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
