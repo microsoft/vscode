@@ -752,6 +752,8 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		);
 		this.cell = cell;
 		this.templateData = templateData;
+
+		this.updateBorders();
 	}
 
 	init() {
@@ -1243,6 +1245,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell = cell;
 		this.templateData = templateData;
 		this._editorViewStateChanged = false;
+
+		this.updateBorders();
 	}
 
 	init() { }
