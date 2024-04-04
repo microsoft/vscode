@@ -10,7 +10,7 @@ import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -228,41 +228,64 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	) {
 
 		// MARK: register fake chat agent
-
-		const that = this;
-		const agentData: IChatAgentData = {
-			id: 'editor',
-			name: 'editor',
-			extensionId: nullExtensionDescription.identifier,
-			isDefault: true,
-			locations: [ChatAgentLocation.Editor],
-			get slashCommands(): IChatAgentCommand[] {
-				// HACK@jrieken
-				// find the active session and return its slash commands
-				let candidate: Session | undefined;
-				for (const data of that._sessions.values()) {
-					if (data.editor.hasWidgetFocus()) {
-						candidate = data.session;
-						break;
+		const brigdeAgent = this._store.add(new MutableDisposable());
+		const addOrRemoveBridgeAgent = () => {
+			const that = this;
+			const agentData: IChatAgentData = {
+				id: 'editor',
+				name: 'editor',
+				extensionId: nullExtensionDescription.identifier,
+				isDefault: true,
+				locations: [ChatAgentLocation.Editor],
+				get slashCommands(): IChatAgentCommand[] {
+					// HACK@jrieken
+					// find the active session and return its slash commands
+					let candidate: Session | undefined;
+					for (const data of that._sessions.values()) {
+						if (data.editor.hasWidgetFocus()) {
+							candidate = data.session;
+							break;
+						}
 					}
+					if (!candidate || !candidate.session.slashCommands) {
+						return [];
+					}
+					return candidate.session.slashCommands.map(c => {
+						return {
+							name: c.command,
+							description: c.detail ?? '',
+						} satisfies IChatAgentCommand;
+					});
+				},
+				defaultImplicitVariables: [],
+				metadata: {
+					isSticky: false,
+					themeIcon: Codicon.copilot,
+				},
+			};
+
+			let otherEditorAgent: IChatAgentData | undefined;
+			let myEditorAgent: IChatAgentData | undefined;
+
+			for (const candidate of this._chatAgentService.getActivatedAgents()) {
+				if (!myEditorAgent && candidate.id === agentData.id) {
+					myEditorAgent = candidate;
+				} else if (!otherEditorAgent && candidate.isDefault && candidate.locations.includes(ChatAgentLocation.Editor)) {
+					otherEditorAgent = candidate;
 				}
-				if (!candidate || !candidate.session.slashCommands) {
-					return [];
-				}
-				return candidate.session.slashCommands.map(c => {
-					return {
-						name: c.command,
-						description: c.detail ?? '',
-					} satisfies IChatAgentCommand;
-				});
-			},
-			defaultImplicitVariables: [],
-			metadata: {
-				isSticky: false,
-				themeIcon: Codicon.copilot,
-			},
+			}
+
+			if (otherEditorAgent) {
+				brigdeAgent.clear();
+				_logService.debug(`REMOVED bridge agent "${agentData.id}", found "${otherEditorAgent.id}"`);
+			} else if (!myEditorAgent) {
+				brigdeAgent.value = this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions));
+				_logService.debug(`ADDED bridge agent "${agentData.id}"`);
+			}
 		};
-		this._store.add(this._chatAgentService.registerDynamicAgent(agentData, this._instaService.createInstance(BridgeAgent, agentData, this._sessions)));
+
+		this._store.add(this._chatAgentService.onDidChangeAgents(() => addOrRemoveBridgeAgent()));
+		addOrRemoveBridgeAgent();
 
 		// MARK: register fake chat provider
 
