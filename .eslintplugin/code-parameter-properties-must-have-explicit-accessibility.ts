@@ -14,7 +14,7 @@ import { TSESTree } from '@typescript-eslint/experimental-utils';
 export = new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		function doesCallSuperDispose(inNode: any) {
+		function check(inNode: any) {
 			const node: TSESTree.TSParameterProperty = inNode;
 
 			// For now, only apply to injected services
@@ -35,7 +35,7 @@ export = new class implements eslint.Rule.RuleModule {
 		}
 
 		return {
-			['TSParameterProperty']: doesCallSuperDispose,
+			['TSParameterProperty']: check,
 		};
 	}
 };
