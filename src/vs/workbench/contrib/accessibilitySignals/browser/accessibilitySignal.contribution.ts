@@ -6,7 +6,7 @@
 import { ShowAccessibilityAnnouncementHelp, ShowSignalSoundHelp } from 'vs/workbench/contrib/accessibilitySignals/browser/commands';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -38,6 +38,7 @@ const soundDeprecatedFeatureBase: IConfigurationPropertySchema = {
 };
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	scope: ConfigurationScope.RESOURCE,
 	'properties': {
 		'audioCues.enabled': {
 			markdownDeprecationMessage: 'Deprecated. Use the specific setting for each audio cue instead (`audioCues.*`).',
