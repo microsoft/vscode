@@ -799,12 +799,12 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 
 	constructor(
 		readonly actionRunner: ActionRunner,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IKeybindingService	readonly keybindingService: IKeybindingService,
-		@IMenuService readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IMenuService private readonly menuService: IMenuService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@ITelemetryService readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) { }
 
 	renderTemplate(container: HTMLElement) {
@@ -1115,11 +1115,11 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 	get templateId(): string { return SeparatorRenderer.TEMPLATE_ID; }
 
 	constructor(
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IKeybindingService	readonly keybindingService: IKeybindingService,
-		@IMenuService readonly menuService: IMenuService,
-		@ITelemetryService readonly telemetryService: ITelemetryService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IMenuService private readonly menuService: IMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) { }
 
 	renderTemplate(container: HTMLElement): SeparatorTemplate {
