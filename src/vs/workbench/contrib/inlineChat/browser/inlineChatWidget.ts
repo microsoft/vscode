@@ -54,6 +54,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
 
 
 export interface InlineChatWidgetViewState {
@@ -84,15 +85,9 @@ export interface IInlineChatWidgetConstructionOptions {
 	 */
 	feedbackMenuId?: MenuId;
 
-	/**
-	 * @deprecated
-	 * TODO@meganrogge,jrieken
-	 * We need a way to make this configurable per editor/resource and not
-	 * globally.
-	 */
-	editableCodeBlocks?: boolean;
-
 	editorOverflowWidgetsDomNode?: HTMLElement;
+
+	rendererOptions?: IChatListItemRendererOptions;
 }
 
 export interface IInlineChatMessage {
@@ -181,7 +176,7 @@ export class InlineChatWidget {
 				renderInputOnTop: true,
 				supportsFileReferences: true,
 				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
-				editableCodeBlocks: options.editableCodeBlocks,
+				rendererOptions: options.rendererOptions,
 				menus: {
 					executeToolbar: options.inputMenuId,
 					inputSideToolbar: options.widgetMenuId,

@@ -593,9 +593,6 @@ interface AdditionalLineHeightInfo {
 function getAdditionalLineHeights(editor: CodeEditorWidget, viewZonesToIgnore: ReadonlySet<string>): readonly AdditionalLineHeightInfo[] {
 	const viewZoneHeights: { lineNumber: number; heightInPx: number }[] = [];
 	const wrappingZoneHeights: { lineNumber: number; heightInPx: number }[] = [];
-	if (!editor._getViewModel()) {
-		return [];
-	}
 	const hasWrapping = editor.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1;
 	const coordinatesConverter = editor._getViewModel()!.coordinatesConverter;
 	const editorLineHeight = editor.getOption(EditorOption.lineHeight);

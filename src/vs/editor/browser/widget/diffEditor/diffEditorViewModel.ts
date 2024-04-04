@@ -299,6 +299,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				return;
 			}
 			if (model.original.isDisposed() || model.modified.isDisposed()) {
+				// TODO@hediet fishy?
 				return;
 			}
 			result = normalizeDocumentDiff(result, model.original, model.modified);

@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -17,7 +17,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IDiffEditorViewModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -46,9 +46,9 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IMarkdownVulnerability } from '../common/annotations';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { LineRange } from 'vs/editor/common/core/lineRange';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { TextEdit } from 'vs/editor/common/languages';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const $ = dom.$;
 
@@ -450,7 +450,7 @@ export class CodeCompareBlockPart extends Disposable {
 	protected readonly toolbar: MenuWorkbenchToolBar;
 	public readonly element: HTMLElement;
 
-	private hasDiff = false;
+	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable<IDiffEditorViewModel>());
 	private currentScrollWidth = 0;
 
 	constructor(
@@ -467,8 +467,6 @@ export class CodeCompareBlockPart extends Disposable {
 		super();
 		this.element = $('.interactive-result-code-block');
 		this.element.classList.add('compare');
-
-		const messageElement = dom.append(this.element, $('.interactive-result-message'));
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
@@ -542,40 +540,7 @@ export class CodeCompareBlockPart extends Disposable {
 			this.element.classList.add('focused');
 			WordHighlighterContribution.get(this.diffEditor.getModifiedEditor())?.restoreViewState(true);
 		}));
-		this._register(this.diffEditor.onDidUpdateDiff(() => {
-			const input = this.diffEditor.getModel();
-			if (!input) {
-				return;
-			}
 
-			const diff = this.diffEditor.getDiffComputationResult();
-
-			if (!diff || diff.identical) {
-				this.hasDiff = false;
-				this.element.classList.toggle('empty', true);
-				messageElement.textContent = localize('noChanges', 'No changes');
-				this._onDidChangeContentHeight.fire();
-			} else {
-				this.hasDiff = true;
-				this.element.classList.toggle('empty', false);
-				const hiddenOriginal: LineRange[][] = [];
-				const hiddenModified: LineRange[][] = [];
-
-				let firstModifiedLine: number | undefined;
-				const changes = diff.changes2;
-				for (const change of changes) {
-					firstModifiedLine ??= change.modified.startLineNumber;
-					hiddenOriginal.push(LineRange.invert(change.original, input.original));
-					hiddenModified.push(LineRange.invert(change.modified, input.modified));
-				}
-				this.diffEditor.getOriginalEditor().setHiddenAreas(hiddenOriginal.flat().map(lr => LineRange.asRange(lr, input.original)), 'diff-hidden');
-				this.diffEditor.getModifiedEditor().setHiddenAreas(hiddenModified.flat().map(lr => LineRange.asRange(lr, input.modified)), 'diff-hidden');
-				if (firstModifiedLine) {
-					this.diffEditor.revealLineInCenterIfOutsideViewport(firstModifiedLine, ScrollType.Immediate);
-				}
-				this._onDidChangeContentHeight.fire();
-			}
-		}));
 
 		// Parent list scrolled
 		if (delegate.onDidScroll) {
@@ -618,6 +583,7 @@ export class CodeCompareBlockPart extends Disposable {
 			readOnly: true,
 			isInEmbeddedEditor: true,
 			useInlineViewWhenSpaceIsLimited: false,
+			hideUnchangedRegions: { enabled: true, contextLineCount: 1 },
 			...options
 		}, { originalEditor: widgetOptions, modifiedEditor: widgetOptions }));
 	}
@@ -672,12 +638,10 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	private getContentHeight() {
-		return this.hasDiff
-			? this.diffEditor.getContentHeight()
-			: dom.getTotalHeight(this.element);
+		return this.diffEditor.getContentHeight();
 	}
 
-	async render(data: ICodeCompareBlockData, width: number, editable: boolean | undefined) {
+	async render(data: ICodeCompareBlockData, width: number, token: CancellationToken) {
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
@@ -688,14 +652,10 @@ export class CodeCompareBlockPart extends Disposable {
 			this.layout(width);
 		}
 
-		await this.updateEditor(data);
+		await this.updateEditor(data, token);
 
 		this.layout(width);
-		// if (editable) {
-		// 	this._register(this.editor.onDidFocusEditorWidget(() => TabFocus.setTabFocusMode(true)));
-		// 	this._register(this.editor.onDidBlurEditorWidget(() => TabFocus.setTabFocusMode(false)));
-		// }
-		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits"), readOnly: !editable });
+		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits") });
 
 		if (data.hideToolbar) {
 			dom.hide(this.toolbar.getElement());
@@ -713,7 +673,7 @@ export class CodeCompareBlockPart extends Disposable {
 		HoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
 	}
 
-	private async updateEditor(data: ICodeCompareBlockData): Promise<void> {
+	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {
 
 		const originalTextModel = await data.originalTextModel;
 		const modifiedTextModel = await data.modifiedTextModel;
@@ -721,10 +681,21 @@ export class CodeCompareBlockPart extends Disposable {
 		if (!originalTextModel || !modifiedTextModel) {
 			return;
 		}
-		this.diffEditor.setModel({
+
+		const viewModel = this.diffEditor.createViewModel({
 			original: originalTextModel,
 			modified: modifiedTextModel
 		});
+
+		await viewModel.waitForDiff();
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		this.diffEditor.setModel(viewModel);
+		this._lastDiffEditorViewModel.value = viewModel;
+
 		this.toolbar.context = {
 			uri: originalTextModel.uri,
 			edits: data.edits,

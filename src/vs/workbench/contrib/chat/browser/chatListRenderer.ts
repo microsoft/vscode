@@ -69,6 +69,8 @@ import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IModelService } from 'vs/editor/common/services/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { TextEdit } from 'vs/editor/common/languages';
+import { IChatListItemRendererOptions } from './chat';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const $ = dom.$;
 
@@ -97,14 +99,6 @@ export interface IChatRendererDelegate {
 	getListLength(): number;
 
 	readonly onDidScroll?: Event<void>;
-}
-
-export interface IChatListItemRendererOptions {
-	readonly renderStyle?: 'default' | 'compact';
-	readonly noHeader?: boolean;
-	readonly noPadding?: boolean;
-	readonly editableCodeBlock?: boolean;
-	readonly renderTextEditsAsDiff?: (uri: URI) => boolean;
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
@@ -890,7 +884,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderTextEdit(element: ChatTreeItem, textEdit: IChatTextEdit, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
 
 		// TODO@jrieken move this into the CompareCodeBlock and properly say what kind of changes happen
-		if (!this.rendererOptions.renderTextEditsAsDiff?.(textEdit.uri)) {
+		if (this.rendererOptions.renderTextEditsAsSummary?.(textEdit.uri)) {
 			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEdit')) {
 				return {
 					element: $('.interactive-edits-summary', undefined, localize('editsSummary', "Made changes.")),
@@ -901,10 +895,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const store = new DisposableStore();
+		const cts = new CancellationTokenSource();
 
 		let isDisposed = false;
 		store.add(toDisposable(() => {
 			isDisposed = true;
+			cts.dispose(true);
 		}));
 
 		const ref = this._diffEditorPool.get();
@@ -944,7 +940,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				modelN.pushEditOperations(null, edits, () => null);
 				return modelN;
 			}),
-		}, this._currentLayoutWidth, false);
+		}, this._currentLayoutWidth, cts.token);
 
 		return {
 			element: ref.object.element,
