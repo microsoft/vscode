@@ -1615,6 +1615,13 @@ export interface MainThreadTimelineShape extends IDisposable {
 	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
 }
 
+export interface HoverWithId extends languages.Hover {
+	/**
+	 * An id for the hover
+	 */
+	id: number;
+}
+
 // -- extension host
 
 export interface ICommandMetadataDto {
@@ -2104,8 +2111,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
 	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext<languages.HoverWithId> | undefined, token: CancellationToken): Promise<languages.HoverWithId | undefined>;
-	$releaseHover(handle: number, id: string): void;
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext<{ id: number }> | undefined, token: CancellationToken): Promise<HoverWithId | undefined>;
+	$releaseHover(handle: number, id: number): void;
 	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.EvaluatableExpression | undefined>;
 	$provideInlineValues(handle: number, resource: UriComponents, range: IRange, context: languages.InlineValueContext, token: CancellationToken): Promise<languages.InlineValue[] | undefined>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined>;

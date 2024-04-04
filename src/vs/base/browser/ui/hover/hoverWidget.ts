@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./hoverWidget';
 import { localize } from 'vs/nls';
 
@@ -87,39 +87,29 @@ export function getHoverAccessibleViewHint(shouldHaveHint?: boolean, keybinding?
 	return shouldHaveHint && keybinding ? localize('acessibleViewHint', "Inspect this in the accessible view with {0}.", keybinding) : shouldHaveHint ? localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.") : '';
 }
 
-export class ClickAction implements IDisposable {
-
-	private _listener: IDisposable;
+export class ClickAction extends Disposable {
 
 	constructor(container: HTMLElement, run: (container: HTMLElement) => void) {
-		this._listener = dom.addDisposableListener(container, dom.EventType.CLICK, e => {
+		super();
+		this._register(dom.addDisposableListener(container, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();
 			run(container);
-		});
-	}
-
-	dispose() {
-		this._listener.dispose();
+		}));
 	}
 }
 
-export class KeyDownAction implements IDisposable {
-
-	private _listener: IDisposable;
+export class KeyDownAction extends Disposable {
 
 	constructor(container: HTMLElement, run: (container: HTMLElement) => void, keyCodes: KeyCode[]) {
-		this._listener = dom.addDisposableListener(container, dom.EventType.KEY_DOWN, e => {
+		super();
+		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (keyCodes.some(keyCode => event.equals(keyCode))) {
 				e.stopPropagation();
 				e.preventDefault();
 				run(container);
 			}
-		});
-	}
-
-	dispose() {
-		this._listener.dispose();
+		}));
 	}
 }

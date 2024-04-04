@@ -180,14 +180,6 @@ export interface Hover extends IDisposable {
 	canDecreaseVerbosity?: boolean;
 }
 
-export interface HoverWithId extends Hover {
-	/**
-	 * An id for the hover
-	 */
-	id?: string;
-
-}
-
 /**
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.

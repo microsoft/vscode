@@ -14,7 +14,7 @@ import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getHover } from 'vs/editor/contrib/hover/browser/getHover';
-import { MarkdownHover, MarkdownHoverParticipant, VerboseMarkdownHover } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { RenderedInlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -145,7 +145,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		});
 	}
 
-	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<VerboseMarkdownHover>> {
+	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
 		if (!part.part.location) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -156,10 +156,9 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			if (!this._languageFeaturesService.hoverProvider.has(model)) {
 				return AsyncIterableObject.EMPTY;
 			}
-			const position = new Position(range.startLineNumber, range.startColumn);
-			return getHover(this._languageFeaturesService.hoverProvider, model, position, token)
+			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new VerboseMarkdownHover(item.hover, item.provider, 2 + item.ordinal, position, part.item.anchor.range, this));
+				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal));
 		} finally {
 			ref.dispose();
 		}
