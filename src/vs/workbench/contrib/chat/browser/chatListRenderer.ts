@@ -20,7 +20,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
@@ -53,12 +53,12 @@ import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo }
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { ChatCodeBlockContentProvider, CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { ChatCodeBlockContentProvider, CodeBlockPart, CodeCompareBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -66,6 +66,11 @@ import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/f
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
+import { IModelService } from 'vs/editor/common/services/model';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { TextEdit } from 'vs/editor/common/languages';
+import { IChatListItemRendererOptions } from './chat';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const $ = dom.$;
 
@@ -96,13 +101,6 @@ export interface IChatRendererDelegate {
 	readonly onDidScroll?: Event<void>;
 }
 
-export interface IChatListItemRendererOptions {
-	readonly renderStyle?: 'default' | 'compact';
-	readonly noHeader?: boolean;
-	readonly noPadding?: boolean;
-	readonly editableCodeBlock?: boolean;
-}
-
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
 	static readonly ID = 'item';
 
@@ -122,6 +120,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
 
 	private readonly _editorPool: EditorPool;
+	private readonly _diffEditorPool: DiffEditorPool;
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: ContentReferencesListPool;
 
@@ -146,12 +145,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
 
 		this.renderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode));
+		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(ContentReferencesListPool, this._onDidChangeVisibility.event));
 
@@ -234,6 +235,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._currentLayoutWidth = width - (this.rendererOptions.noPadding ? 0 : 40); // padding
 		for (const editor of this._editorPool.inUse()) {
 			editor.layout(this._currentLayoutWidth);
+		}
+		for (const diffEditor of this._diffEditorPool.inUse()) {
+			diffEditor.layout(this._currentLayoutWidth);
 		}
 	}
 
@@ -473,7 +477,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
 						: data.kind === 'command' ? this.renderCommandButton(element, data)
-							: undefined;
+							: data.kind === 'textEdit' ? this.renderTextEdit(element, data, templateData)
+								: undefined;
 			if (result) {
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
@@ -487,18 +492,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			errorDetails.appendChild($('span', undefined, renderedError.element));
 		}
 
-		if (isResponseVM(element) && element.isComplete && element.response.value.length === 0) {
-			let madeChanges = false;
-			for (const item of element.edits.values()) {
-				if (item.length > 0) {
-					madeChanges = true;
-					break;
-				}
-			}
-			if (madeChanges) {
-				dom.append(templateData.value, $('.interactive-edits-summary', undefined, localize('editsSummary', "Made changes.")));
-			}
-		}
+
 
 		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
@@ -582,6 +576,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						} satisfies IChatProgressMessageRenderData;
 					} else if (part.kind === 'command') {
 						partsToRender[index] = part;
+					} else if (part.kind === 'textEdit') {
+						partsToRender[index] = part;
 					} else {
 						const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), { renderedWordCount: 0, lastRenderTime: 0 });
 						if (wordCountResult !== undefined) {
@@ -655,6 +651,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						}
 					} else if (isCommandButtonRenderData(partToRender)) {
 						result = this.renderCommandButton(element, partToRender);
+
+					} else if (isTextEditRenderData(partToRender)) {
+						result = this.renderTextEdit(element, partToRender, templateData);
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
@@ -882,6 +881,75 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
+	private renderTextEdit(element: ChatTreeItem, textEdit: IChatTextEdit, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
+
+		// TODO@jrieken move this into the CompareCodeBlock and properly say what kind of changes happen
+		if (this.rendererOptions.renderTextEditsAsSummary?.(textEdit.uri)) {
+			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEdit')) {
+				return {
+					element: $('.interactive-edits-summary', undefined, localize('editsSummary', "Made changes.")),
+					dispose() { }
+				};
+			}
+			return undefined;
+		}
+
+		const store = new DisposableStore();
+		const cts = new CancellationTokenSource();
+
+		let isDisposed = false;
+		store.add(toDisposable(() => {
+			isDisposed = true;
+			cts.dispose(true);
+		}));
+
+		const ref = this._diffEditorPool.get();
+
+		// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
+		// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
+		store.add(ref.object.onDidChangeContentHeight(() => {
+			ref.object.layout(this._currentLayoutWidth);
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+		}));
+		const handleReference = (reference: IReference<IResolvedTextEditorModel>) => {
+			if (isDisposed) {
+				reference.dispose();
+				return undefined;
+			}
+			store.add(reference);
+			return reference.object.textEditorModel;
+		};
+
+		ref.object.render({
+			element,
+			edits: textEdit.edits,
+			originalTextModel: this.textModelService.createModelReference(textEdit.uri).then(handleReference),
+			modifiedTextModel: this.textModelService.createModelReference(textEdit.uri).then(handleReference).then(model => {
+
+				if (!model) {
+					return undefined;
+				}
+
+				const modelN = this.modelService.createModel(
+					createTextBufferFactoryFromSnapshot(model.createSnapshot()),
+					{ languageId: model.getLanguageId(), onDidChange: Event.None },
+					undefined, false
+				);
+				store.add(modelN);
+				const edits = textEdit.edits.map(TextEdit.asEditOperation);
+				modelN.pushEditOperations(null, edits, () => null);
+				return modelN;
+			}),
+		}, this._currentLayoutWidth, cts.token);
+
+		return {
+			element: ref.object.element,
+			dispose() {
+				store.dispose();
+			},
+		};
+	}
+
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposables = new DisposableStore();
 
@@ -1067,6 +1135,41 @@ class EditorPool extends Disposable {
 	}
 
 	get(): IDisposableReference<CodeBlockPart> {
+		const codeBlock = this._pool.get();
+		let stale = false;
+		return {
+			object: codeBlock,
+			isStale: () => stale,
+			dispose: () => {
+				codeBlock.reset();
+				stale = true;
+				this._pool.release(codeBlock);
+			}
+		};
+	}
+}
+
+class DiffEditorPool extends Disposable {
+
+	private readonly _pool: ResourcePool<CodeCompareBlockPart>;
+
+	public inUse(): Iterable<CodeCompareBlockPart> {
+		return this._pool.inUse;
+	}
+
+	constructor(
+		options: ChatEditorOptions,
+		delegate: IChatRendererDelegate,
+		overflowWidgetsDomNode: HTMLElement | undefined,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this._pool = this._register(new ResourcePool(() => {
+			return instantiationService.createInstance(CodeCompareBlockPart, options, MenuId.ChatCompareBlock, delegate, overflowWidgetsDomNode);
+		}));
+	}
+
+	get(): IDisposableReference<CodeCompareBlockPart> {
 		const codeBlock = this._pool.get();
 		let stale = false;
 		return {
@@ -1417,6 +1520,10 @@ function isProgressMessageRenderData(item: IChatRenderData): item is IChatProgre
 
 function isCommandButtonRenderData(item: IChatRenderData): item is IChatCommandButton {
 	return item && 'kind' in item && item.kind === 'command';
+}
+
+function isTextEditRenderData(item: IChatRenderData): item is IChatTextEdit {
+	return item && 'kind' in item && item.kind === 'textEdit';
 }
 
 function isMarkdownRenderData(item: IChatRenderData): item is IChatResponseMarkdownRenderData {

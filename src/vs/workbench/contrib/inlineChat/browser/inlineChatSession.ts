@@ -25,7 +25,6 @@ import { isEqual } from 'vs/base/common/resources';
 import { IInlineChatSessionService, Recording } from './inlineChatSessionService';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { asRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -660,8 +659,8 @@ export class HunkData {
 					const textModelNDecorations: string[] = [];
 					const textModel0Decorations: string[] = [];
 
-					textModelNDecorations.push(accessorN.addDecoration(asRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
-					textModel0Decorations.push(accessor0.addDecoration(asRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
+					textModelNDecorations.push(accessorN.addDecoration(LineRange.asRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
+					textModel0Decorations.push(accessor0.addDecoration(LineRange.asRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
 
 					for (const change of hunk.changes) {
 						textModelNDecorations.push(accessorN.addDecoration(change.modifiedRange, HunkData._HUNK_TRACKED_RANGE));
