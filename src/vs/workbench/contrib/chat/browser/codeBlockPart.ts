@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -127,6 +127,8 @@ export class CodeBlockPart extends Disposable {
 
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
+
+	private disposableStore = this._register(new DisposableStore());
 
 	constructor(
 		private readonly options: ChatEditorOptions,
@@ -340,8 +342,9 @@ export class CodeBlockPart extends Disposable {
 
 		this.layout(width);
 		if (editable) {
-			this._register(this.editor.onDidFocusEditorWidget(() => TabFocus.setTabFocusMode(true)));
-			this._register(this.editor.onDidBlurEditorWidget(() => TabFocus.setTabFocusMode(false)));
+			this.disposableStore.clear();
+			this.disposableStore.add(this.editor.onDidFocusEditorWidget(() => TabFocus.setTabFocusMode(true)));
+			this.disposableStore.add(this.editor.onDidBlurEditorWidget(() => TabFocus.setTabFocusMode(false)));
 		}
 		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1), readOnly: !editable });
 

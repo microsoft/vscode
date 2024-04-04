@@ -345,7 +345,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	currentRenderedHeight: number | undefined;
 
 	constructor(
-		readonly _model: IChatRequestModel,
+		private readonly _model: IChatRequestModel,
 	) { }
 }
 

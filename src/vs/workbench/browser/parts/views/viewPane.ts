@@ -47,9 +47,10 @@ import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/v
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -351,11 +352,11 @@ export abstract class ViewPane extends Pane implements IView {
 	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
-	private titleContainerHover?: ICustomHover;
+	private titleContainerHover?: IUpdatableHover;
 	private titleDescriptionContainer?: HTMLElement;
-	private titleDescriptionContainerHover?: ICustomHover;
+	private titleDescriptionContainerHover?: IUpdatableHover;
 	private iconContainer?: HTMLElement;
-	private iconContainerHover?: ICustomHover;
+	private iconContainerHover?: IUpdatableHover;
 	protected twistiesContainer?: HTMLElement;
 	private viewWelcomeController!: ViewWelcomeController;
 
@@ -372,6 +373,7 @@ export abstract class ViewPane extends Pane implements IView {
 		@IOpenerService protected openerService: IOpenerService,
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
+		@IHoverService protected readonly hoverService: IHoverService
 	) {
 		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
@@ -535,13 +537,13 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const calculatedTitle = this.calculateTitle(title);
 		this.titleContainer = append(container, $('h3.title', {}, calculatedTitle));
-		this.titleContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
+		this.titleContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
 
 		if (this._titleDescription) {
 			this.setTitleDescription(this._titleDescription);
 		}
 
-		this.iconContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
+		this.iconContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
 		this.iconContainer.setAttribute('aria-label', calculatedTitle);
 	}
 
@@ -568,7 +570,7 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 		else if (description && this.titleContainer) {
 			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', {}, description));
-			this.titleDescriptionContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
+			this.titleDescriptionContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
 		}
 	}
 
@@ -734,8 +736,9 @@ export abstract class FilterViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
 	}
 

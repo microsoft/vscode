@@ -16,6 +16,7 @@ import { EditorAccessibilityHelpContribution } from 'vs/workbench/contrib/access
 import { SaveAccessibilitySignalContribution } from 'vs/workbench/contrib/accessibility/browser/saveAccessibilitySignal';
 import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
 import { DiffEditorActiveAnnouncementContribution } from 'vs/workbench/contrib/accessibility/browser/openDiffEditorAnnouncement';
+import { SpeechAccessibilitySignalContribution } from 'vs/workbench/contrib/speech/browser/speechAccessibilitySignal';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -31,5 +32,6 @@ workbenchRegistry.registerWorkbenchContribution(InlineCompletionsAccessibleViewC
 
 registerWorkbenchContribution2(AccessibilityStatus.ID, AccessibilityStatus, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SaveAccessibilitySignalContribution.ID, SaveAccessibilitySignalContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SpeechAccessibilitySignalContribution.ID, SpeechAccessibilitySignalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(DiffEditorActiveAnnouncementContribution.ID, DiffEditorActiveAnnouncementContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(DynamicSpeechAccessibilityConfiguration.ID, DynamicSpeechAccessibilityConfiguration, WorkbenchPhase.AfterRestored);

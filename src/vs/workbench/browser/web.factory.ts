@@ -155,6 +155,14 @@ export namespace window {
 export namespace workspace {
 
 	/**
+	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.didResolveRemoteAuthority}
+	 */
+	export async function didResolveRemoteAuthority() {
+		const workbench = await workbenchPromise.p;
+		await workbench.workspace.didResolveRemoteAuthority();
+	}
+
+	/**
 	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.openTunnel}
 	 */
 	export async function openTunnel(tunnelOptions: ITunnelOptions): Promise<ITunnel> {

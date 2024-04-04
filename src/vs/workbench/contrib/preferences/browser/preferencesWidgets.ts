@@ -34,8 +34,10 @@ import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, Workbenc
 import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private _folder: IWorkspaceFolder | null;
@@ -43,7 +45,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private container!: HTMLElement;
 	private anchorElement!: HTMLElement;
-	private anchorElementHover!: ICustomHover;
+	private anchorElementHover!: IUpdatableHover;
 	private labelElement!: HTMLElement;
 	private detailsElement!: HTMLElement;
 	private dropDownElement!: HTMLElement;
@@ -52,6 +54,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
@@ -90,7 +93,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 			'aria-haspopup': 'true',
 			'tabindex': '0'
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
-		this.anchorElementHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.anchorElement, ''));
+		this.anchorElementHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.anchorElement, ''));
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e)));
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
