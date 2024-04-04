@@ -123,6 +123,9 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Discard,
 	title: localize2('discard', 'Discard'),
+	metadata: {
+		description: localize2('discardDescription', 'Discards the terminal current chat response, hide the chat widget, and clear the chat input.')
+	},
 	icon: Codicon.discard,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
