@@ -121,6 +121,9 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		// decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/ -> /^(.*\*\/)?\s*[\}\]\)].*$/
 		// increaseIndentPattern: /^.*\{[^}"'`]*$/ -> /^.*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
 
+		// Later the increase indent pattern goes from: /^.*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/ -> /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
+		// Here we check that the line is not preceded by a line comment so that we do not increase the indent if the code is inside of a comment
+
 		let fileContents = [
 			'function foo(',
 			'    bar: string',
@@ -159,11 +162,11 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	test('Issue #86176', () => {
 		// issue: https://github.com/microsoft/vscode/issues/86176
 		// fix: https://github.com/microsoft/vscode/commit/d89e2e17a5d1ba37c99b1d3929eb6180a5bfc7a8
-		// explanation: When quotation marks are present on the first line of an if statement or for loop, following line should not be indented
+		// explanation: When quotation marks are present on the first line of an if statement or for loop, following line should still be indented
 
 		// increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/ -> /^((?!\/\/).)*(\{([^}"'`]*|(\t|[ ])*\/\/.*)|\([^)"'`]*|\[[^\]"'`]*)$/
-		// explanation: after open brace, do not decrease indent if it is followed on the same line by "<whitespace characters> // <any characters>"
-		// todo@aiday-mar: should also apply for when it follows ( and [
+		// explanation: after open brace, do increase indent if it is followed on the same line by "<whitespace characters> // <any characters>" despite the ' and "
+		// this issue happens because we decided to not increase the indent if ' or " detected after opening bracket
 
 		const fileContents = [
 			`if () { // '`,
@@ -318,6 +321,48 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'    callSomeOtherFunction(4,',
 			'        5)',
 			'}',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 0);
+	});
+
+	test.skip('Issue 209517: incorrect indentation when object contains string key on same line as start', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/209517
+
+		let fileContents = [
+			'const a = {a:1',
+			'    ',
+		].join('\n');
+		let model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		let editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 0);
+
+		fileContents = [
+			'const a = {"a":1',
+			'    ',
+		].join('\n');
+		model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 0);
+
+		fileContents = [
+			'const a = {"}":1',
+			'    ',
+		].join('\n');
+		model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 0);
+	});
+
+	test.skip('Issue 209521: incorrect indentation when object is inlined on the start line of parent object', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/209521
+
+		const fileContents = [
+			'const a = {b: {},',
+			'    ',
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
