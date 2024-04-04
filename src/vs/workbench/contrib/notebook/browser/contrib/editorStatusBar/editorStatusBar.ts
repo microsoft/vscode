@@ -306,8 +306,8 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 
 		const cellEditorOverridesRaw = editor.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
 		const indentSize = cellEditorOverridesRaw?.['editor.indentSize'] ?? cellOptions?.indentSize;
-		const insertSpaces = cellEditorOverridesRaw?.['editor.insertSpaces'] ?? cellOptions?.tabSize;
-		const tabSize = cellEditorOverridesRaw?.['editor.tabSize'] ?? cellOptions?.insertSpaces;
+		const insertSpaces = cellEditorOverridesRaw?.['editor.insertSpaces'] ?? cellOptions?.insertSpaces;
+		const tabSize = cellEditorOverridesRaw?.['editor.tabSize'] ?? cellOptions?.tabSize;
 
 		const width = typeof indentSize === 'number' ? indentSize : tabSize;
 
