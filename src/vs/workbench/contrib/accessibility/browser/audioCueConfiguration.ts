@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export const audioCueFeatureBase: IConfigurationPropertySchema = {
@@ -25,6 +25,7 @@ const soundDeprecatedFeatureBase: IConfigurationPropertySchema = {
 };
 export function registerAudioCueConfiguration() {
 	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+		scope: ConfigurationScope.RESOURCE,
 		'properties': {
 			'audioCues.enabled': {
 				markdownDeprecationMessage: 'Deprecated. Use the specific setting for each audio cue instead (`audioCues.*`).',
