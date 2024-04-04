@@ -8,7 +8,7 @@ import { asArray, compareBy, numberComparator } from 'vs/base/common/arrays';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -164,7 +164,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: (MarkdownHover | VerboseMarkdownHover)[]): IDisposable {
-		this._renderedHoverData = new RenderedHoverData(hoverParts, context.fragment, this._editor, context.onContentsChanged, this._languageService, this._openerService, this._keybindingService);
+		this._renderedHoverData = new RenderedHoverData(hoverParts, context.fragment, this._editor, this._languageService, this._openerService, this._keybindingService, context.onContentsChanged);
 		return this._renderedHoverData;
 	}
 
@@ -179,85 +179,89 @@ interface FocusedHoverInfo {
 	focusRemains: boolean;
 }
 
-type VerboseHoverData = {
-	isVerbose: true;
-	hover: Hover;
-	hoverProvider: HoverProvider;
-	hoverPosition: Position;
-	element: HTMLElement;
+type RenderedGenericHoverPart = {
+	renderedMarkdown: HTMLElement;
+	disposables: DisposableStore;
 };
 
-type NonVerboseHoverData = {
+type RenderedNonVerboseHoverPart = {
 	isVerbose: false;
-};
+} & RenderedGenericHoverPart;
 
-type HoverData = VerboseHoverData | NonVerboseHoverData;
+type RenderedVerboseHoverData = {
+	isVerbose: true;
+	hoverInformation: HoverInformation;
+} & RenderedGenericHoverPart;
 
-class RenderedHoverData implements IDisposable {
+type RenderedHoverPart = RenderedNonVerboseHoverPart | RenderedVerboseHoverData;
 
-	private _store: DisposableStore = new DisposableStore();
-	private _hoverData: Map<number, HoverData>;
+interface HoverInformation {
+	readonly hover: Hover;
+	readonly hoverPosition: Position;
+	readonly hoverProvider: HoverProvider;
+}
+
+class RenderedHoverData extends Disposable {
+
+	private _renderedHoverData: Map<number, RenderedHoverPart>;
 	private _focusInfo: FocusedHoverInfo = { hoverDataIndex: -1, focusRemains: false };
 
 	constructor(
 		hoverParts: (MarkdownHover | VerboseMarkdownHover)[],
 		container: DocumentFragment,
 		private readonly _editor: ICodeEditor,
-		private readonly _onFinishedRendering: () => void,
 		private readonly _languageService: ILanguageService,
 		private readonly _openerService: IOpenerService,
 		private readonly _keybindingService: IKeybindingService,
+		private readonly _onFinishedRendering: () => void,
 	) {
-		const { hoverData, disposables } = this._renderHoverParts(hoverParts, container, this._onFinishedRendering);
-		this._hoverData = hoverData;
-		this._store.add(disposables);
+		super();
+		this._renderedHoverData = this._renderHoverParts(hoverParts, container, this._onFinishedRendering);
+		this._register(toDisposable(() => {
+			this._renderedHoverData.forEach(hoverData => {
+				hoverData.disposables.dispose();
+			});
+		}));
 	}
 
 	private _renderHoverParts(
 		hoverParts: (MarkdownHover | VerboseMarkdownHover)[],
 		container: DocumentFragment,
 		onFinishedRendering: () => void,
-	): { hoverData: Map<number, HoverData>; disposables: DisposableStore } {
-		const hoverData = new Map<number, HoverData>();
-		const disposables = new DisposableStore();
+	): Map<number, RenderedHoverPart> {
+		const hoverDataMap = new Map<number, RenderedHoverPart>();
 		hoverParts.sort(compareBy(hover => hover.ordinal, numberComparator));
 		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
 			const isInstanceOfVerboseHover = hoverPart instanceof VerboseMarkdownHover;
-			const canIncreaseVerbosity = isInstanceOfVerboseHover && hoverPart.hover.canIncreaseVerbosity;
-			const canDecreaseVerbosity = isInstanceOfVerboseHover && hoverPart.hover.canDecreaseVerbosity;
-			const { renderedMarkdown, disposables } = this._renderMarkdownHoversAndActions(
-				hoverIndex,
-				hoverPart.contents,
-				canIncreaseVerbosity,
-				canDecreaseVerbosity,
-				onFinishedRendering
-			);
-			container.appendChild(renderedMarkdown);
-			const _hoverData: HoverData = isInstanceOfVerboseHover ? {
-				isVerbose: true,
-				element: renderedMarkdown,
-				hover: hoverPart.hover,
-				hoverPosition: hoverPart.hoverPosition,
-				hoverProvider: hoverPart.hoverProvider
-			} : {
-				isVerbose: false
-			};
-			hoverData.set(hoverIndex, _hoverData);
-			disposables.add(disposables);
-		}
-		disposables.add(toDisposable(() => hoverData.forEach(hoverData => {
-			if (hoverData.isVerbose) {
-				hoverData.hover.dispose();
+			let hoverData: RenderedHoverPart;
+			if (isInstanceOfVerboseHover) {
+				hoverData = this._renderVerboseHoverPart(
+					hoverIndex,
+					hoverPart,
+					onFinishedRendering
+				);
+			} else {
+				hoverData = this._renderNonVerboseHoverPart(
+					hoverPart.contents,
+					onFinishedRendering
+				);
 			}
-		})));
-		return { hoverData, disposables };
+			container.appendChild(hoverData.renderedMarkdown);
+			hoverDataMap.set(hoverIndex, hoverData);
+		}
+		return hoverDataMap;
 	}
 
-	private _renderMarkdownHoversAndActions(
-		hoverIndex: number,
-		hoverContents: IMarkdownString[],
-		canIncreaseVerbosity: boolean | undefined,
-		canDecreaseVerbosity: boolean | undefined,
+	private _renderNonVerboseHoverPart(
+		markdownContent: IMarkdownString[],
+		onContentsChanged: () => void
+	): RenderedNonVerboseHoverPart {
+		const { renderedMarkdown, disposables } = this._renderMarkdownContent(markdownContent, onContentsChanged);
+		return { isVerbose: false, renderedMarkdown, disposables };
+	}
+
+	private _renderMarkdownContent(
+		markdownContent: IMarkdownString[],
 		onContentsChanged: () => void
 	): { renderedMarkdown: HTMLElement; disposables: DisposableStore } {
 		const renderedMarkdown = $('div.hover-row');
@@ -268,19 +272,26 @@ class RenderedHoverData implements IDisposable {
 		disposables.add(renderMarkdownInContainer(
 			this._editor,
 			contents,
-			hoverContents,
+			markdownContent,
 			this._languageService,
 			this._openerService,
 			onContentsChanged,
 		));
-		if (!canIncreaseVerbosity && !canDecreaseVerbosity) {
-			return { renderedMarkdown, disposables };
-		}
+		return { renderedMarkdown, disposables };
+	}
+
+	private _renderVerboseHoverPart(
+		hoverIndex: number,
+		hoverInformation: HoverInformation,
+		onContentsChanged: () => void
+	): RenderedVerboseHoverData {
+
+		const { renderedMarkdown, disposables } = this._renderMarkdownContent(hoverInformation.hover.contents, onContentsChanged);
 		const actionsContainer = $('div.verbosity-actions');
 		renderedMarkdown.prepend(actionsContainer);
 
-		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity ?? false));
-		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity ?? false));
+		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, hoverInformation.hover.canIncreaseVerbosity ?? false));
+		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, hoverInformation.hover.canDecreaseVerbosity ?? false));
 
 		const focusTracker = disposables.add(dom.trackFocus(renderedMarkdown));
 		disposables.add(focusTracker.onDidFocus(() => {
@@ -295,10 +306,13 @@ class RenderedHoverData implements IDisposable {
 				return;
 			}
 		}));
-		return { renderedMarkdown, disposables };
+		disposables.add(toDisposable(() => {
+			hoverInformation.hover.dispose();
+		}));
+		return { isVerbose: true, renderedMarkdown, disposables, hoverInformation };
 	}
 
-	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, enabled: boolean): DisposableStore {
+	private _renderHoverExpansionAction(container: HTMLElement, action: HoverVerbosityAction, actionEnabled: boolean): DisposableStore {
 		const store = new DisposableStore();
 		const isActionIncrease = action === HoverVerbosityAction.Increase;
 		const element = dom.append(container, $(ThemeIcon.asCSSSelector(isActionIncrease ? increaseHoverVerbosityIcon : decreaseHoverVerbosityIcon)));
@@ -314,7 +328,7 @@ class RenderedHoverData implements IDisposable {
 				nls.localize('decreaseVerbosityWithKb', "Decrease Verbosity ({0})", kb.getLabel()) :
 				nls.localize('decreaseVerbosity', "Decrease Verbosity")));
 		}
-		if (!enabled) {
+		if (!actionEnabled) {
 			element.classList.add('disabled');
 			return store;
 		}
@@ -335,9 +349,9 @@ class RenderedHoverData implements IDisposable {
 		if (!currentHoverData || !currentHoverData.isVerbose) {
 			return;
 		}
-		const position = currentHoverData.hoverPosition;
-		const provider = currentHoverData.hoverProvider;
-		const previousHover = currentHoverData.hover;
+		const position = currentHoverData.hoverInformation.hoverPosition;
+		const provider = currentHoverData.hoverInformation.hoverProvider;
+		const previousHover = currentHoverData.hoverInformation.hover;
 		const context: HoverContext = { action, previousHover };
 		let newHover: Hover | null | undefined;
 		try {
@@ -348,48 +362,42 @@ class RenderedHoverData implements IDisposable {
 		if (!newHover) {
 			return;
 		}
-		const { renderedMarkdown, disposables } = this._renderMarkdownHoversAndActions(
-			focusedIndex,
-			newHover.contents,
-			newHover.canIncreaseVerbosity,
-			newHover.canDecreaseVerbosity,
-			this._onFinishedRendering
-		);
-		const hoverData: VerboseHoverData = {
-			isVerbose: true,
+		const hoverInformation: HoverInformation = {
 			hover: newHover,
-			element: renderedMarkdown,
 			hoverPosition: position,
 			hoverProvider: provider
 		};
-		this._replaceHoverDataAtIndex(focusedIndex, hoverData);
+		const renderedHoverData = this._renderVerboseHoverPart(
+			focusedIndex,
+			hoverInformation,
+			this._onFinishedRendering
+		);
+		this._replaceHoverDataAtIndex(focusedIndex, renderedHoverData);
+		this._focusOnIndex(focusedIndex);
 		this._focusInfo.focusRemains = true;
-		this._store.add(disposables);
 		this._onFinishedRendering();
-
-		renderedMarkdown.focus();
 	}
 
-	private _replaceHoverDataAtIndex(index: number, hoverData: VerboseHoverData): void {
-		if (!this._hoverData.has(index)) {
+	private _replaceHoverDataAtIndex(index: number, hoverData: RenderedVerboseHoverData): void {
+		if (!this._renderedHoverData.has(index)) {
 			return;
 		}
-		const currentHoverData = this._hoverData.get(index)!;
+		const currentHoverData = this._renderedHoverData.get(index)!;
+		currentHoverData.disposables.dispose();
 		if (!currentHoverData.isVerbose) {
 			return;
 		}
-		currentHoverData.hover.dispose();
-		const currentElement = currentHoverData.element;
-		currentElement.replaceWith(hoverData.element);
-		this._hoverData.set(index, hoverData);
+		const currentElement = currentHoverData.renderedMarkdown;
+		currentElement.replaceWith(hoverData.renderedMarkdown);
+		this._renderedHoverData.set(index, hoverData);
 	}
 
-	private _getHoverDataForIndex(index: number): HoverData | undefined {
-		return this._hoverData.get(index);
+	private _focusOnIndex(index: number): void {
+		this._renderedHoverData.get(index)?.renderedMarkdown.focus();
 	}
 
-	dispose(): void {
-		this._store.dispose();
+	private _getHoverDataForIndex(index: number): RenderedHoverPart | undefined {
+		return this._renderedHoverData.get(index);
 	}
 }
 
@@ -425,7 +433,7 @@ function renderMarkdownInContainer(
 	languageService: ILanguageService,
 	openerService: IOpenerService,
 	onContentsChanged: () => void,
-) {
+): IDisposable {
 	const store = new DisposableStore();
 	for (const contents of markdownStrings) {
 		if (isEmptyMarkdownString(contents)) {
