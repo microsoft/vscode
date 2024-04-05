@@ -147,7 +147,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					default: ['panel'],
 					items: {
 						type: 'string',
-						enum: ['panel', 'terminal', 'notebook']
+						enum: ['panel', 'terminal', 'notebook', 'editor']
 					}
 
 				}
