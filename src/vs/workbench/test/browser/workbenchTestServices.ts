@@ -302,12 +302,10 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : disposables.add(new TestFileService());
 	instantiationService.stub(IFileService, fileService);
-	const uriIdentityService = new UriIdentityService(fileService);
-	disposables.add(uriIdentityService);
+	instantiationService.stub(IUriIdentityService, disposables.add(new UriIdentityService(fileService)));
 	const markerService = new TestMarkerService();
 	instantiationService.stub(IMarkerService, markerService);
 	instantiationService.stub(IFilesConfigurationService, disposables.add(instantiationService.createInstance(TestFilesConfigurationService)));
-	instantiationService.stub(IUriIdentityService, disposables.add(uriIdentityService));
 	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(instantiationService.createInstance(UserDataProfilesService)));
 	instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)));
 	instantiationService.stub(IWorkingCopyBackupService, overrides?.workingCopyBackupService ? overrides?.workingCopyBackupService(instantiationService) : disposables.add(new TestWorkingCopyBackupService()));
