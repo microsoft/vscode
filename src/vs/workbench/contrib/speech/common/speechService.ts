@@ -26,7 +26,8 @@ export enum SpeechToTextStatus {
 	Started = 1,
 	Recognizing = 2,
 	Recognized = 3,
-	Stopped = 4
+	Stopped = 4,
+	Error = 5
 }
 
 export interface ISpeechToTextEvent {

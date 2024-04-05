@@ -34,16 +34,16 @@ export class CodeBlockModelCollection extends Disposable {
 		this.clear();
 	}
 
-	get(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): { model: Promise<IResolvedTextEditorModel>; vulns: readonly IMarkdownVulnerability[] } | undefined {
+	get(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): { model: Promise<IResolvedTextEditorModel>; readonly vulns: readonly IMarkdownVulnerability[] } | undefined {
 		const uri = this.getUri(sessionId, chat, codeBlockIndex);
-		const entries = this._models.get(uri);
-		if (!entries) {
+		const entry = this._models.get(uri);
+		if (!entry) {
 			return;
 		}
-		return { model: entries.model.then(ref => ref.object), vulns: entries.vulns };
+		return { model: entry.model.then(ref => ref.object), vulns: entry.vulns };
 	}
 
-	getOrCreate(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): { model: Promise<IResolvedTextEditorModel>; vulns: readonly IMarkdownVulnerability[] } {
+	getOrCreate(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): { model: Promise<IResolvedTextEditorModel>; readonly vulns: readonly IMarkdownVulnerability[] } {
 		const existing = this.get(sessionId, chat, codeBlockIndex);
 		if (existing) {
 			return existing;
@@ -65,7 +65,7 @@ export class CodeBlockModelCollection extends Disposable {
 
 		const extractedVulns = extractVulnerabilitiesFromText(content.text);
 		const newText = extractedVulns.newText;
-		entry.vulns = extractedVulns.vulnerabilities;
+		this.setVulns(sessionId, chat, codeBlockIndex, extractedVulns.vulnerabilities);
 
 		const textModel = (await entry.model).textEditorModel;
 		if (content.languageId) {
@@ -91,6 +91,14 @@ export class CodeBlockModelCollection extends Disposable {
 		}
 	}
 
+	private setVulns(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, vulnerabilities: IMarkdownVulnerability[]) {
+		const uri = this.getUri(sessionId, chat, codeBlockIndex);
+		const entry = this._models.get(uri);
+		if (entry) {
+			entry.vulns = vulnerabilities;
+		}
+	}
+
 	private getUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
 		const metadata = this.getUriMetaData(chat);
 		return URI.from({
@@ -108,15 +116,22 @@ export class CodeBlockModelCollection extends Disposable {
 
 		return {
 			references: chat.contentReferences.map(ref => {
-				if (URI.isUri(ref.reference)) {
+				const uriOrLocation = 'variableName' in ref.reference ?
+					ref.reference.value :
+					ref.reference;
+				if (!uriOrLocation) {
+					return;
+				}
+
+				if (URI.isUri(uriOrLocation)) {
 					return {
-						uri: ref.reference.toJSON()
+						uri: uriOrLocation.toJSON()
 					};
 				}
 
 				return {
-					uri: ref.reference.uri.toJSON(),
-					range: ref.reference.range,
+					uri: uriOrLocation.uri.toJSON(),
+					range: uriOrLocation.range,
 				};
 			})
 		};

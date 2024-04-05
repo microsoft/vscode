@@ -59,6 +59,7 @@ import './mainThreadStatusBar';
 import './mainThreadStorage';
 import './mainThreadTelemetry';
 import './mainThreadTerminalService';
+import './mainThreadTerminalShellIntegration';
 import './mainThreadTheming';
 import './mainThreadTreeViews';
 import './mainThreadDownloadService';
@@ -87,7 +88,6 @@ import './mainThreadShare';
 import './mainThreadProfileContentHandlers';
 import './mainThreadAiRelatedInformation';
 import './mainThreadAiEmbeddingVector';
-import './mainThreadIssueReporter';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

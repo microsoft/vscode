@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import { autorun } from 'vs/base/common/observableInternal/autorun';
 import { IObservable, IReader, observableValue, transaction } from './base';
-import { Derived, defaultEqualityComparer, derived } from 'vs/base/common/observableInternal/derived';
+import { Derived, derived } from 'vs/base/common/observableInternal/derived';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DebugNameData, Owner } from 'vs/base/common/observableInternal/debugName';
+import { strictEquals } from 'vs/base/common/equals';
 
 export class ObservableLazy<T> {
 	private readonly _value = observableValue<T | undefined>(this, undefined);
@@ -181,6 +182,6 @@ export function derivedWithCancellationToken<T>(computeFnOrOwner: ((reader: IRea
 		}, undefined,
 		undefined,
 		() => cancellationTokenSource?.dispose(),
-		defaultEqualityComparer,
+		strictEquals,
 	);
 }

@@ -12,7 +12,7 @@ import { getWindow } from 'vs/base/browser/dom';
 
 export class ContextViewHandler extends Disposable implements IContextViewProvider {
 
-	private currentViewDisposable = this._register(new MutableDisposable<IDisposable>());
+	private readonly currentViewDisposable = this._register(new MutableDisposable<IDisposable>());
 	protected readonly contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
 
 	constructor(

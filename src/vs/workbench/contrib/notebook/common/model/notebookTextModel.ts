@@ -1026,7 +1026,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					return that.uri;
 				}
 				readonly label = 'Update Cell Language';
-				readonly code = 'undoredo.notebooks.updateCellLanguage';
+				readonly code = 'undoredo.textBufferEdit';
 				undo() {
 					that._changeCellLanguage(cell, oldLanguage, false, beginSelectionState, undoRedoGroup);
 				}

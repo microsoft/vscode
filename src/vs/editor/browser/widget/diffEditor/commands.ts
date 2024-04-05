@@ -167,7 +167,7 @@ export class ShowAllUnchangedRegions extends EditorAction2 {
 	}
 }
 
-export class RevertHunkOrSelection extends EditorAction2 {
+export class RevertHunkOrSelection extends Action2 {
 	constructor() {
 		super({
 			id: 'diffEditor.revert',
@@ -177,7 +177,7 @@ export class RevertHunkOrSelection extends EditorAction2 {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg: DiffEditorSelectionHunkToolbarContext): unknown {
+	run(accessor: ServicesAccessor, arg: DiffEditorSelectionHunkToolbarContext): unknown {
 		const diffEditor = findDiffEditor(accessor, arg.originalUri, arg.modifiedUri);
 		if (diffEditor instanceof DiffEditorWidget) {
 			diffEditor.revertRangeMappings(arg.mapping.innerChanges ?? []);

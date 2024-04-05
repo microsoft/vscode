@@ -97,7 +97,10 @@ const enum VSCodeOscPt {
 	/**
 	 * Explicitly set the command line. This helps workaround performance and reliability problems
 	 * with parsing out the command, such as conpty not guaranteeing the position of the sequence or
-	 * the shell not guaranteeing that the entire command is even visible.
+	 * the shell not guaranteeing that the entire command is even visible. Ideally this is called
+	 * immediately before {@link CommandExecuted}, immediately before {@link CommandFinished} will
+	 * also work but that means terminal will only know the accurate command line when the command is
+	 * finished.
 	 *
 	 * The command line can escape ascii characters using the `\xAB` format, where AB are the
 	 * hexadecimal representation of the character code (case insensitive), and escape the `\`

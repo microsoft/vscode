@@ -122,6 +122,18 @@ declare module 'vscode' {
 		ranges: Range[];
 	}
 
+	export class ChatResponseTextEditPart {
+		uri: Uri;
+		edits: TextEdit[];
+		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
+	}
+
+	export interface ChatResponseStream {
+		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
+
+		push(part: ChatResponsePart | ChatResponseTextEditPart): ChatResponseStream;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
@@ -167,7 +179,7 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
+	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
 	export namespace chat {
 		/**

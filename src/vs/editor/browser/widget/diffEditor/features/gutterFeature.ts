@@ -38,7 +38,7 @@ export class DiffEditorGutter extends Disposable {
 
 	public readonly width = derived(this, reader => this._hasActions.read(reader) ? width : 0);
 
-	private readonly elements = h('div.gutter@gutter', { style: { position: 'absolute', height: '100%', width: width + 'px', zIndex: '0' } }, []);
+	private readonly elements = h('div.gutter@gutter', { style: { position: 'absolute', height: '100%', width: width + 'px' } }, []);
 
 	constructor(
 		diffEditorRoot: HTMLDivElement,
@@ -84,7 +84,7 @@ export class DiffEditorGutter extends Disposable {
 				const currentDiff = this._currentDiff.read(reader);
 
 				return diffs.mappings.map(m => new DiffGutterItem(
-					m.lineRangeMapping,
+					m.lineRangeMapping.withInnerChangesFromLineRanges(),
 					m.lineRangeMapping === currentDiff?.lineRangeMapping,
 					MenuId.DiffEditorHunkToolbar,
 					undefined,
@@ -98,7 +98,7 @@ export class DiffEditorGutter extends Disposable {
 		}));
 
 		this._register(addDisposableListener(this.elements.gutter, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
-			if (!this._editors.modified.getOption(EditorOption.scrollbar).handleMouseWheel) {
+			if (this._editors.modified.getOption(EditorOption.scrollbar).handleMouseWheel) {
 				this._editors.modified.delegateScrollFromMouseWheelEvent(e);
 			}
 		}, { passive: false }));
