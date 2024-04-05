@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-bQPwjO6bLiyf6v9eDVtAI67LrfonA1w49aFkRXBy4/g=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-P8o4sb+/oKsV3qM+wxe7VdC9SD4w9o5fftHmyimE/eU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -791,6 +791,18 @@
 			}
 		}
 
+
+		function handleInnerDragEvent(/** @type {DragEvent} */ e) {
+			console.log(e);
+			if (!e.dataTransfer) {
+				return;
+			}
+
+			hostMessaging.postMessage('drag', {
+				shiftKey: e.shiftKey
+			});
+		}
+
 		/**
 		 * @param {() => void} callback
 		 */
@@ -881,7 +893,9 @@
 		window.addEventListener('keydown', handleInnerKeydown);
 		window.addEventListener('keyup', handleInnerKeyup);
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
-		window.addEventListener('dragover', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragEvent);
+		window.addEventListener('drag', handleInnerDragEvent);
+
 
 		onDomReady(() => {
 			if (!document.body) {
@@ -1165,7 +1179,8 @@
 					});
 
 					contentWindow.addEventListener('dragenter', handleInnerDragStartEvent);
-					contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
+					contentWindow.addEventListener('dragover', handleInnerDragEvent);
+					contentWindow.addEventListener('drag', handleInnerDragEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
 				}
