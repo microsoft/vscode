@@ -94,7 +94,7 @@ export class ChatEditorInput extends EditorInput {
 		if (typeof this.sessionId === 'string') {
 			this.model = this.chatService.getOrRestoreSession(this.sessionId);
 		} else if (typeof this.providerId === 'string') {
-			this.model = this.chatService.startSession(this.providerId, CancellationToken.None);
+			this.model = this.chatService.startSession(CancellationToken.None);
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}

@@ -23,7 +23,6 @@ import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/text
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
@@ -31,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatFollowup, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { EditMode, IInlineChatBulkEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, IInlineChatService, IInlineChatSession, IInlineChatSessionProvider, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatBulkEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, IInlineChatService, IInlineChatSession, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -307,10 +306,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._sessions.clear();
 	}
 
-	private _asChatProviderBrigdeName(provider: IInlineChatSessionProvider) {
-		return `inlinechat:${provider.label}:${ExtensionIdentifier.toKey(provider.extensionId)}`;
-	}
-
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 
 		const provider = Iterable.first(this._inlineChatService.getAllProvider());
@@ -319,7 +314,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			return undefined;
 		}
 
-		const chatModel = this._chatService.startSession(this._asChatProviderBrigdeName(provider), token);
+		const chatModel = this._chatService.startSession(token);
 		if (!chatModel) {
 			this._logService.trace('[IE] NO chatModel found');
 			return undefined;

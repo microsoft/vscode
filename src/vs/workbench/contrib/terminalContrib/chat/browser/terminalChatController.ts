@@ -258,7 +258,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 		if (!this._model.value) {
-			this._model.value = this._chatService.startSession(providerInfo.id, CancellationToken.None);
+			this._model.value = this._chatService.startSession(CancellationToken.None);
 			if (!this._model.value) {
 				throw new Error('Could not start chat session');
 			}

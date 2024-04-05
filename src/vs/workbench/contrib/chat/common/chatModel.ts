@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatPromptVariableData {
@@ -505,12 +505,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _initState: ChatModelInitState = ChatModelInitState.Created;
 	private _isInitializedDeferred = new DeferredPromise<void>();
 
-	// TODO DELETE
-	private _session: IChat | undefined;
-	get session(): IChat | undefined {
-		return this._session;
-	}
-
 	private _welcomeMessage: ChatWelcomeMessageModel | undefined;
 	get welcomeMessage(): ChatWelcomeMessageModel | undefined {
 		return this._welcomeMessage;
@@ -673,7 +667,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	deinitialize(): void {
-		this._session = undefined;
 		this._initState = ChatModelInitState.Created;
 		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
@@ -685,7 +678,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		this._initState = ChatModelInitState.Initialized;
-		this._session = {};
 		if (!this._welcomeMessage) {
 			// Could also have loaded the welcome message from persisted data
 			this._welcomeMessage = welcomeMessage;
@@ -714,10 +706,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand): ChatRequestModel {
-		if (!this._session) {
-			throw new Error('addRequest: No session');
-		}
-
 		const request = new ChatRequestModel(this, message, variableData);
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id);
 
@@ -727,10 +715,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void {
-		if (!this._session) {
-			throw new Error('acceptResponseProgress: No session');
-		}
-
 		if (!request.response) {
 			request.response = new ChatResponseModel([], this, undefined, undefined, request.id);
 		}
@@ -773,10 +757,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	setResponse(request: ChatRequestModel, result: IChatAgentResult): void {
-		if (!this._session) {
-			throw new Error('completeResponse: No session');
-		}
-
 		if (!request.response) {
 			request.response = new ChatResponseModel([], this, undefined, undefined, request.id);
 		}

@@ -236,8 +236,12 @@ export class ChatService extends Disposable implements IChatService {
 		this._onDidPerformUserAction.fire(action);
 	}
 
-	private trace(method: string, message: string): void {
-		this.logService.trace(`ChatService#${method}: ${message}`);
+	private trace(method: string, message?: string): void {
+		if (message) {
+			this.logService.trace(`ChatService#${method}: ${message}`);
+		} else {
+			this.logService.trace(`ChatService#${method}`);
+		}
 	}
 
 	private error(method: string, message: string): void {
@@ -326,14 +330,13 @@ export class ChatService extends Disposable implements IChatService {
 		this.saveState();
 	}
 
-	startSession(providerId: string, token: CancellationToken): ChatModel {
-		this.trace('startSession', `providerId=${providerId}`);
-		return this._startSession(providerId, undefined, token);
+	startSession(token: CancellationToken): ChatModel {
+		this.trace('startSession');
+		return this._startSession(undefined, token);
 	}
 
-	private _startSession(providerId: string, someSessionHistory: ISerializableChatData | undefined, token: CancellationToken): ChatModel {
-		this.trace('_startSession', `providerId=${providerId}`);
-		const model = this.instantiationService.createInstance(ChatModel, providerId, someSessionHistory);
+	private _startSession(someSessionHistory: ISerializableChatData | undefined, token: CancellationToken): ChatModel {
+		const model = this.instantiationService.createInstance(ChatModel, 'copilot', someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
 		this.initializeSession(model, token);
 		return model;
@@ -399,11 +402,11 @@ export class ChatService extends Disposable implements IChatService {
 			this._transferredSessionData = undefined;
 		}
 
-		return this._startSession(sessionData.providerId, sessionData, CancellationToken.None);
+		return this._startSession(sessionData, CancellationToken.None);
 	}
 
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined {
-		return this._startSession(data.providerId, data, CancellationToken.None);
+		return this._startSession(data, CancellationToken.None);
 	}
 
 	async sendRequest(sessionId: string, request: string, implicitVariablesEnabled?: boolean, location: ChatAgentLocation = ChatAgentLocation.Panel, parserContext?: IChatParserContext): Promise<IChatSendRequestData | undefined> {

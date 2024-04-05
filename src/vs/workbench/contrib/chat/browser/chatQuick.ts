@@ -325,7 +325,7 @@ class QuickChat extends Disposable {
 	}
 
 	private updateModel(): void {
-		this.model ??= this.chatService.startSession(this._options.providerId, CancellationToken.None);
+		this.model ??= this.chatService.startSession(CancellationToken.None);
 		if (!this.model) {
 			throw new Error('Could not start chat session');
 		}

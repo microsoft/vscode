@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Command, Location, ProviderResult, TextEdit } from 'vs/editor/common/languages';
+import { Command, Location, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -17,11 +17,7 @@ import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserT
 import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export interface IChat {
-}
-
 export interface IChatRequest {
-	session: IChat;
 	message: string;
 	variables: Record<string, IChatRequestVariableValue[]>;
 }
@@ -156,11 +152,6 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatTextEdit;
 
-export interface IChatProvider {
-	readonly id: string;
-	prepareSession(token: CancellationToken): ProviderResult<IChat | undefined>;
-}
-
 export interface IChatFollowup {
 	kind: 'reply';
 	message: string;
@@ -281,7 +272,7 @@ export interface IChatService {
 
 	hasSessions(providerId: string): boolean;
 	getProviderInfos(): IChatProviderInfo[];
-	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
+	startSession(token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined;
