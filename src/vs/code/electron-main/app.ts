@@ -1356,7 +1356,7 @@ export class CodeApplication extends Disposable {
 		return windowsMainService.open({
 			context,
 			cli: args,
-			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
+			forceNewWindow: args['new-window'],
 			diffMode: args.diff,
 			mergeMode: args.merge,
 			noRecentEntry,

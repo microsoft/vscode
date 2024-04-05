@@ -612,7 +612,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 					comment: 'An event is fired when an color theme extension is first used as it provides the currently shown color theme.';
 					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
 					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension name.' };
-					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the extension is a built-in extension.' };
+					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension is a built-in extension.' };
 					publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension publisher id.' };
 					themeId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the theme that triggered the first extension use.' };
 				};

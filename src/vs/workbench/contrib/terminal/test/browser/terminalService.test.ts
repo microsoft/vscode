@@ -13,7 +13,7 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestEditorService, TestEnvironmentService, TestLifecycleService, TestRemoteAgentService, TestTerminalEditorService, TestTerminalGroupService, TestTerminalInstanceService, TestTerminalProfileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -26,6 +26,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 
 suite('Workbench - TerminalService', () => {
 	let store: DisposableStore;
@@ -47,6 +48,7 @@ suite('Workbench - TerminalService', () => {
 
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITerminalConfigurationService, instantiationService.createInstance(TerminalConfigurationService));
 		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IThemeService, new TestThemeService());

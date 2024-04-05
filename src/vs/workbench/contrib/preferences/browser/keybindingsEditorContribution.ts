@@ -31,7 +31,7 @@ const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutError
 
 class DefineKeybindingEditorContribution extends Disposable implements IDefineKeybindingEditorContribution {
 
-	private _keybindingDecorationRenderer = this._register(new MutableDisposable<KeybindingEditorDecorationsRenderer>());
+	private readonly _keybindingDecorationRenderer = this._register(new MutableDisposable<KeybindingEditorDecorationsRenderer>());
 
 	private readonly _defineWidget: DefineKeybindingOverlayWidget;
 

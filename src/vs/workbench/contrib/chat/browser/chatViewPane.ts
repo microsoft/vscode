@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -42,7 +43,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
-	private modelDisposables = this._register(new DisposableStore());
+	private readonly modelDisposables = this._register(new DisposableStore());
 	private memento: Memento;
 	private readonly viewState: IViewPaneState;
 	private didProviderRegistrationFail = false;
@@ -60,11 +61,12 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatService private readonly chatService: IChatService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + this.chatViewOptions.providerId, this.storageService);

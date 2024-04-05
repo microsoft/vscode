@@ -20,18 +20,19 @@ import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, 
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLocalLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalUriLinkDetector';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalWordLinkDetector';
-import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService, ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalConfiguration, ITerminalProcessInfo, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IHoverAction } from 'vs/platform/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from '@xterm/xterm';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { TerminalMultiLineLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalMultiLineLinkDetector';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -53,7 +54,9 @@ export class TerminalLinkManager extends DisposableStore {
 		capabilities: ITerminalCapabilityStore,
 		private readonly _linkResolver: ITerminalLinkResolver,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
@@ -99,7 +102,30 @@ export class TerminalLinkManager extends DisposableStore {
 			activeTooltipScheduler?.dispose();
 		}));
 		this._xterm.options.linkHandler = {
-			activate: (_, text) => {
+			allowNonHttpProtocols: true,
+			activate: (event, text) => {
+				if (!this._isLinkActivationModifierDown(event)) {
+					return;
+				}
+				const colonIndex = text.indexOf(':');
+				if (colonIndex === -1) {
+					throw new Error(`Could not find scheme in link "${text}"`);
+				}
+				const scheme = text.substring(0, colonIndex);
+				if (this._terminalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
+					this._notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
+						{
+							label: nls.localize('allow', 'Allow {0}', scheme),
+							run: () => {
+								const allowedLinkSchemes = [
+									...this._terminalConfigurationService.config.allowedLinkSchemes,
+									scheme
+								];
+								this._configurationService.updateValue(`terminal.integrated.allowedLinkSchemes`, allowedLinkSchemes);
+							}
+						}
+					]);
+				}
 				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
 					type: TerminalBuiltinLinkType.Url,
 					text,

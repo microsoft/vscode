@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import { IIdentifiedSingleEditOperation, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IEditObserver } from './inlineChatStrategies';
 import { IProgress } from 'vs/platform/progress/common/progress';
@@ -13,25 +12,7 @@ import { IntervalTimer, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
-export function invertLineRange(range: LineRange, model: ITextModel): LineRange[] {
-	if (range.isEmpty) {
-		return [];
-	}
-	const result: LineRange[] = [];
-	if (range.startLineNumber > 1) {
-		result.push(new LineRange(1, range.startLineNumber));
-	}
-	if (range.endLineNumberExclusive < model.getLineCount() + 1) {
-		result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount() + 1));
-	}
-	return result.filter(r => !r.isEmpty);
-}
 
-export function asRange(lineRange: LineRange, model: ITextModel): Range {
-	return lineRange.isEmpty
-		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
-		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
-}
 
 // --- async edit
 

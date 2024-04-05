@@ -28,6 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	readonly commandId: string;
+	readonly commandWhen?: string;
 	readonly commandAlias?: string;
 	readonly commandDescription?: ILocalizedString;
 	tfIdfScore?: number;

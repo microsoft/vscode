@@ -22,6 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isWeb } from 'vs/base/common/platform';
 import { DragAndDropObserver, getWindow } from 'vs/base/browser/dom';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class EmptyView extends ViewPane {
 
@@ -42,8 +43,9 @@ export class EmptyView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.refreshTitle()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.refreshTitle()));

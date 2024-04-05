@@ -271,6 +271,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
 		}
 	};
+
+	const blurOutput = () => {
+		const selection = window.getSelection();
+		if (!selection) {
+			return;
+		}
+		selection.removeAllRanges();
+	};
+
 	const selectOutputContents = (cellOrOutputId: string) => {
 		const selection = window.getSelection();
 		if (!selection) {
@@ -302,6 +311,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 		if (!lastFocusedOutput?.id || !e.shiftKey) {
 			return;
 		}
+
+		// If we're pressing `Shift+Up/Down` then we want to select a line at a time.
+		if (e.shiftKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+			e.stopPropagation(); // We don't want the notebook to handle this, default behavior is what we need.
+			return;
+		}
+
 		// We want to handle just `Shift + PageUp/PageDown` & `Shift + Cmd + ArrowUp/ArrowDown` (for mac)
 		if (!(e.code === 'PageUp' || e.code === 'PageDown') && !(e.metaKey && (e.code === 'ArrowDown' || e.code === 'ArrowUp'))) {
 			return;
@@ -341,7 +357,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 		const activeElement = window.document.activeElement;
 		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
-			e.preventDefault(); // We will handle selection in editor code.
+			// The input element will handle this.
 			return;
 		}
 
@@ -689,7 +705,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		element.id = `focus-sink-${cellId}`;
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
-			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
+			postNotebookMessage<webviewMessages.IFocusEditorMessage>('focus-editor', {
 				cellId: cellId,
 				focusNext
 			});
@@ -1732,6 +1748,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'focus-output':
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
+			case 'blur-output':
+				blurOutput();
+				break;
 			case 'select-output-contents':
 				selectOutputContents(event.data.cellOrOutputId);
 				break;
@@ -2699,7 +2718,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 			outputElement/** outputNode */.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
 
 			if (!!data.executionId && !!data.rendererId) {
-				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
+				let outputSize: number | undefined = undefined;
+				let mimeType: string | undefined = undefined;
+				if (data.content.type === 1 /* extension */) {
+					outputSize = data.content.output.valueBytes.length;
+					mimeType = data.content.output.mime;
+				}
+
+				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
+					cellId: data.cellId,
+					executionId: data.executionId,
+					duration: Date.now() - startTime,
+					rendererId: data.rendererId,
+					outputSize,
+					mimeType
+				});
 			}
 		}
 

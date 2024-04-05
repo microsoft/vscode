@@ -17,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { isEqual } from 'vs/base/common/resources';
 
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -57,6 +58,13 @@ export class InlineChatZoneWidget extends ZoneWidget {
 						}
 					}
 				}
+			},
+			rendererOptions: {
+				renderTextEditsAsSummary: (uri) => {
+					return isEqual(uri, editor.getModel()?.uri)
+						// && !"true"
+						;
+				},
 			}
 		});
 		this._disposables.add(this.widget.onDidChangeHeight(() => {

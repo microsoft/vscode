@@ -156,9 +156,14 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 			return;
 		}
 
-		// Disable ourselves if there's also a text entry with the same content as our list,
+		// In some browsers, copying from the address bar sets both text/uri-list and text/plain.
+		// Disable ourselves if there's also a text entry with the same http(s) uri as our list,
 		// unless we are explicitly requested.
-		if (uriList.entries.length === 1 && !context?.only?.contains(ResourcePasteOrDropProvider.kind)) {
+		if (
+			uriList.entries.length === 1
+			&& (uriList.entries[0].uri.scheme === Schemes.http || uriList.entries[0].uri.scheme === Schemes.https)
+			&& !context?.only?.contains(ResourcePasteOrDropProvider.kind)
+		) {
 			const text = await dataTransfer.get(Mime.textPlain)?.asString();
 			if (token.isCancellationRequested) {
 				return;

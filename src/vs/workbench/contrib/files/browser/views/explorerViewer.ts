@@ -68,7 +68,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IExplorerFileContribution, explorerFileContribRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
-import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -1067,7 +1067,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private compressedDragOverElement: HTMLElement | undefined;
 	private compressedDropTargetDisposable: IDisposable = Disposable.None;
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private dropEnabled = false;
 
 	constructor(
