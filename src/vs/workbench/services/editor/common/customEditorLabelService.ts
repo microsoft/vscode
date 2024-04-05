@@ -13,6 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { MRUCache } from 'vs/base/common/map';
 
 interface ICustomEditorLabelObject {
 	readonly [key: string]: string;
@@ -38,6 +39,8 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 	private patterns: ICustomEditorLabelPattern[] = [];
 	private enabled = true;
+
+	private cache = new MRUCache<URI, string>(3);
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -115,7 +118,18 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		if (!this.enabled) {
 			return undefined;
 		}
-		return this.applyPatterns(resource);
+
+		const cached = this.cache.get(resource);
+		if (cached !== undefined) {
+			return cached;
+		}
+
+		const result = this.applyPatterns(resource);
+		if (result !== undefined) {
+			this.cache.set(resource, result);
+		}
+
+		return result;
 	}
 
 	private applyPatterns(resource: URI): string | undefined {
