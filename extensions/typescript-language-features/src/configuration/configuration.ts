@@ -265,6 +265,6 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	}
 
 	private readEnableRegionDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.enableRegionDiagnostics', true);
+		return configuration.get<boolean>('typescript.tsserver.enableRegionDiagnostics', false);
 	}
 }

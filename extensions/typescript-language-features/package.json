@@ -1307,7 +1307,7 @@
         },
         "typescript.tsserver.enableRegionDiagnostics": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%typescript.tsserver.enableRegionDiagnostics%",
           "scope": "window"
         }
