@@ -40,7 +40,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	private patterns: ICustomEditorLabelPattern[] = [];
 	private enabled = true;
 
-	private cache = new MRUCache<URI, string>(3);
+	private cache = new MRUCache<URI, string>(1000);
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
