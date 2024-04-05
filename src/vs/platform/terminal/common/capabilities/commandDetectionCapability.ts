@@ -35,7 +35,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _commitCommandFinished?: RunOnceScheduler;
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
-	private _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
+	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
 	get commands(): readonly TerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -514,7 +514,7 @@ const enum AdjustCommandStartMarkerConstants {
  */
 class WindowsPtyHeuristics extends Disposable {
 
-	private _onCursorMoveListener = this._register(new MutableDisposable());
+	private readonly _onCursorMoveListener = this._register(new MutableDisposable());
 
 	private _tryAdjustCommandStartMarkerScheduler?: RunOnceScheduler;
 	private _tryAdjustCommandStartMarkerScannedLineCount: number = 0;

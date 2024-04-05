@@ -13,7 +13,6 @@ import { ISpeechService, SPEECH_LANGUAGES, SPEECH_LANGUAGE_CONFIG } from 'vs/wor
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
-import { soundFeatureBase } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -95,6 +94,17 @@ export const accessibilityConfigurationNodeBase = Object.freeze<IConfigurationNo
 	type: 'object'
 });
 
+export const soundFeatureBase: IConfigurationPropertySchema = {
+	'type': 'string',
+	'enum': ['auto', 'on', 'off'],
+	'default': 'auto',
+	'enumDescriptions': [
+		localize('sound.enabled.auto', "Enable sound when a screen reader is attached."),
+		localize('sound.enabled.on', "Enable sound."),
+		localize('sound.enabled.off', "Disable sound.")
+	],
+	tags: ['accessibility'],
+};
 
 const signalFeatureBase: IConfigurationPropertySchema = {
 	'type': 'object',
@@ -128,6 +138,7 @@ const defaultNoAnnouncement: IConfigurationPropertySchema = {
 
 const configuration: IConfigurationNode = {
 	...accessibilityConfigurationNodeBase,
+	scope: ConfigurationScope.RESOURCE,
 	properties: {
 		[AccessibilityVerbositySettingId.Terminal]: {
 			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused.'),

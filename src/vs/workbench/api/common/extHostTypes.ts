@@ -4310,6 +4310,14 @@ export class ChatResponseReferencePart {
 	}
 }
 
+export class ChatResponseTextEditPart {
+	uri: vscode.Uri;
+	edits: vscode.TextEdit[];
+	constructor(uri: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) {
+		this.uri = uri;
+		this.edits = Array.isArray(edits) ? edits : [edits];
+	}
+}
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(

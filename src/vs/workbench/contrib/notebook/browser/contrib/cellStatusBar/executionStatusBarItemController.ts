@@ -105,7 +105,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	private _currentItemIds: string[] = [];
 
 	private _showedExecutingStateTime: number | undefined;
-	private _clearExecutingStateTimer = this._register(new MutableDisposable());
+	private readonly _clearExecutingStateTimer = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,

@@ -33,7 +33,7 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		return instance.getContribution<TerminalMouseWheelZoomContribution>(TerminalMouseWheelZoomContribution.ID);
 	}
 
-	private _listener = this._register(new MutableDisposable());
+	private readonly _listener = this._register(new MutableDisposable());
 
 	constructor(
 		instance: ITerminalInstance | IDetachedTerminalInstance,
