@@ -505,6 +505,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _initState: ChatModelInitState = ChatModelInitState.Created;
 	private _isInitializedDeferred = new DeferredPromise<void>();
 
+	// TODO DELETE
 	private _session: IChat | undefined;
 	get session(): IChat | undefined {
 		return this._session;

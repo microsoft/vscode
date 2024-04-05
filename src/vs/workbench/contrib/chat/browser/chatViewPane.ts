@@ -24,11 +24,12 @@ import { SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IChatViewPane } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatViewOptions {
+	// DELETE
 	readonly providerId: string;
 }
 
@@ -64,6 +65,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
@@ -71,27 +73,27 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + this.chatViewOptions.providerId, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
-		this._register(this.chatService.onDidRegisterProvider(({ providerId }) => {
-			if (providerId === this.chatViewOptions.providerId && !this._widget?.viewModel) {
-				const sessionId = this.getSessionId();
-				const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
+		this._register(this.chatAgentService.onDidChangeAgents(() => {
+			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+				if (!this._widget?.viewModel) {
+					const sessionId = this.getSessionId();
+					const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
 
-				// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
-				// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
-				// so it should fire onDidChangeViewWelcomeState.
-				try {
-					this._widget.setVisible(false);
-					this.updateModel(model);
-					this.didProviderRegistrationFail = false;
-					this.didUnregisterProvider = false;
-					this._onDidChangeViewWelcomeState.fire();
-				} finally {
-					this.widget.setVisible(true);
+					// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
+					// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
+					// so it should fire onDidChangeViewWelcomeState.
+					try {
+						this._widget.setVisible(false);
+						this.updateModel(model);
+						this.didProviderRegistrationFail = false;
+						this.didUnregisterProvider = false;
+						this._onDidChangeViewWelcomeState.fire();
+					} finally {
+						this.widget.setVisible(true);
+					}
 				}
-			}
-		}));
-		this._register(this.chatService.onDidUnregisterProvider(({ providerId }) => {
-			if (providerId === this.chatViewOptions.providerId) {
+			} else if (this._widget?.viewModel?.initState === ChatModelInitState.Initialized) {
+				// Model is initialized, and the default agent disappeared, so show welcome view
 				this.didUnregisterProvider = true;
 				this._onDidChangeViewWelcomeState.fire();
 			}

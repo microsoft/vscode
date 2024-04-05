@@ -3,57 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/voiceChatActions';
-import { Event } from 'vs/base/common/event';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { RunOnceScheduler, disposableTimeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
+import { Color } from 'vs/base/common/color';
+import { Event } from 'vs/base/common/event';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { assertIsDefined, isNumber } from 'vs/base/common/types';
+import 'vs/css!./media/voiceChatActions';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize, localize2 } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
-import { RunOnceScheduler, disposableTimeout } from 'vs/base/common/async';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Color } from 'vs/base/common/color';
-import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { assertIsDefined, isNumber } from 'vs/base/common/types';
-import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { TerminalChatController, TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
+import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
+import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalChatContextKeys, TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -882,7 +883,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IHostService private readonly hostService: IHostService,
-		@IChatService private readonly chatService: IChatService
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -897,7 +898,12 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 			this.handleKeywordActivation();
 		}));
 
-		this._register(this.chatService.onDidRegisterProvider(() => this.updateConfiguration()));
+		const onDidAddDefaultAgent = this._register(this.chatAgentService.onDidChangeAgents(() => {
+			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+				this.updateConfiguration();
+				onDidAddDefaultAgent.dispose();
+			}
+		}));
 
 		this._register(this.speechService.onDidStartSpeechToTextSession(() => this.handleKeywordActivation()));
 		this._register(this.speechService.onDidEndSpeechToTextSession(() => this.handleKeywordActivation()));
@@ -910,7 +916,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private updateConfiguration(): void {
-		if (!this.speechService.hasSpeechProvider || this.chatService.getProviderInfos().length === 0) {
+		if (!this.speechService.hasSpeechProvider || !this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
 			return; // these settings require a speech and chat provider
 		}
 

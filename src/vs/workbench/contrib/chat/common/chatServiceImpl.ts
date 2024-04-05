@@ -144,12 +144,6 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; providerId: string; reason: 'initializationFailed' | 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	private readonly _onDidRegisterProvider = this._register(new Emitter<{ providerId: string }>());
-	public readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
-
-	private readonly _onDidUnregisterProvider = this._register(new Emitter<{ providerId: string }>());
-	public readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
-
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
 
 	constructor(

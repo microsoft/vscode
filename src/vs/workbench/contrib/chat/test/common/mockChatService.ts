@@ -33,8 +33,8 @@ export class MockChatService implements IChatService {
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined {
 		throw new Error('Method not implemented.');
 	}
-	onDidRegisterProvider: Event<{ providerId: string }> = undefined!;
-	onDidUnregisterProvider: Event<{ providerId: string }> = undefined!;
+	onDidRegisterDefaultParticipant: Event<{ providerId: string }> = undefined!;
+	onDidUnregisterDefaultParticipant: Event<{ providerId: string }> = undefined!;
 	registerProvider(provider: IChatProvider): IDisposable {
 		throw new Error('Method not implemented.');
 	}

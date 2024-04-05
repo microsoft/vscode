@@ -279,10 +279,6 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	// TODO
-	onDidRegisterProvider: Event<{ providerId: string }>;
-	onDidUnregisterProvider: Event<{ providerId: string }>;
-
 	hasSessions(providerId: string): boolean;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
