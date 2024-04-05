@@ -11,13 +11,11 @@ export interface IChatProviderContribution {
 	when?: string;
 }
 
+export const CHAT_PROVIDER_ID = 'copilot'; // temp // Hardcoding the previous id of the Copilot Chat view to avoid losing persisted view locations, etc
+
 export const IChatContributionService = createDecorator<IChatContributionService>('IChatContributionService');
 export interface IChatContributionService {
 	_serviceBrand: undefined;
-
-	registeredProviders: IChatProviderContribution[];
-	registerChatProvider(provider: IChatProviderContribution): void;
-	deregisterChatProvider(providerId: string): void;
 	getViewIdForProvider(providerId: string): string;
 }
 

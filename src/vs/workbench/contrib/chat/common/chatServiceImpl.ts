@@ -8,13 +8,12 @@ import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, DisposableMap, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
@@ -22,11 +21,10 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser, IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
@@ -130,12 +128,10 @@ const maxPersistedSessions = 25;
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
-	private readonly _providers = new Map<string, IChatProvider>();
-
 	private readonly _sessionModels = this._register(new DisposableMap<string, ChatModel>());
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private _persistedSessions: ISerializableChatsData;
-	private readonly _hasProvider: IContextKey<boolean>;
+
 
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
 	public get transferredSessionData(): IChatTransferredSessionData | undefined {
@@ -162,15 +158,12 @@ export class ChatService extends Disposable implements IChatService {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
-
-		this._hasProvider = CONTEXT_PROVIDER_EXISTS.bindTo(this.contextKeyService);
 
 		const sessionData = storageService.get(serializedChatKey, StorageScope.WORKSPACE, '');
 		if (sessionData) {
@@ -352,22 +345,30 @@ export class ChatService extends Disposable implements IChatService {
 		return model;
 	}
 
-	private reinitializeModel(model: ChatModel): void {
-		this.trace('reinitializeModel', `Start reinit`);
-		this.initializeSession(model, CancellationToken.None);
-	}
+	// TODO, when default agent shows up?
+	// private reinitializeModel(model: ChatModel): void {
+	// 	this.trace('reinitializeModel', `Start reinit`);
+	// 	this.initializeSession(model, CancellationToken.None);
+	// }
 
 	private async initializeSession(model: ChatModel, token: CancellationToken): Promise<void> {
 		try {
 			this.trace('initializeSession', `Initialize session ${model.sessionId}`);
 			model.startInitialize();
-			await this.extensionService.activateByEvent(`onInteractiveSession:${model.providerId}`);
+
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			const defaultAgentData = this.chatAgentService.getDefaultAgent2(ChatAgentLocation.Panel);
+			if (!defaultAgentData) {
+				throw new ErrorNoTelemetry('No default agent contributed');
+			}
+
+			await this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
 
 			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			if (!defaultAgent) {
-				throw new ErrorNoTelemetry('No default agent');
+				// Should have been registered during activation above!
+				throw new ErrorNoTelemetry('No default agent registered');
 			}
-
 			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(token) ?? undefined;
 			const welcomeModel = welcomeMessage && this.instantiationService.createInstance(
 				ChatWelcomeMessageModel,
@@ -658,34 +659,6 @@ export class ChatService extends Disposable implements IChatService {
 		this._pendingRequests.get(sessionId)?.cancel();
 		this._pendingRequests.deleteAndDispose(sessionId);
 		this._onDidDisposeSession.fire({ sessionId, providerId: model.providerId, reason: 'cleared' });
-	}
-
-	registerProvider(provider: IChatProvider): IDisposable {
-		this.trace('registerProvider', `Adding new chat provider`);
-
-		if (this._providers.has(provider.id)) {
-			throw new Error(`Provider ${provider.id} already registered`);
-		}
-
-		this._providers.set(provider.id, provider);
-		this._hasProvider.set(true);
-		this._onDidRegisterProvider.fire({ providerId: provider.id });
-
-		Array.from(this._sessionModels.values())
-			.filter(model => model.providerId === provider.id)
-			// The provider may have been registered in the process of initializing this model. Only grab models that were deinitialized when the provider was unregistered
-			.filter(model => model.initState === ChatModelInitState.Created)
-			.forEach(model => this.reinitializeModel(model));
-
-		return toDisposable(() => {
-			this.trace('registerProvider', `Disposing chat provider`);
-			this._providers.delete(provider.id);
-			this._hasProvider.set(this._providers.size > 0);
-			Array.from(this._sessionModels.values())
-				.filter(model => model.providerId === provider.id)
-				.forEach(model => model.deinitialize());
-			this._onDidUnregisterProvider.fire({ providerId: provider.id });
-		});
 	}
 
 	public hasSessions(providerId: string): boolean {

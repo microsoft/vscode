@@ -27,7 +27,7 @@ import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInp
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS, CONTEXT_REQUEST, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { CHAT_PROVIDER_ID, IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -259,12 +259,9 @@ export function getHistoryAction(viewId: string, providerId: string) {
 				});
 			if (selection) {
 				const sessionId = selection.chat.sessionId;
-				const provider = chatContribService.registeredProviders[0]?.id;
-				if (provider) {
-					const viewId = chatContribService.getViewIdForProvider(provider);
-					const view = await viewsService.openView(viewId) as ChatViewPane;
-					view.loadSession(sessionId);
-				}
+				const viewId = chatContribService.getViewIdForProvider(CHAT_PROVIDER_ID);
+				const view = await viewsService.openView(viewId) as ChatViewPane;
+				view.loadSession(sessionId);
 			}
 		}
 	};

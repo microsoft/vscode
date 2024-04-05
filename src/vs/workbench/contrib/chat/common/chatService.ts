@@ -6,7 +6,6 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Command, Location, ProviderResult, TextEdit } from 'vs/editor/common/languages';
@@ -280,9 +279,10 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
+	// TODO
 	onDidRegisterProvider: Event<{ providerId: string }>;
 	onDidUnregisterProvider: Event<{ providerId: string }>;
-	registerProvider(provider: IChatProvider): IDisposable;
+
 	hasSessions(providerId: string): boolean;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
