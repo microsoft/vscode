@@ -9,9 +9,10 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import * as dom from 'vs/base/browser/dom';
 import type { IViewportRange } from '@xterm/xterm';
-import { IHoverTarget, IHoverService, IHoverAction } from 'vs/platform/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import type { IHoverAction, IHoverTarget } from 'vs/base/browser/ui/hover/hover';
 
 const $ = dom.$;
 

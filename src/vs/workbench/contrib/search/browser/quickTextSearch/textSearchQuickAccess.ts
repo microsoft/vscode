@@ -44,6 +44,7 @@ const DEFAULT_TEXT_QUERY_BUILDER_OPTIONS: ITextQueryBuilderOptions = {
 
 const MAX_FILES_SHOWN = 30;
 const MAX_RESULTS_PER_FILE = 10;
+const DEBOUNCE_DELAY = 75;
 
 interface ITextSearchQuickAccessItem extends IPickerQuickAccessItem {
 	match?: Match;
@@ -113,7 +114,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			}
 			picker.hide();
 		}));
-		disposables.add(picker.onDidChangeActive(() => {
+
+		const onDidChangeActive = () => {
 			const [item] = picker.activeItems;
 
 			if (item?.match) {
@@ -127,7 +129,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					});
 				});
 			}
-		}));
+		};
+
+		disposables.add(Event.debounce(picker.onDidChangeActive, (last, event) => event, DEBOUNCE_DELAY, true)(onDidChangeActive));
 		disposables.add(Event.once(picker.onWillHide)(({ reason }) => {
 			// Restore view state upon cancellation if we changed it
 			// but only when the picker was closed via explicit user
@@ -250,7 +254,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			picks.push({
 				label,
 				type: 'separator',
-				tooltip: description,
+				description,
 				buttons: [{
 					iconClass: ThemeIcon.asClassName(searchOpenInFileIcon),
 					tooltip: localize('QuickSearchOpenInFile', "Open File")

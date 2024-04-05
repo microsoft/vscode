@@ -188,7 +188,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 				]
 			};
 			const response = await client.interruptGetErr(() => client.execute('completionEntryDetails', args, requestToken.token));
-			if (response.type !== 'response' || !response.body || !response.body.length) {
+			if (response.type !== 'response' || !response.body?.length) {
 				return undefined;
 			}
 
@@ -766,7 +766,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 					dotAccessorContext = { range, text };
 				}
 			}
-			isIncomplete = !!response.body.isIncomplete || (response as any).metadata && (response as any).metadata.isIncomplete;
+			isIncomplete = !!response.body.isIncomplete || (response.metadata as any)?.isIncomplete;
 			entries = response.body.entries;
 			metadata = response.metadata;
 

@@ -66,7 +66,9 @@ const compilations = [
 	'extensions/typescript-language-features/tsconfig.json',
 	'extensions/vscode-api-tests/tsconfig.json',
 	'extensions/vscode-colorize-tests/tsconfig.json',
-	'extensions/vscode-test-resolver/tsconfig.json'
+	'extensions/vscode-test-resolver/tsconfig.json',
+
+	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
 ];
 
 const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;

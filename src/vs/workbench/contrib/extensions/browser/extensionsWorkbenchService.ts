@@ -1555,7 +1555,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			type GalleryServiceUpdatesCheckClassification = {
 				owner: 'sandy081';
 				comment: 'Report when a request is made to check for updates of extensions';
-				count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions to check update'; isMeasurement: true };
+				count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions to check update' };
 			};
 			type GalleryServiceUpdatesCheckEvent = {
 				count: number;
@@ -1942,7 +1942,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (installOptions.justification) {
 				const syncCheck = isUndefined(installOptions.isMachineScoped) && this.userDataSyncEnablementService.isEnabled() && this.userDataSyncEnablementService.isResourceEnabled(SyncResource.Extensions);
 				const buttons: IPromptButton<boolean>[] = [];
-				buttons.push({ label: isString(installOptions.justification) ? nls.localize({ key: 'installButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Install Extension") : nls.localize({ key: 'installButtonLabelWithAction', comment: ['&& denotes a mnemonic'] }, "&&Install Extension and {0}", installOptions.justification.action), run: () => true });
+				buttons.push({
+					label: isString(installOptions.justification) || !installOptions.justification.action
+						? nls.localize({ key: 'installButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Install Extension")
+						: nls.localize({ key: 'installButtonLabelWithAction', comment: ['&& denotes a mnemonic'] }, "&&Install Extension and {0}", installOptions.justification.action), run: () => true
+				});
 				if (!extension) {
 					buttons.push({ label: nls.localize('open', "Open Extension"), run: () => { this.open(extension!); return false; } });
 				}

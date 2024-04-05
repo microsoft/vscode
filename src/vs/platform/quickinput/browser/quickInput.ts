@@ -29,8 +29,9 @@ import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEve
 import { QuickInputBox } from './quickInputBox';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { QuickInputListFocus, QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
+import type { IHoverOptions } from 'vs/base/browser/ui/hover/hover';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -723,7 +724,15 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		return this.ui.keyMods;
 	}
 
-	set valueSelection(valueSelection: Readonly<[number, number]>) {
+	get valueSelection() {
+		const selection = this.ui.inputBox.getSelection();
+		if (!selection) {
+			return undefined;
+		}
+		return [selection.start, selection.end];
+	}
+
+	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();
@@ -1167,7 +1176,15 @@ export class InputBox extends QuickInput implements IInputBox {
 		this.update();
 	}
 
-	set valueSelection(valueSelection: Readonly<[number, number]>) {
+	get valueSelection() {
+		const selection = this.ui.inputBox.getSelection();
+		if (!selection) {
+			return undefined;
+		}
+		return [selection.start, selection.end];
+	}
+
+	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();

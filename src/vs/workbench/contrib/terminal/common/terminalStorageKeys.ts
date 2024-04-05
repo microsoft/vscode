@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const enum TerminalStorageKeys {
-	NeverMeasureRenderTime = 'terminal.integrated.neverMeasureRenderTime',
 	SuggestedRendererType = 'terminal.integrated.suggestedRendererType',
 	TabsListWidthHorizontal = 'tabs-list-width-horizontal',
 	TabsListWidthVertical = 'tabs-list-width-vertical',

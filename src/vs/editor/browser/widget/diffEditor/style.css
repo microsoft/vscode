@@ -354,7 +354,7 @@
 			left: 50%;
 			width: 1px;
 
-			border-left: 2px rgb(214, 215, 229) solid;
+			border-left: 2px var(--vscode-menu-border) solid;
 		}
 
 		.buttons {
@@ -374,8 +374,8 @@
 					.actions-container {
 						width: fit-content;
 						border-radius: 4px;
-						border: 1px rgba(214, 215, 229, 0.644) solid;
-						background: white;
+						border: 1px var(--vscode-menu-border) solid;
+						background: var(--vscode-editor-background);
 
 						.action-item {
 							&:hover {
@@ -389,8 +389,6 @@
 					}
 				}
 			}
-
-
 		}
 	}
 }

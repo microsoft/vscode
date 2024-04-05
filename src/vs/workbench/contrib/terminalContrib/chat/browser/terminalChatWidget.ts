@@ -10,10 +10,11 @@ import 'vs/css!./media/terminalChatWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 const enum Constants {
 	HorizontalMargin = 10
@@ -48,12 +49,25 @@ export class TerminalChatWidget extends Disposable {
 
 		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
+			ChatAgentLocation.Terminal,
 			{
 				inputMenuId: MENU_TERMINAL_CHAT_INPUT,
 				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,
-				statusMenuId: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+				statusMenuId: {
+					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+					options: {
+						buttonConfigProvider: action => {
+							if (action.id === TerminalChatCommandId.ViewInChat || action.id === TerminalChatCommandId.RunCommand || action.id === TerminalChatCommandId.RunFirstCommand) {
+								return { isSecondary: false };
+							} else {
+								return { isSecondary: true };
+							}
+						}
+					}
+				},
 				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-				telemetrySource: 'terminal-inline-chat'
+				telemetrySource: 'terminal-inline-chat',
+				rendererOptions: { editableCodeBlock: true }
 			}
 		);
 		this._register(Event.any(
@@ -69,13 +83,14 @@ export class TerminalChatWidget extends Disposable {
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
+		this.hide();
 	}
 
 	private _dimension?: Dimension;
 
 	private _relayout() {
 		if (this._dimension) {
-			this._doLayout(this._inlineChatWidget.getHeight());
+			this._doLayout(this._inlineChatWidget.contentHeight);
 		}
 	}
 
@@ -96,7 +111,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	reveal(): void {
-		this._doLayout(this._inlineChatWidget.getHeight());
+		this._doLayout(this._inlineChatWidget.contentHeight);
 		this._container.classList.remove('hide');
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
@@ -114,7 +129,7 @@ export class TerminalChatWidget extends Disposable {
 		const cursorY = (this._instance.xterm?.raw.buffer.active.cursorY ?? 0) + 1;
 		const top = topPadding + cursorY * cellHeight;
 		this._container.style.top = `${top}px`;
-		const widgetHeight = this._inlineChatWidget.getHeight();
+		const widgetHeight = this._inlineChatWidget.contentHeight;
 		if (!terminalWrapperHeight) {
 			return;
 		}
@@ -134,6 +149,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.updateFollowUps(undefined);
 		this._inlineChatWidget.updateProgress(false);
 		this._inlineChatWidget.updateToolbar(false);
+		this._inlineChatWidget.reset();
 		this._focusedContextKey.set(false);
 		this._visibleContextKey.set(false);
 		this._inlineChatWidget.value = '';
@@ -142,17 +158,15 @@ export class TerminalChatWidget extends Disposable {
 	focus(): void {
 		this._inlineChatWidget.focus();
 	}
-	focusResponse(): void {
-		const responseElement = this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseEditor) || this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseMessage);
-		if (responseElement instanceof HTMLElement) {
-			responseElement.focus();
-		}
-	}
 	hasFocus(): boolean {
 		return this._inlineChatWidget.hasFocus();
 	}
 	input(): string {
 		return this._inlineChatWidget.value;
+	}
+	addToHistory(input: string): void {
+		this._inlineChatWidget.addToHistory(input);
+		this._inlineChatWidget.saveState();
 	}
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
@@ -168,9 +182,4 @@ export class TerminalChatWidget extends Disposable {
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;
 	}
-}
-
-const enum ChatElementSelectors {
-	ResponseEditor = '.chatMessageContent textarea',
-	ResponseMessage = '.chatMessageContent',
 }

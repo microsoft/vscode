@@ -81,8 +81,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -159,7 +159,6 @@ export class SearchView extends ViewPane {
 
 	private treeViewKey: IContextKey<boolean>;
 	private aiResultsVisibleKey: IContextKey<boolean>;
-	private hasAISettingEnabledKey: IContextKey<boolean>;
 
 	private _visibleMatches: number = 0;
 
@@ -194,12 +193,13 @@ export class SearchView extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
 	) {
 
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.container = dom.$('.search-view');
 
@@ -221,8 +221,13 @@ export class SearchView extends ViewPane {
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
 		this.aiResultsVisibleKey = Constants.SearchContext.AIResultsVisibleKey.bindTo(this.contextKeyService);
-		this.hasAISettingEnabledKey = Constants.SearchContext.hasAISettingEnabled.bindTo(this.contextKeyService);
-		this.refreshHasAISetting();
+
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			const keys = Constants.SearchContext.hasAIResultProvider.keys();
+			if (e.affectsSome(new Set(keys))) {
+				this.refreshHasAISetting();
+			}
+		}));
 
 		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
@@ -235,7 +240,7 @@ export class SearchView extends ViewPane {
 		this.instantiationService = this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService]));
 
-		this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.sortOrder')) {
 				if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 					// If changing away from modified, remove all fileStats
@@ -246,7 +251,7 @@ export class SearchView extends ViewPane {
 			} else if (e.affectsConfiguration('search.aiResults')) {
 				this.refreshHasAISetting();
 			}
-		});
+		}));
 
 		this.viewModel = this._register(this.searchViewModelWorkbenchService.searchModel);
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -327,6 +332,8 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
+		// in each case, we want to cancel our current AI search because it is no longer valid
+		this.model.cancelAISearch();
 		if (visible) {
 			await this.model.addAIResults();
 		} else {
@@ -357,9 +364,9 @@ export class SearchView extends ViewPane {
 	}
 
 	private refreshHasAISetting() {
-		const val = this.configurationService.getValue<boolean>('search.aiResults');
-		if (val) {
-			this.hasAISettingEnabledKey.set(!!val);
+		const val = this.shouldShowAIButton();
+		if (val && this.searchWidget.searchInput) {
+			this.searchWidget.searchInput.sparkleVisible = val;
 		}
 	}
 	private onDidChangeWorkbenchState(): void {
@@ -429,6 +436,7 @@ export class SearchView extends ViewPane {
 
 		this.searchWidgetsContainerElement = dom.append(this.container, $('.search-widgets-container'));
 		this.createSearchWidget(this.searchWidgetsContainerElement);
+		this.refreshHasAISetting();
 
 		const history = this.searchHistoryService.load();
 		const filePatterns = this.viewletState['query.filePatterns'] || '';
@@ -447,7 +455,7 @@ export class SearchView extends ViewPane {
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
 			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
-		this._register(setupCustomHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
+		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -611,7 +619,8 @@ export class SearchView extends ViewPane {
 				isInNotebookMarkdownPreview,
 				isInNotebookCellInput,
 				isInNotebookCellOutput,
-			}
+			},
+			initialAIButtonVisibility: this.shouldShowAIButton()
 		}));
 
 		if (!this.searchWidget.searchInput || !this.searchWidget.replaceInput) {
@@ -625,7 +634,14 @@ export class SearchView extends ViewPane {
 
 		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
-		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.triggerQueryChange()));
+		this._register(this.searchWidget.searchInput.onDidOptionChange(() => {
+			if (this.searchWidget.searchInput && this.searchWidget.searchInput.isAIEnabled !== this.aiResultsVisible) {
+				this.setAIResultsVisible(this.searchWidget.searchInput.isAIEnabled);
+			} else {
+				this.triggerQueryChange();
+			}
+		}));
+
 		this._register(this.searchWidget.getNotebookFilters().onDidChange(() => this.triggerQueryChange()));
 
 		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput ? (this.searchWidget.searchInput.getValue().length > 0) : false);
@@ -664,7 +680,10 @@ export class SearchView extends ViewPane {
 		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
 	}
 
-
+	private shouldShowAIButton(): boolean {
+		const hasProvider = Constants.SearchContext.hasAIResultProvider.getValue(this.contextKeyService);
+		return !!(this.configurationService.getValue<boolean>('search.aiResults') && hasProvider);
+	}
 	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
 		if (event && (event.affectsConfiguration('search.decorations.colors') || event.affectsConfiguration('search.decorations.badges'))) {
 			this.refreshTree();
@@ -1619,6 +1638,7 @@ export class SearchView extends ViewPane {
 		});
 
 		this.viewModel.cancelSearch(true);
+		this.viewModel.cancelAISearch(true);
 
 		this.currentSearchQ = this.currentSearchQ
 			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType))
@@ -1704,20 +1724,20 @@ export class SearchView extends ViewPane {
 			if (!completed) {
 				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
 					nls.localize('rerunSearch.message', "Search again"),
-					() => this.triggerQueryChange({ preserveFocus: false })));
+					() => this.triggerQueryChange({ preserveFocus: false }), this.hoverService));
 				dom.append(messageEl, searchAgainButton.element);
 			} else if (hasIncludes || hasExcludes) {
-				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
+				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this), this.hoverService));
 				dom.append(messageEl, searchAgainButton.element);
 			} else {
-				const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
+				const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this), this.hoverService));
 				dom.append(messageEl, openSettingsButton.element);
 			}
 
 			if (completed) {
 				dom.append(messageEl, $('span', undefined, ' - '));
 
-				const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
+				const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this), this.hoverService));
 				dom.append(messageEl, learnMoreButton.element);
 			}
 
@@ -1856,13 +1876,13 @@ export class SearchView extends ViewPane {
 		if (fileCount > 0) {
 			if (disregardExcludesAndIgnores) {
 				const excludesDisabledMessage = ' - ' + nls.localize('useIgnoresAndExcludesDisabled', "exclude settings and ignore files are disabled") + ' ';
-				const enableExcludesButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files")));
+				const enableExcludesButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), this.hoverService, nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files")));
 				dom.append(messageEl, $('span', undefined, excludesDisabledMessage, '(', enableExcludesButton.element, ')'));
 			}
 
 			if (onlyOpenEditors) {
 				const searchingInOpenMessage = ' - ' + nls.localize('onlyOpenEditors', "searching only in open files") + ' ';
-				const disableOpenEditorsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openEditors.disable', "disable"), this.onDisableSearchInOpenEditors.bind(this), nls.localize('disableOpenEditors', "Search in entire workspace")));
+				const disableOpenEditorsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openEditors.disable', "disable"), this.onDisableSearchInOpenEditors.bind(this), this.hoverService, nls.localize('disableOpenEditors', "Search in entire workspace")));
 				dom.append(messageEl, $('span', undefined, searchingInOpenMessage, '(', disableOpenEditorsButton.element, ')'));
 			}
 
@@ -1873,7 +1893,7 @@ export class SearchView extends ViewPane {
 				this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.OpenInEditorCommandId));
 			const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
 				nls.localize('openInEditor.message', "Open in editor"),
-				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()),
+				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()), this.hoverService,
 				openInEditorTooltip));
 			dom.append(messageEl, openInEditorButton.element);
 
@@ -1911,7 +1931,7 @@ export class SearchView extends ViewPane {
 			nls.localize('openFolder', "Open Folder"),
 			() => {
 				this.commandService.executeCommand(env.isMacintosh && env.isNative ? OpenFileFolderAction.ID : OpenFolderAction.ID).catch(err => errors.onUnexpectedError(err));
-			}));
+			}, this.hoverService));
 		dom.append(textEl, openFolderButton.element);
 	}
 
@@ -2201,10 +2221,10 @@ export class SearchView extends ViewPane {
 class SearchLinkButton extends Disposable {
 	public readonly element: HTMLElement;
 
-	constructor(label: string, handler: (e: dom.EventLike) => unknown, tooltip?: string) {
+	constructor(label: string, handler: (e: dom.EventLike) => unknown, hoverService: IHoverService, tooltip?: string) {
 		super();
 		this.element = $('a.pointer', { tabindex: 0 }, label);
-		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
+		this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
 		this.addEventHandlers(handler);
 	}
 
