@@ -140,16 +140,24 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 		const model = this.editor.getModel();
 		if (model) {
 			// Remove all section headers that should be in comments and are not in comments
+			const curLanguageId = model.getLanguageId();
 			sectionHeaders = sectionHeaders.filter((sectionHeader) => {
 				if (!sectionHeader.shouldBeInComments) {
 					return true;
 				}
 				const validRange = model.validateRange(sectionHeader.range);
-				const tokens = model.tokenization.getLineTokens(validRange.startLineNumber);
+				if (validRange.isEmpty()) {
+					return false;
+				}
+				const startLineNumber = validRange.startLineNumber;
+				if (!model.tokenization.hasAccurateTokensForLine(startLineNumber)) {
+					model.tokenization.forceTokenization(startLineNumber);
+				}
+				const tokens = model.tokenization.getLineTokens(startLineNumber);
 				const idx = tokens.findTokenIndexAtOffset(validRange.startColumn - 1);
 				const tokenType = tokens.getStandardTokenType(idx);
 				const languageId = tokens.getLanguageId(idx);
-				return (languageId === model.getLanguageId() && tokenType === StandardTokenType.Comment);
+				return (languageId === curLanguageId && tokenType === StandardTokenType.Comment);
 			});
 		}
 
