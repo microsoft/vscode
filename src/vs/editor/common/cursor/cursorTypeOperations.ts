@@ -218,7 +218,7 @@ export class TypeOperations {
 
 		const position = selection.getStartPosition();
 		if (config.insertSpaces) {
-			// presumably because you could line wrap enabled, and the line wraps below the viewport, hence the columns would not be visible
+			// presumably because you could enable line wrap, and the line wraps below the viewport, hence the columns would not be visible
 			const visibleColumnFromColumn = config.visibleColumnFromColumn(model, position);
 			const indentSize = config.indentSize;
 			const spacesCnt = indentSize - (visibleColumnFromColumn % indentSize);

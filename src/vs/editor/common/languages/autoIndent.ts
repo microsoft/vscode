@@ -142,6 +142,8 @@ export function getInheritIndentForLine(
 
 	// Take the line content for the last preceding un ignored line
 	const precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
+	console.log('precedingUnIgnoredLineContent : ', precedingUnIgnoredLineContent);
+
 	// Suppose that after this line, the indent should increase overall, or the indent for the next (which is our current line) should increase
 	if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
 		// Here we take all the whitespace characters at the beginning of the line. The whitespace characters include the space character and the tab character.
@@ -414,6 +416,7 @@ export function getIndentForEnter(
 		afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 	} else {
 		// Take the token scope around the end position
+		// Fetching tokens here, could be relevant for the feature
 		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
 		afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 	}
