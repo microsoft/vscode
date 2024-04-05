@@ -18,7 +18,7 @@ export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 		super({
 			id: 'editor.action.showOrFocusStandaloneColorPicker',
 			title: {
-				...localize2('showOrFocusStandaloneColorPicker', "Show or Focus Standalone Color Picker"),
+				...localize2('showOrFocusStandaloneColorPicker', "Show or focus a standalone color picker which uses the default color provider. It displays hex/rgb/hsl colors."),
 				mnemonicTitle: localize({ key: 'mishowOrFocusStandaloneColorPicker', comment: ['&& denotes a mnemonic'] }, "&&Show or Focus Standalone Color Picker"),
 			},
 			precondition: undefined,
@@ -47,6 +47,9 @@ class HideStandaloneColorPicker extends EditorAction {
 			kbOpts: {
 				primary: KeyCode.Escape,
 				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: localize2('hideColorPickerDescription', "Hide the standalone color picker."),
 			}
 		});
 	}
@@ -70,6 +73,9 @@ class InsertColorWithStandaloneColorPicker extends EditorAction {
 			kbOpts: {
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: localize2('insertColorWithStandaloneColorPickerDescription', "Insert hex/rgb/hsl colors with the focused standalone color picker."),
 			}
 		});
 	}
