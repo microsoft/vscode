@@ -155,7 +155,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.filter = new ReplFilter();
 		this.filter.filterQuery = filterText;
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
-		this.replOptions = this._register(this.instantiationService.createInstance(ReplOptions, this.id, () => this.getBackgroundColor()));
+		this.replOptions = this._register(this.instantiationService.createInstance(ReplOptions, this.id, () => this.getLocationBasedColors().background));
 		this._register(this.replOptions.onDidChange(() => this.onDidStyleChange()));
 
 		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
@@ -615,6 +615,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+
 		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
@@ -640,9 +641,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
 				supportDynamicHeights: wordWrap,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				}
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			});
 
 		this._register(tree.onDidChangeContentHeight(() => {

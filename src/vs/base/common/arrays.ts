@@ -13,7 +13,7 @@ import { findFirstIdxMonotonousOrArrLen } from './arraysFind';
  * @param array The array.
  * @param n Which element from the end (default is zero).
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T {
+export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
 	return array[array.length - (1 + n)];
 }
 

@@ -527,6 +527,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
 	}
 
+	get hasRequests(): boolean {
+		return this._requests.length > 0;
+	}
+
 	private _creationDate: number;
 	get creationDate(): number {
 		return this._creationDate;
