@@ -12,6 +12,7 @@ import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/languages/sup
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface IVirtualModel {
 	tokenization: {
@@ -116,7 +117,10 @@ export function getInheritIndentForLine(
 		};
 	}
 
-	const precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
+	let precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
+	const lineTokens = model.tokenization.getLineTokens(precedingUnIgnoredLine);
+	precedingUnIgnoredLineContent = stripLineOfCommentsStringsAndRegexes(precedingUnIgnoredLineContent, lineTokens);
+
 	if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
 		return {
 			indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
@@ -173,7 +177,10 @@ export function getInheritIndentForLine(
 		} else {
 			// search from precedingUnIgnoredLine until we find one whose indent is not temporary
 			for (let i = precedingUnIgnoredLine; i > 0; i--) {
-				const lineContent = model.getLineContent(i);
+				let lineContent = model.getLineContent(i);
+				const lineTokens = model.tokenization.getLineTokens(i);
+				lineContent = stripLineOfCommentsStringsAndRegexes(lineContent, lineTokens);
+
 				if (indentRulesSupport.shouldIncrease(lineContent)) {
 					return {
 						indentation: strings.getLeadingWhitespace(lineContent),
@@ -221,6 +228,7 @@ export function getGoodIndentForLine(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
+	console.log('getGoodIndentForLine : ', getGoodIndentForLine);
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -305,6 +313,7 @@ export function getIndentForEnter(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): { beforeEnter: string; afterEnter: string } | null {
+	console.log('getIndentForEnter');
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -332,6 +341,7 @@ export function getIndentForEnter(
 	}
 
 	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId).indentRulesSupport;
+	console.log('indentRulesSupport : ', indentRulesSupport);
 	if (!indentRulesSupport) {
 		return null;
 	}
@@ -362,6 +372,9 @@ export function getIndentForEnter(
 
 	const currentLineIndent = strings.getLeadingWhitespace(lineTokens.getLineContent());
 	const afterEnterAction = getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService);
+	console.log('currentLineIndent : ', currentLineIndent);
+	console.log('afterEnterAction : ', afterEnterAction);
+
 	if (!afterEnterAction) {
 		const beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
 		return {
@@ -380,6 +393,7 @@ export function getIndentForEnter(
 		afterEnterIndent = indentConverter.unshiftIndent(afterEnterIndent);
 	}
 
+	console.log('afterEnterIndent : ', afterEnterIndent);
 	return {
 		beforeEnter: embeddedLanguage ? currentLineIndent : beforeEnterIndent,
 		afterEnter: afterEnterIndent
@@ -398,6 +412,7 @@ export function getIndentActionForType(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
+	console.log('getIndentActionForType');
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -459,4 +474,32 @@ export function getIndentMetadata(
 		return null;
 	}
 	return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
+}
+
+export function stripLineOfCommentsStringsAndRegexes(line: string, tokens: LineTokens): string {
+	let res = line;
+	let offset = 0;
+	const numberOfTokens = tokens.getCount();
+
+	for (let i = 0; i < numberOfTokens; i++) {
+		console.log('lineTokens.getStartOffset(i) : ', tokens.getStartOffset(i));
+		console.log('lineTokens.getEndOffset(i) : ', tokens.getEndOffset(i));
+		const standardTokenType = tokens.getStandardTokenType(i);
+		console.log('standardTokenType : ', standardTokenType);
+
+		if (standardTokenType !== StandardTokenType.Other) {
+
+			// we have either a comment, a string or a regex
+
+			const startOffset = tokens.getStartOffset(i);
+			const endOffset = tokens.getEndOffset(i);
+			res = res.substr(0, offset + startOffset + 1) + res.substr(offset + endOffset - 1);
+			console.log('res : ', res);
+
+			// need to update offset
+			offset += startOffset - endOffset + 2;
+			console.log('offset : ', offset);
+		}
+	}
+	return res;
 }
