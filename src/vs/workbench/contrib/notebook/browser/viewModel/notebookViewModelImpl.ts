@@ -102,7 +102,7 @@ export interface NotebookViewModelOptions {
 }
 
 export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate, INotebookViewModel {
-	private _localStore: DisposableStore = this._register(new DisposableStore());
+	private readonly _localStore = this._register(new DisposableStore());
 	private _handleToViewCellMapping = new Map<number, CellViewModel>();
 	get options(): NotebookViewModelOptions { return this._options; }
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());

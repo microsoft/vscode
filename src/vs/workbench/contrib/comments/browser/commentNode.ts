@@ -51,6 +51,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MarshalledCommentThread } from 'vs/workbench/common/comments';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -117,6 +118,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IHoverService private hoverService: IHoverService,
 		@IAccessibilityService private accessibilityService: IAccessibilityService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
@@ -250,7 +252,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._timestampWidget?.dispose();
 		} else {
 			if (!this._timestampWidget) {
-				this._timestampWidget = new TimestampWidget(this.configurationService, this._timestamp, timestamp);
+				this._timestampWidget = new TimestampWidget(this.configurationService, this.hoverService, this._timestamp, timestamp);
 				this._register(this._timestampWidget);
 			} else {
 				this._timestampWidget.setTimestamp(timestamp);

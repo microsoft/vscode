@@ -489,14 +489,6 @@
     "@types/js-beautify" "*"
     "@types/node" "*"
 
-"@types/gulp-postcss@^8.0.6":
-  version "8.0.6"
-  resolved "https://registry.yarnpkg.com/@types/gulp-postcss/-/gulp-postcss-8.0.6.tgz#d314c785876c8a1779154ba1d152125082ecde0f"
-  integrity sha512-mjGEmTvurqRHFeJQnrgtMC9GtKNkI2+56n92zIzff5UFr2jUfilw1elKRxS7bK0FYRvuEcnMX9JH0AUpCxBrpg==
-  dependencies:
-    "@types/node" "*"
-    "@types/vinyl" "*"
-
 "@types/gulp-rename@^0.0.33":
   version "0.0.33"
   resolved "https://registry.yarnpkg.com/@types/gulp-rename/-/gulp-rename-0.0.33.tgz#38d146e97786569f74f5391a1b1f9b5198674b6c"

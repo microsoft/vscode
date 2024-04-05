@@ -190,7 +190,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		// explanation: if (, [, {, is followed by a forward slash then assume we are in a regex pattern, and do not indent
 
 		// increaseIndentPattern: /^((?!\/\/).)*(\{([^}"'`]*|(\t|[ ])*\/\/.*)|\([^)"'`]*|\[[^\]"'`]*)$/ -> /^((?!\/\/).)*(\{([^}"'`/]*|(\t|[ ])*\/\/.*)|\([^)"'`/]*|\[[^\]"'`/]*)$/
-		// -> Final current increase indent pattern
+		// -> Final current increase indent pattern at of writing
 
 		const fileContents = [
 			'const r = /{/;',
@@ -214,7 +214,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		// fix: https://github.com/microsoft/vscode/commit/7910b3d7bab8a721aae98dc05af0b5e1ea9d9782
 
 		// decreaseIndentPattern: /^(.*\*\/)?\s*[\}\]\)].*$/ -> /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/
-		// -> Final current decrease indent pattern
+		// -> Final current decrease indent pattern at the time of writing
 
 		// explanation: Positive lookahead: (?= «pattern») matches if pattern matches what comes after the current location in the input string.
 		// Negative lookahead: (?! «pattern») matches if pattern does not match what comes after the current location in the input string
@@ -282,10 +282,8 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		// related: https://github.com/microsoft/vscode/issues/43244
 		// explanation: When you have an arrow function, you don't have { or }, but you would expect indentation to still be done in that way
 
-		/*
-		Notes: Currently the reindent edit operations does not call the onEnter rules
-		The reindent should also call the onEnter rules to get the correct indentation
-		*/
+		// TODO: requires exploring indent/outdent pairs instead
+
 		const fileContents = [
 			'const add1 = (n) =>',
 			'	n + 1;',
@@ -304,6 +302,22 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'/*',
 			' * This is a comment.',
 			' */',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 0);
+	});
+
+	test.skip('Issue 43244: incorrect indentation when signature of function call spans several lines', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/43244
+
+		const fileContents = [
+			'function callSomeOtherFunction(one: number, two: number) { }',
+			'function someFunction() {',
+			'    callSomeOtherFunction(4,',
+			'        5)',
+			'}',
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());

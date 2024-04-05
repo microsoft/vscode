@@ -28,8 +28,9 @@ import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpres
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -124,7 +125,10 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 		return ReplEvaluationResultsRenderer.ID;
 	}
 
-	constructor(private readonly linkDetector: LinkDetector) { }
+	constructor(
+		private readonly linkDetector: LinkDetector,
+		private readonly hoverService: IHoverService
+	) { }
 
 	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
 		const output = dom.append(container, $('.evaluation-result.expression'));
@@ -136,10 +140,9 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 	renderElement(element: ITreeNode<ReplEvaluationResult | Variable, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
 		const expression = element.element;
 		renderExpressionValue(expression, templateData.value, {
-			showHover: false,
 			colorize: true,
 			linkDetector: this.linkDetector
-		});
+		}, this.hoverService);
 	}
 
 	disposeTemplate(templateData: IReplEvaluationResultTemplateData): void {
@@ -153,6 +156,7 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 	constructor(
 		private readonly linkDetector: LinkDetector,
 		@IEditorService private readonly editorService: IEditorService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService private readonly themeService: IThemeService
 	) { }
@@ -201,7 +205,7 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${basename(element.sourceData.source.name)}:${element.sourceData.lineNumber}` : '';
-		templateData.toDispose.push(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.source, element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : ''));
+		templateData.toDispose.push(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.source, element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : ''));
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
@@ -235,8 +239,10 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 		private readonly linkDetector: LinkDetector,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(debugService, contextViewService);
+		super(debugService, contextViewService, hoverService);
 	}
 
 	public renderElement(node: ITreeNode<IExpression | ReplVariableElement, FuzzyScore>, _index: number, data: IExpressionTemplateData): void {
@@ -248,10 +254,10 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 		const isReplVariable = expression instanceof ReplVariableElement;
 		if (isReplVariable || !expression.name) {
 			data.label.set('');
-			renderExpressionValue(isReplVariable ? expression.expression : expression, data.value, { showHover: false, colorize: true, linkDetector: this.linkDetector });
+			renderExpressionValue(isReplVariable ? expression.expression : expression, data.value, { colorize: true, linkDetector: this.linkDetector }, this.hoverService);
 			data.expression.classList.remove('nested-variable');
 		} else {
-			renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+			renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector);
 			data.expression.classList.toggle('nested-variable', isNestedVariable(expression));
 		}
 	}
@@ -264,7 +270,10 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, FuzzyScore, IRawObjectReplTemplateData> {
 	static readonly ID = 'rawObject';
 
-	constructor(private readonly linkDetector: LinkDetector) { }
+	constructor(
+		private readonly linkDetector: LinkDetector,
+		private readonly hoverService: IHoverService
+	) { }
 
 	get templateId(): string {
 		return ReplRawObjectsRenderer.ID;
@@ -293,9 +302,8 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		// value
 		renderExpressionValue(element.value, templateData.value, {
-			showHover: false,
 			linkDetector: this.linkDetector
-		});
+		}, this.hoverService);
 	}
 
 	disposeTemplate(templateData: IRawObjectReplTemplateData): void {

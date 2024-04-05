@@ -306,7 +306,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		type ErrorClassification = {
 			owner: 'sandy081';
 			comment: 'Information about the error that occurred while scanning';
-			code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
+			code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code' };
 		};
 		const error = new ExtensionsProfileScanningError(`Invalid extensions content in ${file.toString()}`, ExtensionsProfileScanningErrorCode.ERROR_INVALID_CONTENT);
 		this.telemetryService.publicLogError2<{ code: string }, ErrorClassification>('extensionsProfileScanningError', { code: error.code });

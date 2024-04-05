@@ -1166,9 +1166,10 @@ export class Repository implements Disposable {
 		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, async () => {
 			await this.repository.stage(path, contents);
+
+			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
 		});
-		this._onDidChangeOriginalResource.fire(resource);
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
@@ -1596,21 +1597,6 @@ export class Repository implements Disposable {
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
 		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
-	}
-
-	async getDiff(): Promise<string[]> {
-		const diff: string[] = [];
-		if (this.indexGroup.resourceStates.length !== 0) {
-			for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-				diff.push(await this.diffIndexWithHEAD(file));
-			}
-		} else {
-			for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-				diff.push(await this.diffWithHEAD(file));
-			}
-		}
-
-		return diff;
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {

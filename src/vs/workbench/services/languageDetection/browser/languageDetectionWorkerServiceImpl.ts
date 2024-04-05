@@ -344,7 +344,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		type LanguageDetectionPerfClassification = {
 			owner: 'TylerLeonhardt';
 			comment: 'Helps understand how effective language detection and how long it takes to run';
-			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time it took to run language detection' };
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took to run language detection' };
 			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language that was detected' };
 		};
 
