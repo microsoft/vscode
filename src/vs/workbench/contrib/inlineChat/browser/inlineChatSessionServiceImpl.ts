@@ -444,7 +444,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 						inlineResponse = this._instaService.createInstance(
 							ReplyResponse,
 							raw,
-							new MarkdownString(),
+							markdownContent,
 							session.textModelN.uri,
 							modelAltVersionIdNow,
 							[],
