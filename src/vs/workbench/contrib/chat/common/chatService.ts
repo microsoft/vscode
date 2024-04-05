@@ -289,7 +289,6 @@ export interface IChatService {
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
-	getSessionId(sessionProviderId: number): string | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined;
 

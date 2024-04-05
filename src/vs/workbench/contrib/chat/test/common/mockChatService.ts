@@ -27,9 +27,6 @@ export class MockChatService implements IChatService {
 	getSession(sessionId: string): IChatModel | undefined {
 		return {} as IChatModel;
 	}
-	getSessionId(sessionProviderId: number): string | undefined {
-		throw new Error('Method not implemented.');
-	}
 	getOrRestoreSession(sessionId: string): IChatModel | undefined {
 		throw new Error('Method not implemented.');
 	}

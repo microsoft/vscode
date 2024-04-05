@@ -44,7 +44,6 @@ interface IChatTransfer {
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
 type ChatProviderInvokedEvent = {
-	providerId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number | undefined;
 	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled' | 'filtered';
@@ -55,7 +54,6 @@ type ChatProviderInvokedEvent = {
 };
 
 type ChatProviderInvokedClassification = {
-	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that was invoked.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time in milliseconds from invoking the provider to getting the first data.' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the ChatProvider resulted in an error.' };
@@ -408,10 +406,6 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.get(sessionId);
 	}
 
-	getSessionId(sessionProviderId: number): string | undefined {
-		return Iterable.find(this._sessionModels.values(), model => model.session?.id === sessionProviderId)?.sessionId;
-	}
-
 	getOrRestoreSession(sessionId: string): ChatModel | undefined {
 		this.trace('getOrRestoreSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
@@ -448,10 +442,6 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		await model.waitForInitialization();
-		const provider = this._providers.get(model.providerId);
-		if (!provider) {
-			throw new Error(`Unknown provider: ${model.providerId}`);
-		}
 
 		if (this._pendingRequests.has(sessionId)) {
 			this.trace('sendRequest', `Session ${sessionId} already has a pending request`);
@@ -466,7 +456,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
-			responseCompletePromise: this._sendRequestAsync(model, sessionId, provider, parsedRequest, implicitVariablesEnabled ?? false, defaultAgent, location),
+			responseCompletePromise: this._sendRequestAsync(model, sessionId, parsedRequest, implicitVariablesEnabled ?? false, defaultAgent, location),
 			agent,
 			slashCommand: agentSlashCommandPart?.command,
 		};
@@ -480,7 +470,7 @@ export class ChatService extends Disposable implements IChatService {
 		return newTokenSource.token;
 	}
 
-	private async _sendRequestAsync(model: ChatModel, sessionId: string, provider: IChatProvider, parsedRequest: IParsedChatRequest, implicitVariablesEnabled: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation): Promise<void> {
+	private async _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, implicitVariablesEnabled: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation): Promise<void> {
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -513,7 +503,6 @@ export class ChatService extends Disposable implements IChatService {
 			const listener = token.onCancellationRequested(() => {
 				this.trace('sendRequest', `Request for session ${model.sessionId} was cancelled`);
 				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
-					providerId: provider.id,
 					timeToFirstProgress: undefined,
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
 					totalTime: stopWatch.elapsed(),
@@ -600,7 +589,6 @@ export class ChatService extends Disposable implements IChatService {
 							rawResult.errorDetails ? 'error' :
 								'success';
 					this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
-						providerId: provider.id,
 						timeToFirstProgress: rawResult.timings?.firstProgress,
 						totalTime: rawResult.timings?.totalElapsed,
 						result,
@@ -638,16 +626,8 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		await model.waitForInitialization();
-		const provider = this._providers.get(model.providerId);
-		if (!provider) {
-			throw new Error(`Unknown provider: ${model.providerId}`);
-		}
 
 		model.removeRequest(requestId);
-	}
-
-	getProviders(): string[] {
-		return Array.from(this._providers.keys());
 	}
 
 	async addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): Promise<void> {
