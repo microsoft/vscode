@@ -369,7 +369,7 @@ class CommentingRangeDecorator {
 }
 
 export function revealCommentThread(commentService: ICommentService, editorService: IEditorService, uriIdentityService: IUriIdentityService,
-	commentThread: languages.CommentThread<IRange>, comment: languages.Comment, focusReply?: boolean, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
+	commentThread: languages.CommentThread<IRange>, comment: languages.Comment | undefined, focusReply?: boolean, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
 	if (!commentThread.resource) {
 		return;
 	}
@@ -386,7 +386,7 @@ export function revealCommentThread(commentService: ICommentService, editorServi
 	const currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
 		: (activeEditor ? [activeEditor] : []);
 	const threadToReveal = commentThread.threadId;
-	const commentToReveal = comment.uniqueIdInThread;
+	const commentToReveal = comment?.uniqueIdInThread;
 	const resource = URI.parse(commentThread.resource);
 
 	for (const editor of currentActiveResources) {
@@ -683,7 +683,7 @@ export class CommentController implements IEditorContribution {
 		return editor.getContribution<CommentController>(ID);
 	}
 
-	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean, focus: CommentWidgetFocus): void {
+	public revealCommentThread(threadId: string, commentUniqueId: number | undefined, fetchOnceIfNotExist: boolean, focus: CommentWidgetFocus): void {
 		const commentThreadWidget = this._commentWidgets.filter(widget => widget.commentThread.threadId === threadId);
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal(commentUniqueId, focus);

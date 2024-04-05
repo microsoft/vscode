@@ -7,6 +7,7 @@ import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { CodeWindow } from 'vs/base/browser/window';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -45,7 +46,11 @@ export interface NotebookDisplayOptions { // TODO @Yoyokrazy rename to a more ge
 	outputFontFamily: string;
 	outputLineHeight: number;
 	markupFontSize: number;
-	editorOptionsCustomizations: any | undefined;
+	editorOptionsCustomizations: Partial<{
+		'editor.indentSize': 'tabSize' | number;
+		'editor.tabSize': number;
+		'editor.insertSpaces': boolean;
+	}> | undefined;
 }
 
 export interface NotebookLayoutConfiguration {
@@ -152,7 +157,12 @@ export class NotebookOptions extends Disposable {
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		const markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
-		const editorOptionsCustomizations = this.configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations);
+		let editorOptionsCustomizations = this.configurationService.getValue<Partial<{
+			'editor.indentSize': 'tabSize' | number;
+			'editor.tabSize': number;
+			'editor.insertSpaces': boolean;
+		}>>(NotebookSetting.cellEditorOptionsCustomizations) ?? {};
+		editorOptionsCustomizations = isObject(editorOptionsCustomizations) ? editorOptionsCustomizations : {};
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
 
 		// TOOD @rebornix remove after a few iterations of deprecated setting

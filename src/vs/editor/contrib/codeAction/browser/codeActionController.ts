@@ -36,8 +36,9 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
-import { CodeActionModel, CodeActionsState } from './codeActionModel';
+import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 
 interface IActionShowOptions {
@@ -291,7 +292,22 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				if (token.isCancellationRequested) {
 					return;
 				}
-				return { canPreview: !!action.action.edit?.edits.length };
+
+				let canPreview = false;
+				const actionKind = action.action.kind;
+
+				if (actionKind) {
+					const hierarchicalKind = new HierarchicalKind(actionKind);
+					const refactorKinds = [
+						CodeActionKind.RefactorExtract,
+						CodeActionKind.RefactorInline,
+						CodeActionKind.RefactorRewrite
+					];
+
+					canPreview = refactorKinds.some(refactorKind => refactorKind.contains(hierarchicalKind));
+				}
+
+				return { canPreview: canPreview || !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
 				if (action && action.action) {

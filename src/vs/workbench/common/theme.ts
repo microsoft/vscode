@@ -850,6 +850,13 @@ export const SIDE_BAR_BORDER = registerColor('sideBar.border', {
 	hcLight: contrastBorder
 }, localize('sideBarBorder', "Side bar border color on the side separating to the editor. The side bar is the container for views like explorer and search."));
 
+export const SIDE_BAR_TITLE_BACKGROUND = registerColor('sideBarTitle.background', {
+	dark: SIDE_BAR_BACKGROUND,
+	light: SIDE_BAR_BACKGROUND,
+	hcDark: SIDE_BAR_BACKGROUND,
+	hcLight: SIDE_BAR_BACKGROUND
+}, localize('sideBarTitleBackground', "Side bar title background color. The side bar is the container for views like explorer and search."));
+
 export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground', {
 	dark: SIDE_BAR_FOREGROUND,
 	light: SIDE_BAR_FOREGROUND,

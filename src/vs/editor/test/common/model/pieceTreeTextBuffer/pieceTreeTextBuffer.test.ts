@@ -2056,7 +2056,7 @@ suite('chunk based search', () => {
 		ds.add(pieceTree);
 		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.delete(0, 1);
-		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
+		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./', []), 'abc'), true, 1000);
 		assert.strictEqual(ret.length, 0);
 	});
 
@@ -2078,7 +2078,7 @@ suite('chunk based search', () => {
 		pieceTable.delete(16, 1);
 
 		pieceTable.insert(16, ' ');
-		const ret = pieceTable.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
+		const ret = pieceTable.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./', []), '['), true, 1000);
 		assert.strictEqual(ret.length, 3);
 
 		assert.deepStrictEqual(ret[0].range, new Range(2, 3, 2, 4));

@@ -27,7 +27,7 @@ import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/co
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
 import { HunkState, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -43,6 +43,23 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { TestWorkerService } from './testWorkerService';
+import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
+import { IChatSlashCommandService, ChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatWidgetHistoryService, ChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { TestExtensionService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IChatAgentService, ChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { MockChatContributionService } from 'vs/workbench/contrib/chat/test/common/mockChatContributionService';
 
 
 suite('ReplyResponse', function () {
@@ -94,11 +111,26 @@ suite('InlineChatSession', function () {
 
 	setup(function () {
 		const contextKeyService = new MockContextKeyService();
-		inlineChatService = new InlineChatServiceImpl(contextKeyService);
+
 
 		const serviceCollection = new ServiceCollection(
+			[IConfigurationService, new TestConfigurationService()],
+			[IChatVariablesService, new MockChatVariablesService()],
+			[ILogService, new NullLogService()],
+			[ITelemetryService, NullTelemetryService],
+			[IExtensionService, new TestExtensionService()],
+			[IContextKeyService, new MockContextKeyService()],
+			[IViewsService, new TestExtensionService()],
+			[IChatContributionService, new TestExtensionService()],
+			[IWorkspaceContextService, new TestContextService()],
+			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
+			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
+			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
+			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
-			[IInlineChatService, inlineChatService],
+			[IChatContributionService, new MockChatContributionService()],
+			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
+			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IContextKeyService, contextKeyService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
@@ -131,8 +163,29 @@ suite('InlineChatSession', function () {
 			}]
 		);
 
+
+
+		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
+
+		inlineChatService = instaService.get(IInlineChatService) as InlineChatServiceImpl;
+		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
+
+		instaService.get(IChatAgentService).registerDynamicAgent({
+			extensionId: nullExtensionDescription.identifier,
+			id: 'testAgent',
+			name: 'testAgent',
+			isDefault: true,
+			locations: [ChatAgentLocation.Panel],
+			metadata: {},
+			slashCommands: []
+		}, {
+			async invoke() {
+				return {};
+			}
+		});
+
 		store.add(inlineChatService.addProvider({
-			debugName: 'Unit Test',
+			extensionId: nullExtensionDescription.identifier,
 			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
@@ -150,10 +203,6 @@ suite('InlineChatSession', function () {
 				};
 			}
 		}));
-
-		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
-		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
-
 		model = store.add(instaService.get(IModelService).createModel('one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven', null));
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 	});

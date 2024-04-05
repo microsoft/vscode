@@ -15,7 +15,6 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, IKeywordRecognitionSession, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -68,7 +67,6 @@ export class SpeechService extends Disposable implements ISpeechService {
 		@IHostService private readonly hostService: IHostService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
@@ -140,22 +138,15 @@ export class SpeechService extends Disposable implements ISpeechService {
 	private readonly speechToTextInProgress = SpeechToTextInProgress.bindTo(this.contextKeyService);
 
 	async createSpeechToTextSession(token: CancellationToken, context: string = 'speech'): Promise<ISpeechToTextSession> {
-
-		// Send out extension activation to ensure providers can register
-		await this.extensionService.activateByEvent('onSpeech');
-
-		const provider = firstOrDefault(Array.from(this.providers.values()));
-		if (!provider) {
-			throw new Error(`No Speech provider is registered.`);
-		} else if (this.providers.size > 1) {
-			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
-		}
+		const provider = await this.getProvider();
 
 		const language = speechLanguageConfigToLanguage(this.configurationService.getValue<unknown>(SPEECH_LANGUAGE_CONFIG));
 		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token, typeof language === 'string' ? { language } : undefined);
 
 		const sessionStart = Date.now();
 		let sessionRecognized = false;
+		let sessionError = false;
+		let sessionContentLength = 0;
 
 		const disposables = new DisposableStore();
 
@@ -163,25 +154,33 @@ export class SpeechService extends Disposable implements ISpeechService {
 			if (session === this._activeSpeechToTextSession) {
 				this._activeSpeechToTextSession = undefined;
 				this.speechToTextInProgress.reset();
-				this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped, { allowManyInParallel: true });
 				this._onDidEndSpeechToTextSession.fire();
 
 				type SpeechToTextSessionClassification = {
 					owner: 'bpasero';
 					comment: 'An event that fires when a speech to text session is created';
 					context: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Context of the session.' };
-					sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Duration of the session.' };
-					sessionRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If speech was recognized.' };
+					sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration of the session.' };
+					sessionRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If speech was recognized.' };
+					sessionError: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If speech resulted in error.' };
+					sessionContentLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of the recognized text.' };
+					sessionLanguage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured language for the session.' };
 				};
 				type SpeechToTextSessionEvent = {
 					context: string;
 					sessionDuration: number;
 					sessionRecognized: boolean;
+					sessionError: boolean;
+					sessionContentLength: number;
+					sessionLanguage: string;
 				};
 				this.telemetryService.publicLog2<SpeechToTextSessionEvent, SpeechToTextSessionClassification>('speechToTextSession', {
 					context,
 					sessionDuration: Date.now() - sessionStart,
-					sessionRecognized
+					sessionRecognized,
+					sessionError,
+					sessionContentLength,
+					sessionLanguage: language
 				});
 			}
 
@@ -199,20 +198,42 @@ export class SpeechService extends Disposable implements ISpeechService {
 					if (session === this._activeSpeechToTextSession) {
 						this.speechToTextInProgress.set(true);
 						this._onDidStartSpeechToTextSession.fire();
-						this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
 					}
 					break;
 				case SpeechToTextStatus.Recognizing:
-				case SpeechToTextStatus.Recognized:
 					sessionRecognized = true;
+					break;
+				case SpeechToTextStatus.Recognized:
+					if (typeof e.text === 'string') {
+						sessionContentLength += e.text.length;
+					}
 					break;
 				case SpeechToTextStatus.Stopped:
 					onSessionStoppedOrCanceled();
+					break;
+				case SpeechToTextStatus.Error:
+					this.logService.error(`Speech provider error in speech to text session: ${e.text}`);
+					sessionError = true;
 					break;
 			}
 		}));
 
 		return session;
+	}
+
+	private async getProvider(): Promise<ISpeechProvider> {
+
+		// Send out extension activation to ensure providers can register
+		await this.extensionService.activateByEvent('onSpeech');
+
+		const provider = firstOrDefault(Array.from(this.providers.values()));
+		if (!provider) {
+			throw new Error(`No Speech provider is registered.`);
+		} else if (this.providers.size > 1) {
+			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
+		}
+
+		return provider;
 	}
 
 	private readonly _onDidStartKeywordRecognition = this._register(new Emitter<void>());
@@ -226,6 +247,9 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	async recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
 		const result = new DeferredPromise<KeywordRecognitionStatus>();
+
+		// Send out extension activation to ensure providers can register
+		await this.extensionService.activateByEvent('onSpeech');
 
 		const disposables = new DisposableStore();
 		disposables.add(token.onCancellationRequested(() => {
@@ -274,7 +298,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		type KeywordRecognitionClassification = {
 			owner: 'bpasero';
 			comment: 'An event that fires when a speech keyword detection is started';
-			keywordRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the keyword was recognized.' };
+			keywordRecognized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the keyword was recognized.' };
 		};
 		type KeywordRecognitionEvent = {
 			keywordRecognized: boolean;
@@ -287,12 +311,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 	}
 
 	private async doRecognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
-		const provider = firstOrDefault(Array.from(this.providers.values()));
-		if (!provider) {
-			throw new Error(`No Speech provider is registered.`);
-		} else if (this.providers.size > 1) {
-			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
-		}
+		const provider = await this.getProvider();
 
 		const session = this._activeKeywordRecognitionSession = provider.createKeywordRecognitionSession(token);
 		this._onDidStartKeywordRecognition.fire();

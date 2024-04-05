@@ -184,6 +184,7 @@ export class MenuId {
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
+	static readonly NotebookOutlineFilter = new MenuId('NotebookOutlineFilter');
 	static readonly NotebookOutlineActionMenu = new MenuId('NotebookOutlineActionMenu');
 	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
 	static readonly NotebookKernelSource = new MenuId('NotebookKernelSource');
@@ -216,11 +217,16 @@ export class MenuId {
 	static readonly InlineEditToolbar = new MenuId('InlineEditToolbar');
 	static readonly ChatContext = new MenuId('ChatContext');
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
+	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatExecute = new MenuId('ChatExecute');
+	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
+	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
+	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
+
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
@@ -475,6 +481,7 @@ export class MenuItemAction implements IAction {
 		alt: ICommandAction | undefined,
 		options: IMenuActionOptions | undefined,
 		readonly hideActions: IMenuItemHide | undefined,
+		readonly menuKeybinding: IAction | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {
@@ -509,7 +516,7 @@ export class MenuItemAction implements IAction {
 		}
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, undefined, contextKeyService, _commandService) : undefined;
 		this._options = options;
 		this.class = icon && ThemeIcon.asClassName(icon);
 

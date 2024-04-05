@@ -7,7 +7,6 @@ import { isActiveDocument, reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -22,6 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class CommandCenterControl {
 
@@ -82,6 +82,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		private readonly _submenu: SubmenuItemAction,
 		private readonly _windowTitle: WindowTitle,
 		options: IBaseActionViewItemOptions,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
@@ -95,7 +96,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		container.classList.add('command-center-center');
 		container.classList.toggle('multiple', (this._submenu.actions.length > 1));
 
-		const hover = this._store.add(setupCustomHover(this._hoverDelegate, container, this.getTooltip()));
+		const hover = this._store.add(this._hoverService.setupUpdatableHover(this._hoverDelegate, container, this.getTooltip()));
 
 		// update label & tooltip when window title changes
 		this._store.add(this._windowTitle.onDidChange(() => {
@@ -156,7 +157,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							labelElement.innerText = label;
 							reset(container, searchIcon, labelElement);
 
-							const hover = this._store.add(setupCustomHover(that._hoverDelegate, container, this.getTooltip()));
+							const hover = this._store.add(that._hoverService.setupUpdatableHover(that._hoverDelegate, container, this.getTooltip()));
 
 							// update label & tooltip when window title changes
 							this._store.add(that._windowTitle.onDidChange(() => {

@@ -358,6 +358,7 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_EDITOR_FOCUSED,
 						ContextKeyExpr.has(InputFocusedContextKey),
 						EditorContextKeys.editorTextFocus,
+						NOTEBOOK_OUTPUT_FOCUSED.negate(), // Webview handles Shift+PageUp for selection of output contents
 					),
 					primary: KeyMod.Shift | KeyCode.PageUp,
 					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
@@ -406,6 +407,7 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_EDITOR_FOCUSED,
 						ContextKeyExpr.has(InputFocusedContextKey),
 						EditorContextKeys.editorTextFocus,
+						NOTEBOOK_OUTPUT_FOCUSED.negate(), // Webview handles Shift+PageDown for selection of output contents
 					),
 					primary: KeyMod.Shift | KeyCode.PageDown,
 					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT

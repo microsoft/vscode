@@ -29,6 +29,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { EditorOpenSource, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { FileKind } from 'vs/platform/files/common/files';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -46,7 +47,7 @@ import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/cons
 import { onObservableChange } from 'vs/workbench/contrib/testing/common/observableUtils';
 import { ComputedFileCoverage, FileCoverage, TestCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { CoverageDetails, DetailType, ICoveredCount, IDeclarationCoverage, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, DetailType, ICoverageCount, IDeclarationCoverage, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 const enum CoverageSortOrder {
@@ -70,9 +71,10 @@ export class TestCoverageView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@ITestCoverageService private readonly coverageService: ITestCoverageService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -153,8 +155,8 @@ class DeclarationCoverageNode {
 			return;
 		}
 
-		const statement: ICoveredCount = { covered: 0, total: 0 };
-		const branch: ICoveredCount = { covered: 0, total: 0 };
+		const statement: ICoverageCount = { covered: 0, total: 0 };
+		const branch: ICoverageCount = { covered: 0, total: 0 };
 		for (const detail of this.containedDetails) {
 			if (detail.type !== DetailType.Statement) {
 				continue;

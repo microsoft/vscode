@@ -57,6 +57,8 @@ pub struct CodeServerArgs {
 	pub log: Option<log::Level>,
 	pub accept_server_license_terms: bool,
 	pub verbose: bool,
+	pub server_data_dir: Option<String>,
+	pub extensions_dir: Option<String>,
 	// extension management
 	pub install_extensions: Vec<String>,
 	pub uninstall_extensions: Vec<String>,
@@ -143,6 +145,12 @@ impl CodeServerArgs {
 			if let Some(i) = &self.category {
 				args.push(format!("--category={}", i));
 			}
+		}
+		if let Some(d) = &self.server_data_dir {
+			args.push(format!("--server-data-dir={}", d));
+		}
+		if let Some(d) = &self.extensions_dir {
+			args.push(format!("--extensions-dir={}", d));
 		}
 		if self.start_server {
 			args.push(String::from("--start-server"));
@@ -425,7 +433,11 @@ impl<'a> ServerBuilder<'a> {
 				.await?;
 
 				let server_dir = target_dir.join(SERVER_FOLDER_NAME);
-				unzip_downloaded_release(&archive_path, &server_dir, SilentCopyProgress())?;
+				unzip_downloaded_release(
+					&archive_path,
+					&server_dir,
+					self.logger.get_download_logger("server inflate progress:"),
+				)?;
 
 				if !skip_requirements_check().await {
 					let output = capture_command_and_check_status(

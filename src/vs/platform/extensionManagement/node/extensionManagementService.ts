@@ -288,7 +288,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		const key = ExtensionKey.create(extension).toString();
 		let installExtensionTask = this.installGalleryExtensionsTasks.get(key);
 		if (!installExtensionTask) {
-			this.installGalleryExtensionsTasks.set(key, installExtensionTask = new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.uriIdentityService, this.userDataProfilesService, this.extensionsScannerService, this.extensionsProfileScannerService, this.logService));
+			this.installGalleryExtensionsTasks.set(key, installExtensionTask = new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.uriIdentityService, this.userDataProfilesService, this.extensionsScannerService, this.extensionsProfileScannerService, this.logService, this.telemetryService));
 			installExtensionTask.waitUntilTaskIsFinished().finally(() => this.installGalleryExtensionsTasks.delete(key));
 		}
 		return installExtensionTask;
@@ -803,6 +803,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
 	constructor(
+		readonly manifest: IExtensionManifest,
 		readonly identifier: IExtensionIdentifier,
 		readonly source: URI | IGalleryExtension,
 		readonly options: InstallExtensionTaskOptions,
@@ -875,8 +876,9 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		extensionsScannerService: IExtensionsScannerService,
 		extensionsProfileScannerService: IExtensionsProfileScannerService,
 		logService: ILogService,
+		private readonly telemetryService: ITelemetryService,
 	) {
-		super(gallery.identifier, gallery, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
+		super(manifest, gallery.identifier, gallery, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
 	}
 
 	protected async install(token: CancellationToken): Promise<[ILocalExtension, Metadata]> {
@@ -912,7 +914,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			source: 'gallery',
 		};
 
-		if (existingExtension?.manifest.version === this.gallery.version) {
+		if (existingExtension && existingExtension.type !== ExtensionType.System && existingExtension.manifest.version === this.gallery.version) {
 			try {
 				const local = await this.extensionsScanner.updateMetadata(existingExtension, metadata);
 				return [local, metadata];
@@ -921,6 +923,42 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			}
 		}
 
+		try {
+			return await this.downloadAndInstallExtension(metadata, token);
+		} catch (error) {
+			if (error instanceof ExtensionManagementError && (error.code === ExtensionManagementErrorCode.CorruptZip || error.code === ExtensionManagementErrorCode.IncompleteZip)) {
+				this.logService.info(`Downloaded VSIX is invalid. Trying to download and install again...`, this.gallery.identifier.id);
+				type RetryInstallingInvalidVSIXClassification = {
+					owner: 'sandy081';
+					comment: 'Event reporting the retry of installing an invalid VSIX';
+					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension Id' };
+					succeeded?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Success value' };
+				};
+				type RetryInstallingInvalidVSIXEvent = {
+					extensionId: string;
+					succeeded: boolean;
+				};
+				try {
+					const result = await this.downloadAndInstallExtension(metadata, token);
+					this.telemetryService.publicLog2<RetryInstallingInvalidVSIXEvent, RetryInstallingInvalidVSIXClassification>('extensiongallery:install:retry', {
+						extensionId: this.gallery.identifier.id,
+						succeeded: true
+					});
+					return result;
+				} catch (error) {
+					this.telemetryService.publicLog2<RetryInstallingInvalidVSIXEvent, RetryInstallingInvalidVSIXClassification>('extensiongallery:install:retry', {
+						extensionId: this.gallery.identifier.id,
+						succeeded: false
+					});
+					throw error;
+				}
+			} else {
+				throw error;
+			}
+		}
+	}
+
+	private async downloadAndInstallExtension(metadata: Metadata, token: CancellationToken): Promise<[ILocalExtension, Metadata]> {
 		const { location, verificationStatus } = await this.extensionsDownloader.download(this.gallery, this._operation, !this.options.donotVerifySignature);
 		try {
 			this._verificationStatus = verificationStatus;
@@ -951,7 +989,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 class InstallVSIXTask extends InstallExtensionTask {
 
 	constructor(
-		private readonly manifest: IExtensionManifest,
+		manifest: IExtensionManifest,
 		private readonly location: URI,
 		options: InstallExtensionTaskOptions,
 		private readonly galleryService: IExtensionGalleryService,
@@ -962,7 +1000,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 		extensionsProfileScannerService: IExtensionsProfileScannerService,
 		logService: ILogService,
 	) {
-		super({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, location, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
+		super(manifest, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }, location, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
 	}
 
 	protected override async doRun(token: CancellationToken): Promise<ILocalExtension> {

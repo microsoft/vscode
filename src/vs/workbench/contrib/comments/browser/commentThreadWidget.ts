@@ -107,6 +107,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		const tracker = this._register(dom.trackFocus(bodyElement));
 		this._register(registerNavigableContainer({
+			name: 'commentThreadWidget',
 			focusNotifiers: [tracker],
 			focusNextWidget: () => {
 				if (!this._commentReply?.isCommentEditorFocused()) {
