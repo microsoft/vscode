@@ -957,9 +957,7 @@ export class SearchView extends ViewPane {
 				}),
 				multipleSelectionSupport: true,
 				selectionNavigation: true,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				},
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				paddingBottom: SearchDelegate.ITEM_HEIGHT
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
