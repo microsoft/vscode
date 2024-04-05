@@ -50,6 +50,7 @@ import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineC
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { isEqual } from 'vs/base/common/resources';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -606,7 +607,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 			return false;
 		});
-		if (refer && slashCommandLike) {
+		if (refer && slashCommandLike && !this._session.lastExchange) {
 			this._log('[IE] seeing refer command, continuing outside editor', this._session.provider.extensionId);
 
 			// cancel this request
@@ -627,11 +628,7 @@ export class InlineChatController implements IEditorContribution {
 			// if agent has a refer command, massage the input to include the agent name
 			await this._instaService.invokeFunction(sendRequest, massagedInput);
 
-			if (!this._session.lastExchange) {
-				// DONE when there wasn't any exchange yet. We used the inline chat only as trampoline
-				return State.ACCEPT;
-			}
-			return State.WAIT_FOR_INPUT;
+			return State.ACCEPT;
 		}
 
 		this._session.addInput(new SessionPrompt(input, this._nextAttempt, this._nextWithIntentDetection));
@@ -701,10 +698,22 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 
+			// if ("1") {
+			// 	return;
+			// }
+
 			// TODO@jrieken
 			const editsShouldBeInstant = false;
 
-			const edits = response.edits.get(this._session!.textModelN.uri) ?? [];
+			const edits = response.response.value.map(part => {
+				if (part.kind === 'textEdit' && isEqual(part.uri, this._session?.textModelN.uri)) {
+					return part.edits;
+				} else {
+					return [];
+				}
+			}).flat();
+
+			// const edits = response.edits.get(this._session!.textModelN.uri) ?? [];
 			const newEdits = edits.slice(lastLength);
 			// console.log('NEW edits', newEdits, edits);
 			if (newEdits.length === 0) {
@@ -938,7 +947,15 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.updatePositionAndHeight(widgetPosition);
 
 		} else if (initialRender) {
-			widgetPosition = this._editor.getSelection().getStartPosition();
+			const selection = this._editor.getSelection();
+			widgetPosition = selection.getStartPosition();
+			// TODO@jrieken we are not ready for this
+			// widgetPosition = selection.getEndPosition();
+			// if (Range.spansMultipleLines(selection) && widgetPosition.column === 1) {
+			// 	// selection ends on "nothing" -> move up to match the
+			// 	// rendered/visible part of the selection
+			// 	widgetPosition = this._editor.getModel().validatePosition(widgetPosition.delta(-1, Number.MAX_SAFE_INTEGER));
+			// }
 			this._input.value.show(widgetPosition);
 
 		} else {

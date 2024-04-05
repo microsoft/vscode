@@ -255,7 +255,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private readonly _userEditingDisposables = this._register(new DisposableStore());
 	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private _widget: NotebookChatWidget | undefined;
-	private _widgetDisposableStore = this._register(new DisposableStore());
+	private readonly _widgetDisposableStore = this._register(new DisposableStore());
 	private _focusTracker: IFocusTracker | undefined;
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
@@ -316,8 +316,8 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	run(index: number, input: string | undefined, autoSend: boolean | undefined): void {
 		if (this._widget) {
 			if (this._widget.afterModelPosition !== index) {
-				this._disposeWidget();
 				const window = getWindow(this._widget.domNode);
+				this._disposeWidget();
 
 				scheduleAtNextAnimationFrame(window, () => {
 					this._createWidget(index, input, autoSend, undefined);

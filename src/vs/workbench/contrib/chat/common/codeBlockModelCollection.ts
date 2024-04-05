@@ -34,16 +34,16 @@ export class CodeBlockModelCollection extends Disposable {
 		this.clear();
 	}
 
-	get(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): { model: Promise<IResolvedTextEditorModel>; vulns: readonly IMarkdownVulnerability[] } | undefined {
+	get(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): { model: Promise<IResolvedTextEditorModel>; readonly vulns: readonly IMarkdownVulnerability[] } | undefined {
 		const uri = this.getUri(sessionId, chat, codeBlockIndex);
-		const entries = this._models.get(uri);
-		if (!entries) {
+		const entry = this._models.get(uri);
+		if (!entry) {
 			return;
 		}
-		return { model: entries.model.then(ref => ref.object), vulns: entries.vulns };
+		return { model: entry.model.then(ref => ref.object), vulns: entry.vulns };
 	}
 
-	getOrCreate(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): { model: Promise<IResolvedTextEditorModel>; vulns: readonly IMarkdownVulnerability[] } {
+	getOrCreate(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): { model: Promise<IResolvedTextEditorModel>; readonly vulns: readonly IMarkdownVulnerability[] } {
 		const existing = this.get(sessionId, chat, codeBlockIndex);
 		if (existing) {
 			return existing;
@@ -65,7 +65,7 @@ export class CodeBlockModelCollection extends Disposable {
 
 		const extractedVulns = extractVulnerabilitiesFromText(content.text);
 		const newText = extractedVulns.newText;
-		entry.vulns = extractedVulns.vulnerabilities;
+		this.setVulns(sessionId, chat, codeBlockIndex, extractedVulns.vulnerabilities);
 
 		const textModel = (await entry.model).textEditorModel;
 		if (content.languageId) {
@@ -88,6 +88,14 @@ export class CodeBlockModelCollection extends Disposable {
 		} else {
 			// console.log(`Failed to optimize setText`);
 			textModel.setValue(newText);
+		}
+	}
+
+	private setVulns(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, vulnerabilities: IMarkdownVulnerability[]) {
+		const uri = this.getUri(sessionId, chat, codeBlockIndex);
+		const entry = this._models.get(uri);
+		if (entry) {
+			entry.vulns = vulnerabilities;
 		}
 	}
 

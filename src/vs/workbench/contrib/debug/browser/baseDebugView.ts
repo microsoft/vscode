@@ -8,7 +8,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Codicon } from 'vs/base/common/codicons';
@@ -18,8 +17,11 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { COPY_EVALUATE_PATH_ID, COPY_VALUE_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { IDebugService, IExpression, IExpressionValue } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -34,7 +36,12 @@ const $ = dom.$;
 export interface IRenderValueOptions {
 	showChanged?: boolean;
 	maxValueLength?: number;
-	showHover?: boolean;
+	/** If set, a hover will be shown on the element. Requires a disposable store for usage. */
+	hover?: DisposableStore | {
+		store: DisposableStore;
+		commands: { id: string; args: unknown[] }[];
+		commandService: ICommandService;
+	};
 	colorize?: boolean;
 	linkDetector?: LinkDetector;
 }
@@ -54,7 +61,7 @@ export function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-export function renderExpressionValue(expressionOrValue: IExpressionValue | string, container: HTMLElement, options: IRenderValueOptions): void {
+export function renderExpressionValue(expressionOrValue: IExpressionValue | string, container: HTMLElement, options: IRenderValueOptions, hoverService: IHoverService): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes
@@ -99,12 +106,31 @@ export function renderExpressionValue(expressionOrValue: IExpressionValue | stri
 	} else {
 		container.textContent = value;
 	}
-	if (options.showHover) {
-		container.title = value || '';
+
+	if (options.hover) {
+		const { store, commands, commandService } = options.hover instanceof DisposableStore ? { store: options.hover, commands: [], commandService: undefined } : options.hover;
+		store.add(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), container, () => {
+			const container = dom.$('div');
+			const markdownHoverElement = dom.$('div.hover-row');
+			const hoverContentsElement = dom.append(markdownHoverElement, dom.$('div.hover-contents'));
+			const hoverContentsPre = dom.append(hoverContentsElement, dom.$('pre.debug-var-hover-pre'));
+			hoverContentsPre.textContent = value;
+			container.appendChild(markdownHoverElement);
+			return container;
+		}, {
+			actions: commands.map(({ id, args }) => {
+				const description = CommandsRegistry.getCommand(id)?.metadata?.description;
+				return {
+					label: typeof description === 'string' ? description : description ? description.value : id,
+					commandId: id,
+					run: () => commandService!.executeCommand(id, ...args),
+				};
+			})
+		}));
 	}
 }
 
-export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
+export function renderVariable(store: DisposableStore, commandService: ICommandService, hoverService: IHoverService, variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
 	if (variable.available) {
 		let text = variable.name;
 		if (variable.value && typeof variable.name === 'string') {
@@ -118,13 +144,20 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 	}
 
 	data.expression.classList.toggle('lazy', !!variable.presentationHint?.lazy);
+	const commands = [
+		{ id: COPY_VALUE_ID, args: [variable, [variable]] as unknown[] }
+	];
+	if (variable.evaluateName) {
+		commands.push({ id: COPY_EVALUATE_PATH_ID, args: [{ variable }] });
+	}
+
 	renderExpressionValue(variable, data.value, {
 		showChanged,
 		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-		showHover: true,
+		hover: { store, commands, commandService },
 		colorize: true,
 		linkDetector
-	});
+	}, hoverService);
 }
 
 export interface IInputBoxOptions {
@@ -184,6 +217,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 	constructor(
 		@IDebugService protected debugService: IDebugService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IHoverService protected readonly hoverService: IHoverService,
 	) { }
 
 	abstract get templateId(): string;
@@ -194,7 +228,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 		const name = dom.append(expression, $('span.name'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
 		lazyButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.eye));
-		templateDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
+		templateDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
 		const value = dom.append(expression, $('span.value'));
 
 		const label = templateDisposable.add(new HighlightedLabel(name));

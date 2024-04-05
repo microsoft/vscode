@@ -57,8 +57,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
 		h('div.noModificationsOverlay@overlay', { style: { position: 'absolute', height: '100%', visibility: 'hidden', } }, [$('span', {}, 'No Changes')]),
-		h('div.editor.original@original', { style: { position: 'absolute', height: '100%', zIndex: '1', } }),
-		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', zIndex: '1', } }),
+		h('div.editor.original@original', { style: { position: 'absolute', height: '100%', } }),
+		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', } }),
 		h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
 	]);
 	private readonly _diffModel = observableValue<DiffEditorViewModel | undefined>(this, undefined);
@@ -117,7 +117,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
-		this._options = new DiffEditorOptions(options);
+		this._options = this._instantiationService.createInstance(DiffEditorOptions, options);
 		this._register(autorun(reader => {
 			this._options.setWidth(this._rootSizeObserver.width.read(reader));
 		}));

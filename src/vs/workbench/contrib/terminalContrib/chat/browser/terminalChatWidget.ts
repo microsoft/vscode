@@ -57,7 +57,7 @@ export class TerminalChatWidget extends Disposable {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 					options: {
 						buttonConfigProvider: action => {
-							if (action.id === TerminalChatCommandId.ViewInChat || action.id === TerminalChatCommandId.RunCommand) {
+							if (action.id === TerminalChatCommandId.ViewInChat || action.id === TerminalChatCommandId.RunCommand || action.id === TerminalChatCommandId.RunFirstCommand) {
 								return { isSecondary: false };
 							} else {
 								return { isSecondary: true };
@@ -67,7 +67,7 @@ export class TerminalChatWidget extends Disposable {
 				},
 				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
 				telemetrySource: 'terminal-inline-chat',
-				editableCodeBlocks: true
+				rendererOptions: { editableCodeBlock: true }
 			}
 		);
 		this._register(Event.any(
@@ -158,12 +158,6 @@ export class TerminalChatWidget extends Disposable {
 	focus(): void {
 		this._inlineChatWidget.focus();
 	}
-	focusResponse(): void {
-		const responseElement = this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseEditor) || this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseMessage);
-		if (responseElement instanceof HTMLElement) {
-			responseElement.focus();
-		}
-	}
 	hasFocus(): boolean {
 		return this._inlineChatWidget.hasFocus();
 	}
@@ -188,9 +182,4 @@ export class TerminalChatWidget extends Disposable {
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;
 	}
-}
-
-const enum ChatElementSelectors {
-	ResponseEditor = '.chatMessageContent textarea',
-	ResponseMessage = '.chatMessageContent',
 }

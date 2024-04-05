@@ -472,6 +472,10 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 * Builds the model from scratch based on the current state of the editor service.
 	 */
 	private _createTabsModel(): void {
+		if (this._editorGroupsService.groups.length === 0) {
+			return; // skip this invalid state, it may happen when the entire editor area is transitioning to other state ("editor working sets")
+		}
+
 		this._tabGroupModel = [];
 		this._groupLookup.clear();
 		this._tabInfoLookup.clear();

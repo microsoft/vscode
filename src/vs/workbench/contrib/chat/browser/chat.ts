@@ -87,17 +87,26 @@ export interface IChatFileTreeInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
+export interface IChatListItemRendererOptions {
+	readonly renderStyle?: 'default' | 'compact';
+	readonly noHeader?: boolean;
+	readonly noPadding?: boolean;
+	readonly editableCodeBlock?: boolean;
+	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
+}
+
 export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderStyle?: 'default' | 'compact';
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
-	editableCodeBlocks?: boolean;
+	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		executeToolbar?: MenuId;
 		inputSideToolbar?: MenuId;
 		telemetrySource?: string;
 	};
+	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
 }
 
@@ -115,6 +124,7 @@ export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
+	readonly onDidChangeParsedInput: Event<void>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;

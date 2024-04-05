@@ -26,8 +26,8 @@ import { joinPath } from 'vs/base/common/resources';
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
 	comment: 'Reporting when Remote Tunnel access is turned on or off';
-	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
-	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
+	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
+	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
 };
 
 type RemoteTunnelEnablementEvent = {

@@ -221,12 +221,10 @@ export class TerminalLinkQuickpick extends DisposableStore {
 					}
 
 					// Skip the link if it's a duplicate URI + line/col
-					if (description) {
-						if (linkUriKeys.has(label + '|' + description)) {
-							continue;
-						}
-						linkUriKeys.add(label + '|' + description);
+					if (linkUriKeys.has(label + '|' + (description ?? ''))) {
+						continue;
 					}
+					linkUriKeys.add(label + '|' + (description ?? ''));
 				}
 
 				picks.push({ label, link, description });

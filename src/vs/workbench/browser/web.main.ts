@@ -156,6 +156,7 @@ export class BrowserMain extends Disposable {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const labelService = accessor.get(ILabelService);
 			const embedderTerminalService = accessor.get(IEmbedderTerminalService);
+			const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
 
 			let logger: DelayedLogChannel | undefined = undefined;
 
@@ -190,6 +191,13 @@ export class BrowserMain extends Disposable {
 					createTerminal: async (options) => embedderTerminalService.createTerminal(options),
 				},
 				workspace: {
+					didResolveRemoteAuthority: async () => {
+						if (!this.configuration.remoteAuthority) {
+							return;
+						}
+
+						await remoteAuthorityResolverService.resolveAuthority(this.configuration.remoteAuthority);
+					},
 					openTunnel: async tunnelOptions => {
 						const tunnel = assertIsDefined(await remoteExplorerService.forward({
 							remote: tunnelOptions.remoteAddress,

@@ -259,21 +259,36 @@ export async function showRunRecentQuickPick(
 		}
 	});
 	let terminalScrollStateSaved = false;
+	function restoreScrollState() {
+		terminalScrollStateSaved = false;
+		instance.xterm?.markTracker.restoreScrollState();
+		instance.xterm?.markTracker.clear();
+	}
 	quickPick.onDidChangeActive(async () => {
 		const xterm = instance.xterm;
 		if (!xterm) {
 			return;
 		}
 		const [item] = quickPick.activeItems;
-		if ('command' in item && item.command) {
+		if ('command' in item && item.command && item.command.marker) {
 			if (!terminalScrollStateSaved) {
 				xterm.markTracker.saveScrollState();
 				terminalScrollStateSaved = true;
 			}
-			xterm.markTracker.revealCommand(item.command);
+			const promptRowCount = item.command.getPromptRowCount();
+			const commandRowCount = item.command.getCommandRowCount();
+			xterm.markTracker.revealRange({
+				start: {
+					x: 1,
+					y: item.command.marker.line - (promptRowCount - 1) + 1
+				},
+				end: {
+					x: instance.cols,
+					y: item.command.marker.line + (commandRowCount - 1) + 1
+				}
+			});
 		} else {
-			terminalScrollStateSaved = false;
-			xterm.markTracker.restoreScrollState();
+			restoreScrollState();
 		}
 	});
 	quickPick.onDidAccept(async () => {
@@ -289,13 +304,9 @@ export async function showRunRecentQuickPick(
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}
-		terminalScrollStateSaved = false;
-		instance.xterm?.markTracker.restoreScrollState();
+		restoreScrollState();
 	});
-	quickPick.onDidHide(() => {
-		terminalScrollStateSaved = false;
-		instance.xterm?.markTracker.restoreScrollState();
-	});
+	quickPick.onDidHide(() => restoreScrollState());
 	if (value) {
 		quickPick.value = value;
 	}

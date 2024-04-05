@@ -15,7 +15,8 @@ declare module 'vscode' {
 		Started = 1,
 		Recognizing = 2,
 		Recognized = 3,
-		Stopped = 4
+		Stopped = 4,
+		Error = 5
 	}
 
 	export interface SpeechToTextEvent {

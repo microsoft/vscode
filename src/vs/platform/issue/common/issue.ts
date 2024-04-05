@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -61,8 +61,6 @@ export interface IssueReporterExtensionData {
 	bugsUrl: string | undefined;
 	extensionData?: string;
 	extensionTemplate?: string;
-	hasIssueUriRequestHandler?: boolean;
-	hasIssueDataProviders?: boolean;
 	data?: string;
 	uri?: UriComponents;
 }
@@ -141,10 +139,6 @@ export interface IIssueMainService {
 	$reloadWithExtensionsDisabled(): Promise<void>;
 	$showConfirmCloseDialog(): Promise<void>;
 	$showClipboardDialog(): Promise<boolean>;
-	$getIssueReporterUri(extensionId: string): Promise<URI>;
-	$getIssueReporterData(extensionId: string): Promise<string>;
-	$getIssueReporterTemplate(extensionId: string): Promise<string>;
-	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]>;
 	$sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
 	$closeReporter(): Promise<void>;
 }

@@ -204,7 +204,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _renderedEditors: Map<ICellViewModel, ICodeEditor> = new Map();
 	private _viewContext: ViewContext;
 	private _notebookViewModel: NotebookViewModel | undefined;
-	private _localStore: DisposableStore = this._register(new DisposableStore());
+	private readonly _localStore: DisposableStore = this._register(new DisposableStore());
 	private _localCellStateListeners: DisposableStore[] = [];
 	private _fontInfo: FontInfo | undefined;
 	private _dimension?: DOM.Dimension;
@@ -303,8 +303,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
 		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
-		@INotebookLoggingService readonly logService: INotebookLoggingService,
-		@IKeybindingService readonly keybindingService: IKeybindingService,
+		@INotebookLoggingService private readonly logService: INotebookLoggingService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super();
@@ -409,6 +409,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.id = `notebook-${id}`;
 		this._overlayContainer.className = 'notebookOverlay';
 		this._overlayContainer.classList.add('notebook-editor');
+		this._overlayContainer.inert = true;
 		this._overlayContainer.style.visibility = 'hidden';
 
 		container.appendChild(this._overlayContainer);
@@ -1839,6 +1840,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._list.updateOptions({ paddingBottom: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : 0, paddingTop: 0 });
 		}
 
+		this._overlayContainer.inert = false;
 		this._overlayContainer.style.visibility = 'visible';
 		this._overlayContainer.style.display = 'block';
 		this._overlayContainer.style.position = 'absolute';
@@ -1961,9 +1963,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._webview?.selectOutputContents(cell);
 	}
 
+	selectInputContents(cell: ICellViewModel) {
+		this._webview?.selectInputContents(cell);
+	}
+
 	onWillHide() {
 		this._isVisible = false;
 		this._editorFocus.set(false);
+		this._overlayContainer.inert = true;
 		this._overlayContainer.style.visibility = 'hidden';
 		this._overlayContainer.style.left = '-50000px';
 		this._notebookTopToolbarContainer.style.display = 'none';
@@ -2402,12 +2409,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			const focusElementId = options?.outputId ?? cell.id;
+			const firstOutputId = cell.outputsViewModels.find(o => o.model.alternativeOutputId)?.model.alternativeOutputId;
+			const focusElementId = options?.outputId ?? firstOutputId ?? cell.id;
 			this._webview.focusOutput(focusElementId, options?.altOutputId, options?.outputWebviewFocused || this._webviewFocused);
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;
 			cell.focusedOutputId = options?.outputId;
+			this._outputFocus.set(true);
 			if (!options?.skipReveal) {
 				this.revealInCenterIfOutsideViewport(cell);
 			}
@@ -2417,6 +2426,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (itemDOM && itemDOM.ownerDocument.activeElement && itemDOM.contains(itemDOM.ownerDocument.activeElement)) {
 				(itemDOM.ownerDocument.activeElement as HTMLElement).blur();
 			}
+
+			this._webview?.blurOutput();
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Container;
