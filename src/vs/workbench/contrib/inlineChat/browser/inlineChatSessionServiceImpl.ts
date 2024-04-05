@@ -239,7 +239,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	) {
 
 		// MARK: register fake chat agent
-		const brigdeAgent = this._store.add(new MutableDisposable());
 		const addOrRemoveBridgeAgent = () => {
 			const that = this;
 			const agentData: IChatAgentData = {
@@ -298,6 +297,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		};
 
 		this._store.add(this._chatAgentService.onDidChangeAgents(() => addOrRemoveBridgeAgent()));
+		const brigdeAgent = this._store.add(new MutableDisposable());
 		addOrRemoveBridgeAgent();
 
 		// MARK: register fake chat provider
