@@ -42,7 +42,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -490,9 +489,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return false;
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
-			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
-			}
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
