@@ -27,7 +27,6 @@ import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { IExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
-import { ExtHostChat } from 'vs/workbench/api/common/extHostChat';
 import { ExtHostChatAgents2 } from 'vs/workbench/api/common/extHostChatAgents2';
 import { IExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
 import { ExtHostChatVariables } from 'vs/workbench/api/common/extHostChatVariables';
@@ -213,7 +212,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInlineChat, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
-	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
@@ -1391,13 +1389,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostInteractiveEditor.registerProvider(extension, provider, metadata);
 			},
-			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
-				checkProposedApiEnabled(extension, 'interactive');
-				return extHostChat.registerChatProvider(extension, id, provider);
-			},
 			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
-				return extHostChat.transferActiveChat(toWorkspace);
+				return extHostChatAgents2.transferActiveChat(toWorkspace);
 			}
 		};
 

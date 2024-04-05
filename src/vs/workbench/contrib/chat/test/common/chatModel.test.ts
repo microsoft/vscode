@@ -45,7 +45,7 @@ suite('ChatModel', () => {
 		assert.strictEqual(hasInitialized, false);
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
+		model.initialize(undefined);
 		await timeout(0);
 		assert.strictEqual(hasInitialized, true);
 	});
@@ -61,7 +61,7 @@ suite('ChatModel', () => {
 		await timeout(0);
 		assert.strictEqual(hasInitialized, false);
 
-		assert.throws(() => model.initialize({} as any, undefined));
+		assert.throws(() => model.initialize(undefined));
 		assert.strictEqual(hasInitialized, false);
 	});
 
@@ -74,7 +74,7 @@ suite('ChatModel', () => {
 		});
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
+		model.initialize(undefined);
 		await timeout(0);
 		assert.strictEqual(hasInitialized, true);
 
@@ -85,7 +85,7 @@ suite('ChatModel', () => {
 		});
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
+		model.initialize(undefined);
 		await timeout(0);
 		assert.strictEqual(hasInitialized2, true);
 	});
@@ -94,22 +94,22 @@ suite('ChatModel', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
-		assert.throws(() => model.initialize({} as any, undefined));
+		model.initialize(undefined);
+		assert.throws(() => model.initialize(undefined));
 	});
 
 	test('Initialization fails when model is disposed', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
 		model.dispose();
 
-		assert.throws(() => model.initialize({} as any, undefined));
+		assert.throws(() => model.initialize(undefined));
 	});
 
 	test('removeRequest', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
 
 		model.startInitialize();
-		model.initialize({} as any, undefined);
+		model.initialize(undefined);
 		const text = 'hello';
 		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] });
 		const requests = model.getRequests();

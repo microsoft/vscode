@@ -677,14 +677,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
-	initialize(session: IChat, welcomeMessage: ChatWelcomeMessageModel | undefined): void {
+	initialize(welcomeMessage: ChatWelcomeMessageModel | undefined): void {
 		if (this.initState !== ChatModelInitState.Initializing) {
 			// Must call startInitialize before initialize, and only call it once
 			throw new Error(`ChatModel is in the wrong state for initialize: ${ChatModelInitState[this.initState]}`);
 		}
 
 		this._initState = ChatModelInitState.Initialized;
-		this._session = session;
+		this._session = {};
 		if (!this._welcomeMessage) {
 			// Could also have loaded the welcome message from persisted data
 			this._welcomeMessage = welcomeMessage;

@@ -213,6 +213,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
+	transferActiveChat(newWorkspace: vscode.Uri): void {
+		this._proxy.$transferActiveChatSession(newWorkspace);
+	}
+
 	createChatAgent(extension: IExtensionDescription, id: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
 		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);

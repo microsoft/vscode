@@ -26,7 +26,7 @@ import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatCo
 import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser, IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { ChatCopyKind, IChat, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
@@ -363,24 +363,6 @@ export class ChatService extends Disposable implements IChatService {
 			model.startInitialize();
 			await this.extensionService.activateByEvent(`onInteractiveSession:${model.providerId}`);
 
-			const provider = this._providers.get(model.providerId);
-			if (!provider) {
-				throw new ErrorNoTelemetry(`Unknown provider: ${model.providerId}`);
-			}
-
-			let session: IChat | undefined;
-			try {
-				session = await provider.prepareSession(token) ?? undefined;
-			} catch (err) {
-				this.trace('initializeSession', `Provider initializeSession threw: ${err}`);
-			}
-
-			if (!session) {
-				throw new Error('Provider returned no session');
-			}
-
-			this.trace('startSession', `Provider returned session`);
-
 			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			if (!defaultAgent) {
 				throw new ErrorNoTelemetry('No default agent');
@@ -393,7 +375,7 @@ export class ChatService extends Disposable implements IChatService {
 				await defaultAgent.provideSampleQuestions?.(token) ?? []
 			);
 
-			model.initialize(session, welcomeModel);
+			model.initialize(welcomeModel);
 		} catch (err) {
 			this.trace('startSession', `initializeSession failed: ${err}`);
 			model.setInitializationError(err);
@@ -711,11 +693,9 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	getProviderInfos(): IChatProviderInfo[] {
-		return Array.from(this._providers.values()).map(provider => {
-			return {
-				id: provider.id,
-			};
-		});
+		return [{
+			id: 'copilot'
+		}];
 	}
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
