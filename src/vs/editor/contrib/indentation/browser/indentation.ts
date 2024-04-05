@@ -36,7 +36,7 @@ export class IndentationToSpacesAction extends EditorAction {
 			alias: 'Convert Indentation to Spaces',
 			precondition: EditorContextKeys.writable,
 			metadata: {
-				description: nls.localize2('indentationToSpacesDescription', "Conver the tab indentation to spaces."),
+				description: nls.localize2('indentationToSpacesDescription', "Convert the tab indentation to spaces."),
 			}
 		});
 	}
@@ -73,7 +73,7 @@ export class IndentationToTabsAction extends EditorAction {
 			alias: 'Convert Indentation to Tabs',
 			precondition: EditorContextKeys.writable,
 			metadata: {
-				description: nls.localize2('indentationToTabsDescription', "Conver the spaces indentation to tabs."),
+				description: nls.localize2('indentationToTabsDescription', "Convert the spaces indentation to tabs."),
 			}
 		});
 	}
