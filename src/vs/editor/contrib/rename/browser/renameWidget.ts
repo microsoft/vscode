@@ -569,7 +569,7 @@ class RenameCandidateListView {
 	private _minimumWidth: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
-	private _disposables: DisposableStore;
+	private readonly _disposables: DisposableStore;
 
 	// FIXME@ulugbekna: rewrite using event emitters
 	constructor(parent: HTMLElement, opts: { fontInfo: FontInfo; onFocusChange: (newSymbolName: string) => void; onSelectionChange: () => void }) {
@@ -788,7 +788,7 @@ class RenameInput implements IDisposable {
 	private readonly _onDidChange = new Emitter<void>();
 	public readonly onDidChange = this._onDidChange.event;
 
-	private _disposables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 
 	get domNode() {
 		if (!this._domNode) {

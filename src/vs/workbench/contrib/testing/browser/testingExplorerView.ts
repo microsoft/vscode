@@ -8,8 +8,8 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -36,6 +36,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -86,10 +87,10 @@ const enum LastFocusState {
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
-	private filterActionBar = this._register(new MutableDisposable());
+	private readonly filterActionBar = this._register(new MutableDisposable());
 	private container!: HTMLElement;
 	private treeHeader!: HTMLElement;
-	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
+	private readonly discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());
 	private readonly filterFocusListener = this._register(new MutableDisposable());
 	private readonly dimensions = { width: 0, height: 0 };
@@ -111,10 +112,11 @@ export class TestingExplorerView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITestService private readonly testService: ITestService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		const relayout = this._register(new RunOnceScheduler(() => this.layoutBody(), 1));
 		this._register(this.onDidChangeViewWelcomeState(() => {
@@ -446,7 +448,7 @@ class ResultSummaryView extends Disposable {
 	private elementsWereAttached = false;
 	private badgeType: TestingCountBadge;
 	private lastBadge?: NumberBadge | IconBadge;
-	private countHover: ICustomHover;
+	private countHover: IUpdatableHover;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly renderLoop = this._register(new RunOnceScheduler(() => this.render(), SUMMARY_RENDER_INTERVAL));
 	private readonly elements = dom.h('div.result-summary', [
@@ -465,6 +467,7 @@ class ResultSummaryView extends Disposable {
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
@@ -477,7 +480,7 @@ class ResultSummaryView extends Disposable {
 			}
 		}));
 
-		this.countHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
+		this.countHover = this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
 
 		const ab = this._register(new ActionBar(this.elements.rerun, {
 			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
@@ -580,7 +583,7 @@ const enum WelcomeExperience {
 class TestingExplorerViewModel extends Disposable {
 	public tree: TestingObjectTree<FuzzyScore>;
 	private filter: TestsFilter;
-	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
+	public readonly projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
 	private readonly revealTimeout = new MutableDisposable();
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
@@ -1316,7 +1319,10 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 
 	private readonly renderer: MarkdownRenderer;
 
-	constructor(@IInstantiationService instantionService: IInstantiationService) {
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService instantionService: IInstantiationService,
+	) {
 		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
 	}
 
@@ -1338,7 +1344,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 			const result = this.renderer.render(element.message, { inline: true });
 			data.label.appendChild(result.element);
 		}
-		data.disposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
+		data.disposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
 	}
 
 	disposeTemplate(data: IErrorTemplateData): void {
@@ -1368,6 +1374,7 @@ class TestItemRenderer extends Disposable
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -1458,7 +1465,7 @@ class TestItemRenderer extends Disposable
 			data.icon.className += ' retired';
 		}
 
-		data.elementDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
+		data.elementDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
 		if (node.element.test.item.label.trim()) {
 			dom.reset(data.label, ...renderLabelWithIcons(node.element.test.item.label));
 		} else {

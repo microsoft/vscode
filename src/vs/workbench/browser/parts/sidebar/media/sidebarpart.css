@@ -16,6 +16,10 @@
 	margin-right: 4px;
 }
 
+.monaco-workbench .part.sidebar > .title {
+	background-color: var(--vscode-sideBarTitle-background);
+}
+
 .monaco-workbench .part.sidebar > .title > .title-label h2 {
 	text-transform: uppercase;
 }

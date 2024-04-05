@@ -23,7 +23,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { IHoverAction, IHoverService } from 'vs/platform/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
@@ -50,6 +50,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
 
 const $ = DOM.$;
 

@@ -55,7 +55,6 @@ import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSyste
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInlineChat';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
-import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReporter';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
@@ -217,7 +216,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
-	const extHostIssueReporter = rpcProtocol.set(ExtHostContext.ExtHostIssueReporter, new ExtHostIssueReporter(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 
@@ -429,14 +427,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get onDidChangeLogLevel() {
 				return _asExtensionEvent(extHostLogService.onDidChangeLogLevel);
-			},
-			registerIssueUriRequestHandler(handler: vscode.IssueUriRequestHandler) {
-				checkProposedApiEnabled(extension, 'handleIssueUri');
-				return extHostIssueReporter.registerIssueUriRequestHandler(extension, handler);
-			},
-			registerIssueDataProvider(handler: vscode.IssueDataProvider) {
-				checkProposedApiEnabled(extension, 'handleIssueUri');
-				return extHostIssueReporter.registerIssueDataProvider(extension, handler);
 			},
 			get appQuality(): string | undefined {
 				checkProposedApiEnabled(extension, 'resolvers');
@@ -1676,7 +1666,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			StatementCoverage: extHostTypes.StatementCoverage,
 			BranchCoverage: extHostTypes.BranchCoverage,
 			DeclarationCoverage: extHostTypes.DeclarationCoverage,
-			FunctionCoverage: extHostTypes.DeclarationCoverage,  // back compat for Feb 2024
 			WorkspaceTrustState: extHostTypes.WorkspaceTrustState,
 			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
 			QuickPickItemKind: extHostTypes.QuickPickItemKind,
@@ -1709,6 +1698,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
+			ChatResponseTextEditPart: extHostTypes.ChatResponseTextEditPart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,

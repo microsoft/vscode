@@ -23,7 +23,7 @@ export class ShowSignalSoundHelp extends Action2 {
 			title: localize2('signals.sound.help', "Help: List Signal Sounds"),
 			f1: true,
 			metadata: {
-				description: localize('accessibility.sound.help.description', "List all accessibility sounds / audio cues and configure their settings")
+				description: localize('accessibility.sound.help.description', "List all accessibility sounds, noises, or audio cues and configure their settings")
 			}
 		});
 	}
@@ -93,7 +93,7 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 			title: localize2('accessibility.announcement.help', "Help: List Signal Announcements"),
 			f1: true,
 			metadata: {
-				description: localize('accessibility.announcement.help.description', "List all accessibility announcements / alerts and configure their settings")
+				description: localize('accessibility.announcement.help.description', "List all accessibility announcements, alerts, braille messages, and configure their settings")
 			}
 		});
 	}

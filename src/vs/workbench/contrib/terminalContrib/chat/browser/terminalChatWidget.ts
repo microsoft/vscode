@@ -67,7 +67,7 @@ export class TerminalChatWidget extends Disposable {
 				},
 				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
 				telemetrySource: 'terminal-inline-chat',
-				editableCodeBlocks: true
+				rendererOptions: { editableCodeBlock: true }
 			}
 		);
 		this._register(Event.any(
@@ -183,4 +183,3 @@ export class TerminalChatWidget extends Disposable {
 		return this._focusTracker;
 	}
 }
-

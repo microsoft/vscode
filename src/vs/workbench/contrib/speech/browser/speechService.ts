@@ -15,7 +15,6 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, IKeywordRecognitionSession, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -68,7 +67,6 @@ export class SpeechService extends Disposable implements ISpeechService {
 		@IHostService private readonly hostService: IHostService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
@@ -156,7 +154,6 @@ export class SpeechService extends Disposable implements ISpeechService {
 			if (session === this._activeSpeechToTextSession) {
 				this._activeSpeechToTextSession = undefined;
 				this.speechToTextInProgress.reset();
-				this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped, { allowManyInParallel: true });
 				this._onDidEndSpeechToTextSession.fire();
 
 				type SpeechToTextSessionClassification = {
@@ -201,7 +198,6 @@ export class SpeechService extends Disposable implements ISpeechService {
 					if (session === this._activeSpeechToTextSession) {
 						this.speechToTextInProgress.set(true);
 						this._onDidStartSpeechToTextSession.fire();
-						this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
 					}
 					break;
 				case SpeechToTextStatus.Recognizing:

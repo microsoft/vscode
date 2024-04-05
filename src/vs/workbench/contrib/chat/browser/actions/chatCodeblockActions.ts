@@ -12,10 +12,11 @@ import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/b
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentContextItem, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -27,7 +28,7 @@ import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService, IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { ICodeBlockActionContext, ICodeCompareBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -44,6 +45,10 @@ export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 
 export function isCodeBlockActionContext(thing: unknown): thing is ICodeBlockActionContext {
 	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
+}
+
+export function isCodeCompareBlockActionContext(thing: unknown): thing is ICodeCompareBlockActionContext {
+	return typeof thing === 'object' && thing !== null && 'element' in thing;
 }
 
 function isResponseFiltered(context: ICodeBlockActionContext) {
@@ -581,4 +586,54 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 		code: editor.getValue(),
 		languageId: editor.getModel()!.getLanguageId(),
 	};
+}
+
+export function registerChatCodeCompareBlockActions() {
+
+	abstract class ChatCompareCodeBlockAction extends Action2 {
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			const context = args[0];
+			if (!isCodeCompareBlockActionContext(context)) {
+				return;
+				// TODO@jrieken derive context
+			}
+
+			return this.runWithContext(accessor, context);
+		}
+
+		abstract runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): any;
+	}
+
+	registerAction2(class ApplyEditsCompareBlockAction extends ChatCompareCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.applyCompareEdits',
+				title: localize2('interactive.compare.apply', "Apply Edits"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.check,
+				menu: {
+					id: MenuId.ChatCompareBlock,
+					group: 'navigation'
+				}
+			});
+		}
+
+		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
+			if (!isResponseVM(context.element)) {
+				return;
+			}
+			const modelService = accessor.get(ITextModelService);
+			const ref = await modelService.createModelReference(context.uri);
+			try {
+				const edits = context.edits.map(TextEdit.asEditOperation);
+				ref.object.textEditorModel.pushStackElement();
+				ref.object.textEditorModel.pushEditOperations(null, edits, () => null);
+				ref.object.textEditorModel.pushStackElement();
+			} finally {
+				ref.dispose();
+			}
+		}
+	});
+
 }

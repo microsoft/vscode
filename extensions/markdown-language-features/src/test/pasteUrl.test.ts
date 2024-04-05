@@ -11,6 +11,7 @@ import { InsertMarkdownLink, findValidUriInText, shouldInsertMarkdownLinkByDefau
 import { noopToken } from '../util/cancellation';
 import { UriList } from '../util/uriList';
 import { createNewMarkdownEngine } from './engine';
+import { joinLines } from './util';
 
 function makeTestDoc(contents: string) {
 	return new InMemoryDocument(vscode.Uri.file('test.md'), contents);
@@ -306,6 +307,37 @@ suite('createEditAddingLinksForUriList', () => {
 			assert.strictEqual(
 				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('<>'), InsertMarkdownLink.Smart, [new vscode.Range(0, 1, 0, 1)], noopToken),
 				false);
+		});
+
+		test('Smart should be disabled in frontmatter', async () => {
+			const textDoc = makeTestDoc(joinLines(
+				`---`,
+				`layout: post`,
+				`title: Blogging Like a Hacker`,
+				`---`,
+				``,
+				`Link Text`
+			));
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), textDoc, InsertMarkdownLink.Smart, [new vscode.Range(0, 0, 0, 0)], noopToken),
+				false);
+
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), textDoc, InsertMarkdownLink.Smart, [new vscode.Range(1, 0, 1, 0)], noopToken),
+				false);
+		});
+
+		test('Smart should enabled after frontmatter', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc(joinLines(
+					`---`,
+					`layout: post`,
+					`title: Blogging Like a Hacker`,
+					`---`,
+					``,
+					`Link Text`
+				)), InsertMarkdownLink.Smart, [new vscode.Range(5, 0, 5, 0)], noopToken),
+				true);
 		});
 	});
 });

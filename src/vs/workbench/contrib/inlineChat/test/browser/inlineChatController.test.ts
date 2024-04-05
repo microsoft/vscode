@@ -58,6 +58,8 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
 
 suite('InteractiveChatController', function () {
 	class TestController extends InlineChatController {
@@ -121,6 +123,7 @@ suite('InteractiveChatController', function () {
 			[IChatVariablesService, new MockChatVariablesService()],
 			[ILogService, new NullLogService()],
 			[ITelemetryService, NullTelemetryService],
+			[IHoverService, NullHoverService],
 			[IExtensionService, new TestExtensionService()],
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new TestExtensionService()],

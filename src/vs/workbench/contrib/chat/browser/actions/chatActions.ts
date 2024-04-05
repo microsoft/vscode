@@ -25,10 +25,9 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS, CONTEXT_REQUEST, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS, CONTEXT_REQUEST, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -93,86 +92,8 @@ class OpenChatGlobalAction extends Action2 {
 	}
 }
 
-export class ChatSubmitSecondaryAgentEditorAction extends EditorAction2 {
-	static readonly ID = 'workbench.action.chat.submitSecondaryAgent';
-
-	constructor() {
-		super({
-			id: ChatSubmitSecondaryAgentEditorAction.ID,
-			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_INPUT_HAS_AGENT.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
-			keybinding: {
-				when: CONTEXT_IN_CHAT_INPUT,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			},
-			menu: {
-				id: MenuId.ChatExecuteSecondary,
-				group: 'group_1',
-				when: CONTEXT_CHAT_INPUT_HAS_AGENT.negate(),
-			}
-		});
-	}
-
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		const editorUri = editor.getModel()?.uri;
-		if (editorUri) {
-			const agentService = accessor.get(IChatAgentService);
-			const secondaryAgent = agentService.getSecondaryAgent();
-			if (!secondaryAgent) {
-				return;
-			}
-
-			const widgetService = accessor.get(IChatWidgetService);
-			const widget = widgetService.getWidgetByInputUri(editorUri);
-			if (!widget) {
-				return;
-			}
-
-			if (widget.getInput().match(/^\s*@/)) {
-				widget.acceptInput();
-			} else {
-				widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.name}`);
-			}
-		}
-	}
-}
-
-export class ChatSubmitEditorAction extends EditorAction2 {
-	static readonly ID = 'workbench.action.chat.acceptInput';
-
-	constructor() {
-		super({
-			id: ChatSubmitEditorAction.ID,
-			title: localize2({ key: 'actions.chat.submit', comment: ['Apply input from the chat input box'] }, "Submit"),
-			precondition: CONTEXT_CHAT_INPUT_HAS_TEXT,
-			keybinding: {
-				when: CONTEXT_IN_CHAT_INPUT,
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			},
-			menu: {
-				id: MenuId.ChatExecuteSecondary,
-				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
-				group: 'group_1',
-			},
-		});
-	}
-
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		const editorUri = editor.getModel()?.uri;
-		if (editorUri) {
-			const widgetService = accessor.get(IChatWidgetService);
-			widgetService.getWidgetByInputUri(editorUri)?.acceptInput();
-		}
-	}
-}
-
 export function registerChatActions() {
 	registerAction2(OpenChatGlobalAction);
-	registerAction2(ChatSubmitEditorAction);
-
-	registerAction2(ChatSubmitSecondaryAgentEditorAction);
 
 	registerAction2(class ClearChatInputHistoryAction extends Action2 {
 		constructor() {

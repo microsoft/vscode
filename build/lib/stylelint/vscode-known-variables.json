@@ -565,6 +565,7 @@
 		"--vscode-sideBarSectionHeader-background",
 		"--vscode-sideBarSectionHeader-border",
 		"--vscode-sideBarSectionHeader-foreground",
+		"--vscode-sideBarTitle-background",
 		"--vscode-sideBarTitle-foreground",
 		"--vscode-sideBySideEditor-horizontalBorder",
 		"--vscode-sideBySideEditor-verticalBorder",

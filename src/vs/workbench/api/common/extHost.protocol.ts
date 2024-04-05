@@ -2650,19 +2650,6 @@ export interface MainThreadLocalizationShape extends IDisposable {
 	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
 }
 
-export interface ExtHostIssueReporterShape {
-	$getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<UriComponents>;
-	$getIssueReporterData(extensionId: string, token: CancellationToken): Promise<string>;
-	$getIssueReporterTemplate(extensionId: string, token: CancellationToken): Promise<string>;
-}
-
-export interface MainThreadIssueReporterShape extends IDisposable {
-	$registerIssueUriRequestHandler(extensionId: string): void;
-	$unregisterIssueUriRequestHandler(extensionId: string): void;
-	$registerIssueDataProvider(extensionId: string): void;
-	$unregisterIssueDataProvider(extensionId: string): void;
-}
-
 export interface TunnelDto {
 	remoteAddress: { port: number; host: string };
 	localAddress: { port: number; host: string } | string;
@@ -2859,8 +2846,7 @@ export const MainContext = {
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
-	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
-	MainThreadIssueReporter: createProxyIdentifier<MainThreadIssueReporterShape>('MainThreadIssueReporter'),
+	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector')
 };
 
 export const ExtHostContext = {
@@ -2930,6 +2916,5 @@ export const ExtHostContext = {
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
-	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
-	ExtHostIssueReporter: createProxyIdentifier<ExtHostIssueReporterShape>('ExtHostIssueReporter'),
+	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization')
 };
