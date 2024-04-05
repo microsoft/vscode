@@ -12,9 +12,9 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { IHoverAction } from 'vs/platform/hover/browser/hover';
 import type { URI } from 'vs/base/common/uri';
 import type { IParsedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
 
 export class TerminalLink extends DisposableStore implements ILink {
 	decorations: ILinkDecorations;

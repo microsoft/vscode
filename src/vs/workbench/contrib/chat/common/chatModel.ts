@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTextEdit, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatPromptVariableData {
@@ -29,6 +29,7 @@ export interface IChatRequestVariableEntry {
 	name: string;
 	range?: IOffsetRange;
 	values: IChatRequestVariableValue[];
+	references?: IChatContentReference[];
 }
 
 export interface IChatRequestVariableData {
@@ -51,7 +52,8 @@ export type IChatProgressResponseContent =
 	| IChatTreeData
 	| IChatContentInlineReference
 	| IChatProgressMessage
-	| IChatCommandButton;
+	| IChatCommandButton
+	| IChatTextEdit;
 
 export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>;
 
@@ -73,6 +75,7 @@ export interface IChatResponseModel {
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly slashCommand?: IChatAgentCommand;
+	readonly agentOrSlashCommandDetected: boolean;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
@@ -175,8 +178,25 @@ export class Response implements IResponse {
 			} else {
 				this._responseParts[responsePartLength] = { content: new MarkdownString(lastResponsePart.content.value + progress.content, lastResponsePart.content), kind: 'markdownContent' };
 			}
-
 			this._updateRepr(quiet);
+
+		} else if (progress.kind === 'textEdit') {
+			if (progress.edits.length > 0) {
+				// merge text edits for the same file no matter when they come in
+				let found = false;
+				for (let i = 0; !found && i < this._responseParts.length; i++) {
+					const candidate = this._responseParts[i];
+					if (candidate.kind === 'textEdit' && isEqual(candidate.uri, progress.uri)) {
+						candidate.edits.push(...progress.edits);
+						found = true;
+					}
+				}
+				if (!found) {
+					this._responseParts.push(progress);
+				}
+				this._updateRepr(quiet);
+			}
+
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -191,6 +211,8 @@ export class Response implements IResponse {
 				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
 			} else if (part.kind === 'command') {
 				return part.command.title;
+			} else if (part.kind === 'textEdit') {
+				return '';
 			} else {
 				return part.content.value;
 			}
@@ -260,6 +282,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._slashCommand;
 	}
 
+	private _agentOrSlashCommandDetected: boolean | undefined;
+	public get agentOrSlashCommandDetected(): boolean {
+		return this._agentOrSlashCommandDetected ?? false;
+	}
+
 	private _usedContext: IChatUsedContext | undefined;
 	public get usedContext(): IChatUsedContext | undefined {
 		return this._usedContext;
@@ -325,6 +352,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
+		this._agentOrSlashCommandDetected = true;
 		this._onDidChange.fire();
 	}
 
@@ -505,7 +533,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	private get _defaultAgent() {
-		return this.chatAgentService.getDefaultAgent();
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 	}
 
 	get requesterUsername(): string {
@@ -708,7 +736,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (progress.kind === 'vulnerability') {
 			request.response.updateContent({ kind: 'markdownVuln', content: { value: progress.content }, vulnerabilities: progress.vulnerabilities }, quiet);
-		} else if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage' || progress.kind === 'command') {
+		} else if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage' || progress.kind === 'command' || progress.kind === 'textEdit') {
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
@@ -869,11 +897,11 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	}
 
 	public get username(): string {
-		return this.chatAgentService.getDefaultAgent()?.metadata.fullName ?? '';
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.fullName ?? '';
 	}
 
 	public get avatarIcon(): ThemeIcon | undefined {
-		return this.chatAgentService.getDefaultAgent()?.metadata.themeIcon;
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.themeIcon;
 	}
 }
 

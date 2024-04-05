@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService, IKeyMods, IPickOptions, IQuickPickSeparator, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix, type ITerminalExecutable } from 'vs/platform/terminal/common/terminal';
 import { getUriClasses, getColorClass, createColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import * as nls from 'vs/nls';
@@ -69,9 +69,9 @@ export class TerminalProfileQuickpick {
 					if (result.profile.args) {
 						newProfile.args = result.profile.args;
 					}
-					(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = newProfile;
+					(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = this._createNewProfileConfig(result.profile);
+					await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
 				}
-				await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
 			}
 			// Set the default profile
 			await this._configurationService.updateValue(defaultProfileKey, result.profileName, ConfigurationTarget.USER);
@@ -131,10 +131,9 @@ export class TerminalProfileQuickpick {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles };
-				newConfigValue[name] = {
-					path: context.item.profile.path,
-					args: context.item.profile.args
+				const newConfigValue: { [key: string]: ITerminalExecutable } = {
+					...configProfiles,
+					[name]: this._createNewProfileConfig(context.item.profile)
 				};
 				await this._configurationService.updateValue(profilesKey, newConfigValue, ConfigurationTarget.USER);
 			},
@@ -208,6 +207,17 @@ export class TerminalProfileQuickpick {
 		}
 		if (keyMods) {
 			result.keyMods = keyMods;
+		}
+		return result;
+	}
+
+	private _createNewProfileConfig(profile: ITerminalProfile): ITerminalExecutable {
+		const result: ITerminalExecutable = { path: profile.path };
+		if (profile.args) {
+			result.args = profile.args;
+		}
+		if (profile.env) {
+			result.env = profile.env;
 		}
 		return result;
 	}

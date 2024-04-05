@@ -102,12 +102,12 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	private _editorGroupService: IEditorGroupsService;
 	private _notebookExecutionStateService: INotebookExecutionStateService;
 	private _extensionService: IExtensionService;
-	private _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
+	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _lastLayoutDimensions?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
 	private _editorOptions: IEditorOptions;
 	private _notebookOptions: NotebookOptions;
 	private _editorMemento: IEditorMemento<InteractiveEditorViewState>;
-	private _groupListener = this._register(new MutableDisposable());
+	private readonly _groupListener = this._register(new MutableDisposable());
 	private _runbuttonToolbar: ToolBar | undefined;
 
 	private _onDidFocusWidget = this._register(new Emitter<void>());

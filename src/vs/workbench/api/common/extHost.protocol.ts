@@ -262,7 +262,7 @@ export interface ITextDocumentShowOptions {
 }
 
 export interface MainThreadBulkEditsShape extends IDisposable {
-	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto, undoRedoGroupId?: number, respectAutoSaveConfig?: boolean): Promise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, respectAutoSaveConfig?: boolean): Promise<boolean>;
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
@@ -535,6 +535,10 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessReady(terminalId: number, pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void;
 	$sendProcessProperty(terminalId: number, property: IProcessProperty<any>): void;
 	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
+}
+
+export interface MainThreadTerminalShellIntegrationShape extends IDisposable {
+	$executeCommand(terminalId: number, commandLine: string): void;
 }
 
 export type TransferQuickPickItemOrSeparator = TransferQuickPickItem | quickInput.IQuickPickSeparator;
@@ -1261,7 +1265,7 @@ export interface ExtHostChatVariablesShape {
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
-	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean, supportsFollowups: boolean, supportsIssueReporting: boolean): Promise<void>;
+	$registerInteractiveEditorProvider(handle: number, label: string, extensionId: ExtensionIdentifier, supportsFeedback: boolean, supportsFollowups: boolean, supportsIssueReporting: boolean): Promise<void>;
 	$handleProgressChunk(requestId: string, chunk: Dto<IInlineChatProgressItem>): Promise<void>;
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
@@ -1318,7 +1322,7 @@ export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
 	$acceptChatState(sessionId: number, state: any): Promise<void>;
 	$unregisterChatProvider(handle: number): Promise<void>;
-	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void;
+	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
 
 export interface ExtHostChatShape {
@@ -1489,15 +1493,15 @@ export type SCMRawResourceSplices = [
 
 export interface SCMHistoryItemGroupDto {
 	readonly id: string;
-	readonly label: string;
+	readonly name: string;
 	readonly base?: Omit<SCMHistoryItemGroupDto, 'base'>;
 }
 
 export interface SCMHistoryItemDto {
 	readonly id: string;
 	readonly parentIds: string[];
-	readonly label: string;
-	readonly description?: string;
+	readonly message: string;
+	readonly author?: string;
 	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 	readonly timestamp?: number;
 }
@@ -2263,6 +2267,15 @@ export interface ExtHostTerminalServiceShape {
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
 }
 
+export interface ExtHostTerminalShellIntegrationShape {
+	$shellIntegrationChange(instanceId: number): void;
+	$shellExecutionStart(instanceId: number, commandLine: string | undefined, cwd: UriComponents | undefined): void;
+	$shellExecutionEnd(instanceId: number, commandLine: string | undefined, exitCode: number | undefined): void;
+	$shellExecutionData(instanceId: number, data: string): void;
+	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
+	$closeTerminal(instanceId: number): void;
+}
+
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
@@ -2638,19 +2651,6 @@ export interface MainThreadLocalizationShape extends IDisposable {
 	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
 }
 
-export interface ExtHostIssueReporterShape {
-	$getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<UriComponents>;
-	$getIssueReporterData(extensionId: string, token: CancellationToken): Promise<string>;
-	$getIssueReporterTemplate(extensionId: string, token: CancellationToken): Promise<string>;
-}
-
-export interface MainThreadIssueReporterShape extends IDisposable {
-	$registerIssueUriRequestHandler(extensionId: string): void;
-	$unregisterIssueUriRequestHandler(extensionId: string): void;
-	$registerIssueDataProvider(extensionId: string): void;
-	$unregisterIssueDataProvider(extensionId: string): void;
-}
-
 export interface TunnelDto {
 	remoteAddress: { port: number; host: string };
 	localAddress: { port: number; host: string } | string;
@@ -2814,6 +2814,7 @@ export const MainContext = {
 	MainThreadSpeech: createProxyIdentifier<MainThreadSpeechShape>('MainThreadSpeechProvider'),
 	MainThreadTelemetry: createProxyIdentifier<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createProxyIdentifier<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
+	MainThreadTerminalShellIntegration: createProxyIdentifier<MainThreadTerminalShellIntegrationShape>('MainThreadTerminalShellIntegration'),
 	MainThreadWebviews: createProxyIdentifier<MainThreadWebviewsShape>('MainThreadWebviews'),
 	MainThreadWebviewPanels: createProxyIdentifier<MainThreadWebviewPanelsShape>('MainThreadWebviewPanels'),
 	MainThreadWebviewViews: createProxyIdentifier<MainThreadWebviewViewsShape>('MainThreadWebviewViews'),
@@ -2846,8 +2847,7 @@ export const MainContext = {
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
-	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
-	MainThreadIssueReporter: createProxyIdentifier<MainThreadIssueReporterShape>('MainThreadIssueReporter'),
+	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector')
 };
 
 export const ExtHostContext = {
@@ -2874,6 +2874,7 @@ export const ExtHostContext = {
 	ExtHostExtensionService: createProxyIdentifier<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
 	ExtHostLogLevelServiceShape: createProxyIdentifier<ExtHostLogLevelServiceShape>('ExtHostLogLevelServiceShape'),
 	ExtHostTerminalService: createProxyIdentifier<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
+	ExtHostTerminalShellIntegration: createProxyIdentifier<ExtHostTerminalShellIntegrationShape>('ExtHostTerminalShellIntegration'),
 	ExtHostSCM: createProxyIdentifier<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostSearch: createProxyIdentifier<ExtHostSearchShape>('ExtHostSearch'),
 	ExtHostTask: createProxyIdentifier<ExtHostTaskShape>('ExtHostTask'),
@@ -2916,6 +2917,5 @@ export const ExtHostContext = {
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
-	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
-	ExtHostIssueReporter: createProxyIdentifier<ExtHostIssueReporterShape>('ExtHostIssueReporter'),
+	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization')
 };

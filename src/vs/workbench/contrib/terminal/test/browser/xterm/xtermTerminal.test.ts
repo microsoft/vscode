@@ -5,7 +5,6 @@
 
 import type { IEvent, Terminal } from '@xterm/xterm';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITerminalConfiguration, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { deepStrictEqual, strictEqual } from 'assert';
@@ -35,6 +34,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 
 registerColors();
 
@@ -103,7 +104,6 @@ suite('XtermTerminal', () => {
 	let themeService: TestThemeService;
 	let viewDescriptorService: TestViewDescriptorService;
 	let xterm: TestXtermTerminal;
-	let configHelper: TerminalConfigHelper;
 	let XTermBaseCtor: typeof Terminal;
 
 	setup(async () => {
@@ -121,6 +121,7 @@ suite('XtermTerminal', () => {
 
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITerminalConfigurationService, store.add(instantiationService.createInstance(TerminalConfigurationService)));
 		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(IThemeService, themeService);
@@ -130,11 +131,10 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(ILayoutService, new TestLayoutService());
 
-		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		const capabilityStore = store.add(new TerminalCapabilityStore());
-		xterm = store.add(instantiationService.createInstance(TestXtermTerminal, XTermBaseCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilityStore, '', true));
+		xterm = store.add(instantiationService.createInstance(TestXtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => undefined }, capabilityStore, '', true));
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -151,7 +151,7 @@ suite('XtermTerminal', () => {
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, configHelper, 80, 30, { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) }, store.add(new TerminalCapabilityStore()), '', true));
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) }, store.add(new TerminalCapabilityStore()), '', true));
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 		});
 		test('should react to and apply theme changes', () => {
@@ -180,7 +180,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, store.add(new TerminalCapabilityStore()), '', true));
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => undefined }, store.add(new TerminalCapabilityStore()), '', true));
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: undefined,
 				foreground: '#000200',

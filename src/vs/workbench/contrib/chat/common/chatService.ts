@@ -9,10 +9,10 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Command, Location, ProviderResult } from 'vs/editor/common/languages';
+import { Command, Location, ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
@@ -74,8 +74,13 @@ export function isIUsedContext(obj: unknown): obj is IChatUsedContext {
 	);
 }
 
+export interface IChatContentVariableReference {
+	variableName: string;
+	value?: URI | Location;
+}
+
 export interface IChatContentReference {
-	reference: URI | Location;
+	reference: URI | Location | IChatContentVariableReference;
 	kind: 'reference';
 }
 
@@ -134,6 +139,12 @@ export interface IChatCommandButton {
 	kind: 'command';
 }
 
+export interface IChatTextEdit {
+	uri: URI;
+	edits: TextEdit[];
+	kind: 'textEdit';
+}
+
 export type IChatProgress =
 	| IChatContent
 	| IChatMarkdownContent
@@ -145,7 +156,8 @@ export type IChatProgress =
 	| IChatContentInlineReference
 	| IChatAgentDetection
 	| IChatProgressMessage
-	| IChatCommandButton;
+	| IChatCommandButton
+	| IChatTextEdit;
 
 export interface IChatProvider {
 	readonly id: string;
@@ -284,7 +296,7 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string, implicitVariablesEnabled?: boolean, parserContext?: IChatParserContext): Promise<IChatSendRequestData | undefined>;
+	sendRequest(sessionId: string, message: string, implicitVariablesEnabled?: boolean, location?: ChatAgentLocation, parserContext?: IChatParserContext): Promise<IChatSendRequestData | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;

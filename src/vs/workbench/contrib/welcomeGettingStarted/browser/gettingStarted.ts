@@ -122,10 +122,10 @@ export class GettingStartedPage extends EditorPane {
 	private editorInput!: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();
 
-	private dispatchListeners: DisposableStore = new DisposableStore();
-	private stepDisposables: DisposableStore = new DisposableStore();
-	private detailsPageDisposables: DisposableStore = new DisposableStore();
-	private mediaDisposables: DisposableStore = new DisposableStore();
+	private readonly dispatchListeners: DisposableStore = new DisposableStore();
+	private readonly stepDisposables: DisposableStore = new DisposableStore();
+	private readonly detailsPageDisposables: DisposableStore = new DisposableStore();
+	private readonly mediaDisposables: DisposableStore = new DisposableStore();
 
 	// Ensure that the these are initialized before use.
 	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
@@ -161,7 +161,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private detailsRenderer: GettingStartedDetailsRenderer;
 
-	private categoriesSlideDisposables: DisposableStore;
+	private readonly categoriesSlideDisposables: DisposableStore;
 	private showFeaturedWalkthrough = true;
 
 	constructor(
@@ -853,17 +853,21 @@ export class GettingStartedPage extends EditorPane {
 			if (gettingStartedList.itemCount) {
 				this.container.classList.remove('noWalkthroughs');
 				if (videoList?.itemCount > 0) {
+					this.container.classList.remove('noVideos');
 					reset(rightColumn, videoList?.getDomElement(), gettingStartedList.getDomElement());
 				} else {
+					this.container.classList.add('noVideos');
 					reset(rightColumn, gettingStartedList.getDomElement());
 				}
 			}
 			else {
 				this.container.classList.add('noWalkthroughs');
 				if (videoList?.itemCount > 0) {
+					this.container.classList.remove('noVideos');
 					reset(rightColumn, videoList?.getDomElement());
 				}
 				else {
+					this.container.classList.add('noVideos');
 					reset(rightColumn);
 				}
 			}
@@ -872,7 +876,7 @@ export class GettingStartedPage extends EditorPane {
 		};
 
 		const layoutRecentList = () => {
-			if (this.container.classList.contains('noWalkthroughs') && videoList?.itemCount === 0) {
+			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noVideos')) {
 				recentList.setLimit(10);
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());

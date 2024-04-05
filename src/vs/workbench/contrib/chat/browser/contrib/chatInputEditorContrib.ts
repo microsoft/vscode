@@ -26,7 +26,7 @@ import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/brows
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { SelectAndInsertFileAction, dynamicVariableDecorationType } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
@@ -66,6 +66,7 @@ class InputEditorDecorations extends Disposable {
 
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
+		this._register(this.widget.onDidChangeParsedInput(() => this.updateInputEditorDecorations()));
 		this._register(this.widget.onDidChangeViewModel(() => {
 			this.registerViewModelListeners();
 			this.previouslyUsedAgents.clear();
@@ -126,7 +127,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const defaultAgent = this.chatAgentService.getDefaultAgent();
+			const defaultAgent = this.chatAgentService.getDefaultAgent(this.widget.location);
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -211,7 +212,9 @@ class InputEditorDecorations extends Disposable {
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
-			const agentHover = `(${agentPart.agent.id}) ${agentPart.agent.description}`;
+			const isDupe = !!this.chatAgentService.getAgents().find(other => other.name === agentPart.agent.name && other.id !== agentPart.agent.id);
+			const id = isDupe ? `(${agentPart.agent.id}) ` : '';
+			const agentHover = `${id}${agentPart.agent.description}`;
 			textDecorations.push({ range: agentPart.editorRange, hoverMessage: new MarkdownString(agentHover) });
 			if (agentSubcommandPart) {
 				textDecorations.push({ range: agentSubcommandPart.editorRange, hoverMessage: new MarkdownString(agentSubcommandPart.command.description) });
@@ -276,7 +279,7 @@ class SlashCommandCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel) {
+				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -331,7 +334,7 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['@'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel) {
+				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -348,7 +351,9 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => !a.isDefault);
+					.filter(a => !a.isDefault)
+					.filter(a => a.locations.includes(widget.location));
+
 				return <CompletionList>{
 					suggestions: agents.map((a, i) => {
 						const withAt = `@${a.name}`;
@@ -374,7 +379,7 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel) {
+				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return;
 				}
 
@@ -426,7 +431,7 @@ class AgentCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
-				if (!widget || !viewModel) {
+				if (!widget || !viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return;
 				}
 
@@ -435,13 +440,15 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const agents = this.chatAgentService.getAgents();
+				const agents = this.chatAgentService.getAgents()
+					.filter(a => a.locations.includes(widget.location));
+
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
 						const isDupe = !!agents.find(other => other.name === agent.name && other.id !== agent.id);
 						const detail = agent.description;
-						const agentLabel = `${chatAgentLeader}${agent.name} (${agent.id})`;
+						const agentLabel = `${chatAgentLeader}${agent.name}`;
 
 						return {
 							label: isDupe ?
@@ -452,7 +459,8 @@ class AgentCompletions extends Disposable {
 							insertText: `${agentLabel} `,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text,
-							sortText: `${chatSubcommandLeader}${agent.name}`,
+							sortText: `${chatSubcommandLeader}${agent.id}`,
+							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 						};
 					});
 
@@ -469,7 +477,8 @@ class AgentCompletions extends Disposable {
 								detail: `(${agentLabel}) ${c.description ?? ''}`,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
-								sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
+								sortText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+								command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 							} satisfies CompletionItem;
 						})))
 				};
@@ -519,7 +528,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.supportsFileReferences) {
+				if (!widget || !widget.supportsFileReferences || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -585,7 +594,7 @@ class VariableCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
+				if (!widget || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -647,7 +656,7 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, { selectedAgent: previousSelectedAgent });
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, ChatAgentLocation.Panel, { selectedAgent: previousSelectedAgent });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart);

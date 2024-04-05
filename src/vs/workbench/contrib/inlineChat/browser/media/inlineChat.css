@@ -1,0 +1,304 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .zone-widget.inline-chat-widget {
+	z-index: 3;
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget .interactive-session {
+	max-width: unset;
+}
+
+.monaco-workbench .zone-widget-container.inside-selection {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
+.monaco-workbench .inline-chat {
+	color: inherit;
+	padding: 6px;
+	border-radius: 6px;
+	border: 1px solid var(--vscode-inlineChat-border);
+	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
+	background: var(--vscode-inlineChat-background);
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
+	margin-bottom: 1px;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-input-and-execute-toolbar {
+	width: 100%;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
+	padding: 4px
+}
+
+/* progress bit */
+
+.monaco-workbench .inline-chat .progress {
+	position: relative;
+}
+
+/* UGLY - fighting against workbench styles */
+.monaco-workbench .part.editor > .content .inline-chat .progress .monaco-progress-container {
+	top: 0;
+}
+
+/* status */
+
+.monaco-workbench .inline-chat .status {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+
+.monaco-workbench .inline-chat .status .actions.hidden {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .status .label {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	padding-top: 4px;
+	padding-left: 10px;
+	display: inline-flex;
+}
+
+.monaco-workbench .inline-chat .status .label.info {
+	margin-right: auto;
+	padding-left: 2px;
+}
+
+.monaco-workbench .inline-chat .status .label.status {
+	margin-left: auto;
+}
+
+.monaco-workbench .inline-chat .status .label.hidden {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .status .label.error {
+	color: var(--vscode-errorForeground);
+}
+
+.monaco-workbench .inline-chat .status .label.warn {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-workbench .inline-chat .status .label > .codicon {
+	padding: 0 5px;
+	font-size: 12px;
+	line-height: 18px;
+}
+
+.monaco-workbench .inline-chat .chatMessage .chatMessageContent .value {
+	overflow: hidden;
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+.monaco-workbench .inline-chat .followUps {
+	padding: 5px 5px;
+}
+
+.monaco-workbench .inline-chat .followUps .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+	font-size: 12px;
+}
+
+.monaco-workbench .inline-chat .followUps.hidden {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .chatMessage {
+	padding: 0 3px;
+}
+
+.monaco-workbench .inline-chat .chatMessage .chatMessageContent {
+	padding: 2px 2px;
+}
+
+.monaco-workbench .inline-chat .chatMessage.hidden {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .status .actions {
+	display: flex;
+	padding-top: 4px;
+}
+
+.monaco-workbench .inline-chat .status .actions > .monaco-button,
+.monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown {
+	margin-right: 6px;
+}
+
+.monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown > .monaco-dropdown-button {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
+.monaco-workbench .inline-chat .status .actions > .monaco-button.codicon {
+	display: flex;
+}
+
+.monaco-workbench .inline-chat .status .actions > .monaco-button.codicon::before {
+	align-self: center;
+}
+
+.monaco-workbench .inline-chat .status .actions .monaco-text-button {
+	padding: 2px 4px;
+	white-space: nowrap;
+}
+
+.monaco-workbench .inline-chat .status .monaco-toolbar .action-item {
+	padding: 0 2px;
+}
+
+/* TODO@jrieken not needed? */
+.monaco-workbench .inline-chat .status .monaco-toolbar .action-label.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
+
+.monaco-workbench .inline-chat .status .monaco-toolbar .action-item.button-item .action-label:is(:hover, :focus) {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+/* preview */
+
+.monaco-workbench .inline-chat .preview {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .previewDiff,
+.monaco-workbench .inline-chat .previewCreate {
+	display: inherit;
+	border: 1px solid var(--vscode-inlineChat-border);
+	border-radius: 2px;
+	margin: 6px 0px;
+}
+
+.monaco-workbench .inline-chat .previewCreateTitle {
+	padding-top: 6px;
+}
+
+.monaco-workbench .inline-chat .diff-review.hidden,
+.monaco-workbench .inline-chat .previewDiff.hidden,
+.monaco-workbench .inline-chat .previewCreate.hidden,
+.monaco-workbench .inline-chat .previewCreateTitle.hidden {
+	display: none;
+}
+
+.monaco-workbench .inline-chat-toolbar {
+	display: flex;
+}
+
+.monaco-workbench .inline-chat-toolbar > .monaco-button {
+	margin-right: 6px;
+}
+
+.monaco-workbench .inline-chat-toolbar .action-label.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
+/* decoration styles */
+
+.monaco-workbench .inline-chat-inserted-range {
+	background-color: var(--vscode-inlineChatDiff-inserted);
+}
+
+.monaco-workbench .inline-chat-inserted-range-linehighlight {
+	background-color: var(--vscode-diffEditor-insertedLineBackground);
+}
+
+.monaco-workbench .inline-chat-original-zone2 {
+	background-color: var(--vscode-diffEditor-removedLineBackground);
+	opacity: 0.8;
+}
+
+.monaco-workbench .inline-chat-lines-inserted-range {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+.monaco-workbench .inline-chat-block-selection {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
+.monaco-workbench .interactive-session .interactive-input-and-execute-toolbar .monaco-editor .inline-chat-slash-command {
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground); /* Overrides the foreground color rule in chat.css */
+	border-radius: 4px;
+	padding: 1px;
+}
+
+.monaco-workbench .inline-chat-slash-command-detail {
+	opacity: 0.5;
+}
+
+/* diff zone */
+
+.monaco-workbench .inline-chat-diff-widget .monaco-diff-editor .monaco-editor-background,
+.monaco-workbench .inline-chat-diff-widget .monaco-diff-editor .monaco-workbench .margin-view-overlays {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
+/* create zone */
+
+.monaco-workbench .inline-chat-newfile-widget {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
+.monaco-workbench .inline-chat-newfile-widget .title {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.monaco-workbench .inline-chat-newfile-widget .title .detail {
+	margin-left: 4px;
+}
+
+.monaco-workbench .inline-chat-newfile-widget .buttonbar-widget {
+	display: flex;
+	margin-left: auto;
+	margin-right: 8px;
+}
+
+.monaco-workbench .inline-chat-newfile-widget .buttonbar-widget > .monaco-button {
+	display: inline-flex;
+	white-space: nowrap;
+	margin-left: 4px;
+}
+
+/* gutter decoration */
+
+.monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque,
+.monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
+	display: block;
+	cursor: pointer;
+	transition: opacity .2s ease-in-out;
+}
+
+.monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque {
+	opacity: 0.5;
+}
+
+.monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
+	opacity: 0;
+}
+
+.monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
+.monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
+	opacity: 1;
+}

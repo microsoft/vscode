@@ -39,6 +39,7 @@ import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Composite } from 'vs/workbench/browser/composite';
 import { ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export enum CompositeBarPosition {
 	TOP,
@@ -115,9 +116,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private readonly location: ViewContainerLocation;
 	private titleContainer: HTMLElement | undefined;
 	private headerFooterCompositeBarContainer: HTMLElement | undefined;
-	protected headerFooterCompositeBarDispoables = this._register(new DisposableStore());
+	protected readonly headerFooterCompositeBarDispoables = this._register(new DisposableStore());
 	private paneCompositeBarContainer: HTMLElement | undefined;
-	private paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
+	private readonly paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private compositeBarPosition: CompositeBarPosition | undefined = undefined;
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
@@ -141,6 +142,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
@@ -166,6 +168,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			contextMenuService,
 			layoutService,
 			keybindingService,
+			hoverService,
 			instantiationService,
 			themeService,
 			Registry.as<PaneCompositeRegistry>(registryId),

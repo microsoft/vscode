@@ -265,7 +265,6 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 			},
 			provideDiagnostics: async (uriOrDoc, previousResolutId, token, next) => {
 				const diagnostics = await next(uriOrDoc, previousResolutId, token);
-				console.log('provideDiagnostics', diagnostics, uriOrDoc);
 				if (diagnostics && diagnostics.kind === DocumentDiagnosticReportKind.Full) {
 					const uri = uriOrDoc instanceof Uri ? uriOrDoc : uriOrDoc.uri;
 					diagnostics.items = filterSchemaErrorDiagnostics(uri, diagnostics.items);

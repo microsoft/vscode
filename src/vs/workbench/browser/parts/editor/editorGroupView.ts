@@ -660,21 +660,45 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return true;
 	}
 
+	private toResourceTelemetryDescriptor(resource: URI): object | undefined {
+		if (!resource) {
+			return undefined;
+		}
+		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
+		if (!path) {
+			return undefined;
+		}
+		let resourceExt = extname(resource);
+		// Remove query parameters from the resource extension
+		const queryStringLocation = resourceExt.indexOf('?');
+		resourceExt = queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
+		return { mimeType: new TelemetryTrustedValue(getMimeTypes(resource).join(', ')), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
+	}
+
 	private toEditorTelemetryDescriptor(editor: EditorInput): object {
 		const descriptor = editor.getTelemetryDescriptor();
 
-		const resource = EditorResourceAccessor.getOriginalUri(editor);
-		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
-		if (resource && path) {
-			let resourceExt = extname(resource);
-			// Remove query parameters from the resource extension
-			const queryStringLocation = resourceExt.indexOf('?');
-			resourceExt = queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
-			descriptor['resource'] = { mimeType: new TelemetryTrustedValue(getMimeTypes(resource).join(', ')), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
+		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
+		if (URI.isUri(resource)) {
+			descriptor['resource'] = this.toResourceTelemetryDescriptor(resource);
 
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {
 					"resource": { "${inline}": [ "${URIDescriptor}" ] }
+				}
+			*/
+			return descriptor;
+		} else if (resource) {
+			if (resource.primary) {
+				descriptor['resource'] = this.toResourceTelemetryDescriptor(resource.primary);
+			}
+			if (resource.secondary) {
+				descriptor['resourceSecondary'] = this.toResourceTelemetryDescriptor(resource.secondary);
+			}
+			/* __GDPR__FRAGMENT__
+				"EditorTelemetryDescriptor" : {
+					"resource": { "${inline}": [ "${URIDescriptor}" ] },
+					"resourceSecondary": { "${inline}": [ "${URIDescriptor}" ] }
 				}
 			*/
 			return descriptor;

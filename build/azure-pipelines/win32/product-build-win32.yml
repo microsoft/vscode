@@ -30,7 +30,7 @@ steps:
       addToPath: true
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../distro/download-distro.yml
+    - template: ../distro/download-distro.yml@self
 
     - task: AzureKeyVault@1
       displayName: "Azure Key Vault: Get Secrets"
@@ -127,7 +127,7 @@ steps:
     - powershell: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
-  - template: ../common/install-builtin-extensions.yml
+  - template: ../common/install-builtin-extensions.yml@self
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - powershell: node build\lib\policies
@@ -180,13 +180,15 @@ steps:
       condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - template: product-build-win32-test.yml
+    - template: product-build-win32-test.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
+        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -299,50 +301,52 @@ steps:
         condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
         displayName: Generate artifact prefix
 
-      - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-        displayName: Generate SBOM (client)
+      - task: 1ES.PublishPipelineArtifact@1
         inputs:
-          BuildDropPath: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)
-          PackageName: Visual Studio Code
-
-      - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-        displayName: Generate SBOM (server)
-        inputs:
-          BuildComponentPath: $(Build.SourcesDirectory)/remote
-          BuildDropPath: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)
-          PackageName: Visual Studio Code Server
-        condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-      - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
-        displayName: Publish SBOM (client)
-        artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_win32_$(VSCODE_ARCH)
-
-      - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
-        displayName: Publish SBOM (server)
-        artifact: $(ARTIFACT_PREFIX)sbom_vscode_server_win32_$(VSCODE_ARCH)
-        condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-      - publish: $(CLIENT_PATH)
-        artifact: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
+          targetPath: $(CLIENT_PATH)
+          artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
+          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
         displayName: Publish archive
 
-      - publish: $(SERVER_PATH)
-        artifact: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(SERVER_PATH)
+          artifactName: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
+          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
         displayName: Publish server archive
 
-      - publish: $(WEB_PATH)
-        artifact: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(WEB_PATH)
+          artifactName: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
+          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
         displayName: Publish web server archive
 
-      - publish: $(SYSTEM_SETUP_PATH)
-        artifact: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(SYSTEM_SETUP_PATH)
+          artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
+          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
         displayName: Publish system setup
 
-      - publish: $(USER_SETUP_PATH)
-        artifact: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(USER_SETUP_PATH)
+          artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
+          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
+          sbomPackageVersion: $(Build.SourceVersion)
         condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
         displayName: Publish user setup

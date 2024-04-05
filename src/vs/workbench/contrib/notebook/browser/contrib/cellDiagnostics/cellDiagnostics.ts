@@ -12,9 +12,13 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { Emitter, Event } from 'vs/base/common/event';
 
 
 export class CellDiagnostics extends Disposable {
+
+	private readonly _onDidDiagnosticsChange = new Emitter<void>();
+	readonly onDidDiagnosticsChange: Event<void> = this._onDidDiagnosticsChange.event;
 
 	static ID: string = 'workbench.notebook.cellDiagnostics';
 
@@ -34,21 +38,23 @@ export class CellDiagnostics extends Disposable {
 	) {
 		super();
 
-		this.updateEnabled();
+		if (cell.viewType !== 'interactive') {
+			this.updateEnabled();
 
-		this._register(inlineChatService.onDidChangeProviders(() => this.updateEnabled()));
-		this._register(configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(NotebookSetting.cellFailureDiagnostics)) {
-				this.updateEnabled();
-			}
-		}));
+			this._register(inlineChatService.onDidChangeProviders(() => this.updateEnabled()));
+			this._register(configurationService.onDidChangeConfiguration((e) => {
+				if (e.affectsConfiguration(NotebookSetting.cellFailureDiagnostics)) {
+					this.updateEnabled();
+				}
+			}));
+		}
 	}
 
 	private updateEnabled() {
 		const settingEnabled = this.configurationService.getValue(NotebookSetting.cellFailureDiagnostics);
 		if (this.enabled && (!settingEnabled || Iterable.isEmpty(this.inlineChatService.getAllProvider()))) {
 			this.enabled = false;
-			this.clearDiagnostics();
+			this.clear();
 		} else if (!this.enabled && settingEnabled && !Iterable.isEmpty(this.inlineChatService.getAllProvider())) {
 			this.enabled = true;
 			if (!this.listening) {
@@ -62,7 +68,7 @@ export class CellDiagnostics extends Disposable {
 		if (this.enabled && e.type === NotebookExecutionType.cell && e.affectsCell(this.cell.uri)) {
 			if (!!e.changed) {
 				// cell is running
-				this.clearDiagnostics();
+				this.clear();
 			} else {
 				this.setDiagnostics();
 			}
@@ -71,13 +77,10 @@ export class CellDiagnostics extends Disposable {
 
 	public clear() {
 		if (this.ErrorDetails) {
-			this.clearDiagnostics();
+			this.markerService.changeOne(CellDiagnostics.ID, this.cell.uri, []);
+			this.errorDetails = undefined;
+			this._onDidDiagnosticsChange.fire();
 		}
-	}
-
-	private clearDiagnostics() {
-		this.markerService.changeOne(CellDiagnostics.ID, this.cell.uri, []);
-		this.errorDetails = undefined;
 	}
 
 	private setDiagnostics() {
@@ -86,6 +89,7 @@ export class CellDiagnostics extends Disposable {
 			const marker = this.createMarkerData(metadata.error.message, metadata.error.location);
 			this.markerService.changeOne(CellDiagnostics.ID, this.cell.uri, [marker]);
 			this.errorDetails = metadata.error;
+			this._onDidDiagnosticsChange.fire();
 		}
 	}
 
@@ -99,6 +103,11 @@ export class CellDiagnostics extends Disposable {
 			endColumn: location.endColumn + 1,
 			source: 'Cell Execution Error'
 		};
+	}
+
+	override dispose() {
+		super.dispose();
+		this.clear();
 	}
 
 }

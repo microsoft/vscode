@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertFn } from 'vs/base/common/assert';
+import { strictEquals, EqualityComparer } from 'vs/base/common/equals';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, _setDerivedOpts } from 'vs/base/common/observableInternal/base';
+import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, _setDerivedOpts, } from 'vs/base/common/observableInternal/base';
 import { DebugNameData, IDebugNameData, Owner } from 'vs/base/common/observableInternal/debugName';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
-
-export type EqualityComparer<T> = (a: T, b: T) => boolean;
-export const defaultEqualityComparer: EqualityComparer<any> = (a, b) => a === b;
 
 /**
  * Creates an observable that is derived from other observables.
@@ -19,8 +17,8 @@ export const defaultEqualityComparer: EqualityComparer<any> = (a, b) => a === b;
  * {@link computeFn} should start with a JS Doc using `@description` to name the derived.
  */
 export function derived<T>(computeFn: (reader: IReader) => T): IObservable<T>;
-export function derived<T>(owner: object, computeFn: (reader: IReader) => T): IObservable<T>;
-export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | object, computeFn?: ((reader: IReader) => T) | undefined): IObservable<T> {
+export function derived<T>(owner: Owner, computeFn: (reader: IReader) => T): IObservable<T>;
+export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | Owner, computeFn?: ((reader: IReader) => T) | undefined): IObservable<T> {
 	if (computeFn !== undefined) {
 		return new Derived(
 			new DebugNameData(computeFnOrOwner, undefined, computeFn),
@@ -28,7 +26,7 @@ export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | object, 
 			undefined,
 			undefined,
 			undefined,
-			defaultEqualityComparer
+			strictEquals
 		);
 	}
 	return new Derived(
@@ -37,13 +35,13 @@ export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | object, 
 		undefined,
 		undefined,
 		undefined,
-		defaultEqualityComparer
+		strictEquals
 	);
 }
 
 export function derivedOpts<T>(
 	options: IDebugNameData & {
-		equalityComparer?: EqualityComparer<T>;
+		equalsFn?: EqualityComparer<T>;
 		onLastObserverRemoved?: (() => void);
 	},
 	computeFn: (reader: IReader) => T
@@ -54,7 +52,7 @@ export function derivedOpts<T>(
 		undefined,
 		undefined,
 		options.onLastObserverRemoved,
-		options.equalityComparer ?? defaultEqualityComparer
+		options.equalsFn ?? strictEquals
 	);
 }
 
@@ -87,7 +85,7 @@ export function derivedHandleChanges<T, TChangeSummary>(
 		options.createEmptyChangeSummary,
 		options.handleChange,
 		undefined,
-		options.equalityComparer ?? defaultEqualityComparer
+		options.equalityComparer ?? strictEquals
 	);
 }
 
@@ -113,7 +111,7 @@ export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: 
 		}, undefined,
 		undefined,
 		() => store.dispose(),
-		defaultEqualityComparer
+		strictEquals
 	);
 }
 
@@ -143,7 +141,7 @@ export function derivedDisposable<T extends IDisposable | undefined>(computeFnOr
 		}, undefined,
 		undefined,
 		() => store.dispose(),
-		defaultEqualityComparer
+		strictEquals
 	);
 }
 

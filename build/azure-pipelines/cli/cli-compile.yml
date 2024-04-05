@@ -110,13 +110,14 @@ steps:
 
           Write-Host "##vso[task.setvariable variable=VSCODE_CLI_APPLICATION_NAME]$env:VSCODE_CLI_APPLICATION_NAME"
 
-          Move-Item -Path $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code.exe -Destination "$(Build.ArtifactStagingDirectory)/${env:VSCODE_CLI_APPLICATION_NAME}.exe"
+          New-Item -ItemType Directory -Force -Path "$(Build.ArtifactStagingDirectory)/cli"
+          Move-Item -Path $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code.exe -Destination "$(Build.ArtifactStagingDirectory)/cli/${env:VSCODE_CLI_APPLICATION_NAME}.exe"
         displayName: Stage CLI
 
       - task: ArchiveFiles@2
         displayName: Archive CLI
         inputs:
-          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME).exe
+          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/cli/$(VSCODE_CLI_APPLICATION_NAME).exe
           includeRootFolder: false
           archiveType: zip
           archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
@@ -127,43 +128,19 @@ steps:
           VSCODE_CLI_APPLICATION_NAME=$(node -p "require(\"$VSCODE_CLI_PRODUCT_JSON\").applicationName")
           echo "##vso[task.setvariable variable=VSCODE_CLI_APPLICATION_NAME]$VSCODE_CLI_APPLICATION_NAME"
 
-          mv $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code $(Build.ArtifactStagingDirectory)/$VSCODE_CLI_APPLICATION_NAME
+          mkdir -p $(Build.ArtifactStagingDirectory)/cli
+          mv $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code $(Build.ArtifactStagingDirectory)/cli/$VSCODE_CLI_APPLICATION_NAME
         displayName: Stage CLI
 
-      - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-darwin') }}:
-        - task: ArchiveFiles@2
-          displayName: Archive CLI
-          inputs:
-            rootFolderOrFile: $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME)
-            includeRootFolder: false
+      - task: ArchiveFiles@2
+        displayName: Archive CLI
+        inputs:
+          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/cli/$(VSCODE_CLI_APPLICATION_NAME)
+          includeRootFolder: false
+          ${{ if contains(parameters.VSCODE_CLI_TARGET, '-darwin') }}:
             archiveType: zip
             archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
-
-      - ${{ else }}:
-        - task: ArchiveFiles@2
-          displayName: Archive CLI
-          inputs:
-            rootFolderOrFile: $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME)
-            includeRootFolder: false
+          ${{ else }}:
             archiveType: tar
             tarCompression: gz
             archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
-
-    # Make a folder for the SBOM for the specific artifact
-    - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
-      - powershell: mkdir $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
-        displayName: Make folder for SBOM (Windows)
-
-    - ${{ else }}:
-      - script: mkdir $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
-        displayName: Make folder for SBOM (non-Windows)
-
-    # The if cases above are for different OSes,
-    # but we're still in the branch where the cli is being published in general.
-    # Generate and publish an SBOM.
-    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-      displayName: Generate SBOM
-      inputs:
-        BuildComponentPath: $(Build.SourcesDirectory)/cli
-        BuildDropPath: $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
-        PackageName: Visual Studio Code CLI

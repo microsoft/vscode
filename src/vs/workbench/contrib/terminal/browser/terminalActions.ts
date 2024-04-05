@@ -31,7 +31,7 @@ import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, T
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigHelper, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -92,8 +92,13 @@ export interface WorkspaceFolderCwdPair {
 	isOverridden: boolean;
 }
 
-export async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
-	switch (configHelper.config.splitCwd) {
+export async function getCwdForSplit(
+	instance: ITerminalInstance,
+	folders: IWorkspaceFolder[] | undefined,
+	commandService: ICommandService,
+	configService: ITerminalConfigurationService
+): Promise<string | URI | undefined> {
+	switch (configService.config.splitCwd) {
 		case 'workspaceRoot':
 			if (folders !== undefined && commandService !== undefined) {
 				if (folders.length === 1) {
@@ -286,6 +291,7 @@ export function registerActiveXtermAction(
 
 export interface ITerminalServicesCollection {
 	service: ITerminalService;
+	configService: ITerminalConfigurationService;
 	groupService: ITerminalGroupService;
 	instanceService: ITerminalInstanceService;
 	editorService: ITerminalEditorService;
@@ -296,6 +302,7 @@ export interface ITerminalServicesCollection {
 function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesCollection {
 	return {
 		service: accessor.get(ITerminalService),
+		configService: accessor.get(ITerminalConfigurationService),
 		groupService: accessor.get(ITerminalGroupService),
 		instanceService: accessor.get(ITerminalInstanceService),
 		editorService: accessor.get(ITerminalEditorService),
@@ -519,6 +526,9 @@ export function registerTerminalActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.GoToRecentDirectory,
 		title: localize2('workbench.action.terminal.goToRecentDirectory', 'Go to Recent Directory...'),
+		metadata: {
+			description: localize2('goToRecentDirectory.metadata', 'Goes to a recent folder'),
+		},
 		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.KeyG,
@@ -1180,7 +1190,7 @@ export function registerTerminalActions() {
 			if (!activeInstance) {
 				return;
 			}
-			const cwd = await getCwdForSplit(c.service.configHelper, activeInstance, workspaceContextService.getWorkspace().folders, commandService);
+			const cwd = await getCwdForSplit(activeInstance, workspaceContextService.getWorkspace().folders, commandService, c.configService);
 			if (cwd === undefined) {
 				return;
 			}
@@ -1243,7 +1253,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.Join,
-		title: localize2('workbench.action.terminal.join', 'Join Terminals'),
+		title: localize2('workbench.action.terminal.join', 'Join Terminals...'),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c, accessor) => {
 			const themeService = accessor.get(IThemeService);
@@ -1776,6 +1786,15 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 									type: 'string',
 									enum: profileEnum.values,
 									markdownEnumDescriptions: profileEnum.markdownDescriptions
+								},
+								location: {
+									description: localize('newWithProfile.location', "Where to create the terminal"),
+									type: 'string',
+									enum: ['view', 'editor'],
+									enumDescriptions: [
+										localize('newWithProfile.location.view', 'Create the terminal in the terminal view'),
+										localize('newWithProfile.location.editor', 'Create the terminal in the editor'),
+									]
 								}
 							}
 						}
@@ -1783,7 +1802,11 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile) {
+		async run(
+			accessor: ServicesAccessor,
+			eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string; location?: 'view' | 'editor' | unknown } | undefined,
+			profile?: ITerminalProfile
+		) {
 			const c = getTerminalServices(accessor);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
@@ -1799,6 +1822,12 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
 				}
 				options = { config };
+				if ('location' in eventOrOptionsOrProfile) {
+					switch (eventOrOptionsOrProfile.location) {
+						case 'editor': options.location = TerminalLocation.Editor; break;
+						case 'view': options.location = TerminalLocation.Panel; break;
+					}
+				}
 			} else if (isMouseEvent(eventOrOptionsOrProfile) || isPointerEvent(eventOrOptionsOrProfile) || isKeyboardEvent(eventOrOptionsOrProfile)) {
 				event = eventOrOptionsOrProfile;
 				options = profile ? { config: profile } : undefined;

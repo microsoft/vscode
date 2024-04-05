@@ -18,27 +18,15 @@ import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestS
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Workbench - TerminalInstanceService', () => {
-	let instantiationService: TestInstantiationService;
 	let terminalInstanceService: ITerminalInstanceService;
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
-		// TODO: Should be able to create these services without this config set
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({
-			terminal: {
-				integrated: {
-					fontWeight: 'normal'
-				}
-			}
-		}));
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 
 		terminalInstanceService = instantiationService.createInstance(TerminalInstanceService);
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -490,7 +490,10 @@ export class GlobalCompareResourcesAction extends Action2 {
 			title: GlobalCompareResourcesAction.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: ActiveEditorContext
+			precondition: ActiveEditorContext,
+			metadata: {
+				description: nls.localize2('compareFileWithMeta', "Opens a picker to select a file to diff with the active editor.")
+			}
 		});
 	}
 
@@ -771,7 +774,10 @@ export class CompareNewUntitledTextFilesAction extends Action2 {
 			id: CompareNewUntitledTextFilesAction.ID,
 			title: CompareNewUntitledTextFilesAction.LABEL,
 			f1: true,
-			category: Categories.File
+			category: Categories.File,
+			metadata: {
+				description: nls.localize2('compareNewUntitledTextFilesMeta', "Opens a new diff editor with two untitled files.")
+			}
 		});
 	}
 
@@ -800,7 +806,10 @@ export class CompareWithClipboardAction extends Action2 {
 			title: CompareWithClipboardAction.LABEL,
 			f1: true,
 			category: Categories.File,
-			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC), weight: KeybindingWeight.WorkbenchContrib }
+			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC), weight: KeybindingWeight.WorkbenchContrib },
+			metadata: {
+				description: nls.localize2('compareWithClipboardMeta', "Opens a new diff editor to compare the active file with the contents of the clipboard.")
+			}
 		});
 	}
 

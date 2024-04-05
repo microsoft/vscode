@@ -37,7 +37,7 @@ export interface IV8InspectProfilingService {
 
 	_serviceBrand: undefined;
 
-	startProfiling(options: { port: number }): Promise<string>;
+	startProfiling(options: { host: string; port: number }): Promise<string>;
 
 	stopProfiling(sessionId: string): Promise<IV8Profile>;
 }

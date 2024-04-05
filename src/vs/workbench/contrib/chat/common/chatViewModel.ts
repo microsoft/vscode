@@ -10,10 +10,11 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { annotateVulnerabilitiesInText } from 'vs/workbench/contrib/chat/common/annotations';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTextEdit, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { CodeBlockModelCollection } from './codeBlockModelCollection';
 
@@ -92,7 +93,7 @@ export interface IChatProgressMessageRenderData {
 	isLast: boolean;
 }
 
-export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton;
+export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEdit;
 export interface IChatResponseRenderData {
 	renderedParts: IChatRenderData[];
 }
@@ -116,6 +117,7 @@ export interface IChatResponseViewModel {
 	readonly avatarIcon?: URI | ThemeIcon;
 	readonly agent?: IChatAgentData;
 	readonly slashCommand?: IChatAgentCommand;
+	readonly agentOrSlashCommandDetected: boolean;
 	readonly response: IResponse;
 	readonly usedContext: IChatUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
@@ -236,7 +238,9 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private onAddResponse(responseModel: IChatResponseModel) {
 		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel);
 		this._register(response.onDidChange(() => {
-			this.updateCodeBlockTextModels(response);
+			if (response.isComplete) {
+				this.updateCodeBlockTextModels(response);
+			}
 			return this._onDidChange.fire(null);
 		}));
 		this._items.push(response);
@@ -255,10 +259,15 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
-		const content = isRequestVM(model) ? model.messageText : model.response.asString();
-		const renderer = new marked.Renderer();
+		let content: string;
+		if (isRequestVM(model)) {
+			content = model.messageText;
+		} else {
+			content = annotateVulnerabilitiesInText(model.response.value).map(x => x.content.value).join('');
+		}
 
 		let codeBlockIndex = 0;
+		const renderer = new marked.Renderer();
 		renderer.code = (value, languageId) => {
 			languageId ??= '';
 			const newText = this.fixCodeText(value, languageId);
@@ -336,7 +345,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	currentRenderedHeight: number | undefined;
 
 	constructor(
-		readonly _model: IChatRequestModel,
+		private readonly _model: IChatRequestModel,
 	) { }
 }
 
@@ -376,6 +385,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get slashCommand() {
 		return this._model.slashCommand;
+	}
+
+	get agentOrSlashCommandDetected() {
+		return this._model.agentOrSlashCommandDetected;
 	}
 
 	get response(): IResponse {

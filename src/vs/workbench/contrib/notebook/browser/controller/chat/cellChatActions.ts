@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize, localize2 } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
@@ -31,15 +31,16 @@ registerAction2(class extends NotebookAction {
 				icon: Codicon.send,
 				keybinding: {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED.negate()),
-					weight: KeybindingWeight.EditorCore + 7,
+					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyCode.Enter
 				},
 				menu: {
 					id: MENU_CELL_CHAT_INPUT,
-					group: 'main',
+					group: 'navigation',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.negate()
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -64,7 +65,8 @@ registerAction2(class extends NotebookCellAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -105,7 +107,8 @@ registerAction2(class extends NotebookAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -134,7 +137,8 @@ registerAction2(class extends NotebookCellAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -164,7 +168,8 @@ registerAction2(class extends NotebookCellAction {
 					),
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -183,10 +188,11 @@ registerAction2(class extends NotebookAction {
 				icon: Codicon.debugStop,
 				menu: {
 					id: MENU_CELL_CHAT_INPUT,
-					group: 'main',
+					group: 'navigation',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -204,9 +210,10 @@ registerAction2(class extends NotebookAction {
 				icon: Codicon.close,
 				menu: {
 					id: MENU_CELL_CHAT_WIDGET,
-					group: 'main',
+					group: 'navigation',
 					order: 2
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -253,7 +260,8 @@ registerAction2(class extends NotebookAction {
 						order: 0,
 						when: CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.OnlyMessages),
 					}
-				]
+				],
+				f1: false
 			});
 	}
 
@@ -278,7 +286,8 @@ registerAction2(class extends NotebookAction {
 					id: MENU_CELL_CHAT_WIDGET_STATUS,
 					group: 'main',
 					order: 1
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -298,7 +307,8 @@ registerAction2(class extends NotebookAction {
 				group: 'inline',
 				order: 1,
 				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-			}
+			},
+			f1: false
 		});
 	}
 
@@ -318,7 +328,8 @@ registerAction2(class extends NotebookAction {
 				group: 'inline',
 				order: 2,
 				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-			}
+			},
+			f1: false
 		});
 	}
 
@@ -338,7 +349,8 @@ registerAction2(class extends NotebookAction {
 				group: 'inline',
 				order: 3,
 				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-			}
+			},
+			f1: false
 		});
 	}
 
@@ -386,6 +398,18 @@ registerAction2(class extends NotebookAction {
 					]
 				},
 				f1: false,
+				keybinding: {
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+						ContextKeyExpr.not(InputFocusedContextKey),
+						CTX_INLINE_CHAT_HAS_PROVIDER,
+						ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+					),
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyI,
+					secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
+				},
 				menu: [
 					{
 						id: MenuId.NotebookCellBetween,
@@ -523,6 +547,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			],
+			f1: false
 		});
 	}
 
@@ -546,6 +571,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			],
+			f1: false
 		});
 	}
 
@@ -569,6 +595,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			],
+			f1: false
 		});
 	}
 
@@ -588,7 +615,8 @@ registerAction2(class extends NotebookAction {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
 					weight: KeybindingWeight.EditorCore + 10,
 					primary: KeyCode.UpArrow,
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -608,7 +636,8 @@ registerAction2(class extends NotebookAction {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
 					weight: KeybindingWeight.EditorCore + 10,
 					primary: KeyCode.DownArrow
-				}
+				},
+				f1: false
 			});
 	}
 
@@ -634,7 +663,8 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_CELL_GENERATED_BY_CHAT,
 						ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
 					)
-				}
+				},
+				f1: false
 			});
 	}
 

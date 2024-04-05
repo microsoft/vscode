@@ -621,7 +621,7 @@ export class WorkspaceConfiguration extends Disposable {
 
 	private readonly _cachedConfiguration: CachedWorkspaceConfiguration;
 	private _workspaceConfiguration: CachedWorkspaceConfiguration | FileServiceBasedWorkspaceConfiguration;
-	private _workspaceConfigurationDisposables = this._register(new DisposableStore());
+	private readonly _workspaceConfigurationDisposables = this._register(new DisposableStore());
 	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
 	private _isWorkspaceTrusted: boolean = false;
 
