@@ -22,11 +22,7 @@ class ChatProviderWrapper<T> {
 }
 
 export class ExtHostChat implements ExtHostChatShape {
-	private static _nextId = 0;
-
 	private readonly _chatProvider = new Map<number, ChatProviderWrapper<vscode.InteractiveSessionProvider>>();
-
-	private readonly _chatSessions = new Map<number, vscode.InteractiveSession>();
 
 	private readonly _proxy: MainThreadChatShape;
 
@@ -63,16 +59,7 @@ export class ExtHostChat implements ExtHostChatShape {
 			return undefined;
 		}
 
-		const id = ExtHostChat._nextId++;
-		this._chatSessions.set(id, session);
-
-		return {
-			id,
-		};
-	}
-
-	$releaseSession(sessionId: number) {
-		this._chatSessions.delete(sessionId);
+		return {};
 	}
 
 	//#endregion

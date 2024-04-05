@@ -307,9 +307,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			const d = this._chatService.registerProvider({
 				id: this._asChatProviderBrigdeName(provider),
 				prepareSession() {
-					return {
-						id: Math.random()
-					};
+					return {};
 				}
 			});
 			mapping.set(provider, d);

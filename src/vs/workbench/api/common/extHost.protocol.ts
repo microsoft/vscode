@@ -1287,7 +1287,6 @@ export interface MainThreadUrlsShape extends IDisposable {
 }
 
 export interface IChatDto {
-	id: number;
 }
 
 export interface IChatRequestDto {
@@ -1320,14 +1319,12 @@ export type IChatProgressDto =
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
-	$acceptChatState(sessionId: number, state: any): Promise<void>;
 	$unregisterChatProvider(handle: number): Promise<void>;
 	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
 
 export interface ExtHostChatShape {
 	$prepareChat(handle: number, token: CancellationToken): Promise<IChatDto | undefined>;
-	$releaseSession(sessionId: number): void;
 }
 
 export interface ExtHostUrlsShape {

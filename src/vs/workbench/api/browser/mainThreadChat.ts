@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -17,7 +16,6 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	private readonly _providerRegistrations = this._register(new DisposableMap<number>());
-	private readonly _stateEmitters = new Map<number, Emitter<any>>();
 
 	private readonly _proxy: ExtHostChatShape;
 
@@ -58,24 +56,11 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 					return undefined;
 				}
 
-				const emitter = new Emitter<any>();
-				this._stateEmitters.set(session.id, emitter);
-				return {
-					id: session.id,
-					dispose: () => {
-						emitter.dispose();
-						this._stateEmitters.delete(session.id);
-						this._proxy.$releaseSession(session.id);
-					}
-				};
+				return {};
 			},
 		});
 
 		this._providerRegistrations.set(handle, unreg);
-	}
-
-	async $acceptChatState(sessionId: number, state: any): Promise<void> {
-		this._stateEmitters.get(sessionId)?.fire(state);
 	}
 
 	async $unregisterChatProvider(handle: number): Promise<void> {
