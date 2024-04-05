@@ -232,9 +232,10 @@ class RenderedHoverData extends Disposable {
 		hoverParts.sort(compareBy(hover => hover.ordinal, numberComparator));
 		const _renderedHoverParts = new Map<number, RenderedHoverPart>();
 		for (const [hoverIndex, hoverPart] of hoverParts.entries()) {
-			const isInstanceOfVerboseHover = hoverPart instanceof VerboseMarkdownHover;
+			const shouldRenderVerboseHover = hoverPart instanceof VerboseMarkdownHover
+				&& (hoverPart.hover.canIncreaseVerbosity || hoverPart.hover.canDecreaseVerbosity);
 			let renderedHoverPart: RenderedHoverPart;
-			if (isInstanceOfVerboseHover) {
+			if (shouldRenderVerboseHover) {
 				renderedHoverPart = this._renderVerboseHoverPart(
 					hoverIndex,
 					hoverPart,
