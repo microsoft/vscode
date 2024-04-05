@@ -44,7 +44,6 @@ import { StashedSession } from './inlineChatSession';
 import { IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { tail } from 'vs/base/common/arrays';
 import { IChatRequestModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -648,7 +647,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._session);
 		assertType(this._session.lastInput);
 
-		const request: IChatRequestModel | undefined = tail(this._session.chatModel.getRequests());
+		const request: IChatRequestModel | undefined = this._session.chatModel.getRequests().at(-1);
 
 		assertType(request);
 		assertType(request.response);
@@ -1078,7 +1077,7 @@ export class InlineChatController implements IEditorContribution {
 		if (this._session?.lastExchange && this._strategy) {
 			const { lastExchange } = this._session;
 
-			const request = tail(this._session.chatModel.getRequests());
+			const request = this._session.chatModel.getRequests().at(-1);
 			if (!request || !request.response?.isComplete) {
 				return;
 			}

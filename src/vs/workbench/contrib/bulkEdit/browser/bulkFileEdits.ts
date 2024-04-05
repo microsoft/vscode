@@ -16,7 +16,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { tail } from 'vs/base/common/arrays';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
 
@@ -362,7 +361,7 @@ export class BulkFileEdits {
 
 		for (let i = 1; i < edits.length; i++) {
 			const edit = edits[i];
-			const lastGroup = tail(groups);
+			const lastGroup = groups.at(-1);
 			if (lastGroup?.[0].type === edit.type) {
 				lastGroup.push(edit);
 			} else {

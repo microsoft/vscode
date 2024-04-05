@@ -14,7 +14,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { relativePath } from 'vs/base/common/resources';
 import { isObject } from 'vs/base/common/types';
-import { tail } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
 import { WindowIdleValue, getActiveWindow } from 'vs/base/browser/dom';
 
@@ -54,7 +53,7 @@ class SnippetBodyInsights {
 		if (textmateSnippet.placeholders.length === 0) {
 			this.isTrivial = true;
 		} else if (placeholderMax === 0) {
-			const last = tail(textmateSnippet.children);
+			const last = textmateSnippet.children.at(-1);
 			this.isTrivial = last instanceof Placeholder && last.isFinalTabstop;
 		}
 

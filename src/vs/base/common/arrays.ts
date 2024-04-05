@@ -8,15 +8,6 @@ import { CancellationError } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
 import { findFirstIdxMonotonousOrArrLen } from './arraysFind';
 
-/**
- * Returns the last element of an array.
- * @param array The array.
- * @param n Which element from the end (default is zero).
- */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
-	return array[array.length - (1 + n)];
-}
-
 export function tail2<T>(arr: T[]): [T[], T] {
 	if (arr.length === 0) {
 		throw new Error('Invalid tail call');

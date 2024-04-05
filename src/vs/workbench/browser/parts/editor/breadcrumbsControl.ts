@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent, IBreadcrumbsWidgetStyles } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
-import { tail } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -639,7 +638,7 @@ function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): voi
 	const breadcrumbs = accessor.get(IBreadcrumbsService);
 	const widget = breadcrumbs.getWidget(groups.activeGroup.id);
 	if (widget) {
-		const item = tail(widget.getItems());
+		const item = widget.getItems().at(-1);
 		widget.setFocused(item);
 		if (select) {
 			widget.setSelection(item, BreadcrumbsControl.Payload_Pick);
