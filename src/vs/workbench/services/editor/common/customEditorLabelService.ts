@@ -67,6 +67,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 			// Cache the patterns
 			else if (e.affectsConfiguration(CustomEditorLabelService.SETTING_ID_PATTERNS)) {
+				this.cache.clear();
 				this.storeCustomPatterns();
 				this._onDidChange.fire();
 			}
