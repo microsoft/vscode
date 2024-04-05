@@ -176,6 +176,8 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { CustomEditorLabelService, ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
+import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -254,6 +256,7 @@ export function workbenchInstantiationService(
 ): TestInstantiationService {
 	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, disposables.add(new TestLifecycleService())])));
 
+	instantiationService.stub(IProductService, TestProductService);
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
 	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));
 	const environmentService = overrides?.environmentService ? overrides.environmentService(instantiationService) : TestEnvironmentService;
@@ -345,8 +348,10 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ITerminalGroupService, new TestTerminalGroupService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(ITerminalProfileService, new TestTerminalProfileService());
+	instantiationService.stub(ITerminalProfileResolverService, new TestTerminalProfileResolverService());
 	instantiationService.stub(ITerminalConfigurationService, disposables.add(instantiationService.createInstance(TerminalConfigurationService)));
 	instantiationService.stub(ITerminalLogService, disposables.add(instantiationService.createInstance(TerminalLogService)));
+	instantiationService.stub(IEnvironmentVariableService, disposables.add(instantiationService.createInstance(EnvironmentVariableService)));
 	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
 	instantiationService.stub(IRemoteSocketFactoryService, new RemoteSocketFactoryService());
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));

@@ -87,7 +87,7 @@ suite('Workbench - TerminalProcessManager', () => {
 
 	setup(async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const configurationService = new TestConfigurationService();
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
 		await configurationService.setUserConfiguration('terminal', {
 			integrated: {
@@ -98,12 +98,9 @@ suite('Workbench - TerminalProcessManager', () => {
 				}
 			}
 		});
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(ITerminalConfigurationService, store.add(instantiationService.createInstance(TerminalConfigurationService)));
-		instantiationService.stub(IProductService, TestProductService);
-		instantiationService.stub(ITerminalLogService, new NullLogService());
-		instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
-		instantiationService.stub(ITerminalProfileResolverService, TestTerminalProfileResolverService);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: () => true,
+		} as any);
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 
 		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
