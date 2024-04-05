@@ -27,6 +27,8 @@ import { IProfileQuickPickItem, TerminalProfileQuickpick } from 'vs/workbench/co
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IPickOptions, IQuickInputService, Omit, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class TestTerminalProfileService extends TerminalProfileService implements Partial<ITerminalProfileService> {
 	hasRefreshedProfiles: Promise<void> | undefined;
@@ -144,6 +146,8 @@ const powershellPick = { label: 'Powershell', profile: powershellProfile, profil
 const jsdebugPick = { label: 'Javascript Debug Terminal', profile: jsdebugProfile, profileName: jsdebugProfile.title };
 
 suite('TerminalProfileService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let configurationService: TestConfigurationService;
 	let terminalInstanceService: TestTerminalInstanceService;
 	let terminalProfileService: TestTerminalProfileService;
@@ -153,18 +157,26 @@ suite('TerminalProfileService', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
+		configurationService = new TestConfigurationService({
+			files: {},
+			terminal: {
+				integrated: defaultTerminalConfig
+			}
+		});
+		instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService
+		}, store);
 		remoteAgentService = new TestRemoteAgentService();
 		terminalInstanceService = new TestTerminalInstanceService();
 		extensionService = new TestTerminalExtensionService();
 		environmentService = { remoteAuthority: undefined } as IWorkbenchEnvironmentService;
-		instantiationService = new TestInstantiationService();
+		// instantiationService = new TestInstantiationService();
 
 		const themeService = new TestThemeService();
 		const terminalContributionService = new TestTerminalContributionService();
-		const contextKeyService = new MockContextKeyService();
+		// const contextKeyService = new MockContextKeyService();
 
-		instantiationService.stub(IContextKeyService, contextKeyService);
+		// instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IExtensionService, extensionService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -173,7 +185,7 @@ suite('TerminalProfileService', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		instantiationService.stub(IThemeService, themeService);
 
-		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
+		terminalProfileService = store.add(instantiationService.createInstance(TestTerminalProfileService));
 
 		//reset as these properties are changed in each test
 		powershellProfile = {
@@ -201,9 +213,7 @@ suite('TerminalProfileService', () => {
 		}
 		configurationService.setUserConfiguration('terminal', { integrated: defaultTerminalConfig });
 	});
-	teardown(() => {
-		instantiationService.dispose();
-	});
+
 	suite('Contributed Profiles', () => {
 		test('should filter out contributed profiles set to null (Linux)', async () => {
 			remoteAgentService.setEnvironment(OperatingSystem.Linux);
@@ -263,7 +273,7 @@ suite('TerminalProfileService', () => {
 	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
 		environmentService = { remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
-		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
+		terminalProfileService = store.add(instantiationService.createInstance(TestTerminalProfileService));
 		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(terminalProfileService.availableProfiles, []);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
@@ -276,7 +286,7 @@ suite('TerminalProfileService', () => {
 	test('should fire onDidChangeAvailableProfiles only when available profiles have changed via user config', async () => {
 		powershellProfile.icon = Codicon.lightBulb;
 		let calls: ITerminalProfile[][] = [];
-		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
+		store.add(terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e)));
 		await configurationService.setUserConfiguration('terminal', {
 			integrated: {
 				profiles: {
@@ -301,7 +311,7 @@ suite('TerminalProfileService', () => {
 		powershellProfile.isDefault = false;
 		terminalInstanceService.setProfiles(undefined, [powershellProfile]);
 		const calls: ITerminalProfile[][] = [];
-		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
+		store.add(terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e)));
 		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(calls, [
 			[powershellProfile]
@@ -313,7 +323,7 @@ suite('TerminalProfileService', () => {
 	test('should call refreshAvailableProfiles _onDidChangeExtensions', async () => {
 		extensionService._onDidChangeExtensions.fire();
 		const calls: ITerminalProfile[][] = [];
-		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
+		store.add(terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e)));
 		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(calls, [
 			[powershellProfile]
