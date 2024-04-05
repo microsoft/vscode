@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-P8o4sb+/oKsV3qM+wxe7VdC9SD4w9o5fftHmyimE/eU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-XNmwvhlWm1sr2KGKuqfJIq1Q7WKQrsUlc4WxISoM1BM=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -793,7 +793,6 @@
 
 
 		function handleInnerDragEvent(/** @type {DragEvent} */ e) {
-			console.log(e);
 			if (!e.dataTransfer) {
 				return;
 			}
@@ -895,7 +894,6 @@
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
 		window.addEventListener('dragover', handleInnerDragEvent);
 		window.addEventListener('drag', handleInnerDragEvent);
-
 
 		onDomReady(() => {
 			if (!document.body) {
