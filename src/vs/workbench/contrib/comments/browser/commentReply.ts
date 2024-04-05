@@ -41,8 +41,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	form: HTMLElement;
 	commentEditorIsEmpty: IContextKey<boolean>;
 	private _error!: HTMLElement;
-	private readonly _formActions: HTMLElement;
-	private readonly _editorActions: HTMLElement;
+	private _formActions!: HTMLElement;
+	private _editorActions!: HTMLElement;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _commentFormActions!: CommentFormActions;
 	private _commentEditorActions!: CommentFormActions;
@@ -75,9 +75,6 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
-		const formActions = dom.append(this.form, dom.$('.form-actions'));
-		this._formActions = dom.append(formActions, dom.$('.other-actions'));
-		this._editorActions = dom.append(formActions, dom.$('.editor-actions'));
 		this.initialize();
 	}
 
@@ -125,7 +122,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this.expandReplyArea();
 		}
 		this._error = dom.append(this.form, dom.$('.validation-error.hidden'));
+		const formActions = dom.append(this.form, dom.$('.form-actions'));
+		this._formActions = dom.append(formActions, dom.$('.other-actions'));
 		this.createCommentWidgetFormActions(this._formActions, model.object.textEditorModel);
+		this._editorActions = dom.append(formActions, dom.$('.editor-actions'));
 		this.createCommentWidgetEditorActions(this._editorActions, model.object.textEditorModel);
 	}
 
