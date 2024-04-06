@@ -44,19 +44,29 @@ suite('chat', () => {
 		const onRequest = setupParticipant();
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 
+		const deferred = new DeferredPromise<void>();
 		let i = 0;
 		disposables.push(onRequest(request => {
-			if (i === 0) {
-				assert.deepStrictEqual(request.request.command, 'hello');
-				assert.strictEqual(request.request.prompt, 'friend');
-				i++;
-				commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
-			} else {
-				assert.strictEqual(request.context.history.length, 1);
-				assert.strictEqual(request.context.history[0].participant, 'api-test.participant');
-				assert.strictEqual(request.context.history[0].command, 'hello');
+			try {
+				if (i === 0) {
+					assert.deepStrictEqual(request.request.command, 'hello');
+					assert.strictEqual(request.request.prompt, 'friend');
+					i++;
+					setTimeout(() => {
+						commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
+					}, 0);
+				} else {
+					assert.strictEqual(request.context.history.length, 2);
+					assert.strictEqual(request.context.history[0].participant, 'api-test.participant');
+					assert.strictEqual(request.context.history[0].command, 'hello');
+					deferred.complete();
+				}
+			} catch (e) {
+				deferred.error(e);
 			}
 		}));
+
+		await deferred.p;
 	});
 
 	test('participant and variable', async () => {
