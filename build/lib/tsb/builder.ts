@@ -43,7 +43,6 @@ const vsRoot = path.join(__dirname, '..', '..', '..', 'src')
 
 function getVsRelativePath(absolutePath: string) {
 	absolutePath = absolutePath.replace('/out/vs/vs/', '/out/vs/')
-	console.log({ absolutePath, vsRoot })
 	if (!absolutePath.startsWith(vsRoot)) {
 		return ''
 	}
