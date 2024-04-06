@@ -2082,7 +2082,6 @@ export interface IPasteEditProviderMetadataDto {
 export interface IDocumentPasteContextDto {
 	readonly only: string | undefined;
 	readonly triggerKind: languages.DocumentPasteTriggerKind;
-
 }
 
 export interface IPasteEditDto {
@@ -2095,10 +2094,13 @@ export interface IPasteEditDto {
 }
 
 export interface IDocumentDropEditProviderMetadata {
+	readonly supportsResolve: boolean;
+
 	dropMimeTypes: readonly string[];
 }
 
-export interface IDocumentOnDropEditDto {
+export interface IDocumentDropEditDto {
+	_cacheId?: ChainedCacheId;
 	title: string;
 	kind: string | undefined;
 	insertText: string | { snippet: string };
@@ -2170,7 +2172,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
-	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto[] | undefined>;
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentDropEditDto[] | undefined>;
 	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
 	$provideInlineEdit(handle: number, document: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined>;
 	$freeInlineEdit(handle: number, pid: number): void;
