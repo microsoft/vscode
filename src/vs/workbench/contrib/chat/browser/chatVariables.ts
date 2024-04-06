@@ -8,12 +8,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IOffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest, ChatRequestVariablePart, ChatRequestDynamicVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IDynamicVariable, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatRequestDynamicVariablePart, ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -31,7 +31,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	}
 
 	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
-		let resolvedVariables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[] = [];
+		let resolvedVariables: IChatRequestVariableEntry[] = [];
 		const jobs: Promise<any>[] = [];
 
 		prompt.parts
@@ -39,10 +39,16 @@ export class ChatVariablesService implements IChatVariablesService {
 				if (part instanceof ChatRequestVariablePart) {
 					const data = this._resolver.get(part.variableName.toLowerCase());
 					if (data) {
-						jobs.push(data.resolver(prompt.text, part.variableArg, model, progress, token).then(values => {
-							if (values?.length) {
-								resolvedVariables[i] = { name: part.variableName, range: part.range, values };
+						const references: IChatContentReference[] = [];
+						const variableProgressCallback = (item: IChatVariableResolverProgress) => {
+							if (item.kind === 'reference') {
+								references.push(item);
+								return;
 							}
+							progress(item);
+						};
+						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(values => {
+							resolvedVariables[i] = { name: part.variableName, range: part.range, values: values ?? [], references };
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
@@ -55,15 +61,28 @@ export class ChatVariablesService implements IChatVariablesService {
 		resolvedVariables = coalesce(resolvedVariables);
 
 		// "reverse", high index first so that replacement is simple
-		resolvedVariables.sort((a, b) => b.range.start - a.range.start);
+		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
 
 		return {
 			variables: resolvedVariables,
 		};
 	}
 
+	async resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue[]> {
+		const data = this._resolver.get(variableName.toLowerCase());
+		if (!data) {
+			return Promise.resolve([]);
+		}
+
+		return (await data.resolver(promptText, undefined, model, progress, token)) ?? [];
+	}
+
 	hasVariable(name: string): boolean {
 		return this._resolver.has(name.toLowerCase());
+	}
+
+	getVariable(name: string): IChatVariableData | undefined {
+		return this._resolver.get(name.toLowerCase())?.data;
 	}
 
 	getVariables(): Iterable<Readonly<IChatVariableData>> {

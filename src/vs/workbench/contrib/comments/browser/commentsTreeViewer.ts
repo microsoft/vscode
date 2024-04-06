@@ -22,7 +22,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from 'vs/workbench/contrib/comments/browser/commentColors';
-import { CommentThreadState } from 'vs/editor/common/languages';
+import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
 import { Color } from 'vs/base/common/color';
 import { IMatch } from 'vs/base/common/filters';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
@@ -32,7 +32,6 @@ import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -42,6 +41,8 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MarshalledCommentThread, MarshalledCommentThreadInternal } from 'vs/workbench/common/comments';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -55,6 +56,7 @@ interface IResourceTemplateData {
 
 interface ICommentThreadTemplateData {
 	threadMetadata: {
+		relevance: HTMLElement;
 		icon: HTMLElement;
 		userNames: HTMLSpanElement;
 		timestamp: TimestampWidget;
@@ -161,7 +163,8 @@ class CommentsMenus implements IDisposable {
 		const overlay: [string, any][] = [
 			['commentController', element.owner],
 			['resourceScheme', element.resource.scheme],
-			['commentThread', element.contextValue]
+			['commentThread', element.contextValue],
+			['canReply', element.thread.canReply]
 		];
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 
@@ -188,18 +191,19 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		private menus: CommentsMenus,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IThemeService private themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement) {
-
 		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
 		const metadata = dom.append(metadataContainer, dom.$('.comment-metadata'));
 		const threadMetadata = {
 			icon: dom.append(metadata, dom.$('.icon')),
 			userNames: dom.append(metadata, dom.$('.user')),
-			timestamp: new TimestampWidget(this.configurationService, dom.append(metadata, dom.$('.timestamp-container'))),
+			timestamp: new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container'))),
+			relevance: dom.append(metadata, dom.$('.relevance')),
 			separator: dom.append(metadata, dom.$('.separator')),
 			commentPreview: dom.append(metadata, dom.$('.text')),
 			range: dom.append(metadata, dom.$('.range'))
@@ -218,7 +222,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			count: dom.append(snippetContainer, dom.$('.count')),
 			lastReplyDetail: dom.append(snippetContainer, dom.$('.reply-detail')),
 			separator: dom.append(snippetContainer, dom.$('.separator')),
-			timestamp: new TimestampWidget(this.configurationService, dom.append(snippetContainer, dom.$('.timestamp-container'))),
+			timestamp: new TimestampWidget(this.configurationService, this.hoverService, dom.append(snippetContainer, dom.$('.timestamp-container'))),
 		};
 		repliesMetadata.separator.innerText = '\u00b7';
 		repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
@@ -228,8 +232,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 
 	private getCountString(commentCount: number): string {
-		if (commentCount > 1) {
-			return nls.localize('commentsCount', "{0} comments", commentCount);
+		if (commentCount > 2) {
+			return nls.localize('commentsCountReplies', "{0} replies", commentCount - 1);
+		} else if (commentCount === 2) {
+			return nls.localize('commentsCountReply', "1 reply");
 		} else {
 			return nls.localize('commentCount', "1 comment");
 		}
@@ -265,6 +271,16 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		templateData.actionBar.clear();
 
 		const commentCount = node.element.replies.length + 1;
+		if (node.element.threadRelevance === CommentThreadApplicability.Outdated) {
+			templateData.threadMetadata.relevance.style.display = '';
+			templateData.threadMetadata.relevance.innerText = nls.localize('outdated', "Outdated");
+			templateData.threadMetadata.separator.style.display = 'none';
+		} else {
+			templateData.threadMetadata.relevance.innerText = '';
+			templateData.threadMetadata.relevance.style.display = 'none';
+			templateData.threadMetadata.separator.style.display = '';
+		}
+
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
 		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
@@ -287,7 +303,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
-			templateData.disposables.push(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
+			templateData.disposables.push(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {
@@ -304,7 +320,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			commentControlHandle: node.element.controllerHandle,
 			commentThreadHandle: node.element.threadHandle,
 			$mid: MarshalledId.CommentThread
-		};
+		} as MarshalledCommentThread;
 
 		if (!node.element.hasReply()) {
 			templateData.repliesMetadata.container.style.display = 'none';
@@ -511,10 +527,11 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 					this.domFocus();
 				}
 			},
-			getActionsContext: () => ({
+			getActionsContext: (): MarshalledCommentThreadInternal => ({
 				commentControlHandle: node.controllerHandle,
 				commentThreadHandle: node.threadHandle,
-				$mid: MarshalledId.CommentThread
+				$mid: MarshalledId.CommentThread,
+				thread: node.thread
 			})
 		});
 	}

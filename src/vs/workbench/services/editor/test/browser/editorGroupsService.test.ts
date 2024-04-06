@@ -477,7 +477,6 @@ suite('EditorGroupsService', () => {
 		const editorCloseEvents: IGroupModelChangeEvent[] = [];
 		let editorPinCounter = 0;
 		let editorStickyCounter = 0;
-		let editorTransientCounter = 0;
 		let editorCapabilitiesCounter = 0;
 		const editorGroupModelChangeListener = group.onDidModelChange(e => {
 			if (e.kind === GroupModelChangeKind.EDITOR_OPEN) {
@@ -490,9 +489,6 @@ suite('EditorGroupsService', () => {
 			} else if (e.kind === GroupModelChangeKind.EDITOR_STICKY) {
 				assert.ok(e.editor);
 				editorStickyCounter++;
-			} else if (e.kind === GroupModelChangeKind.EDITOR_TRANSIENT) {
-				assert.ok(e.editor);
-				editorTransientCounter++;
 			} else if (e.kind === GroupModelChangeKind.EDITOR_CAPABILITIES) {
 				assert.ok(e.editor);
 				editorCapabilitiesCounter++;
@@ -596,15 +592,6 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(editorStickyCounter, 1);
 		group.unstickEditor(input);
 		assert.strictEqual(editorStickyCounter, 2);
-
-		assert.strictEqual(group.isTransient(input), false);
-		assert.strictEqual(editorTransientCounter, 0);
-		group.setTransient(input, true);
-		assert.strictEqual(group.isTransient(input), true);
-		assert.strictEqual(editorTransientCounter, 1);
-		group.setTransient(input, false);
-		assert.strictEqual(group.isTransient(input), false);
-		assert.strictEqual(editorTransientCounter, 2);
 
 		editorCloseListener.dispose();
 		editorWillCloseListener.dispose();
@@ -1062,7 +1049,8 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getEditorByIndex(0), inputInactive);
 		assert.strictEqual(group.getEditorByIndex(1), input);
 
-		group.moveEditors([{ editor: inputInactive, options: { index: 1 } }], group);
+		const res = group.moveEditors([{ editor: inputInactive, options: { index: 1 } }], group);
+		assert.strictEqual(res, true);
 		assert.strictEqual(moveEvents.length, 2);
 		assert.strictEqual((moveEvents[1] as IGroupEditorOpenEvent).editorIndex, 1);
 		assert.strictEqual((moveEvents[1] as IGroupEditorMoveEvent).oldEditorIndex, 0);
@@ -1570,20 +1558,43 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(leftFiredCount, 0);
 		assert.strictEqual(rightFiredCount, 0);
 
-		group.moveEditor(input, rightGroup);
+		let result = group.moveEditor(input, rightGroup);
+		assert.strictEqual(result, true);
 		assert.strictEqual(leftFiredCount, 1);
 		assert.strictEqual(rightFiredCount, 0);
 
-		group.moveEditor(inputInactive, rightGroup);
+		result = group.moveEditor(inputInactive, rightGroup);
+		assert.strictEqual(result, true);
 		assert.strictEqual(leftFiredCount, 2);
 		assert.strictEqual(rightFiredCount, 0);
 
-		rightGroup.moveEditor(inputInactive, group);
+		result = rightGroup.moveEditor(inputInactive, group);
+		assert.strictEqual(result, true);
 		assert.strictEqual(leftFiredCount, 2);
 		assert.strictEqual(rightFiredCount, 1);
 
 		leftGroupListener.dispose();
 		rightGroupListener.dispose();
+	});
+
+	test('moveEditor disabled', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = createTestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+		const thirdInput = createTestFileEditorInput(URI.file('foo/bar/third'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }, { editor: thirdInput }]);
+
+		input.setMoveDisabled('disabled');
+		const result = group.moveEditor(input, rightGroup);
+
+		assert.strictEqual(result, false);
+		assert.strictEqual(group.count, 3);
 	});
 
 	test('onWillOpenEditor', async () => {
@@ -1835,30 +1846,42 @@ suite('EditorGroupsService', () => {
 		const group = part.activeGroup;
 
 		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
-		const inputInactive = createTestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+		const inputTransient = createTestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditor(input, { pinned: true });
-		await group.openEditor(inputInactive, { inactive: true });
-
-		assert.strictEqual(group.isTransient(input), false);
-		assert.strictEqual(group.isTransient(inputInactive), false);
-
-		group.setTransient(input, true);
-
-		assert.strictEqual(group.isTransient(input), true);
-		assert.strictEqual(group.isTransient(inputInactive), false);
-
-		group.setTransient(input, false);
-
-		assert.strictEqual(group.isTransient(input), false);
-		assert.strictEqual(group.isTransient(inputInactive), false);
-
-		const inputTransient = createTestFileEditorInput(URI.file('foo/bar/transient'), TEST_EDITOR_INPUT_ID);
-
 		await group.openEditor(inputTransient, { transient: true });
+
+		assert.strictEqual(group.isTransient(input), false);
 		assert.strictEqual(group.isTransient(inputTransient), true);
 
-		await group.openEditor(inputTransient, {});
+		await group.openEditor(input, { pinned: true });
+		await group.openEditor(inputTransient, { transient: true });
+
+		assert.strictEqual(group.isTransient(inputTransient), true);
+
+		await group.openEditor(inputTransient, { transient: false });
+		assert.strictEqual(group.isTransient(inputTransient), false);
+
+		await group.openEditor(inputTransient, { transient: true });
+		assert.strictEqual(group.isTransient(inputTransient), false); // cannot make a non-transient editor transient when already opened
+	});
+
+	test('transient editors - pinning clears transient', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputTransient = createTestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input, { pinned: true });
+		await group.openEditor(inputTransient, { transient: true });
+
+		assert.strictEqual(group.isTransient(input), false);
+		assert.strictEqual(group.isTransient(inputTransient), true);
+
+		await group.openEditor(input, { pinned: true });
+		await group.openEditor(inputTransient, { pinned: true, transient: true });
+
 		assert.strictEqual(group.isTransient(inputTransient), false);
 	});
 
@@ -1882,7 +1905,7 @@ suite('EditorGroupsService', () => {
 		await group.openEditor(input2, { transient: true });
 		assert.strictEqual(group.isPinned(input2), false);
 
-		group.setTransient(input2, false);
+		group.focus();
 		assert.strictEqual(group.isPinned(input2), true);
 	});
 

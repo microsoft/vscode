@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
@@ -18,7 +22,9 @@ import { getNewChatAction } from 'vs/workbench/contrib/chat/browser/actions/chat
 import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { IChatContributionService, IChatParticipantContribution, IChatProviderContribution, IRawChatParticipantContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatContributionService, IChatProviderContribution, IRawChatParticipantContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatProviderContribution[]>({
@@ -61,28 +67,43 @@ const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensi
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.chatParticipant', 'Contributes a Chat Participant'),
+		description: localize('vscode.extension.contributes.chatParticipant', 'Contributes a chat participant'),
 		type: 'array',
 		items: {
 			additionalProperties: false,
 			type: 'object',
 			defaultSnippets: [{ body: { name: '', description: '' } }],
-			required: ['name'],
+			required: ['name', 'id'],
 			properties: {
+				id: {
+					description: localize('chatParticipantId', "A unique id for this chat participant."),
+					type: 'string'
+				},
 				name: {
-					description: localize('chatParticipantName', "Unique name for this Chat Participant."),
+					description: localize('chatParticipantName', "User-facing display name for this chat participant. The user will use '@' with this name to invoke the participant."),
 					type: 'string'
 				},
 				description: {
-					description: localize('chatParticipantDescription', "A description of this Chat Participant, shown in the UI."),
+					description: localize('chatParticipantDescription', "A description of this chat participant, shown in the UI."),
 					type: 'string'
 				},
 				isDefault: {
 					markdownDescription: localize('chatParticipantIsDefaultDescription', "**Only** allowed for extensions that have the `defaultChatParticipant` proposal."),
 					type: 'boolean',
 				},
+				isSticky: {
+					description: localize('chatCommandSticky', "Whether invoking the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message."),
+					type: 'boolean'
+				},
+				defaultImplicitVariables: {
+					markdownDescription: '**Only** allowed for extensions that have the `chatParticipantAdditions` proposal. The names of the variables that are invoked by default',
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				},
 				commands: {
-					markdownDescription: localize('chatCommandsDescription', "Commands available for this Chat Participant, which the user can invoke with a `/`."),
+					markdownDescription: localize('chatCommandsDescription', "Commands available for this chat participant, which the user can invoke with a `/`."),
 					type: 'array',
 					items: {
 						additionalProperties: false,
@@ -99,26 +120,43 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 								type: 'string'
 							},
 							when: {
-								description: localize('chatCommandDescription', "A description of this command."),
+								description: localize('chatCommandWhen', "A condition which must be true to enable this command."),
 								type: 'string'
 							},
 							sampleRequest: {
-								description: localize('chatCommandDescription', "A description of this command."),
+								description: localize('chatCommandSampleRequest', "When the user clicks this command in `/help`, this text will be submitted to this participant."),
 								type: 'string'
 							},
 							isSticky: {
-								description: localize('chatCommandDescription', "A description of this command."),
+								description: localize('chatCommandSticky', "Whether invoking the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message."),
 								type: 'boolean'
+							},
+							defaultImplicitVariables: {
+								markdownDescription: localize('defaultImplicitVariables', "**Only** allowed for extensions that have the `chatParticipantAdditions` proposal. The names of the variables that are invoked by default"),
+								type: 'array',
+								items: {
+									type: 'string'
+								}
 							},
 						}
 					}
+				},
+				locations: {
+					markdownDescription: localize('chatLocationsDescription', "Locations in which this chat participant is available."),
+					type: 'array',
+					default: ['panel'],
+					items: {
+						type: 'string',
+						enum: ['panel', 'terminal', 'notebook']
+					}
+
 				}
 			}
 		}
 	},
 	activationEventsGenerator: (contributions: IRawChatParticipantContribution[], result: { push(item: string): void }) => {
 		for (const contrib of contributions) {
-			result.push(`onChatParticipant:${contrib.name}`);
+			result.push(`onChatParticipant:${contrib.id}`);
 		}
 	},
 });
@@ -127,14 +165,58 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatExtensionPointHandler';
 
+	private readonly disposables = new DisposableStore();
+	private _welcomeViewDescriptor?: IViewDescriptor;
 	private _viewContainer: ViewContainer;
 	private _registrationDisposables = new Map<string, IDisposable>();
+	private _participantRegistrationDisposables = new DisposableMap<string>();
 
 	constructor(
-		@IChatContributionService readonly _chatContributionService: IChatContributionService
+		@IChatContributionService private readonly _chatContributionService: IChatContributionService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IProductService private readonly productService: IProductService,
+		@IContextKeyService private readonly contextService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this._viewContainer = this.registerViewContainer();
+		this.registerListeners();
 		this.handleAndRegisterChatExtensions();
+	}
+
+	private registerListeners() {
+		this.contextService.onDidChangeContext(e => {
+
+			if (!this.productService.chatWelcomeView) {
+				return;
+			}
+
+			const showWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
+			const keys = new Set([showWelcomeViewConfigKey]);
+			if (e.affectsSome(keys)) {
+				const contextKeyExpr = ContextKeyExpr.equals(showWelcomeViewConfigKey, true);
+				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+				if (this.contextService.contextMatchesRules(contextKeyExpr)) {
+					const viewId = this._chatContributionService.getViewIdForProvider(this.productService.chatWelcomeView.welcomeViewId);
+
+					this._welcomeViewDescriptor = {
+						id: viewId,
+						name: { original: this.productService.chatWelcomeView.welcomeViewTitle, value: this.productService.chatWelcomeView.welcomeViewTitle },
+						containerIcon: this._viewContainer.icon,
+						ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: this.productService.chatWelcomeView.welcomeViewId }]),
+						canToggleVisibility: false,
+						canMoveView: true,
+						order: 100
+					};
+					viewsRegistry.registerViews([this._welcomeViewDescriptor], this._viewContainer);
+
+					viewsRegistry.registerViewWelcomeContent(viewId, {
+						content: this.productService.chatWelcomeView.welcomeViewContent,
+					});
+				} else if (this._welcomeViewDescriptor) {
+					viewsRegistry.deregisterViews([this._welcomeViewDescriptor], this._viewContainer);
+				}
+			}
+		}, null, this.disposables);
 	}
 
 	private handleAndRegisterChatExtensions(): void {
@@ -164,13 +246,46 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		chatParticipantExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
 				for (const providerDescriptor of extension.value) {
-					this._chatContributionService.registerChatParticipant({ ...providerDescriptor, extensionId: extension.description.identifier });
+					if (providerDescriptor.isDefault && !isProposedApiEnabled(extension.description, 'defaultChatParticipant')) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: defaultChatParticipant.`);
+						continue;
+					}
+
+					if (providerDescriptor.defaultImplicitVariables && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
+						continue;
+					}
+
+					if (!providerDescriptor.id || !providerDescriptor.name) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant without both id and name.`);
+						continue;
+					}
+
+					this._participantRegistrationDisposables.set(
+						getParticipantKey(extension.description.identifier, providerDescriptor.name),
+						this._chatAgentService.registerAgent(
+							providerDescriptor.id,
+							{
+								extensionId: extension.description.identifier,
+								id: providerDescriptor.id,
+								description: providerDescriptor.description,
+								metadata: {
+									isSticky: providerDescriptor.isSticky,
+								},
+								name: providerDescriptor.name,
+								isDefault: providerDescriptor.isDefault,
+								defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
+								locations: isNonEmptyArray(providerDescriptor.locations) ?
+									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
+									[ChatAgentLocation.Panel],
+								slashCommands: providerDescriptor.commands ?? []
+							} satisfies IChatAgentData));
 				}
 			}
 
 			for (const extension of delta.removed) {
 				for (const providerDescriptor of extension.value) {
-					this._chatContributionService.deregisterChatParticipant({ ...providerDescriptor, extensionId: extension.description.identifier });
+					this._participantRegistrationDisposables.deleteAndDispose(getParticipantKey(extension.description.identifier, providerDescriptor.name));
 				}
 			}
 		});
@@ -201,6 +316,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			id: viewId,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
+			singleViewPaneContainerTitle: this._viewContainer.title.value,
 			name: { value: providerDescriptor.label, original: providerDescriptor.label },
 			canToggleVisibility: false,
 			canMoveView: true,
@@ -234,15 +350,14 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 
-function getParticipantKey(participant: IChatParticipantContribution): string {
-	return `${participant.extensionId.value}_${participant.name}`;
+function getParticipantKey(extensionId: ExtensionIdentifier, participantName: string): string {
+	return `${extensionId.value}_${participantName}`;
 }
 
 export class ChatContributionService implements IChatContributionService {
 	declare _serviceBrand: undefined;
 
 	private _registeredProviders = new Map<string, IChatProviderContribution>();
-	private _registeredParticipants = new Map<string, IChatParticipantContribution>();
 
 	constructor(
 	) { }
@@ -259,19 +374,7 @@ export class ChatContributionService implements IChatContributionService {
 		this._registeredProviders.delete(providerId);
 	}
 
-	public registerChatParticipant(participant: IChatParticipantContribution): void {
-		this._registeredParticipants.set(getParticipantKey(participant), participant);
-	}
-
-	public deregisterChatParticipant(participant: IChatParticipantContribution): void {
-		this._registeredParticipants.delete(getParticipantKey(participant));
-	}
-
 	public get registeredProviders(): IChatProviderContribution[] {
 		return Array.from(this._registeredProviders.values());
-	}
-
-	public get registeredParticipants(): IChatParticipantContribution[] {
-		return Array.from(this._registeredParticipants.values());
 	}
 }

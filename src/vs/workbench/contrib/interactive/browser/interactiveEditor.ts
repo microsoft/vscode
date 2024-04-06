@@ -19,7 +19,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
+import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling } from 'vs/workbench/common/editor';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -80,7 +80,7 @@ export interface InteractiveEditorOptions extends ITextEditorOptions {
 	readonly viewState?: InteractiveEditorViewState;
 }
 
-export class InteractiveEditor extends EditorPane {
+export class InteractiveEditor extends EditorPane implements IEditorPaneWithScrolling {
 	private _rootElement!: HTMLElement;
 	private _styleElement!: HTMLStyleElement;
 	private _notebookEditorContainer!: HTMLElement;
@@ -102,18 +102,20 @@ export class InteractiveEditor extends EditorPane {
 	private _editorGroupService: IEditorGroupsService;
 	private _notebookExecutionStateService: INotebookExecutionStateService;
 	private _extensionService: IExtensionService;
-	private _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
+	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _lastLayoutDimensions?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
 	private _editorOptions: IEditorOptions;
 	private _notebookOptions: NotebookOptions;
 	private _editorMemento: IEditorMemento<InteractiveEditorViewState>;
-	private _groupListener = this._register(new MutableDisposable());
+	private readonly _groupListener = this._register(new MutableDisposable());
 	private _runbuttonToolbar: ToolBar | undefined;
 
 	private _onDidFocusWidget = this._register(new Emitter<void>());
 	override get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
 	private _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+	private _onDidChangeScroll = this._register(new Emitter<void>());
+	readonly onDidChangeScroll = this._onDidChangeScroll.event;
 
 	constructor(
 		group: IEditorGroup,
@@ -530,6 +532,8 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
+		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidScroll(() => this._onDidChangeScroll.fire()));
+
 		this._syncWithKernel();
 	}
 
@@ -663,6 +667,17 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		this._codeEditorWidget.setDecorationsByType('interactive-decoration', DECORATION_KEY, decorations);
+	}
+
+	getScrollPosition(): IEditorPaneScrollPosition {
+		return {
+			scrollTop: this._notebookWidget.value?.scrollTop ?? 0,
+			scrollLeft: 0
+		};
+	}
+
+	setScrollPosition(position: IEditorPaneScrollPosition): void {
+		this._notebookWidget.value?.setScrollTop(position.scrollTop);
 	}
 
 	override focus() {

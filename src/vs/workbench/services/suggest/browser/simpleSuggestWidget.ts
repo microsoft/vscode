@@ -204,7 +204,11 @@ export class SimpleSuggestWidget implements IDisposable {
 
 	private _cursorPosition?: { top: number; left: number; height: number };
 
-	showSuggestions(completionModel: SimpleCompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }): void {
+	setCompletionModel(completionModel: SimpleCompletionModel) {
+		this._completionModel = completionModel;
+	}
+
+	showSuggestions(selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }): void {
 		this._cursorPosition = cursorPosition;
 
 		// this._contentWidget.setPosition(this.editor.getPosition());
@@ -213,16 +217,12 @@ export class SimpleSuggestWidget implements IDisposable {
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
 
-		if (this._completionModel !== completionModel) {
-			this._completionModel = completionModel;
-		}
-
 		if (isFrozen && this._state !== State.Empty && this._state !== State.Hidden) {
 			this._setState(State.Frozen);
 			return;
 		}
 
-		const visibleCount = this._completionModel.items.length;
+		const visibleCount = this._completionModel?.items.length ?? 0;
 		const isEmpty = visibleCount === 0;
 		// this._ctxSuggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
@@ -241,7 +241,7 @@ export class SimpleSuggestWidget implements IDisposable {
 		// this._onDidFocus.pause();
 		// this._onDidSelect.pause();
 		try {
-			this._list.splice(0, this._list.length, this._completionModel.items);
+			this._list.splice(0, this._list.length, this._completionModel?.items ?? []);
 			this._setState(isFrozen ? State.Frozen : State.Open);
 			this._list.reveal(selectionIndex, 0);
 			this._list.setFocus([selectionIndex]);

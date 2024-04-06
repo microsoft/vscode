@@ -263,6 +263,7 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 	currentContinuationMarker?: IMarker;
 	continuations?: { marker: IMarker; end: number }[];
 
+	cwd?: string;
 	command?: string;
 
 	isTrusted?: boolean;

@@ -492,11 +492,6 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
 
 	/**
-	 * Provides access to the currently active editor part.
-	 */
-	readonly activePart: IEditorPart;
-
-	/**
 	 * Provides access to the main window editor part.
 	 */
 	readonly mainPart: IEditorPart;
@@ -747,13 +742,17 @@ export interface IEditorGroup {
 
 	/**
 	 * Move an editor from this group either within this group or to another group.
+	 *
+	 * @returns whether the editor was moved or not.
 	 */
-	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
+	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): boolean;
 
 	/**
 	 * Move editors from this group either within this group or to another group.
+	 *
+	 * @returns whether all editors were moved or not.
 	 */
-	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): void;
+	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): boolean;
 
 	/**
 	 * Copy an editor from this group to another group.
@@ -836,19 +835,6 @@ export interface IEditorGroup {
 	 * if unspecified.
 	 */
 	unstickEditor(editor?: EditorInput): void;
-
-	/**
-	 * A transient editor will attempt to appear as preview and certain components
-	 * (such as history tracking) may decide to ignore the editor when it becomes
-	 * active.
-	 * This option is meant to be used only when the editor is used for a short
-	 * period of time, for example when opening a preview of the editor from a
-	 * picker control in the background while navigating through results of the picker.
-	 *
-	 * @param editor the editor to update transient state, or the currently active editor
-	 * if unspecified.
-	 */
-	setTransient(editor: EditorInput | undefined, transient: boolean): void;
 
 	/**
 	 * Whether this editor group should be locked or not.

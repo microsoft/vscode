@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { Comment, CommentThread, CommentThreadChangedEvent, CommentThreadState } from 'vs/editor/common/languages';
+import { Comment, CommentThread, CommentThreadChangedEvent, CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
 
 export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent<IRange> {
 	uniqueOwner: string;
@@ -16,18 +16,28 @@ export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent<IR
 export class CommentNode {
 	isRoot: boolean = false;
 	replies: CommentNode[] = [];
+	public readonly threadId: string;
+	public readonly range: IRange | undefined;
+	public readonly threadState: CommentThreadState | undefined;
+	public readonly threadRelevance: CommentThreadApplicability | undefined;
+	public readonly contextValue: string | undefined;
+	public readonly controllerHandle: number;
+	public readonly threadHandle: number;
 
 	constructor(
 		public readonly uniqueOwner: string,
-		public readonly threadId: string,
+		public readonly owner: string,
 		public readonly resource: URI,
 		public readonly comment: Comment,
-		public readonly range: IRange | undefined,
-		public readonly threadState: CommentThreadState | undefined,
-		public readonly contextValue: string | undefined,
-		public readonly owner: string,
-		public readonly controllerHandle: number,
-		public readonly threadHandle: number) { }
+		public readonly thread: CommentThread) {
+		this.threadId = thread.threadId;
+		this.range = thread.range;
+		this.threadState = thread.state;
+		this.threadRelevance = thread.applicability;
+		this.contextValue = thread.contextValue;
+		this.controllerHandle = thread.controllerHandle;
+		this.threadHandle = thread.commentThreadHandle;
+	}
 
 	hasReply(): boolean {
 		return this.replies && this.replies.length !== 0;
@@ -51,8 +61,8 @@ export class ResourceWithCommentThreads {
 	}
 
 	public static createCommentNode(uniqueOwner: string, owner: string, resource: URI, commentThread: CommentThread): CommentNode {
-		const { threadId, comments, range } = commentThread;
-		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(uniqueOwner, threadId, resource, comment, range, commentThread.state, commentThread.contextValue, owner, commentThread.controllerHandle, commentThread.commentThreadHandle));
+		const { comments } = commentThread;
+		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(uniqueOwner, owner, resource, comment, commentThread));
 		if (commentNodes.length > 1) {
 			commentNodes[0].replies = commentNodes.slice(1, commentNodes.length);
 		}

@@ -10,8 +10,8 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IActiveNotebookEditor, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IActiveNotebookEditor, ICellViewModel, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { OutlineEntry } from './OutlineEntry';
@@ -20,7 +20,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 
 export class NotebookCellOutlineProvider {
-	private readonly _dispoables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
 
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
@@ -54,7 +54,7 @@ export class NotebookCellOutlineProvider {
 		this._outlineEntryFactory = new NotebookOutlineEntryFactory(notebookExecutionStateService);
 
 		const selectionListener = new MutableDisposable();
-		this._dispoables.add(selectionListener);
+		this._disposables.add(selectionListener);
 
 		selectionListener.value = combinedDisposable(
 			Event.debounce<void, void>(
@@ -69,17 +69,21 @@ export class NotebookCellOutlineProvider {
 			)(this._recomputeState, this)
 		);
 
-		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
+		this._disposables.add(_configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotebookSetting.outlineShowMarkdownHeadersOnly) ||
+				e.affectsConfiguration(NotebookSetting.outlineShowCodeCells) ||
+				e.affectsConfiguration(NotebookSetting.outlineShowCodeCellSymbols) ||
+				e.affectsConfiguration(NotebookSetting.breadcrumbsShowCodeCells)
+			) {
 				this._recomputeState();
 			}
 		}));
 
-		this._dispoables.add(themeService.onDidFileIconThemeChange(() => {
+		this._disposables.add(themeService.onDidFileIconThemeChange(() => {
 			this._onDidChange.fire({});
 		}));
 
-		this._dispoables.add(notebookExecutionStateService.onDidChangeExecution(e => {
+		this._disposables.add(notebookExecutionStateService.onDidChangeExecution(e => {
 			if (e.type === NotebookExecutionType.cell && !!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
 				this._recomputeState();
 			}
@@ -92,7 +96,7 @@ export class NotebookCellOutlineProvider {
 		this._entries.length = 0;
 		this._activeEntry = undefined;
 		this._entriesDisposables.dispose();
-		this._dispoables.dispose();
+		this._disposables.dispose();
 	}
 
 	init(): void {
@@ -136,17 +140,20 @@ export class NotebookCellOutlineProvider {
 		}
 
 		let includeCodeCells = true;
-		if (this._target === OutlineTarget.OutlinePane) {
-			includeCodeCells = this._configurationService.getValue<boolean>('notebook.outline.showCodeCells');
-		} else if (this._target === OutlineTarget.Breadcrumbs) {
+		if (this._target === OutlineTarget.Breadcrumbs) {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
+		let notebookCells: ICellViewModel[];
+		if (this._target === OutlineTarget.Breadcrumbs) {
+			notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
+		} else {
+			notebookCells = notebookEditorWidget.getViewModel().viewCells;
+		}
 
 		const entries: OutlineEntry[] = [];
 		for (const cell of notebookCells) {
-			entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, entries.length));
+			entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, this._target, entries.length));
 			// send an event whenever any of the cells change
 			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
 				this._recomputeState();
@@ -261,8 +268,6 @@ export class NotebookCellOutlineProvider {
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}
 	}
-
-
 
 	get isEmpty(): boolean {
 		return this._entries.length === 0;

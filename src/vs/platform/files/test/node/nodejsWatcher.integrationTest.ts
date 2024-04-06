@@ -3,23 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
-import { NodeJSFileWatcherLibrary, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
+import { INonRecursiveWatchRequest, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
+import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { FileAccess } from 'vs/base/common/network';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { Emitter, Event } from 'vs/base/common/event';
+import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.integrationTest';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -30,27 +33,20 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
-		override async watch(requests: INonRecursiveWatchRequest[]): Promise<void> {
-			await super.watch(requests);
-			await this.whenReady();
-		}
+		protected override readonly suspendedWatchRequestPollingInterval = 100;
 
-		async whenReady(): Promise<void> {
-			for (const [, watcher] of this.watchers) {
+		private readonly _onDidWatch = this._register(new Emitter<void>());
+		readonly onDidWatch = this._onDidWatch.event;
+
+		readonly onWatchFail = this._onDidWatchFail.event;
+
+		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
+			await super.doWatch(requests);
+			for (const watcher of this.watchers) {
 				await watcher.instance.ready;
 			}
-		}
-	}
 
-	class TestNodeJSFileWatcherLibrary extends NodeJSFileWatcherLibrary {
-
-		private readonly _whenDisposed = new DeferredPromise<void>();
-		readonly whenDisposed = this._whenDisposed.p;
-
-		override dispose(): void {
-			super.dispose();
-
-			this._whenDisposed.complete();
+			this._onDidWatch.fire();
 		}
 	}
 
@@ -67,7 +63,20 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 	enableLogging(false);
 
 	setup(async () => {
-		watcher = new TestNodeJSWatcher();
+		await createWatcher(undefined);
+
+		testDir = URI.file(getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher')).fsPath;
+
+		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
+
+		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
+	});
+
+	async function createWatcher(accessor: IRecursiveWatcherWithSubscribe | undefined) {
+		await watcher?.stop();
+		watcher?.dispose();
+
+		watcher = new TestNodeJSWatcher(accessor);
 		watcher?.setVerboseLogging(loggingEnabled);
 
 		watcher.onDidLogMessage(e => {
@@ -81,13 +90,7 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 				console.log(`[non-recursive watcher test error] ${e}`);
 			}
 		});
-
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
-
-		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
-
-		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
-	});
+	}
 
 	teardown(async () => {
 		await watcher.stop();
@@ -134,7 +137,13 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 	}
 
 	test('basics (folder watch)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], recursive: false }]);
+		const request = { path: testDir, excludes: [], recursive: false };
+		await watcher.watch([request]);
+		assert.strictEqual(watcher.isSuspended(request), false);
+
+		const instance = Array.from(watcher.watchers)[0].instance;
+		assert.strictEqual(instance.isReusingRecursiveWatcher, false);
+		assert.strictEqual(instance.failed, false);
 
 		// New file
 		const newFilePath = join(testDir, 'newFile.txt');
@@ -242,7 +251,13 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 	test('basics (file watch)', async function () {
 		const filePath = join(testDir, 'lorem.txt');
-		await watcher.watch([{ path: filePath, excludes: [], recursive: false }]);
+		const request = { path: filePath, excludes: [], recursive: false };
+		await watcher.watch([request]);
+		assert.strictEqual(watcher.isSuspended(request), false);
+
+		const instance = Array.from(watcher.watchers)[0].instance;
+		assert.strictEqual(instance.isReusingRecursiveWatcher, false);
+		assert.strictEqual(instance.failed, false);
 
 		// Change file
 		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED);
@@ -432,7 +447,7 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 		return basicCrudTest(join(link, 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number): Promise<void> {
+	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number, awaitWatchAfterAdd?: boolean): Promise<void> {
 		let changeFuture: Promise<unknown>;
 
 		// New file
@@ -440,6 +455,9 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId, expectedCount);
 			await Promises.writeFile(filePath, 'Hello World');
 			await changeFuture;
+			if (awaitWatchAfterAdd) {
+				await Event.toPromise(watcher.onDidWatch);
+			}
 		}
 
 		// Change file
@@ -506,27 +524,6 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: false }]);
 	});
 
-	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('deleting watched path is handled properly (folder watch)', async function () {
-		const watchedPath = join(testDir, 'deep');
-
-		const watcher = new TestNodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => { });
-		await watcher.ready;
-
-		// Delete watched path and ensure watcher is now disposed
-		Promises.rm(watchedPath, RimRafMode.UNLINK);
-		await watcher.whenDisposed;
-	});
-
-	test('deleting watched path is handled properly (file watch)', async function () {
-		const watchedPath = join(testDir, 'lorem.txt');
-		const watcher = new TestNodeJSFileWatcherLibrary({ path: watchedPath, excludes: [], recursive: false }, changes => { });
-		await watcher.ready;
-
-		// Delete watched path and ensure watcher is now disposed
-		Promises.unlink(watchedPath);
-		await watcher.whenDisposed;
-	});
-
 	test('watchFileContents', async function () {
 		const watchedPath = join(testDir, 'lorem.txt');
 
@@ -547,16 +544,220 @@ import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 		return watchPromise;
 	});
 
-	test('watching same or overlapping paths supported when correlation is applied', async () => {
+	test('watching same or overlapping paths supported when correlation is applied', async function () {
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: false, correlationId: 1 }
+		]);
 
-		// same path, same options
+		await basicCrudTest(join(testDir, 'newFile_1.txt'), undefined, null, 1);
+
 		await watcher.watch([
 			{ path: testDir, excludes: [], recursive: false, correlationId: 1 },
 			{ path: testDir, excludes: [], recursive: false, correlationId: 2, },
 			{ path: testDir, excludes: [], recursive: false, correlationId: undefined }
 		]);
 
-		await basicCrudTest(join(testDir, 'newFile.txt'), undefined, null, 3);
+		await basicCrudTest(join(testDir, 'newFile_2.txt'), undefined, null, 3);
 		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, null, 3);
+	});
+
+	test('watching missing path emits watcher fail event', async function () {
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'missing');
+		watcher.watch([{ path: folderPath, excludes: [], recursive: true }]);
+
+		await onDidWatchFail;
+	});
+
+	test('deleting watched path emits watcher fail and delete event when correlated (file watch)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		const instance = Array.from(watcher.watchers)[0].instance;
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, 1);
+		Promises.unlink(filePath);
+		await onDidWatchFail;
+		await changeFuture;
+		assert.strictEqual(instance.failed, true);
+	});
+
+	(isMacintosh || isWindows /* macOS: does not seem to report deletes on folders | Windows: reports on('error') event only */ ? test.skip : test)('deleting watched path emits watcher fail and delete event when correlated (folder watch)', async function () {
+		const folderPath = join(testDir, 'deep');
+
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
+		Promises.rm(folderPath, RimRafMode.UNLINK);
+		await onDidWatchFail;
+		await changeFuture;
+	});
+
+	test('correlated watch requests support suspend/resume (file, does not exist in beginning)', async function () {
+		const filePath = join(testDir, 'not-found.txt');
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const request = { path: filePath, excludes: [], recursive: false, correlationId: 1 };
+		await watcher.watch([request]);
+		await onDidWatchFail;
+		assert.strictEqual(watcher.isSuspended(request), 'polling');
+
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+	});
+
+	test('correlated watch requests support suspend/resume (file, exists in beginning)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		const request = { path: filePath, excludes: [], recursive: false, correlationId: 1 };
+		await watcher.watch([request]);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await basicCrudTest(filePath, true, 1);
+		await onDidWatchFail;
+		assert.strictEqual(watcher.isSuspended(request), 'polling');
+
+		await basicCrudTest(filePath, undefined, 1, undefined, true);
+	});
+
+	test('correlated watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
+		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+
+		const folderPath = join(testDir, 'not-found');
+		const request = { path: folderPath, excludes: [], recursive: false, correlationId: 1 };
+		await watcher.watch([request]);
+		await onDidWatchFail;
+		assert.strictEqual(watcher.isSuspended(request), 'polling');
+
+		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		let onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		assert.strictEqual(watcher.isSuspended(request), false);
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, undefined, 1);
+
+		if (!isMacintosh) { // macOS does not report DELETE events for folders
+			onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+			await Promises.rmdir(folderPath);
+			await onDidWatchFail;
+
+			changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+			onDidWatch = Event.toPromise(watcher.onDidWatch);
+			await Promises.mkdir(folderPath);
+			await changeFuture;
+			await onDidWatch;
+
+			await timeout(500); // somehow needed on Linux
+
+			await basicCrudTest(filePath, undefined, 1);
+		}
+	});
+
+	(isMacintosh /* macOS: does not seem to report this */ ? test.skip : test)('correlated watch requests support suspend/resume (folder, exists in beginning)', async function () {
+		const folderPath = join(testDir, 'deep');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+
+		const filePath = join(folderPath, 'newFile.txt');
+		await basicCrudTest(filePath, undefined, 1);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		await Promises.rm(folderPath);
+		await onDidWatchFail;
+
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
+		const onDidWatch = Event.toPromise(watcher.onDidWatch);
+		await Promises.mkdir(folderPath);
+		await changeFuture;
+		await onDidWatch;
+
+		await timeout(500); // somehow needed on Linux
+
+		await basicCrudTest(filePath, undefined, 1);
+	});
+
+	test('parcel watcher reused when present for non-recursive file watching (uncorrelated)', function () {
+		return testParcelWatcherReused(undefined);
+	});
+
+	test('parcel watcher reused when present for non-recursive file watching (correlated)', function () {
+		return testParcelWatcherReused(2);
+	});
+
+	function createParcelWatcher() {
+		const recursiveWatcher = new TestParcelWatcher();
+		recursiveWatcher.setVerboseLogging(loggingEnabled);
+		recursiveWatcher.onDidLogMessage(e => {
+			if (loggingEnabled) {
+				console.log(`[recursive watcher test message] ${e.message}`);
+			}
+		});
+
+		recursiveWatcher.onDidError(e => {
+			if (loggingEnabled) {
+				console.log(`[recursive watcher test error] ${e}`);
+			}
+		});
+
+		return recursiveWatcher;
+	}
+
+	async function testParcelWatcherReused(correlationId: number | undefined) {
+		const recursiveWatcher = createParcelWatcher();
+		await recursiveWatcher.watch([{ path: testDir, excludes: [], recursive: true, correlationId: 1 }]);
+
+		const recursiveInstance = Array.from(recursiveWatcher.watchers)[0];
+		assert.strictEqual(recursiveInstance.subscriptionsCount, 0);
+
+		await createWatcher(recursiveWatcher);
+
+		const filePath = join(testDir, 'deep', 'conway.js');
+		await watcher.watch([{ path: filePath, excludes: [], recursive: false, correlationId }]);
+
+		const { instance } = Array.from(watcher.watchers)[0];
+		assert.strictEqual(instance.isReusingRecursiveWatcher, true);
+		assert.strictEqual(recursiveInstance.subscriptionsCount, 1);
+
+		let changeFuture = awaitEvent(watcher, filePath, isMacintosh /* somehow fsevents seems to report still on the initial create from test setup */ ? FileChangeType.ADDED : FileChangeType.UPDATED, correlationId);
+		await Promises.writeFile(filePath, 'Hello World');
+		await changeFuture;
+
+		await recursiveWatcher.stop();
+		recursiveWatcher.dispose();
+
+		await timeout(500); // give the watcher some time to restart
+
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, correlationId);
+		await Promises.writeFile(filePath, 'Hello World');
+		await changeFuture;
+
+		assert.strictEqual(instance.isReusingRecursiveWatcher, false);
+	}
+
+	test('correlated watch requests support suspend/resume (file, does not exist in beginning, parcel watcher reused)', async function () {
+		const recursiveWatcher = createParcelWatcher();
+		await recursiveWatcher.watch([{ path: testDir, excludes: [], recursive: true }]);
+
+		await createWatcher(recursiveWatcher);
+
+		const filePath = join(testDir, 'not-found-2.txt');
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const request = { path: filePath, excludes: [], recursive: false, correlationId: 1 };
+		await watcher.watch([request]);
+		await onDidWatchFail;
+		assert.strictEqual(watcher.isSuspended(request), true);
+
+		const changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, 1);
+		await Promises.writeFile(filePath, 'Hello World');
+		await changeFuture;
+
+		assert.strictEqual(watcher.isSuspended(request), false);
 	});
 });

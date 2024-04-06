@@ -235,6 +235,8 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		targetPlatform: TargetPlatform.WEB,
 		updated: !!metadata.updated,
 		pinned: !!metadata?.pinned,
+		isWorkspaceScoped: false,
+		source: metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'resource')
 	};
 }
 
@@ -256,7 +258,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
 	constructor(
-		manifest: IExtensionManifest,
+		readonly manifest: IExtensionManifest,
 		private readonly extension: URI | IGalleryExtension,
 		readonly options: InstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
@@ -289,6 +291,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.preRelease = isBoolean(this.options.preRelease)
 				? this.options.preRelease
 				: this.options.installPreReleaseVersion || this.extension.properties.isPreReleaseVersion || metadata.preRelease;
+			metadata.source = URI.isUri(this.extension) ? 'resource' : 'gallery';
 		}
 		metadata.pinned = this.options.installGivenVersion ? true : (this.options.pinned ?? metadata.pinned);
 

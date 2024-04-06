@@ -19,7 +19,6 @@
     "@types/gulp-filter": "^3.0.32",
     "@types/gulp-gzip": "^0.0.31",
     "@types/gulp-json-editor": "^2.2.31",
-    "@types/gulp-postcss": "^8.0.6",
     "@types/gulp-rename": "^0.0.33",
     "@types/gulp-sourcemaps": "^0.0.32",
     "@types/mime": "0.0.29",
