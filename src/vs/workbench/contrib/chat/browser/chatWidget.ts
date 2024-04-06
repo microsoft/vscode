@@ -25,12 +25,11 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CHAT_VIEW_ID, ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAccessibilityProvider } from 'vs/workbench/contrib/chat/browser/chatAccessibilityProvider';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -40,7 +39,6 @@ import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/ch
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IChatListItemRendererOptions } from './chat';
 
 const $ = dom.$;
@@ -908,9 +906,7 @@ export class ChatWidgetService implements IChatWidgetService {
 		return this._lastFocusedWidget;
 	}
 
-	constructor(
-		@IViewsService private readonly viewsService: IViewsService,
-	) { }
+	constructor() { }
 
 	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
@@ -918,12 +914,6 @@ export class ChatWidgetService implements IChatWidgetService {
 
 	getWidgetBySessionId(sessionId: string): ChatWidget | undefined {
 		return this._widgets.find(w => w.viewModel?.sessionId === sessionId);
-	}
-
-	async revealViewForProvider(providerId: string): Promise<ChatWidget | undefined> {
-		const view = await this.viewsService.openView<ChatViewPane>(CHAT_VIEW_ID);
-
-		return view?.widget;
 	}
 
 	private setLastFocusedWidget(widget: ChatWidget | undefined): void {

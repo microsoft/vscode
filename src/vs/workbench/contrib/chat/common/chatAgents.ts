@@ -140,8 +140,16 @@ export interface IChatAgentService {
 	getAgents(): IChatAgentData[];
 	getActivatedAgents(): Array<IChatAgent>;
 	getAgentsByName(name: string): IChatAgentData[];
+
+	/**
+	 * Get the default agent (only if activated)
+	 */
 	getDefaultAgent(location: ChatAgentLocation): IChatAgent | undefined;
-	getDefaultAgent2(location: ChatAgentLocation): IChatAgentData | undefined;
+
+	/**
+	 * Get the default agent data that has been contributed (may not be activated yet)
+	 */
+	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined;
 	getSecondaryAgent(): IChatAgentData | undefined;
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
@@ -238,7 +246,7 @@ export class ChatAgentService implements IChatAgentService {
 		return this.getActivatedAgents().find(a => !!a.isDefault && a.locations.includes(location));
 	}
 
-	getDefaultAgent2(location: ChatAgentLocation): IChatAgentData | undefined {
+	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined {
 		return this.getAgents().find(a => !!a.isDefault && a.locations.includes(location));
 	}
 

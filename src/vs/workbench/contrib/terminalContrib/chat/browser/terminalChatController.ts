@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { GeneratingPhrase, IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { GeneratingPhrase, IChatAccessibilityService, IChatCodeBlockContextProviderService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatUserAction, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -24,6 +24,7 @@ import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/br
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ChatModel, ChatRequestModel, IChatRequestVariableData, getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 const enum Message {
 	NONE = 0,
@@ -95,9 +96,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		super();
 
@@ -177,9 +178,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	acceptFeedback(helpful?: boolean): void {
-		const providerId = this._chatService.getProviderInfos()?.[0]?.id;
 		const model = this._model.value;
-		if (!providerId || !this._currentRequest || !model) {
+		if (!this._currentRequest || !model) {
 			return;
 		}
 		let action: ChatUserAction;
@@ -250,10 +250,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	async acceptInput(): Promise<void> {
-		const providerInfo = this._chatService.getProviderInfos()?.[0];
-		if (!providerInfo) {
-			return;
-		}
 		if (!this._model.value) {
 			this._model.value = this._chatService.startSession(CancellationToken.None);
 			if (!this._model.value) {
@@ -374,11 +370,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	async viewInChat(): Promise<void> {
-		const providerInfo = this._chatService.getProviderInfos()?.[0];
-		if (!providerInfo) {
-			return;
-		}
-		const widget = await this._chatWidgetService.revealViewForProvider(providerInfo.id);
+		const widget = await showChatView(this._viewsService);
 		const request = this._currentRequest;
 		if (!widget || !request?.response) {
 			return;

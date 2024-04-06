@@ -28,7 +28,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInEditor`,
-				title: localize2('interactiveSession.openInEditor.label', "Open Chat in Editor"),
+				title: localize2('chat.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
@@ -50,7 +50,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInNewWindow`,
-				title: localize2('interactiveSession.openInNewWindow.label', "Open/move the panel chat to an undocked window."),
+				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window."),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,

@@ -17,13 +17,13 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
 import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IQuickChatOpenOptions, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -45,7 +45,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	}
 
 	get enabled(): boolean {
-		return this.chatService.getProviderInfos().length > 0;
+		return !!this.chatService.isEnabled(ChatAgentLocation.Panel);
 	}
 
 	get focused(): boolean {
@@ -85,15 +85,6 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 				return;
 			}
 			return this.focus();
-		}
-
-		// Check if any providers are available. If not, show nothing
-		// This shouldn't be needed because of the precondition, but just in case
-		const providerInfo = providerId
-			? this.chatService.getProviderInfos().find(info => info.id === providerId)
-			: this.chatService.getProviderInfos()[0];
-		if (!providerInfo) {
-			return;
 		}
 
 		const disposableStore = new DisposableStore();
@@ -161,8 +152,8 @@ class QuickChat extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ILayoutService private readonly layoutService: ILayoutService
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 	}
@@ -285,7 +276,7 @@ class QuickChat extends Disposable {
 	}
 
 	async openChatView(): Promise<void> {
-		const widget = await this._chatWidgetService.revealViewForProvider(CHAT_PROVIDER_ID);
+		const widget = await showChatView(this.viewsService);
 		if (!widget?.viewModel || !this.model) {
 			return;
 		}

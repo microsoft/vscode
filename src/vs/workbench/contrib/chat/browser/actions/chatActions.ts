@@ -21,7 +21,7 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
-import { CHAT_VIEW_ID, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
@@ -77,13 +77,7 @@ class OpenChatGlobalAction extends Action2 {
 	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
-		const chatService = accessor.get(IChatService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const providers = chatService.getProviderInfos();
-		if (!providers.length) {
-			return;
-		}
-		const chatWidget = await chatWidgetService.revealViewForProvider(providers[0].id);
+		const chatWidget = await showChatView(accessor.get(IViewsService));
 		if (!chatWidget) {
 			return;
 		}

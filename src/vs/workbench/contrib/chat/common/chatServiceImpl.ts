@@ -24,7 +24,7 @@ import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, ICh
 import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser, IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
@@ -169,6 +169,10 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
+	}
+
+	isEnabled(location: ChatAgentLocation): boolean {
+		return this.chatAgentService.getContributedDefaultAgent(location) !== undefined;
 	}
 
 	private saveState(): void {
@@ -339,7 +343,7 @@ export class ChatService extends Disposable implements IChatService {
 			model.startInitialize();
 
 			await this.extensionService.whenInstalledExtensionsRegistered();
-			const defaultAgentData = this.chatAgentService.getDefaultAgent2(ChatAgentLocation.Panel);
+			const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
 			if (!defaultAgentData) {
 				throw new ErrorNoTelemetry('No default agent contributed');
 			}
@@ -645,12 +649,6 @@ export class ChatService extends Disposable implements IChatService {
 
 	public hasSessions(): boolean {
 		return !!Object.values(this._persistedSessions);
-	}
-
-	getProviderInfos(): IChatProviderInfo[] {
-		return [{
-			id: 'copilot'
-		}];
 	}
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {

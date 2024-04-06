@@ -269,8 +269,8 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
+	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	getProviderInfos(): IChatProviderInfo[];
 	startSession(token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
