@@ -5,6 +5,7 @@
 
 import type MarkdownIt = require('markdown-it');
 import type Token = require('markdown-it/lib/token');
+// @ts-ignore
 import * as vscode from 'vscode';
 import { ILogger } from './logging';
 import { MarkdownContributionProvider } from './markdownExtensions';
@@ -145,6 +146,7 @@ export class MarkdownItEngine implements IMdParser {
 				let fontMatterRule: any;
 				frontMatterPlugin({
 					block: {
+						// @ts-ignore
 						ruler: {
 							before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }
 						}
