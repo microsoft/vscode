@@ -15,6 +15,7 @@ import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -171,3 +172,5 @@ export interface IChatCodeBlockContextProviderService {
 }
 
 export const GeneratingPhrase = localize('generating', "Generating");
+
+export const CHAT_VIEW_ID = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}}`;

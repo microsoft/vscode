@@ -9,17 +9,15 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CHAT_VIEW_ID, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { CHAT_PROVIDER_ID, IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -156,19 +154,14 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	const viewsService = accessor.get(IViewsService);
 	const editorService = accessor.get(IEditorService);
-	const chatContribService = accessor.get(IChatContributionService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
 	const chatEditorInput = editorService.activeEditor;
 	if (chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
 		await editorService.closeEditor({ editor: chatEditorInput, groupId: editorGroupService.activeGroup.id });
-		const viewId = chatContribService.getViewIdForProvider(CHAT_PROVIDER_ID);
-		const view = await viewsService.openView(viewId) as ChatViewPane;
+		const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
 		view.loadSession(chatEditorInput.sessionId);
 	} else {
-		const chatService = accessor.get(IChatService);
-		const providerId = chatService.getProviderInfos()[0].id;
-		const viewId = chatContribService.getViewIdForProvider(providerId);
-		await viewsService.openView(viewId);
+		await viewsService.openView(CHAT_VIEW_ID);
 	}
 }

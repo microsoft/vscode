@@ -22,7 +22,7 @@ import { IChatModel, IExportableChatData, ISerializableChatData } from 'vs/workb
 import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };

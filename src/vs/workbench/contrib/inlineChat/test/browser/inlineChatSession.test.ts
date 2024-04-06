@@ -46,7 +46,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IChatSlashCommandService, ChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
@@ -56,7 +55,6 @@ import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { TestExtensionService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IChatAgentService, ChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { MockChatContributionService } from 'vs/workbench/contrib/chat/test/common/mockChatContributionService';
 
 suite('InlineChatSession', function () {
 
@@ -80,14 +78,12 @@ suite('InlineChatSession', function () {
 			[IExtensionService, new TestExtensionService()],
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new TestExtensionService()],
-			[IChatContributionService, new TestExtensionService()],
 			[IWorkspaceContextService, new TestContextService()],
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
-			[IChatContributionService, new MockChatContributionService()],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IContextKeyService, contextKeyService],

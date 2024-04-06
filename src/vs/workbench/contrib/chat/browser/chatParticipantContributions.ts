@@ -15,15 +15,16 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { getNewChatAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
+import { CHAT_VIEW_ID } from 'vs/workbench/contrib/chat/browser/chat';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatContributionService, IRawChatParticipantContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { IRawChatParticipantContribution } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -134,7 +135,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	private _participantRegistrationDisposables = new DisposableMap<string>();
 
 	constructor(
-		@IChatContributionService private readonly _chatContributionService: IChatContributionService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService private readonly contextService: IContextKeyService,
@@ -158,10 +158,8 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 				const contextKeyExpr = ContextKeyExpr.equals(showWelcomeViewConfigKey, true);
 				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 				if (this.contextService.contextMatchesRules(contextKeyExpr)) {
-					const viewId = this._chatContributionService.getViewIdForProvider(this.productService.chatWelcomeView.welcomeViewId);
-
 					this._welcomeViewDescriptor = {
-						id: viewId,
+						id: CHAT_VIEW_ID,
 						name: { original: this.productService.chatWelcomeView.welcomeViewTitle, value: this.productService.chatWelcomeView.welcomeViewTitle },
 						containerIcon: this._viewContainer.icon,
 						ctorDescriptor: new SyncDescriptor(ChatViewPane),
@@ -171,7 +169,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					};
 					viewsRegistry.registerViews([this._welcomeViewDescriptor], this._viewContainer);
 
-					viewsRegistry.registerViewWelcomeContent(viewId, {
+					viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
 						content: this.productService.chatWelcomeView.welcomeViewContent,
 					});
 				} else if (this._welcomeViewDescriptor) {
@@ -201,7 +199,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					}
 
 					if (providerDescriptor.isDefault) {
-						this.registerChatProvider(providerDescriptor);
+						this.registerDefaultParticipant(providerDescriptor);
 					}
 
 					this._participantRegistrationDisposables.set(
@@ -252,11 +250,10 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		return viewContainer;
 	}
 
-	private registerChatProvider(defaultParticipantDescriptor: IRawChatParticipantContribution): IDisposable {
+	private registerDefaultParticipant(defaultParticipantDescriptor: IRawChatParticipantContribution): IDisposable {
 		// Register View
-		const viewId = this._chatContributionService.getViewIdForProvider(defaultParticipantDescriptor.id);
 		const viewDescriptor: IViewDescriptor[] = [{
-			id: viewId,
+			id: CHAT_VIEW_ID,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
 			singleViewPaneContainerTitle: this._viewContainer.title.value,
@@ -271,10 +268,10 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 		// Actions in view title
 		const disposables = new DisposableStore();
-		disposables.add(registerAction2(getHistoryAction(viewId, defaultParticipantDescriptor.id)));
-		disposables.add(registerAction2(getNewChatAction(viewId, defaultParticipantDescriptor.id)));
-		disposables.add(registerAction2(getMoveToEditorAction(viewId, defaultParticipantDescriptor.id)));
-		disposables.add(registerAction2(getMoveToNewWindowAction(viewId, defaultParticipantDescriptor.id)));
+		disposables.add(registerAction2(getHistoryAction(CHAT_VIEW_ID, defaultParticipantDescriptor.id)));
+		disposables.add(registerAction2(getNewChatAction(CHAT_VIEW_ID, defaultParticipantDescriptor.id)));
+		disposables.add(registerAction2(getMoveToEditorAction(CHAT_VIEW_ID, defaultParticipantDescriptor.id)));
+		disposables.add(registerAction2(getMoveToNewWindowAction(CHAT_VIEW_ID, defaultParticipantDescriptor.id)));
 
 		// "Open Chat" Actions
 		disposables.add(registerAction2(getOpenChatEditorAction(defaultParticipantDescriptor.id, defaultParticipantDescriptor.name, /* defaultParticipantDescriptor.when */)));
@@ -290,19 +287,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	}
 }
 
-registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
-
 function getParticipantKey(extensionId: ExtensionIdentifier, participantName: string): string {
 	return `${extensionId.value}_${participantName}`;
-}
-
-export class ChatContributionService implements IChatContributionService {
-	declare _serviceBrand: undefined;
-
-	constructor(
-	) { }
-
-	public getViewIdForProvider(providerId: string): string {
-		return ChatViewPane.ID + '.' + providerId;
-	}
 }

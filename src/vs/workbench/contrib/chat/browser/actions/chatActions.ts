@@ -21,13 +21,12 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CHAT_VIEW_ID, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS, CONTEXT_REQUEST, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { CHAT_PROVIDER_ID, IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -238,7 +237,6 @@ export function getHistoryAction(viewId: string, providerId: string) {
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
 			const chatService = accessor.get(IChatService);
 			const quickInputService = accessor.get(IQuickInputService);
-			const chatContribService = accessor.get(IChatContributionService);
 			const viewsService = accessor.get(IViewsService);
 			const items = chatService.getHistory();
 			const picks = items.map(i => (<IQuickPickItem & { chat: IChatDetail }>{
@@ -259,8 +257,7 @@ export function getHistoryAction(viewId: string, providerId: string) {
 				});
 			if (selection) {
 				const sessionId = selection.chat.sessionId;
-				const viewId = chatContribService.getViewIdForProvider(CHAT_PROVIDER_ID);
-				const view = await viewsService.openView(viewId) as ChatViewPane;
+				const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
 				view.loadSession(sessionId);
 			}
 		}

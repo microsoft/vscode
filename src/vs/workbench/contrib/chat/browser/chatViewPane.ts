@@ -25,7 +25,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IChatViewPane } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -35,8 +35,6 @@ interface IViewPaneState extends IChatViewState {
 
 export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chatSidebar';
 export class ChatViewPane extends ViewPane implements IChatViewPane {
-	static ID = 'workbench.panel.chat.view';
-
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 

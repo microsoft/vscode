@@ -20,7 +20,7 @@ import { editorBackground, inputBackground, quickInputBackground, quickInputFore
 import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';

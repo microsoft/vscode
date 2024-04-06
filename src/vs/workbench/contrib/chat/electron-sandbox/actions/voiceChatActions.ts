@@ -37,10 +37,9 @@ import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { CHAT_PROVIDER_ID, IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -97,7 +96,6 @@ class VoiceChatSessionControllerFactory {
 	static async create(accessor: ServicesAccessor, context: 'inline' | 'terminal' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const viewsService = accessor.get(IViewsService);
-		const chatContributionService = accessor.get(IChatContributionService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
@@ -127,11 +125,11 @@ class VoiceChatSessionControllerFactory {
 					layoutService.hasFocus(Parts.PANEL_PART) ||
 					layoutService.hasFocus(Parts.AUXILIARYBAR_PART)
 				) {
-					return VoiceChatSessionControllerFactory.doCreateForChatView(chatInput, viewsService, chatContributionService);
+					return VoiceChatSessionControllerFactory.doCreateForChatView(chatInput, viewsService);
 				}
 
 				if (layoutService.hasFocus(Parts.EDITOR_PART)) {
-					return VoiceChatSessionControllerFactory.doCreateForChatEditor(chatInput, viewsService, chatContributionService);
+					return VoiceChatSessionControllerFactory.doCreateForChatEditor(chatInput, viewsService);
 				}
 
 				return VoiceChatSessionControllerFactory.doCreateForQuickChat(chatInput, quickChatService);
@@ -151,7 +149,7 @@ class VoiceChatSessionControllerFactory {
 		if (context === 'view' || context === 'focused' /* fallback in case 'focused' was not successful */) {
 			const chatView = await VoiceChatSessionControllerFactory.revealChatView(accessor);
 			if (chatView) {
-				return VoiceChatSessionControllerFactory.doCreateForChatView(chatView, viewsService, chatContributionService);
+				return VoiceChatSessionControllerFactory.doCreateForChatView(chatView, viewsService);
 			}
 		}
 
@@ -202,20 +200,20 @@ class VoiceChatSessionControllerFactory {
 		return undefined;
 	}
 
-	private static doCreateForChatView(chatView: IChatWidget, viewsService: IViewsService, chatContributionService: IChatContributionService): IVoiceChatSessionController {
-		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('view', chatView, viewsService, chatContributionService);
+	private static doCreateForChatView(chatView: IChatWidget, viewsService: IViewsService): IVoiceChatSessionController {
+		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('view', chatView, viewsService);
 	}
 
-	private static doCreateForChatEditor(chatView: IChatWidget, viewsService: IViewsService, chatContributionService: IChatContributionService): IVoiceChatSessionController {
-		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('editor', chatView, viewsService, chatContributionService);
+	private static doCreateForChatEditor(chatView: IChatWidget, viewsService: IViewsService): IVoiceChatSessionController {
+		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('editor', chatView, viewsService);
 	}
 
-	private static doCreateForChatViewOrEditor(context: 'view' | 'editor', chatView: IChatWidget, viewsService: IViewsService, chatContributionService: IChatContributionService): IVoiceChatSessionController {
+	private static doCreateForChatViewOrEditor(context: 'view' | 'editor', chatView: IChatWidget, viewsService: IViewsService): IVoiceChatSessionController {
 		return {
 			context,
 			onDidAcceptInput: chatView.onDidAcceptInput,
 			// TODO@bpasero cancellation needs to work better for chat editors that are not view bound
-			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === chatContributionService.getViewIdForProvider(CHAT_PROVIDER_ID)),
+			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === CHAT_VIEW_ID),
 			focusInput: () => chatView.focusInput(),
 			acceptInput: () => chatView.acceptInput(),
 			updateInput: text => chatView.setInput(text),
