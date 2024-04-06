@@ -21,7 +21,7 @@ import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/
 import { getNewChatAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
-import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
+import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService, IRawChatParticipantContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -164,7 +164,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						id: viewId,
 						name: { original: this.productService.chatWelcomeView.welcomeViewTitle, value: this.productService.chatWelcomeView.welcomeViewTitle },
 						containerIcon: this._viewContainer.icon,
-						ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: this.productService.chatWelcomeView.welcomeViewId }]),
+						ctorDescriptor: new SyncDescriptor(ChatViewPane),
 						canToggleVisibility: false,
 						canMoveView: true,
 						order: 100
@@ -263,7 +263,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			name: { value: defaultParticipantDescriptor.name, original: defaultParticipantDescriptor.name },
 			canToggleVisibility: false,
 			canMoveView: true,
-			ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: defaultParticipantDescriptor.id }]),
+			ctorDescriptor: new SyncDescriptor(ChatViewPane),
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
 

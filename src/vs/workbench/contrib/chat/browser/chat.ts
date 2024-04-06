@@ -129,7 +129,6 @@ export interface IChatWidget {
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
-	readonly providerId: string;
 	readonly supportsFileReferences: boolean;
 	readonly parsedInput: IParsedChatRequest;
 	lastSelectedAgent: IChatAgentData | undefined;

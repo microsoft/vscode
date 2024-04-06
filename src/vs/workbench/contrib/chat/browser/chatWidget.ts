@@ -242,10 +242,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return !!this.viewOptions.supportsFileReferences;
 	}
 
-	get providerId(): string {
-		return this.viewModel?.providerId || '';
-	}
-
 	get input(): ChatInputPart {
 		return this.inputPart;
 	}
@@ -563,7 +559,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.chatService.notifyUserAction({
-				providerId: this.viewModel.providerId,
 				sessionId: this.viewModel.sessionId,
 				requestId: e.response.requestId,
 				agentId: e.response.agent?.id,
@@ -641,7 +636,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.inputPart.setState(model.providerId, viewState.inputValue);
+		this.inputPart.setState(viewState.inputValue);
 		this.contribs.forEach(c => {
 			if (c.setInputState && viewState.inputState?.[c.id]) {
 				c.setInputState(viewState.inputState?.[c.id]);

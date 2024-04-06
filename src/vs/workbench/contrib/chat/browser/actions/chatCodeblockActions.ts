@@ -109,7 +109,6 @@ export function registerChatCodeBlockActions() {
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -155,7 +154,6 @@ export function registerChatCodeBlockActions() {
 		const element = context.element as IChatResponseViewModel | undefined;
 		if (element) {
 			chatService.notifyUserAction({
-				providerId: element.providerId,
 				agentId: element.agent?.id,
 				sessionId: element.sessionId,
 				requestId: element.requestId,
@@ -331,7 +329,6 @@ export function registerChatCodeBlockActions() {
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -377,7 +374,6 @@ export function registerChatCodeBlockActions() {
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -470,7 +466,6 @@ export function registerChatCodeBlockActions() {
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,

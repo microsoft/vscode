@@ -12,7 +12,7 @@ import { Command, Location, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel, IChatRequestVariableData, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -219,7 +219,6 @@ export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertActi
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
-	providerId: string;
 	agentId: string | undefined;
 	sessionId: string;
 	requestId: string;
@@ -270,12 +269,12 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	hasSessions(providerId: string): boolean;
+	hasSessions(): boolean;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
-	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined;
+	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.
@@ -291,7 +290,7 @@ export interface IChatService {
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-	onDidDisposeSession: Event<{ sessionId: string; providerId: string; reason: 'initializationFailed' | 'cleared' }>;
+	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }

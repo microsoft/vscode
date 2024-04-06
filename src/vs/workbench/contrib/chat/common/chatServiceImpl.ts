@@ -21,7 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser, IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -64,60 +64,50 @@ type ChatProviderInvokedClassification = {
 };
 
 type ChatVoteEvent = {
-	providerId: string;
 	direction: 'up' | 'down';
 };
 
 type ChatVoteClassification = {
-	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this response came from.' };
 	direction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user voted up or down.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat providers.';
 };
 
 type ChatCopyEvent = {
-	providerId: string;
 	copyKind: 'action' | 'toolbar';
 };
 
 type ChatCopyClassification = {
-	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	copyKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the copy was initiated.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
 type ChatInsertEvent = {
-	providerId: string;
 	newFile: boolean;
 };
 
 type ChatInsertClassification = {
-	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	newFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code was inserted into a new untitled file.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
 type ChatCommandEvent = {
-	providerId: string;
 	commandId: string;
 };
 
 type ChatCommandClassification = {
-	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command that was executed.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
 type ChatTerminalEvent = {
-	providerId: string;
 	languageId: string;
 };
 
 type ChatTerminalClassification = {
-	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the code that was run in the terminal.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
@@ -141,7 +131,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
-	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; providerId: string; reason: 'initializationFailed' | 'cleared' }>());
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
@@ -206,29 +196,24 @@ export class ChatService extends Disposable implements IChatService {
 	notifyUserAction(action: IChatUserActionEvent): void {
 		if (action.action.kind === 'vote') {
 			this.telemetryService.publicLog2<ChatVoteEvent, ChatVoteClassification>('interactiveSessionVote', {
-				providerId: action.providerId,
 				direction: action.action.direction === InteractiveSessionVoteDirection.Up ? 'up' : 'down'
 			});
 		} else if (action.action.kind === 'copy') {
 			this.telemetryService.publicLog2<ChatCopyEvent, ChatCopyClassification>('interactiveSessionCopy', {
-				providerId: action.providerId,
 				copyKind: action.action.copyKind === ChatCopyKind.Action ? 'action' : 'toolbar'
 			});
 		} else if (action.action.kind === 'insert') {
 			this.telemetryService.publicLog2<ChatInsertEvent, ChatInsertClassification>('interactiveSessionInsert', {
-				providerId: action.providerId,
 				newFile: !!action.action.newFile
 			});
 		} else if (action.action.kind === 'command') {
 			const command = CommandsRegistry.getCommand(action.action.commandButton.command.id);
 			const commandId = command ? action.action.commandButton.command.id : 'INVALID';
 			this.telemetryService.publicLog2<ChatCommandEvent, ChatCommandClassification>('interactiveSessionCommand', {
-				providerId: action.providerId,
 				commandId
 			});
 		} else if (action.action.kind === 'runInTerminal') {
 			this.telemetryService.publicLog2<ChatTerminalEvent, ChatTerminalClassification>('interactiveSessionRunInTerminal', {
-				providerId: action.providerId,
 				languageId: action.action.languageId ?? ''
 			});
 		}
@@ -335,8 +320,8 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(undefined, token);
 	}
 
-	private _startSession(someSessionHistory: ISerializableChatData | undefined, token: CancellationToken): ChatModel {
-		const model = this.instantiationService.createInstance(ChatModel, 'copilot', someSessionHistory);
+	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, token: CancellationToken): ChatModel {
+		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
 		this.initializeSession(model, token);
 		return model;
@@ -378,7 +363,7 @@ export class ChatService extends Disposable implements IChatService {
 			this.trace('startSession', `initializeSession failed: ${err}`);
 			model.setInitializationError(err);
 			this._sessionModels.deleteAndDispose(model.sessionId);
-			this._onDidDisposeSession.fire({ sessionId: model.sessionId, providerId: model.providerId, reason: 'initializationFailed' });
+			this._onDidDisposeSession.fire({ sessionId: model.sessionId, reason: 'initializationFailed' });
 		}
 	}
 
@@ -405,7 +390,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(sessionData, CancellationToken.None);
 	}
 
-	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined {
+	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
 		return this._startSession(data, CancellationToken.None);
 	}
 
@@ -655,11 +640,11 @@ export class ChatService extends Disposable implements IChatService {
 		this._sessionModels.deleteAndDispose(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
 		this._pendingRequests.deleteAndDispose(sessionId);
-		this._onDidDisposeSession.fire({ sessionId, providerId: model.providerId, reason: 'cleared' });
+		this._onDidDisposeSession.fire({ sessionId, reason: 'cleared' });
 	}
 
-	public hasSessions(providerId: string): boolean {
-		return !!Object.values(this._persistedSessions).find((session) => session.providerId === providerId);
+	public hasSessions(): boolean {
+		return !!Object.values(this._persistedSessions);
 	}
 
 	getProviderInfos(): IChatProviderInfo[] {

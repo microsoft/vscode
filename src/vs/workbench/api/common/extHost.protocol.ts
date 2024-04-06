@@ -769,7 +769,6 @@ export interface InteractiveEditorInputDto {
 
 export interface ChatEditorInputDto {
 	kind: TabInputKind.ChatEditorInput;
-	providerId: string;
 }
 
 export interface MultiDiffEditorInputDto {

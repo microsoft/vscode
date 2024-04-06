@@ -65,7 +65,6 @@ export interface IResponse {
 export interface IChatResponseModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
-	readonly providerId: string;
 	readonly requestId: string;
 	readonly username: string;
 	readonly avatarIcon?: ThemeIcon | URI;
@@ -260,10 +259,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._result;
 	}
 
-	public get providerId(): string {
-		return this.session.providerId;
-	}
-
 	public get username(): string {
 		return this.session.responderUsername;
 	}
@@ -391,7 +386,6 @@ export interface IChatModel {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
-	readonly providerId: string;
 	readonly initState: ChatModelInitState;
 	readonly title: string;
 	readonly welcomeMessage: IChatWelcomeMessageModel | undefined;
@@ -426,7 +420,6 @@ export interface ISerializableChatRequestData {
 }
 
 export interface IExportableChatData {
-	providerId: string;
 	welcomeMessage: (string | IChatFollowup[])[] | undefined;
 	requests: ISerializableChatRequestData[];
 	requesterUsername: string;
@@ -444,7 +437,6 @@ export interface ISerializableChatData extends IExportableChatData {
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
 	const data = obj as IExportableChatData;
 	return typeof data === 'object' &&
-		typeof data.providerId === 'string' &&
 		typeof data.requesterUsername === 'string';
 }
 
@@ -575,7 +567,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	constructor(
-		public readonly providerId: string,
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
@@ -832,7 +823,6 @@ export class ChatModel extends Disposable implements IChatModel {
 					contentReferences: r.response?.contentReferences
 				};
 			}),
-			providerId: this.providerId,
 		};
 	}
 

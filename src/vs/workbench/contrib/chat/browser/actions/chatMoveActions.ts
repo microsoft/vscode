@@ -16,7 +16,7 @@ import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { CHAT_PROVIDER_ID, IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -132,14 +132,11 @@ export function registerMoveActions() {
 async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation) {
 	const widgetService = accessor.get(IChatWidgetService);
 	const viewService = accessor.get(IViewsService);
-	const chatService = accessor.get(IChatService);
 	const editorService = accessor.get(IEditorService);
 
 	const widget = widgetService.lastFocusedWidget;
 	if (!widget || !('viewId' in widget.viewContext)) {
-		const providerId = chatService.getProviderInfos()[0].id;
-
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId }, pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
@@ -163,9 +160,9 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
 	const chatEditorInput = editorService.activeEditor;
-	if (chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId && chatEditorInput.providerId) {
+	if (chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
 		await editorService.closeEditor({ editor: chatEditorInput, groupId: editorGroupService.activeGroup.id });
-		const viewId = chatContribService.getViewIdForProvider(chatEditorInput.providerId);
+		const viewId = chatContribService.getViewIdForProvider(CHAT_PROVIDER_ID);
 		const view = await viewsService.openView(viewId) as ChatViewPane;
 		view.loadSession(chatEditorInput.sessionId);
 	} else {

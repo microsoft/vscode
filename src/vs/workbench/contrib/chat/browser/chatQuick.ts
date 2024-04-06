@@ -17,10 +17,10 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
 import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IChatWidgetService, IQuickChatService, IQuickChatOpenOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
+import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -108,9 +108,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 
 		this._input.show();
 		if (!this._currentChat) {
-			this._currentChat = this.instantiationService.createInstance(QuickChat, {
-				providerId: providerInfo.id,
-			});
+			this._currentChat = this.instantiationService.createInstance(QuickChat);
 
 			// show needs to come after the quickpick is shown
 			this._currentChat.render(this._container);
@@ -160,7 +158,6 @@ class QuickChat extends Disposable {
 	private _deferUpdatingDynamicLayout: boolean = false;
 
 	constructor(
-		private readonly _options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
@@ -288,7 +285,7 @@ class QuickChat extends Disposable {
 	}
 
 	async openChatView(): Promise<void> {
-		const widget = await this._chatWidgetService.revealViewForProvider(this._options.providerId);
+		const widget = await this._chatWidgetService.revealViewForProvider(CHAT_PROVIDER_ID);
 		if (!widget?.viewModel || !this.model) {
 			return;
 		}

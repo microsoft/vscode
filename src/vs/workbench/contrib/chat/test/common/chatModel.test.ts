@@ -34,7 +34,7 @@ suite('ChatModel', () => {
 	});
 
 	test('Waits for initialization', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -51,7 +51,7 @@ suite('ChatModel', () => {
 	});
 
 	test('must call startInitialize before initialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -66,7 +66,7 @@ suite('ChatModel', () => {
 	});
 
 	test('deinitialize/reinitialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -91,7 +91,7 @@ suite('ChatModel', () => {
 	});
 
 	test('cannot initialize twice', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
 
 		model.startInitialize();
 		model.initialize(undefined);
@@ -99,14 +99,14 @@ suite('ChatModel', () => {
 	});
 
 	test('Initialization fails when model is disposed', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
 		model.dispose();
 
 		assert.throws(() => model.initialize(undefined));
 	});
 
 	test('removeRequest', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined));
 
 		model.startInitialize();
 		model.initialize(undefined);

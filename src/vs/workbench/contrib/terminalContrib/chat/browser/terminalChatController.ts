@@ -134,12 +134,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		// a default chat model (unless configured) and feedback is reported against that one. This
 		// code forwards the feedback to an actual registered provider
 		this._register(this._chatService.onDidPerformUserAction(e => {
-			if (e.providerId === this._chatWidget?.rawValue?.inlineChatWidget.getChatModel().providerId) {
-				if (e.action.kind === 'bug') {
-					this.acceptFeedback(undefined);
-				} else if (e.action.kind === 'vote') {
-					this.acceptFeedback(e.action.direction === InteractiveSessionVoteDirection.Up);
-				}
+			if (e.action.kind === 'bug') {
+				this.acceptFeedback(undefined);
+			} else if (e.action.kind === 'vote') {
+				this.acceptFeedback(e.action.direction === InteractiveSessionVoteDirection.Up);
 			}
 		}));
 	}
@@ -195,7 +193,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		for (const request of model.getRequests()) {
 			if (request.response?.response.value || request.response?.result) {
 				this._chatService.notifyUserAction({
-					providerId,
 					sessionId: request.session.sessionId,
 					requestId: request.id,
 					agentId: request.response?.agent?.id,

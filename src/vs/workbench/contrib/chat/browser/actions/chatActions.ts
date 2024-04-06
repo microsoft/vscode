@@ -208,7 +208,7 @@ export function getOpenChatEditorAction(id: string, label: string, when?: string
 
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId: id }, pinned: true } });
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
 		}
 	};
 }

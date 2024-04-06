@@ -14,7 +14,7 @@ export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	hasSessions(providerId: string): boolean {
+	hasSessions(): boolean {
 		throw new Error('Method not implemented.');
 	}
 	getProviderInfos(): IChatProviderInfo[] {

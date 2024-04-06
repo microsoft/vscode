@@ -40,7 +40,7 @@ import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/act
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { CHAT_PROVIDER_ID, IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -215,7 +215,7 @@ class VoiceChatSessionControllerFactory {
 			context,
 			onDidAcceptInput: chatView.onDidAcceptInput,
 			// TODO@bpasero cancellation needs to work better for chat editors that are not view bound
-			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === chatContributionService.getViewIdForProvider(chatView.providerId)),
+			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === chatContributionService.getViewIdForProvider(CHAT_PROVIDER_ID)),
 			focusInput: () => chatView.focusInput(),
 			acceptInput: () => chatView.acceptInput(),
 			updateInput: text => chatView.setInput(text),
