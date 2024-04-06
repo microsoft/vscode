@@ -174,4 +174,4 @@ export interface IChatCodeBlockContextProviderService {
 
 export const GeneratingPhrase = localize('generating', "Generating");
 
-export const CHAT_VIEW_ID = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}}`;
+export const CHAT_VIEW_ID = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
