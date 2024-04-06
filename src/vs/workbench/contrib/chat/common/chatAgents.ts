@@ -14,7 +14,7 @@ import { ProviderResult } from 'vs/editor/common/languages';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_HAS_DEFAULT_AGENT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressResponseContent, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
@@ -170,7 +170,7 @@ export class ChatAgentService implements IChatAgentService {
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
-		this._hasDefaultAgent = CONTEXT_PROVIDER_EXISTS.bindTo(this.contextKeyService);
+		this._hasDefaultAgent = CONTEXT_HAS_DEFAULT_AGENT.bindTo(this.contextKeyService);
 	}
 
 	registerAgent(id: string, data: IChatAgentData): IDisposable {
