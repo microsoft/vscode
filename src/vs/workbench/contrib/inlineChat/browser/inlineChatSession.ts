@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, InlineChatResponseTypes, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -212,11 +212,7 @@ export class Session {
 		this._isUnstashed = false;
 		const newLen = this._exchange.push(exchange);
 		this._teldata.rounds += `${newLen}|`;
-		this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
-	}
-
-	get exchanges(): Iterable<SessionExchange> {
-		return this._exchange;
+		// this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
 	}
 
 	get lastExchange(): SessionExchange | undefined {
@@ -321,7 +317,6 @@ export class ReplyResponse {
 	readonly untitledTextModel: IUntitledTextEditorModel | undefined;
 	readonly workspaceEdit: WorkspaceEdit | undefined;
 
-	readonly responseType: InlineChatResponseTypes;
 
 	constructor(
 		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
@@ -404,19 +399,6 @@ export class ReplyResponse {
 				}
 			}
 			this.workspaceEdit = { edits: workspaceEdits };
-		}
-
-
-		const hasEdits = editsMap.size > 0;
-		const hasMessage = mdContent.value.length > 0;
-		if (hasEdits && hasMessage) {
-			this.responseType = InlineChatResponseTypes.Mixed;
-		} else if (hasEdits) {
-			this.responseType = InlineChatResponseTypes.OnlyEdits;
-		} else if (hasMessage) {
-			this.responseType = InlineChatResponseTypes.OnlyMessages;
-		} else {
-			this.responseType = InlineChatResponseTypes.Empty;
 		}
 	}
 }

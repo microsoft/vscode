@@ -227,7 +227,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, extension.identifier, id, {}, { name, description });
+		this._proxy.$registerAgent(handle, extension.identifier, id, { isSticky: true }, { name, description });
 		return agent.apiAgent;
 	}
 

@@ -909,7 +909,6 @@ export interface INotebookCellStatusBarItemList {
 }
 
 export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
-
 export const NotebookSetting = {
 	displayOrder: 'notebook.displayOrder',
 	cellToolbarLocation: 'notebook.cellToolbarLocation',
