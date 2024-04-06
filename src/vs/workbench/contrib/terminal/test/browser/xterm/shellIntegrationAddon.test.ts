@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
+import { deepEqual, deepStrictEqual, strictEqual } from 'assert';
 import * as sinon from 'sinon';
-import { parseKeyValueAssignment, parseMarkSequence, deserializeMessage, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { NullLogService } from 'vs/platform/log/common/log';
 import { importAMDNodeModule } from 'vs/amdX';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { deserializeMessage, parseKeyValueAssignment, parseMarkSequence, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 class TestShellIntegrationAddon extends ShellIntegrationAddon {
 	getCommandDetectionMock(terminal: Terminal): sinon.SinonMock {
@@ -28,10 +27,7 @@ class TestShellIntegrationAddon extends ShellIntegrationAddon {
 }
 
 suite('ShellIntegrationAddon', () => {
-	let store: DisposableStore;
-	setup(() => store = new DisposableStore());
-	teardown(() => store.dispose());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
 	let shellIntegrationAddon: TestShellIntegrationAddon;

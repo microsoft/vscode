@@ -171,13 +171,14 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
 import { EditorPaneService } from 'vs/workbench/services/editor/browser/editorPaneService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { CustomEditorLabelService, ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
+import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -339,6 +340,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IPaneCompositePartService, disposables.add(new TestPaneCompositeService()));
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IContextViewService, disposables.add(instantiationService.createInstance(ContextViewService)));
+	instantiationService.stub(IContextMenuService, disposables.add(instantiationService.createInstance(ContextMenuService)));
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
