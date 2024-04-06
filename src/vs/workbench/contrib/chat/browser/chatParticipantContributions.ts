@@ -5,9 +5,8 @@
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize, localize2 } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -17,10 +16,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { getNewChatAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
-import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
-import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CHAT_VIEW_ID } from 'vs/workbench/contrib/chat/browser/chat';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -198,29 +193,33 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
+					const store = new DisposableStore();
 					if (providerDescriptor.isDefault) {
-						this.registerDefaultParticipant(providerDescriptor);
+						store.add(this.registerDefaultParticipant(providerDescriptor));
 					}
+
+					store.add(this._chatAgentService.registerAgent(
+						providerDescriptor.id,
+						{
+							extensionId: extension.description.identifier,
+							id: providerDescriptor.id,
+							description: providerDescriptor.description,
+							metadata: {
+								isSticky: providerDescriptor.isSticky,
+							},
+							name: providerDescriptor.name,
+							isDefault: providerDescriptor.isDefault,
+							defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
+							locations: isNonEmptyArray(providerDescriptor.locations) ?
+								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
+								[ChatAgentLocation.Panel],
+							slashCommands: providerDescriptor.commands ?? []
+						} satisfies IChatAgentData));
 
 					this._participantRegistrationDisposables.set(
 						getParticipantKey(extension.description.identifier, providerDescriptor.name),
-						this._chatAgentService.registerAgent(
-							providerDescriptor.id,
-							{
-								extensionId: extension.description.identifier,
-								id: providerDescriptor.id,
-								description: providerDescriptor.description,
-								metadata: {
-									isSticky: providerDescriptor.isSticky,
-								},
-								name: providerDescriptor.name,
-								isDefault: providerDescriptor.isDefault,
-								defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
-								locations: isNonEmptyArray(providerDescriptor.locations) ?
-									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
-									[ChatAgentLocation.Panel],
-								slashCommands: providerDescriptor.commands ?? []
-							} satisfies IChatAgentData));
+						store
+					);
 				}
 			}
 
@@ -264,26 +263,9 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
 
-		// Per-provider actions
-
-		// Actions in view title
-		const disposables = new DisposableStore();
-		disposables.add(registerAction2(getHistoryAction(CHAT_VIEW_ID, defaultParticipantDescriptor.id)));
-		disposables.add(registerAction2(getNewChatAction(CHAT_VIEW_ID, defaultParticipantDescriptor.id)));
-		disposables.add(registerAction2(getMoveToEditorAction(CHAT_VIEW_ID, defaultParticipantDescriptor.id)));
-		disposables.add(registerAction2(getMoveToNewWindowAction(CHAT_VIEW_ID, defaultParticipantDescriptor.id)));
-
-		// "Open Chat" Actions
-		disposables.add(registerAction2(getOpenChatEditorAction(defaultParticipantDescriptor.id, defaultParticipantDescriptor.name, /* defaultParticipantDescriptor.when */)));
-		disposables.add(registerAction2(getQuickChatActionForProvider(defaultParticipantDescriptor.id, defaultParticipantDescriptor.name)));
-
-		return {
-			dispose: () => {
-				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, this._viewContainer);
-				Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(this._viewContainer);
-				disposables.dispose();
-			}
-		};
+		return toDisposable(() => {
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, this._viewContainer);
+		});
 	}
 }
 

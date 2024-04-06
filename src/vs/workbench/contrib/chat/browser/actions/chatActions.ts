@@ -11,7 +11,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize, localize2 } from 'vs/nls';
-import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -32,6 +32,14 @@ import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chat
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+
+export interface IChatViewTitleActionContext {
+	chatView: ChatViewPane;
+}
+
+export function isChatViewTitleActionContext(obj: unknown): obj is IChatViewTitleActionContext {
+	return obj instanceof Object && 'chatView' in obj;
+}
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -91,8 +99,75 @@ class OpenChatGlobalAction extends Action2 {
 	}
 }
 
+class ChatHistoryAction extends ViewAction<ChatViewPane> {
+	constructor() {
+		super({
+			viewId: CHAT_VIEW_ID,
+			id: `workbench.action.chat.history`,
+			title: localize2('chat.history.label', "Show Chats..."),
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
+				group: 'navigation',
+				order: -1
+			},
+			category: CHAT_CATEGORY,
+			icon: Codicon.history,
+			f1: true,
+			precondition: CONTEXT_PROVIDER_EXISTS
+		});
+	}
+
+	async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
+		const chatService = accessor.get(IChatService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const viewsService = accessor.get(IViewsService);
+		const items = chatService.getHistory();
+		const picks = items.map(i => (<IQuickPickItem & { chat: IChatDetail }>{
+			label: i.title,
+			chat: i,
+			buttons: [{
+				iconClass: ThemeIcon.asClassName(Codicon.x),
+				tooltip: localize('interactiveSession.history.delete', "Delete"),
+			}]
+		}));
+		const selection = await quickInputService.pick(picks,
+			{
+				placeHolder: localize('interactiveSession.history.pick', "Switch to chat"),
+				onDidTriggerItemButton: context => {
+					chatService.removeHistoryEntry(context.item.chat.sessionId);
+					context.removeItem();
+				}
+			});
+		if (selection) {
+			const sessionId = selection.chat.sessionId;
+			const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+			view.loadSession(sessionId);
+		}
+	}
+}
+
+class OpenChatEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: `workbench.action.openChat`,
+			title: localize2('interactiveSession.open', "Open Editor"),
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: CONTEXT_PROVIDER_EXISTS
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
+	}
+}
+
 export function registerChatActions() {
 	registerAction2(OpenChatGlobalAction);
+	registerAction2(ChatHistoryAction);
+	registerAction2(OpenChatEditorAction);
 
 	registerAction2(class ClearChatInputHistoryAction extends Action2 {
 		constructor() {
@@ -191,75 +266,4 @@ export function registerChatActions() {
 			widgetService.lastFocusedWidget?.focusInput();
 		}
 	});
-}
-
-export function getOpenChatEditorAction(id: string, label: string, when?: string) {
-	return class OpenChatEditor extends Action2 {
-		constructor() {
-			super({
-				id: `workbench.action.openChat.${id}`,
-				title: localize2('interactiveSession.open', "Open Editor ({0})", label),
-				f1: true,
-				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.deserialize(when)
-			});
-		}
-
-		async run(accessor: ServicesAccessor) {
-			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
-		}
-	};
-}
-
-const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
-	viewId,
-	id: `workbench.action.chat.${providerId}.history`,
-	title: localize2('chat.history.label', "Show Chats"),
-	menu: {
-		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.equals('view', viewId),
-		group: 'navigation',
-		order: -1
-	},
-	category: CHAT_CATEGORY,
-	icon: Codicon.history,
-	f1: true,
-	precondition: CONTEXT_PROVIDER_EXISTS
-});
-
-export function getHistoryAction(viewId: string, providerId: string) {
-	return class HistoryAction extends ViewAction<ChatViewPane> {
-		constructor() {
-			super(getHistoryChatActionDescriptorForViewTitle(viewId, providerId));
-		}
-
-		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-			const chatService = accessor.get(IChatService);
-			const quickInputService = accessor.get(IQuickInputService);
-			const viewsService = accessor.get(IViewsService);
-			const items = chatService.getHistory();
-			const picks = items.map(i => (<IQuickPickItem & { chat: IChatDetail }>{
-				label: i.title,
-				chat: i,
-				buttons: [{
-					iconClass: ThemeIcon.asClassName(Codicon.x),
-					tooltip: localize('interactiveSession.history.delete', "Delete"),
-				}]
-			}));
-			const selection = await quickInputService.pick(picks,
-				{
-					placeHolder: localize('interactiveSession.history.pick', "Switch to chat"),
-					onDidTriggerItemButton: context => {
-						chatService.removeHistoryEntry(context.item.chat.sessionId);
-						context.removeItem();
-					}
-				});
-			if (selection) {
-				const sessionId = selection.chat.sessionId;
-				const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
-				view.loadSession(sessionId);
-			}
-		}
-	};
 }

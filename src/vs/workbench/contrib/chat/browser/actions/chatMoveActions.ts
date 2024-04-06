@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize2 } from 'vs/nls';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY, isChatViewTitleActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { CHAT_VIEW_ID, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
@@ -24,53 +23,6 @@ enum MoveToNewLocation {
 	Window = 'Window'
 }
 
-const getMoveToChatActionDescriptorForViewTitle = (viewId: string, providerId: string, moveTo: MoveToNewLocation): Readonly<IAction2Options> & { viewId: string } => ({
-	id: `workbench.action.chat.${providerId}.openIn${moveTo}`,
-	title: {
-		value: moveTo === MoveToNewLocation.Editor ? localize('chat.openInEditor.label', "Open Chat in Editor") : localize('chat.openInNewWindow.label', "Open Chat in New Window"),
-		original: moveTo === MoveToNewLocation.Editor ? 'Open Chat in Editor' : 'Open Chat in New Window',
-	},
-	category: CHAT_CATEGORY,
-	precondition: CONTEXT_PROVIDER_EXISTS,
-	f1: false,
-	viewId,
-	menu: {
-		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.equals('view', viewId),
-		order: 0
-	},
-});
-
-export function getMoveToEditorAction(viewId: string, providerId: string) {
-	return getMoveToAction(viewId, providerId, MoveToNewLocation.Editor);
-}
-
-export function getMoveToNewWindowAction(viewId: string, providerId: string) {
-	return getMoveToAction(viewId, providerId, MoveToNewLocation.Window);
-}
-
-export function getMoveToAction(viewId: string, providerId: string, moveTo: MoveToNewLocation) {
-	return class MoveToAction extends ViewAction<ChatViewPane> {
-		constructor() {
-			super(getMoveToChatActionDescriptorForViewTitle(viewId, providerId, moveTo));
-		}
-
-		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-			const viewModel = view.widget.viewModel;
-			if (!viewModel) {
-				return;
-			}
-
-			const editorService = accessor.get(IEditorService);
-			const sessionId = viewModel.sessionId;
-			const viewState = view.widget.getViewState();
-			view.clear();
-
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true, viewState: viewState } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
-		}
-	};
-}
-
 export function registerMoveActions() {
 	registerAction2(class GlobalMoveToEditorAction extends Action2 {
 		constructor() {
@@ -79,29 +31,40 @@ export function registerMoveActions() {
 				title: localize2('interactiveSession.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
-				f1: true
+				f1: true,
+				menu: {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
+					order: 0
+				},
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			executeMoveToAction(accessor, MoveToNewLocation.Editor);
+			const context = args[0];
+			executeMoveToAction(accessor, MoveToNewLocation.Editor, isChatViewTitleActionContext(context) ? context.chatView : undefined);
 		}
 	});
 
 	registerAction2(class GlobalMoveToNewWindowAction extends Action2 {
-
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInNewWindow`,
 				title: localize2('interactiveSession.openInNewWindow.label', "Open/move the panel chat to an undocked window."),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
-				f1: true
+				f1: true,
+				menu: {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
+					order: 0
+				},
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			executeMoveToAction(accessor, MoveToNewLocation.Window);
+			const context = args[0];
+			executeMoveToAction(accessor, MoveToNewLocation.Window, isChatViewTitleActionContext(context) ? context.chatView : undefined);
 		}
 	});
 
@@ -127,12 +90,12 @@ export function registerMoveActions() {
 	});
 }
 
-async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation) {
+async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, chatView?: ChatViewPane) {
 	const widgetService = accessor.get(IChatWidgetService);
 	const viewService = accessor.get(IViewsService);
 	const editorService = accessor.get(IEditorService);
 
-	const widget = widgetService.lastFocusedWidget;
+	const widget = chatView?.widget ?? widgetService.lastFocusedWidget;
 	if (!widget || !('viewId' in widget.viewContext)) {
 		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;

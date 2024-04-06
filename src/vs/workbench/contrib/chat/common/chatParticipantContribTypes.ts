@@ -26,7 +26,7 @@ export interface IRawChatParticipantContribution {
 }
 
 /**
- * Hardcoding the previous id of the Copilot Chat provider to avoid losing persisted view locations, data, etc.
+ * Hardcoding the previous id of the Copilot Chat provider to avoid breaking view locations, persisted data, etc.
  * DON'T use this for any new data, only for old persisted data.
  * @deprecated
  */

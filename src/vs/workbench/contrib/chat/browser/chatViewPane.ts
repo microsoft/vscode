@@ -28,6 +28,7 @@ import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/
 import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatViewTitleActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -91,6 +92,12 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 				this._onDidChangeViewWelcomeState.fire();
 			}
 		}));
+	}
+
+	override getActionsContext(): IChatViewTitleActionContext {
+		return {
+			chatView: this
+		};
 	}
 
 	private updateModel(model?: IChatModel | undefined, viewState?: IViewPaneState): void {
@@ -169,7 +176,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		this._widget.acceptInput(query);
 	}
 
-	async clear(): Promise<void> {
+	clear(): void {
 		if (this.widget.viewModel) {
 			this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
