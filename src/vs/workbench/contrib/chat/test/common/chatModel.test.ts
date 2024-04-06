@@ -11,7 +11,9 @@ import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Range } from 'vs/editor/common/core/range';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -30,6 +32,7 @@ suite('ChatModel', () => {
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 	});
 

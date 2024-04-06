@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { commands, CancellationToken, ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, InteractiveSession, ProviderResult, chat, interactive } from 'vscode';
+import { ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, chat, commands } from 'vscode';
 import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -31,14 +31,6 @@ suite('chat', () => {
 	function setupParticipant(): Event<{ request: ChatRequest; context: ChatContext }> {
 		const emitter = new EventEmitter<{ request: ChatRequest; context: ChatContext }>();
 		disposables.push(emitter);
-		disposables.push(interactive.registerInteractiveSessionProvider('provider', {
-			prepareSession: (_token: CancellationToken): ProviderResult<InteractiveSession> => {
-				return {
-					requester: { name: 'test' },
-					responder: { name: 'test' },
-				};
-			},
-		}));
 
 		const participant = chat.createChatParticipant('api-test.participant', (request, context, _progress, _token) => {
 			emitter.fire({ request, context });
@@ -82,15 +74,6 @@ suite('chat', () => {
 	});
 
 	test('result metadata is returned to the followup provider', async () => {
-		disposables.push(interactive.registerInteractiveSessionProvider('provider', {
-			prepareSession: (_token: CancellationToken): ProviderResult<InteractiveSession> => {
-				return {
-					requester: { name: 'test' },
-					responder: { name: 'test' },
-				};
-			},
-		}));
-
 		const deferred = new DeferredPromise<ChatResult>();
 		const participant = chat.createChatParticipant('api-test.participant', (_request, _context, _progress, _token) => {
 			return { metadata: { key: 'value' } };
