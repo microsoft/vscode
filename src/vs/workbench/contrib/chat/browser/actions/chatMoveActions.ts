@@ -50,7 +50,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInNewWindow`,
-				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window."),
+				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window"),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_HAS_DEFAULT_AGENT,
 				f1: true,
