@@ -93,7 +93,6 @@ export interface IInlineChatWidgetConstructionOptions {
 export interface IInlineChatMessage {
 	message: IMarkdownString;
 	requestId: string;
-	providerId: string;
 }
 
 export interface IInlineChatMessageAppender {

@@ -155,7 +155,7 @@ class QuickChatGlobalAction extends Action2 {
 		if (options?.query) {
 			options.selection = new Selection(1, options.query.length + 1, 1, options.query.length + 1);
 		}
-		quickChatService.toggle(undefined, options);
+		quickChatService.toggle(options);
 	}
 }
 
@@ -171,7 +171,7 @@ class AskQuickChatAction extends Action2 {
 
 	override run(accessor: ServicesAccessor, query?: string): void {
 		const quickChatService = accessor.get(IQuickChatService);
-		quickChatService.toggle(undefined, query ? {
+		quickChatService.toggle(query ? {
 			query,
 			selection: new Selection(1, query.length + 1, 1, query.length + 1)
 		} : undefined);

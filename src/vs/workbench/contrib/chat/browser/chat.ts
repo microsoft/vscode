@@ -46,9 +46,9 @@ export interface IQuickChatService {
 	readonly onDidClose: Event<void>;
 	readonly enabled: boolean;
 	readonly focused: boolean;
-	toggle(providerId?: string, options?: IQuickChatOpenOptions): void;
+	toggle(options?: IQuickChatOpenOptions): void;
 	focus(): void;
-	open(providerId?: string, options?: IQuickChatOpenOptions): void;
+	open(options?: IQuickChatOpenOptions): void;
 	close(): void;
 	openInChatView(): void;
 }

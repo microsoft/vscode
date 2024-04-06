@@ -321,7 +321,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (this._currentRequest) {
 				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
 				const containsCode = responseContent.includes('```');
-				this._chatWidget?.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: this._currentRequest.id, providerId: 'terminal' }, false, containsCode);
+				this._chatWidget?.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: this._currentRequest.id }, false, containsCode);
 				const firstCodeBlock = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(0);
 				const secondCodeBlock = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(1);
 				this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);

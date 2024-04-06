@@ -36,9 +36,6 @@ export class MockChatService implements IChatService {
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined {
 		throw new Error('Method not implemented.');
 	}
-	onDidRegisterDefaultParticipant: Event<{ providerId: string }> = undefined!;
-	onDidUnregisterDefaultParticipant: Event<{ providerId: string }> = undefined!;
-
 	/**
 	 * Returns whether the request was accepted.
 	 */
@@ -71,7 +68,7 @@ export class MockChatService implements IChatService {
 	notifyUserAction(event: IChatUserActionEvent): void {
 		throw new Error('Method not implemented.');
 	}
-	onDidDisposeSession: Event<{ sessionId: string; providerId: string; reason: 'initializationFailed' | 'cleared' }> = undefined!;
+	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }> = undefined!;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
 		throw new Error('Method not implemented.');

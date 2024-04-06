@@ -56,13 +56,13 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 		return dom.isAncestorOfActiveElement(widget);
 	}
 
-	toggle(providerId?: string, options?: IQuickChatOpenOptions): void {
+	toggle(options?: IQuickChatOpenOptions): void {
 		// If the input is already shown, hide it. This provides a toggle behavior of the quick
 		// pick. This should not happen when there is a query.
 		if (this.focused && !options?.query) {
 			this.close();
 		} else {
-			this.open(providerId, options);
+			this.open(options);
 			// If this is a partial query, the value should be cleared when closed as otherwise it
 			// would remain for the next time the quick chat is opened in any context.
 			if (options?.isPartialQuery) {
@@ -74,7 +74,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 		}
 	}
 
-	open(providerId?: string, options?: IQuickChatOpenOptions): void {
+	open(options?: IQuickChatOpenOptions): void {
 		if (this._input) {
 			if (this._currentChat && options?.query) {
 				this._currentChat.focus();
