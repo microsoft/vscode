@@ -168,13 +168,10 @@ suite('TerminalProfileService', () => {
 		terminalInstanceService = new TestTerminalInstanceService();
 		extensionService = new TestTerminalExtensionService();
 		environmentService = { remoteAuthority: undefined } as IWorkbenchEnvironmentService;
-		// instantiationService = new TestInstantiationService();
 
 		const themeService = new TestThemeService();
 		const terminalContributionService = new TestTerminalContributionService();
-		// const contextKeyService = new MockContextKeyService();
 
-		// instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IExtensionService, extensionService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);

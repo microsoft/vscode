@@ -115,7 +115,6 @@ suite('Workbench - TerminalService', () => {
 			await terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
-				// onExit: onExitEmitter.event,
 				dispose: () => fail()
 			} as Partial<ITerminalInstance> as any);
 			dialogService.setConfirmResult({ confirmed: true });
@@ -148,7 +147,6 @@ suite('Workbench - TerminalService', () => {
 			await terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
-				// onExit: onExitEmitter.event,
 				dispose: () => fail()
 			} as Partial<ITerminalInstance> as any);
 			dialogService.setConfirmResult({ confirmed: true });
