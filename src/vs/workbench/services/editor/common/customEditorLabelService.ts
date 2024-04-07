@@ -116,7 +116,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	}
 
 	getName(resource: URI): string | undefined {
-		if (!this.enabled) {
+		if (!this.enabled || this.patterns.length === 0) {
 			return undefined;
 		}
 
@@ -132,10 +132,6 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	}
 
 	private applyPatterns(resource: URI): string | undefined {
-		if (this.patterns.length === 0) {
-			return undefined;
-		}
-
 		const root = this.workspaceContextService.getWorkspaceFolder(resource);
 		let relativePath: string | undefined;
 
