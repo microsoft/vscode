@@ -6,7 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { joinPath } from 'vs/base/common/resources';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -28,10 +28,7 @@ export function registerChatExportActions() {
 			super({
 				id: 'workbench.action.chat.export',
 				category: CHAT_CATEGORY,
-				title: {
-					value: localize('chat.export.label', "Export Session") + '...',
-					original: 'Export Session...'
-				},
+				title: localize2('chat.export.label', "Export Chat..."),
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 			});
@@ -71,10 +68,7 @@ export function registerChatExportActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.import',
-				title: {
-					value: localize('chat.import.label', "Import Session") + '...',
-					original: 'Import Session...'
-				},
+				title: localize2('chat.import.label', "Import Chat..."),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
