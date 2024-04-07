@@ -413,19 +413,24 @@ export function derivedObservableWithCache<T>(owner: Owner, computeFn: (reader: 
 	return observable;
 }
 
-export function derivedObservableWithWritableCache<T>(owner: object, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> & { clearCache(transaction: ITransaction): void } {
+export function derivedObservableWithWritableCache<T>(owner: object, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T>
+	& { clearCache(transaction: ITransaction): void; setCache(newValue: T | undefined, tx: ITransaction | undefined): void } {
 	let lastValue: T | undefined = undefined;
-	const counter = observableValue('derivedObservableWithWritableCache.counter', 0);
+	const onChange = observableSignal('derivedObservableWithWritableCache');
 	const observable = derived(owner, reader => {
-		counter.read(reader);
+		onChange.read(reader);
 		lastValue = computeFn(reader, lastValue);
 		return lastValue;
 	});
 	return Object.assign(observable, {
-		clearCache: (transaction: ITransaction) => {
+		clearCache: (tx: ITransaction) => {
 			lastValue = undefined;
-			counter.set(counter.get() + 1, transaction);
+			onChange.trigger(tx);
 		},
+		setCache: (newValue: T | undefined, tx: ITransaction | undefined) => {
+			lastValue = newValue;
+			onChange.trigger(tx);
+		}
 	});
 }
 
