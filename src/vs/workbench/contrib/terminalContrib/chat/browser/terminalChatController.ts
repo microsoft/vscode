@@ -63,6 +63,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private readonly _requestActiveContextKey: IContextKey<boolean>;
 	private readonly _terminalAgentRegisteredContextKey: IContextKey<boolean>;
 	private readonly _responseContainsCodeBlockContextKey: IContextKey<boolean>;
+	private readonly _responseContainsMulitpleCodeBlocksContextKey: IContextKey<boolean>;
 	private readonly _responseSupportsIssueReportingContextKey: IContextKey<boolean>;
 	private readonly _sessionResponseVoteContextKey: IContextKey<string | undefined>;
 
@@ -82,7 +83,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private _terminalAgentName = 'terminal';
 	private _terminalAgentId: string | undefined;
 
-	private _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
+	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -103,6 +104,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
 		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.agentRegistered.bindTo(this._contextKeyService);
 		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
+		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(this._contextKeyService);
 		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
 		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
 
@@ -327,7 +329,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
 				const containsCode = responseContent.includes('```');
 				this._chatWidget?.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: this._currentRequest.id, providerId: 'terminal' }, false, containsCode);
-				this._responseContainsCodeBlockContextKey.set(containsCode);
+				const firstCodeBlock = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(0);
+				const secondCodeBlock = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(1);
+				this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);
+				this._responseContainsMulitpleCodeBlocksContextKey.set(!!secondCodeBlock);
 				this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 			}
 			const supportIssueReporting = this._currentRequest?.response?.agent?.metadata?.supportIssueReporting;
@@ -376,28 +381,21 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!providerInfo) {
 			return;
 		}
-		const model = this._model.value;
 		const widget = await this._chatWidgetService.revealViewForProvider(providerInfo.id);
-		if (widget) {
-			if (widget.viewModel && model) {
-				for (const request of model.getRequests()) {
-					if (request.response?.response.value || request.response?.result) {
-						this._chatService.addCompleteRequest(widget.viewModel.sessionId,
-							request.message as IParsedChatRequest,
-							request.variableData,
-							{
-								message: request.response.response.value,
-								result: request.response.result,
-								followups: request.response.followups
-							});
-					}
-				}
-				widget.focusLastMessage();
-			} else if (!model) {
-				widget.focusInput();
-			}
-			this._chatWidget?.rawValue?.hide();
+		const request = this._currentRequest;
+		if (!widget || !request?.response) {
+			return;
 		}
+		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
+			request.message.text,
+			request.variableData,
+			{
+				message: request.response!.response.value,
+				result: request.response!.result,
+				followups: request.response!.followups
+			});
+		widget.focusLastMessage();
+		this._chatWidget?.rawValue?.hide();
 	}
 
 	// TODO: Move to register calls, don't override

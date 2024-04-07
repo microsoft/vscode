@@ -29,8 +29,9 @@ import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEve
 import { QuickInputBox } from './quickInputBox';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { QuickInputListFocus, QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
+import type { IHoverOptions } from 'vs/base/browser/ui/hover/hover';
 
 export interface IQuickInputOptions {
 	idPrefix: string;

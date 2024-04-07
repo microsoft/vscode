@@ -35,7 +35,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _commitCommandFinished?: RunOnceScheduler;
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
-	private _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
+	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
 	get commands(): readonly TerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -281,6 +281,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandStart(options?: IHandleCommandOptions): void {
 		this._handleCommandStartOptions = options;
+		this._currentCommand.cwd = this._cwd;
 		// Only update the column if the line has already been set
 		this._currentCommand.commandStartMarker = options?.marker || this._currentCommand.commandStartMarker;
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
@@ -500,7 +501,7 @@ class UnixPtyHeuristics extends Disposable {
 }
 
 const enum AdjustCommandStartMarkerConstants {
-	MaxCheckLineCount = 5,
+	MaxCheckLineCount = 10,
 	Interval = 20,
 	MaximumPollCount = 50,
 }
@@ -513,7 +514,7 @@ const enum AdjustCommandStartMarkerConstants {
  */
 class WindowsPtyHeuristics extends Disposable {
 
-	private _onCursorMoveListener = this._register(new MutableDisposable());
+	private readonly _onCursorMoveListener = this._register(new MutableDisposable());
 
 	private _tryAdjustCommandStartMarkerScheduler?: RunOnceScheduler;
 	private _tryAdjustCommandStartMarkerScannedLineCount: number = 0;
@@ -891,6 +892,15 @@ class WindowsPtyHeuristics extends Disposable {
 		const customPrompt = lineText.match(/.*\u276f(?=[^\u276f]*$)/g)?.[0];
 		if (customPrompt) {
 			const adjustedPrompt = this._adjustPrompt(customPrompt, lineText, '\u276f');
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
+		}
+
+		// Bash Prompt
+		const bashPrompt = lineText.match(/^(?<prompt>.*\$)/)?.groups?.prompt;
+		if (bashPrompt) {
+			const adjustedPrompt = this._adjustPrompt(bashPrompt, lineText, '$');
 			if (adjustedPrompt) {
 				return adjustedPrompt;
 			}

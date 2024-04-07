@@ -28,7 +28,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAccessibilityProvider } from 'vs/workbench/contrib/chat/browser/chatAccessibilityProvider';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { ChatListDelegate, ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { IChatListItemRendererOptions } from './chat';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -130,7 +131,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private previousTreeScrollHeight: number = 0;
 
-	private viewModelDisposables = this._register(new DisposableStore());
+	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
@@ -258,7 +259,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return dom.getTotalHeight(this.inputPart.element) + this.tree.contentHeight;
+		return this.inputPart.contentHeight + this.tree.contentHeight;
 	}
 
 	render(parent: HTMLElement): void {
@@ -276,7 +277,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups: true, renderStyle });
 		}
 
-		this.createList(this.listContainer, { renderStyle, editableCodeBlock: this.viewOptions.editableCodeBlocks });
+		this.createList(this.listContainer, { ...this.viewOptions.rendererOptions, renderStyle });
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
 		this.onDidStyleChange();
@@ -538,7 +539,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			let msg = '';
 			if (e.followup.agentId && e.followup.agentId !== this.chatAgentService.getDefaultAgent(this.location)?.id) {
-				msg = `${chatAgentLeader}${e.followup.agentId} `;
+				const agent = this.chatAgentService.getAgent(e.followup.agentId);
+				if (!agent) {
+					return;
+				}
+
+				this.lastSelectedAgent = agent;
+				msg = `${chatAgentLeader}${agent.name} `;
 				if (e.followup.subCommand) {
 					msg += `${chatSubcommandLeader}${e.followup.subCommand} `;
 				}

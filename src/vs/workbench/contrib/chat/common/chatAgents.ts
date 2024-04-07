@@ -39,6 +39,7 @@ export namespace ChatAgentLocation {
 			case 'panel': return ChatAgentLocation.Panel;
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
+			case 'editor': return ChatAgentLocation.Editor;
 		}
 		return ChatAgentLocation.Panel;
 	}

@@ -36,10 +36,10 @@ export interface IEditorTitleControlDimensions {
 export class EditorTitleControl extends Themable {
 
 	private editorTabsControl: IEditorTabsControl;
-	private editorTabsControlDisposable = this._register(new DisposableStore());
+	private readonly editorTabsControlDisposable = this._register(new DisposableStore());
 
 	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
-	private breadcrumbsControlDisposables = this._register(new DisposableStore());
+	private readonly breadcrumbsControlDisposables = this._register(new DisposableStore());
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
 	constructor(

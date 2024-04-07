@@ -40,7 +40,6 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkData, HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
@@ -52,9 +51,10 @@ import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/co
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
 
 
 export interface InlineChatWidgetViewState {
@@ -83,17 +83,11 @@ export interface IInlineChatWidgetConstructionOptions {
 	/**
 	 * The men that rendered in the lower right corner, use for feedback
 	 */
-	feedbackMenuId: MenuId;
-
-	/**
-	 * @deprecated
-	 * TODO@meganrogge,jrieken
-	 * We need a way to make this configurable per editor/resource and not
-	 * globally.
-	 */
-	editableCodeBlocks?: boolean;
+	feedbackMenuId?: MenuId;
 
 	editorOverflowWidgetsDomNode?: HTMLElement;
+
+	rendererOptions?: IChatListItemRendererOptions;
 }
 
 export interface IInlineChatMessage {
@@ -144,7 +138,7 @@ export class InlineChatWidget {
 
 	private _isLayouting: boolean = false;
 
-	private _followUpDisposables = this._store.add(new DisposableStore());
+	private readonly _followUpDisposables = this._store.add(new DisposableStore());
 	constructor(
 		location: ChatAgentLocation,
 		options: IInlineChatWidgetConstructionOptions,
@@ -156,20 +150,8 @@ export class InlineChatWidget {
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
 		@IChatService private readonly _chatService: IChatService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
-		// Share hover delegates between toolbars to support instant hover between both
-		// TODO@jrieken move into chat widget
-		// const hoverDelegate = this._store.add(createInstantHoverDelegate());
-
-		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
-				this._updateAriaLabel();
-				// TODO@jrieken	FIX THIS
-				// this._chatWidget.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
-				this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
-			}
-		}));
-
 		// toolbars
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
@@ -194,7 +176,7 @@ export class InlineChatWidget {
 				renderInputOnTop: true,
 				supportsFileReferences: true,
 				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
-				editableCodeBlocks: options.editableCodeBlocks,
+				rendererOptions: options.rendererOptions,
 				menus: {
 					executeToolbar: options.inputMenuId,
 					inputSideToolbar: options.widgetMenuId,
@@ -290,17 +272,25 @@ export class InlineChatWidget {
 			}
 		};
 
-		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
-		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-		this._store.add(feedbackToolbar);
+		if (options.feedbackMenuId) {
+			const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+			this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+			this._store.add(feedbackToolbar);
+		}
 
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
+				this._updateAriaLabel();
+			}
+		}));
 
+		this._elements.root.tabIndex = 0;
 		this._elements.followUps.tabIndex = 0;
-		this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 		this._elements.statusLabel.tabIndex = 0;
+		this._updateAriaLabel();
 
 		// this._elements.status
-		this._store.add(setupCustomHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
+		this._store.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
 			return this._elements.statusLabel.dataset['title'];
 		}));
 
@@ -319,15 +309,19 @@ export class InlineChatWidget {
 	}
 
 	private _updateAriaLabel(): void {
-		if (!this._accessibilityService.isScreenReaderOptimized()) {
-			return;
+
+		this._elements.root.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			let label = defaultAriaLabel;
+			if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
+				const kbLabel = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+				label = kbLabel
+					? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel)
+					: localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
+			}
+			this._chatWidget.inputEditor.updateOptions({ ariaLabel: label });
 		}
-		let label = defaultAriaLabel;
-		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
-			const kbLabel = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
-			label = kbLabel ? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel) : localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
-		}
-		this._chatWidget.inputEditor.updateOptions({ ariaLabel: label });
 	}
 
 	dispose(): void {
@@ -463,7 +457,7 @@ export class InlineChatWidget {
 		if (!isNonEmptyArray(requests)) {
 			return undefined;
 		}
-		return tail(requests).response?.response.asString();
+		return tail(requests)?.response?.response.asString();
 	}
 
 	getChatModel(): IChatModel {
@@ -526,7 +520,9 @@ export class InlineChatWidget {
 			}
 		};
 	}
-
+	/**
+	 * @deprecated use `setChatModel` instead
+	 */
 	updateFollowUps(items: IInlineChatFollowup[], onFollowup: (followup: IInlineChatFollowup) => void): void;
 	updateFollowUps(items: undefined): void;
 	updateFollowUps(items: IInlineChatFollowup[] | undefined, onFollowup?: ((followup: IInlineChatFollowup) => void)) {
@@ -540,10 +536,11 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-
+	/**
+	 * @deprecated use `setChatModel` instead
+	 */
 	updateSlashCommands(commands: IInlineChatSlashCommand[]) {
-		// this._inputWidget.updateSlashCommands(commands);
-		// TODO@jrieken
+
 	}
 
 	updateInfo(message: string): void {
@@ -648,8 +645,9 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IChatService chatService: IChatService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(ChatAgentLocation.Editor, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService);
+		super(ChatAgentLocation.Editor, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
 
 		// preview editors
 		this._previewDiffEditor = new Lazy(() => this._store.add(instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {
@@ -749,10 +747,10 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 			return;
 		}
 
-		const hiddenOriginal = invertLineRange(originalLineRange, textModel0);
-		const hiddenModified = invertLineRange(modifiedLineRange, textModelN);
-		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lr => asRange(lr, textModel0)), 'diff-hidden');
-		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lr => asRange(lr, textModelN)), 'diff-hidden');
+		const hiddenOriginal = LineRange.invert(originalLineRange, textModel0);
+		const hiddenModified = LineRange.invert(modifiedLineRange, textModelN);
+		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lr => LineRange.asRange(lr, textModel0)), 'diff-hidden');
+		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lr => LineRange.asRange(lr, textModelN)), 'diff-hidden');
 		this._previewDiffEditor.value.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
 
 		this._onDidChangeHeight.fire();

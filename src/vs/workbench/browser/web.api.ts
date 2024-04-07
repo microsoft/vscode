@@ -106,6 +106,10 @@ export interface IWorkbench {
 	};
 
 	workspace: {
+		/**
+		 * Resolves once the remote authority has been resolved.
+		 */
+		didResolveRemoteAuthority(): Promise<void>;
 
 		/**
 		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.

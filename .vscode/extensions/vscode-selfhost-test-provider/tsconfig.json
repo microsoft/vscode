@@ -1,0 +1,14 @@
+{
+	"extends": "../../../extensions/tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./out",
+		"types": [
+			"node"
+		]
+	},
+	"include": [
+		"src/**/*",
+		"../../../src/vscode-dts/vscode.d.ts",
+		"../../../src/vscode-dts/vscode.proposed.testObserver.d.ts",
+	]
+}
