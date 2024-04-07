@@ -5,7 +5,7 @@
 
 import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { findFirstMaxBy } from 'vs/base/common/arraysFind';
+import { findFirstMax } from 'vs/base/common/arraysFind';
 import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, autorun, autorunWithStore, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { ITransaction, disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
@@ -29,6 +29,7 @@ import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { ObjectPool } from './objectPool';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { compareBy, numberComparator } from 'vs/base/common/arrays';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -161,7 +162,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 			let scrollWidth = width;
 			const viewItems = this._viewItems.read(reader);
-			const max = findFirstMaxBy(viewItems, i => i.maxScroll.read(reader).maxScroll);
+			const max = findFirstMax(viewItems, compareBy(i => i.maxScroll.read(reader).maxScroll, numberComparator));
 			if (max) {
 				const maxScroll = max.maxScroll.read(reader);
 				scrollWidth = width + maxScroll.maxScroll;
