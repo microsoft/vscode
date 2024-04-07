@@ -40,7 +40,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	private patterns: ICustomEditorLabelPattern[] = [];
 	private enabled = true;
 
-	private cache = new MRUCache<URI, string>(1000);
+	private cache = new MRUCache<URI, string | undefined>(1000);
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -126,9 +126,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		}
 
 		const result = this.applyPatterns(resource);
-		if (result !== undefined) {
-			this.cache.set(resource, result);
-		}
+		this.cache.set(resource, result);
 
 		return result;
 	}
