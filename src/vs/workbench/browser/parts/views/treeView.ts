@@ -9,7 +9,6 @@ import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ITooltipMarkdownString } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode, ITreeRenderer, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
@@ -56,9 +55,8 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { getLocationBasedViewColors, IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -73,6 +71,7 @@ import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUti
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 
 export class TreeViewPane extends ViewPane {
 
@@ -91,9 +90,10 @@ export class TreeViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle, donotForwardArgs: false }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle, donotForwardArgs: false }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
@@ -305,7 +305,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}));
 		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
 			if (views.some(v => v.id === this.id)) {
-				this.tree?.updateOptions({ overrideStyles: { listBackground: this.viewLocation === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND } });
+				this.tree?.updateOptions({ overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles });
 			}
 		}));
 		this.registerActions();
@@ -690,9 +690,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			},
 			multipleSelectionSupport: this.canSelectMany,
 			dnd: this.treeViewDnd,
-			overrideStyles: {
-				listBackground: this.viewLocation === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
-			}
+			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
@@ -1103,6 +1101,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@ILabelService private readonly labelService: ILabelService,
 		@ITreeViewsService private readonly treeViewsService: ITreeViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -1136,7 +1135,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return { resourceLabel, icon, checkboxContainer, actionBar, container, elementDisposable: new DisposableStore() };
 	}
 
-	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | ITooltipMarkdownString | undefined {
+	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IUpdatableHoverTooltipMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
 			if (resource && !node.tooltip) {
 				return undefined;
@@ -1286,7 +1285,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				this.rerender();
 			}
 			if (!templateData.checkbox) {
-				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this._hoverDelegate);
+				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this._hoverDelegate, this.hoverService);
 				templateData.checkbox = checkbox;
 			}
 			templateData.checkbox.render(node);

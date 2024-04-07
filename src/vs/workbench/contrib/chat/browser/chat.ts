@@ -87,12 +87,20 @@ export interface IChatFileTreeInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
+export interface IChatListItemRendererOptions {
+	readonly renderStyle?: 'default' | 'compact';
+	readonly noHeader?: boolean;
+	readonly noPadding?: boolean;
+	readonly editableCodeBlock?: boolean;
+	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
+}
+
 export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderStyle?: 'default' | 'compact';
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
-	editableCodeBlocks?: boolean;
+	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		executeToolbar?: MenuId;
 		inputSideToolbar?: MenuId;

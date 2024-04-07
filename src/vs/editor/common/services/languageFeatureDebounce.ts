@@ -134,7 +134,7 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 		const key = `${IdentityHash.of(feature)},${min}${extra ? ',' + extra : ''}`;
 		let info = this._data.get(key);
 		if (!info) {
-			if (!this._isDev) {
+			if (this._isDev) {
 				this._logService.debug(`[DEBOUNCE: ${name}] is disabled in developed mode`);
 				info = new NullDebounceInformation(min * 1.5);
 			} else {

@@ -43,6 +43,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -437,9 +438,10 @@ export class LoadedScriptsView extends ViewPane {
 		@IPathService private readonly pathService: IPathService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
@@ -481,9 +483,7 @@ export class LoadedScriptsView extends ViewPane {
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				}
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
 

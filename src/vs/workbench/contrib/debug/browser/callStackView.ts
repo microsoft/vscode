@@ -45,11 +45,12 @@ import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView
 import { CONTINUE_ID, CONTINUE_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, PAUSE_ID, PAUSE_LABEL, RESTART_LABEL, RESTART_SESSION_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createDisconnectMenuItemAction } from 'vs/workbench/contrib/debug/browser/debugToolBar';
-import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, IStackFrame, IThread, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, isFrameDeemphasized, IStackFrame, IThread, State } from 'vs/workbench/contrib/debug/common/debug';
 import { StackFrame, Thread, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -135,7 +136,7 @@ async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsync
 export class CallStackView extends ViewPane {
 	private stateMessage!: HTMLSpanElement;
 	private stateMessageLabel!: HTMLSpanElement;
-	private stateMessageLabelHover!: ICustomHover;
+	private stateMessageLabelHover!: IUpdatableHover;
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private ignoreSelectionChangedEvent = false;
@@ -158,9 +159,10 @@ export class CallStackView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = this._register(new RunOnceScheduler(async () => {
@@ -219,7 +221,7 @@ export class CallStackView extends ViewPane {
 		this.stateMessage = dom.append(container, $('span.call-stack-state-message'));
 		this.stateMessage.hidden = true;
 		this.stateMessageLabel = dom.append(this.stateMessage, $('span.label'));
-		this.stateMessageLabelHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.stateMessage, ''));
+		this.stateMessageLabelHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.stateMessage, ''));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -233,7 +235,7 @@ export class CallStackView extends ViewPane {
 			this.instantiationService.createInstance(SessionsRenderer),
 			this.instantiationService.createInstance(ThreadsRenderer),
 			this.instantiationService.createInstance(StackFramesRenderer),
-			new ErrorsRenderer(),
+			this.instantiationService.createInstance(ErrorsRenderer),
 			new LoadMoreRenderer(),
 			new ShowMoreRenderer()
 		], this.dataSource, {
@@ -278,9 +280,7 @@ export class CallStackView extends ViewPane {
 				}
 			},
 			expandOnlyOnTwistieClick: true,
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			}
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 
 		this.tree.setInput(this.debugService.getModel());
@@ -530,6 +530,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService,
 	) { }
 
@@ -550,7 +551,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 			actionViewItemProvider: (action, options) => {
 				if ((action.id === STOP_ID || action.id === DISCONNECT_ID) && action instanceof MenuItemAction) {
 					stopActionViewItemDisposables.clear();
-					const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, stopActionViewItemDisposables, accessor, options));
+					const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, stopActionViewItemDisposables, accessor, { ...options, menuAsChild: false }));
 					if (item) {
 						return item;
 					}
@@ -581,7 +582,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	}
 
 	private doRenderElement(session: IDebugSession, matches: IMatch[], data: ISessionTemplateData): void {
-		const sessionHover = data.elementDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.session, localize({ key: 'session', comment: ['Session is a noun'] }, "Session")));
+		const sessionHover = data.elementDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.session, localize({ key: 'session', comment: ['Session is a noun'] }, "Session")));
 		data.label.set(session.getLabel(), matches);
 		const stoppedDetails = session.getStoppedDetails();
 		const thread = session.getAllThreads().find(t => t.stopped);
@@ -646,6 +647,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService,
 	) { }
 
@@ -669,7 +671,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 
 	renderElement(element: ITreeNode<IThread, FuzzyScore>, _index: number, data: IThreadTemplateData): void {
 		const thread = element.element;
-		data.elementDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.thread, thread.name));
+		data.elementDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.thread, thread.name));
 		data.label.set(thread.name, createMatches(element.filterData));
 		data.stateLabel.textContent = thread.stateLabel;
 		data.stateLabel.classList.toggle('exception', thread.stoppedDetails?.reason === 'exception');
@@ -718,6 +720,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 	static readonly ID = 'stackFrame';
 
 	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) { }
@@ -744,9 +747,8 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
 		const stackFrame = element.element;
-		data.stackFrame.classList.toggle('disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
+		data.stackFrame.classList.toggle('disabled', !stackFrame.source || !stackFrame.source.available || isFrameDeemphasized(stackFrame));
 		data.stackFrame.classList.toggle('label', stackFrame.presentationHint === 'label');
-		data.stackFrame.classList.toggle('subtle', stackFrame.presentationHint === 'subtle');
 		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle' && stackFrame.canRestart;
 		data.stackFrame.classList.toggle('has-actions', hasActions);
 
@@ -754,7 +756,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		if (stackFrame.source.raw.origin) {
 			title += `\n${stackFrame.source.raw.origin}`;
 		}
-		data.templateDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.file, title));
+		data.templateDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.file, title));
 
 		data.label.set(stackFrame.name, createMatches(element.filterData), stackFrame.name);
 		data.fileName.textContent = getSpecificSourceName(stackFrame);
@@ -797,6 +799,11 @@ class ErrorsRenderer implements ICompressibleTreeRenderer<string, FuzzyScore, IE
 		return ErrorsRenderer.ID;
 	}
 
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService
+	) {
+	}
+
 	renderTemplate(container: HTMLElement): IErrorTemplateData {
 		const label = dom.append(container, $('.error'));
 
@@ -806,7 +813,7 @@ class ErrorsRenderer implements ICompressibleTreeRenderer<string, FuzzyScore, IE
 	renderElement(element: ITreeNode<string, FuzzyScore>, index: number, data: IErrorTemplateData): void {
 		const error = element.element;
 		data.label.textContent = error;
-		data.templateDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.label, error));
+		data.templateDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, error));
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<string>, FuzzyScore>, index: number, templateData: IErrorTemplateData, height: number | undefined): void {
@@ -933,10 +940,6 @@ function isDebugSession(obj: any): obj is IDebugSession {
 	return obj && typeof obj.getAllThreads === 'function';
 }
 
-function isDeemphasized(frame: IStackFrame): boolean {
-	return frame.source.presentationHint === 'deemphasize' || frame.presentationHint === 'deemphasize';
-}
-
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
 	deemphasizedStackFramesToShow: IStackFrame[] = [];
 
@@ -984,7 +987,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			// Check if some stack frames should be hidden under a parent element since they are deemphasized
 			const result: CallStackItem[] = [];
 			children.forEach((child, index) => {
-				if (child instanceof StackFrame && child.source && isDeemphasized(child)) {
+				if (child instanceof StackFrame && child.source && isFrameDeemphasized(child)) {
 					// Check if the user clicked to show the deemphasized source
 					if (this.deemphasizedStackFramesToShow.indexOf(child) === -1) {
 						if (result.length) {
@@ -997,7 +1000,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 						}
 
 						const nextChild = index < children.length - 1 ? children[index + 1] : undefined;
-						if (nextChild instanceof StackFrame && nextChild.source && isDeemphasized(nextChild)) {
+						if (nextChild instanceof StackFrame && nextChild.source && isFrameDeemphasized(nextChild)) {
 							// Start collecting stackframes that will be "collapsed"
 							result.push([child]);
 							return;

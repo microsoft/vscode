@@ -18,6 +18,7 @@ import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { openContextMenu } from 'vs/workbench/contrib/terminalContrib/find/browser/textInputContextMenu';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -35,6 +36,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextMenuService _contextMenuService: IContextMenuService,
 		@IClipboardService _clipboardService: IClipboardService,
+		@IHoverService hoverService: IHoverService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
@@ -52,7 +54,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			closeWidgetActionId: TerminalCommandId.FindHide,
 			type: 'Terminal',
 			matchesLimit: XtermTerminalConstants.SearchHighlightLimit
-		}, _contextViewService, _contextKeyService, keybindingService);
+		}, _contextViewService, _contextKeyService, hoverService, keybindingService);
 
 		this._register(this.state.onFindReplaceStateChange(() => {
 			this.show();

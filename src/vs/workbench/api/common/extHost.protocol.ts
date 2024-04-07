@@ -262,7 +262,7 @@ export interface ITextDocumentShowOptions {
 }
 
 export interface MainThreadBulkEditsShape extends IDisposable {
-	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto, undoRedoGroupId?: number, respectAutoSaveConfig?: boolean): Promise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, respectAutoSaveConfig?: boolean): Promise<boolean>;
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
@@ -1322,7 +1322,7 @@ export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
 	$acceptChatState(sessionId: number, state: any): Promise<void>;
 	$unregisterChatProvider(handle: number): Promise<void>;
-	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void;
+	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
 
 export interface ExtHostChatShape {
@@ -1493,15 +1493,15 @@ export type SCMRawResourceSplices = [
 
 export interface SCMHistoryItemGroupDto {
 	readonly id: string;
-	readonly label: string;
+	readonly name: string;
 	readonly base?: Omit<SCMHistoryItemGroupDto, 'base'>;
 }
 
 export interface SCMHistoryItemDto {
 	readonly id: string;
 	readonly parentIds: string[];
-	readonly label: string;
-	readonly description?: string;
+	readonly message: string;
+	readonly author?: string;
 	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 	readonly timestamp?: number;
 }
@@ -2082,7 +2082,6 @@ export interface IPasteEditProviderMetadataDto {
 export interface IDocumentPasteContextDto {
 	readonly only: string | undefined;
 	readonly triggerKind: languages.DocumentPasteTriggerKind;
-
 }
 
 export interface IPasteEditDto {
@@ -2095,10 +2094,13 @@ export interface IPasteEditDto {
 }
 
 export interface IDocumentDropEditProviderMetadata {
+	readonly supportsResolve: boolean;
+
 	dropMimeTypes: readonly string[];
 }
 
-export interface IDocumentOnDropEditDto {
+export interface IDocumentDropEditDto {
+	_cacheId?: ChainedCacheId;
 	title: string;
 	kind: string | undefined;
 	insertText: string | { snippet: string };
@@ -2170,7 +2172,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
-	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto[] | undefined>;
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentDropEditDto[] | undefined>;
 	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
 	$provideInlineEdit(handle: number, document: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined>;
 	$freeInlineEdit(handle: number, pid: number): void;
@@ -2268,10 +2270,10 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostTerminalShellIntegrationShape {
 	$shellIntegrationChange(instanceId: number): void;
-	$shellExecutionStart(instanceId: number, commandLine: string | undefined, cwd: UriComponents | string | undefined): void;
+	$shellExecutionStart(instanceId: number, commandLine: string | undefined, cwd: UriComponents | undefined): void;
 	$shellExecutionEnd(instanceId: number, commandLine: string | undefined, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
-	$cwdChange(instanceId: number, cwd: UriComponents | string): void;
+	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
 	$closeTerminal(instanceId: number): void;
 }
 
@@ -2650,19 +2652,6 @@ export interface MainThreadLocalizationShape extends IDisposable {
 	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
 }
 
-export interface ExtHostIssueReporterShape {
-	$getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<UriComponents>;
-	$getIssueReporterData(extensionId: string, token: CancellationToken): Promise<string>;
-	$getIssueReporterTemplate(extensionId: string, token: CancellationToken): Promise<string>;
-}
-
-export interface MainThreadIssueReporterShape extends IDisposable {
-	$registerIssueUriRequestHandler(extensionId: string): void;
-	$unregisterIssueUriRequestHandler(extensionId: string): void;
-	$registerIssueDataProvider(extensionId: string): void;
-	$unregisterIssueDataProvider(extensionId: string): void;
-}
-
 export interface TunnelDto {
 	remoteAddress: { port: number; host: string };
 	localAddress: { port: number; host: string } | string;
@@ -2859,8 +2848,7 @@ export const MainContext = {
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
-	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
-	MainThreadIssueReporter: createProxyIdentifier<MainThreadIssueReporterShape>('MainThreadIssueReporter'),
+	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector')
 };
 
 export const ExtHostContext = {
@@ -2930,6 +2918,5 @@ export const ExtHostContext = {
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
-	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
-	ExtHostIssueReporter: createProxyIdentifier<ExtHostIssueReporterShape>('ExtHostIssueReporter'),
+	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization')
 };

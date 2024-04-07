@@ -60,6 +60,7 @@ import { Extensions, IExtensionFeatureRenderer, IExtensionFeaturesManagementServ
 import { URI } from 'vs/base/common/uri';
 import { isString } from 'vs/base/common/types';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export const NONE_CATEGORY = 'none';
 
@@ -135,6 +136,7 @@ export class ExtensionsListView extends ViewPane {
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionRecommendationsService protected extensionRecommendationsService: IExtensionRecommendationsService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -158,7 +160,7 @@ export class ExtensionsListView extends ViewPane {
 			...(viewletViewOptions as IViewPaneOptions),
 			showActions: ViewPaneShowActions.Always,
 			maximumBodySize: options.flexibleHeight ? (storageService.getNumber(`${viewletViewOptions.id}.size`, StorageScope.PROFILE, 0) ? undefined : 0) : undefined
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		if (this.options.onDidChangeTitle) {
 			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
 		}
@@ -1325,6 +1327,7 @@ export class StaticQueryExtensionsView extends ExtensionsListView {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionRecommendationsService extensionRecommendationsService: IExtensionRecommendationsService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
@@ -1345,7 +1348,7 @@ export class StaticQueryExtensionsView extends ExtensionsListView {
 		@ILogService logService: ILogService
 	) {
 		super(options, viewletViewOptions, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService,
-			extensionsWorkbenchService, extensionRecommendationsService, telemetryService, configurationService, contextService, extensionManagementServerService,
+			extensionsWorkbenchService, extensionRecommendationsService, telemetryService, hoverService, configurationService, contextService, extensionManagementServerService,
 			extensionManifestPropertiesService, extensionManagementService, workspaceService, productService, contextKeyService, viewDescriptorService, openerService,
 			preferencesService, storageService, workspaceTrustManagementService, extensionEnablementService, layoutService, extensionFeaturesManagementService,
 			uriIdentityService, logService);
