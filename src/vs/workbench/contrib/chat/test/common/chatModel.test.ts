@@ -114,7 +114,7 @@ suite('ChatModel', () => {
 		model.startInitialize();
 		model.initialize(undefined);
 		const text = 'hello';
-		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] });
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
 		const requests = model.getRequests();
 		assert.strictEqual(requests.length, 1);
 

@@ -82,8 +82,8 @@ class BridgeAgent implements IChatAgentImplementation {
 		const inlineRequest: IInlineChatRequest = {
 			requestId: request.requestId,
 			prompt: request.message,
-			attempt: session.lastInput.attempt,
-			withIntentDetection: session.lastInput.withIntentDetection,
+			attempt: request.attempt ?? 0,
+			withIntentDetection: request.enableCommandDetection ?? true,
 			live: session.editMode !== EditMode.Preview,
 			previewDocument: session.textModelN.uri,
 			selection: editor.getSelection()!,

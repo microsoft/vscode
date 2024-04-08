@@ -2633,6 +2633,8 @@ export namespace ChatAgentRequest {
 		return {
 			prompt: request.message,
 			command: request.command,
+			attempt: request.attempt ?? 0,
+			enableCommandDetection: request.enableCommandDetection ?? true,
 			variables: request.variables.variables.map(ChatAgentResolvedVariable.to),
 			location: ChatLocation.to(request.location),
 		};

@@ -132,9 +132,6 @@ export class InlineChatController implements IEditorContribution {
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
 
-	private _nextAttempt: number = 0;
-	private _nextWithIntentDetection: boolean = true;
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -419,7 +416,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
-		this._sessionStore.add(this._session.chatModel.onDidChange(e => {
+		this._sessionStore.add(this._session.chatModel.onDidChange(async e => {
 			if (e.kind === 'addRequest' && e.request.response) {
 				this._zone.value.widget.updateProgress(true);
 
@@ -430,6 +427,16 @@ export class InlineChatController implements IEditorContribution {
 						listener.dispose();
 					}
 				});
+			} else if (e.kind === 'removeRequest') {
+				// TODO@jrieken this currently is buggy when removing not the very last request/response
+				if (this._session!.lastExchange?.response instanceof ReplyResponse) {
+					try {
+						this._session!.hunkData.ignoreTextModelNChanges = true;
+						await this._strategy!.undoChanges(this._session!.lastExchange.response.modelAltVersionId);
+					} finally {
+						this._session!.hunkData.ignoreTextModelNChanges = false;
+					}
+				}
 			}
 		}));
 
@@ -631,14 +638,7 @@ export class InlineChatController implements IEditorContribution {
 			return State.ACCEPT;
 		}
 
-		this._session.addInput(new SessionPrompt(input, this._nextAttempt, this._nextWithIntentDetection));
-
-		// we globally store the next attempt and intent detection flag
-		// to be able to use it in the next request. This is because they
-		// aren't part of the chat widget state and we need to remembered here
-		this._nextAttempt = 0;
-		this._nextWithIntentDetection = true;
-
+		this._session.addInput(new SessionPrompt(input));
 
 		return State.SHOW_REQUEST;
 	}
@@ -1073,37 +1073,6 @@ export class InlineChatController implements IEditorContribution {
 			: this._zone.value.widget.value;
 	}
 
-	async rerun(opts: { retry?: boolean; withoutIntentDetection?: boolean }) {
-		if (this._session?.lastExchange && this._strategy) {
-			const { lastExchange } = this._session;
-
-			const request = tail(this._session.chatModel.getRequests());
-			if (!request || !request.response?.isComplete) {
-				return;
-			}
-
-			this._session.chatModel.removeRequest(request.id);
-
-			if (lastExchange.response instanceof ReplyResponse) {
-				try {
-					this._session.hunkData.ignoreTextModelNChanges = true;
-					await this._strategy.undoChanges(lastExchange.response.modelAltVersionId);
-				} finally {
-					this._session.hunkData.ignoreTextModelNChanges = false;
-				}
-			}
-
-			if (opts.retry) {
-				this._nextAttempt = lastExchange.prompt.attempt + 1;
-			}
-			if (opts.withoutIntentDetection) {
-				this._nextWithIntentDetection = false;
-			}
-
-			this._zone.value.widget.chatWidget.acceptInput(request.message.text);
-		}
-	}
-
 	cancelCurrentRequest(): void {
 		this._messages.fire(Message.CANCEL_INPUT | Message.CANCEL_REQUEST);
 	}
@@ -1232,7 +1201,7 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 
 	const widget = await showChatView(accessor.get(IViewsService));
 	if (widget && widget.viewModel) {
-		chatService.addCompleteRequest(widget.viewModel.sessionId, query, undefined, { message: response });
+		chatService.addCompleteRequest(widget.viewModel.sessionId, query, undefined, 0, { message: response });
 		widget.focusLastMessage();
 	}
 }

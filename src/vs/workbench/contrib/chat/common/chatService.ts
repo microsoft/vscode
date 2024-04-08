@@ -12,7 +12,7 @@ import { Command, Location, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestVariableData, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -263,6 +263,14 @@ export interface IChatSendRequestData {
 	slashCommand?: IChatAgentCommand;
 }
 
+export interface IChatSendRequestOptions {
+	implicitVariablesEnabled?: boolean;
+	location?: ChatAgentLocation;
+	parserContext?: IChatParserContext;
+	attempt?: number;
+	noCommandDetection?: boolean;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
@@ -279,11 +287,14 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string, implicitVariablesEnabled?: boolean, location?: ChatAgentLocation, parserContext?: IChatParserContext): Promise<IChatSendRequestData | undefined>;
+	sendRequest(sessionId: string, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
+
+	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
+
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;
-	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): void;
+	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	getHistory(): IChatDetail[];
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;

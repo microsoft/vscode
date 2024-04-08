@@ -498,7 +498,7 @@ export class InlineChatWidget {
 			return;
 		}
 
-		const chatRequest = model.addRequest({ parts: [], text: '' }, { variables: [] });
+		const chatRequest = model.addRequest({ parts: [], text: '' }, { variables: [] }, 0);
 		model.acceptResponseProgress(chatRequest, {
 			kind: 'markdownContent',
 			content: message.message

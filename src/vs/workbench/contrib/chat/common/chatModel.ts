@@ -42,6 +42,7 @@ export interface IChatRequestModel {
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
 	readonly message: IParsedChatRequest;
+	readonly attempt: number;
 	readonly variableData: IChatRequestVariableData;
 	readonly response?: IChatResponseModel;
 }
@@ -104,6 +105,10 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this.session.requesterAvatarIconUri;
 	}
 
+	public get attempt(): number {
+		return this._attempt;
+	}
+
 	public get variableData(): IChatRequestVariableData {
 		return this._variableData;
 	}
@@ -115,7 +120,9 @@ export class ChatRequestModel implements IChatRequestModel {
 	constructor(
 		public readonly session: ChatModel,
 		public readonly message: IParsedChatRequest,
-		private _variableData: IChatRequestVariableData) {
+		private _variableData: IChatRequestVariableData,
+		private _attempt: number = 0
+	) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
 	}
 }
@@ -696,8 +703,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData);
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand): ChatRequestModel {
+		const request = new ChatRequestModel(this, message, variableData, attempt);
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id);
 
 		this._requests.push(request);
