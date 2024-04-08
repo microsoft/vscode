@@ -50,7 +50,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 
-		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, `inlineChatDefaultModel/editorContentWidgetPlaceholder`, undefined));
+		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, undefined));
 
 		const scopedInstaService = instaService.createChild(
 			new ServiceCollection([

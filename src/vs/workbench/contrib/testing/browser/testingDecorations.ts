@@ -975,7 +975,13 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		let testSubmenus: IAction[] = testItems.map(({ currentLabel, testItem }) => {
 			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
-			return new SubmenuAction(testItem.test.item.extId, stripIcons(currentLabel), actions.object);
+			let label = stripIcons(currentLabel);
+			const lf = label.indexOf('\n');
+			if (lf !== -1) {
+				label = label.slice(0, lf);
+			}
+
+			return new SubmenuAction(testItem.test.item.extId, label, actions.object);
 		});
 
 

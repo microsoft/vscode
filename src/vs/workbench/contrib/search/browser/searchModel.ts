@@ -415,7 +415,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		private readonly searchInstanceID: string,
 		@IModelService private readonly modelService: IModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@ILabelService readonly labelService: ILabelService,
+		@ILabelService labelService: ILabelService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
 		super();

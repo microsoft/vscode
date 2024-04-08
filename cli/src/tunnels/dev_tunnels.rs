@@ -968,7 +968,6 @@ impl ActiveTunnelManager {
 	}
 
 	/// Adds a port for TCP/IP forwarding.
-	#[allow(dead_code)] // todo: port forwarding
 	pub async fn add_port_tcp(
 		&self,
 		port_number: u16,

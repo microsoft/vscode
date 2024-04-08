@@ -6,25 +6,18 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Command, Location, ProviderResult, TextEdit } from 'vs/editor/common/languages';
+import { Command, Location, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel, IChatRequestVariableData, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export interface IChat {
-	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
-	dispose?(): void;
-}
-
 export interface IChatRequest {
-	session: IChat;
 	message: string;
 	variables: Record<string, IChatRequestVariableValue[]>;
 }
@@ -159,11 +152,6 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatTextEdit;
 
-export interface IChatProvider {
-	readonly id: string;
-	prepareSession(token: CancellationToken): ProviderResult<IChat | undefined>;
-}
-
 export interface IChatFollowup {
 	kind: 'reply';
 	message: string;
@@ -231,7 +219,6 @@ export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertActi
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
-	providerId: string;
 	agentId: string | undefined;
 	sessionId: string;
 	requestId: string;
@@ -282,16 +269,12 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	onDidRegisterProvider: Event<{ providerId: string }>;
-	onDidUnregisterProvider: Event<{ providerId: string }>;
-	registerProvider(provider: IChatProvider): IDisposable;
-	hasSessions(providerId: string): boolean;
-	getProviderInfos(): IChatProviderInfo[];
-	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
+	isEnabled(location: ChatAgentLocation): boolean;
+	hasSessions(): boolean;
+	startSession(token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
-	getSessionId(sessionProviderId: number): string | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
-	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined;
+	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.
@@ -307,7 +290,7 @@ export interface IChatService {
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-	onDidDisposeSession: Event<{ sessionId: string; providerId: string; reason: 'initializationFailed' | 'cleared' }>;
+	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }

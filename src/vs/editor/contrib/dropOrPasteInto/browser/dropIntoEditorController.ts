@@ -14,7 +14,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DocumentOnDropEdit, DocumentOnDropEditProvider } from 'vs/editor/common/languages';
+import { DocumentDropEdit, DocumentDropEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
@@ -46,7 +46,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	private _currentOperation?: CancelablePromise<void>;
 
 	private readonly _dropProgressManager: InlineProgressManager;
-	private readonly _postDropWidgetManager: PostEditWidgetManager<DocumentOnDropEdit>;
+	private readonly _postDropWidgetManager: PostEditWidgetManager<DocumentDropEdit>;
 
 	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
@@ -97,7 +97,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 					return;
 				}
 
-				const providers = this._languageFeaturesService.documentOnDropEditProvider
+				const providers = this._languageFeaturesService.documentDropEditProvider
 					.ordered(model)
 					.filter(provider => {
 						if (!provider.dropMimeTypes) {
@@ -130,10 +130,10 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		this._currentOperation = p;
 	}
 
-	private async getDropEdits(providers: readonly DocumentOnDropEditProvider[], model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, tokenSource: EditorStateCancellationTokenSource) {
+	private async getDropEdits(providers: readonly DocumentDropEditProvider[], model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, tokenSource: EditorStateCancellationTokenSource) {
 		const results = await raceCancellation(Promise.all(providers.map(async provider => {
 			try {
-				const edits = await provider.provideDocumentOnDropEdits(model, position, dataTransfer, tokenSource.token);
+				const edits = await provider.provideDocumentDropEdits(model, position, dataTransfer, tokenSource.token);
 				return edits?.map(edit => ({ ...edit, providerId: provider.id }));
 			} catch (err) {
 				console.error(err);
@@ -145,7 +145,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		return sortEditsByYieldTo(edits);
 	}
 
-	private getInitialActiveEditIndex(model: ITextModel, edits: ReadonlyArray<DocumentOnDropEdit & { readonly providerId?: string }>) {
+	private getInitialActiveEditIndex(model: ITextModel, edits: ReadonlyArray<DocumentDropEdit & { readonly providerId?: string }>) {
 		const preferredProviders = this._configService.getValue<Record<string, string>>(defaultProviderConfig, { resource: model.uri });
 		for (const [configMime, desiredKindStr] of Object.entries(preferredProviders)) {
 			const desiredKind = new HierarchicalKind(desiredKindStr);

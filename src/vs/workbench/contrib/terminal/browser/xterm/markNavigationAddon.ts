@@ -41,7 +41,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	private _navigationDecorations: IDecoration[] | undefined;
 
 	private _activeCommandGuide?: ITerminalCommand;
-	private _commandGuideDecorations = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _commandGuideDecorations = this._register(new MutableDisposable<DisposableStore>());
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;

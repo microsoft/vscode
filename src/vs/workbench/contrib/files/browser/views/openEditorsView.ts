@@ -54,6 +54,7 @@ import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -90,11 +91,12 @@ export class OpenEditorsView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.structuralRefreshDelay = 0;
 		this.sortOrder = configurationService.getValue('explorer.openEditors.sortOrder');
@@ -208,9 +210,7 @@ export class OpenEditorsView extends ViewPane {
 		], {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 			dnd: this.dnd,
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			},
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			accessibilityProvider: new OpenEditorsAccessibilityProvider()
 		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);

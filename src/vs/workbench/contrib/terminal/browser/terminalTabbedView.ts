@@ -7,9 +7,9 @@ import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalTabsListSizes, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -70,6 +70,7 @@ export class TerminalTabbedView extends Disposable {
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -104,16 +105,16 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalTabsFocusContextKey = TerminalContextKeys.tabsFocus.bindTo(contextKeyService);
 		this._terminalTabsMouseContextKey = TerminalContextKeys.tabsMouse.bindTo(contextKeyService);
 
-		this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
-		this._terminalContainerIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 1 : 0;
+		this._tabTreeIndex = this._terminalConfigurationService.config.tabs.location === 'left' ? 0 : 1;
+		this._terminalContainerIndex = this._terminalConfigurationService.config.tabs.location === 'left' ? 1 : 0;
 
 		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.TabsEnabled) ||
 				e.affectsConfiguration(TerminalSettingId.TabsHideCondition)) {
 				this._refreshShowTabs();
 			} else if (e.affectsConfiguration(TerminalSettingId.TabsLocation)) {
-				this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
-				this._terminalContainerIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 1 : 0;
+				this._tabTreeIndex = this._terminalConfigurationService.config.tabs.location === 'left' ? 0 : 1;
+				this._terminalContainerIndex = this._terminalConfigurationService.config.tabs.location === 'left' ? 1 : 0;
 				if (this._shouldShowTabs()) {
 					this._splitView.swapViews(0, 1);
 					this._removeSashListener();
@@ -141,8 +142,8 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _shouldShowTabs(): boolean {
-		const enabled = this._terminalService.configHelper.config.tabs.enabled;
-		const hide = this._terminalService.configHelper.config.tabs.hideCondition;
+		const enabled = this._terminalConfigurationService.config.tabs.enabled;
+		const hide = this._terminalConfigurationService.config.tabs.hideCondition;
 		if (!enabled) {
 			return false;
 		}
@@ -338,12 +339,20 @@ export class TerminalTabbedView extends Disposable {
 				return;
 			}
 
-			if (event.which === 2 && isLinux) {
-				// Drop selection and focus terminal on Linux to enable middle button paste when click
-				// occurs on the selection itself.
-				terminal.focus();
+			if (event.which === 2) {
+				switch (this._terminalConfigurationService.config.middleClickBehavior) {
+					case 'paste':
+						terminal.paste();
+						break;
+					case 'default':
+					default:
+						// Drop selection and focus terminal on Linux to enable middle button paste
+						// when click occurs on the selection itself.
+						terminal.focus();
+						break;
+				}
 			} else if (event.which === 3) {
-				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+				const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
 				if (rightClickBehavior === 'nothing') {
 					if (!event.shiftKey) {
 						this._cancelContextMenu = true;
@@ -381,7 +390,7 @@ export class TerminalTabbedView extends Disposable {
 			}
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'contextmenu', (event: MouseEvent) => {
-			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
 			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
 				this._cancelContextMenu = true;
 			}
@@ -394,7 +403,7 @@ export class TerminalTabbedView extends Disposable {
 			this._cancelContextMenu = false;
 		}));
 		this._register(dom.addDisposableListener(this._tabContainer, 'contextmenu', (event: MouseEvent) => {
-			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
 			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
 				this._cancelContextMenu = true;
 			}
