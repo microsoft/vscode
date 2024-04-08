@@ -287,9 +287,9 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			height
 		};
 
-		if (newWindowBounds.x === activeWindowBounds.x && newWindowBounds.y === activeWindowBounds.y) {
+		if (!options?.bounds && newWindowBounds.x === activeWindowBounds.x && newWindowBounds.y === activeWindowBounds.y) {
 			// Offset the new window a bit so that it does not overlap
-			// with the active window
+			// with the active window, unless bounds are provided
 			newWindowBounds = {
 				...newWindowBounds,
 				x: newWindowBounds.x + 30,
