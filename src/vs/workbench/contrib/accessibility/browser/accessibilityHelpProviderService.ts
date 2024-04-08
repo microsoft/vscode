@@ -37,9 +37,12 @@ export interface IAccessibilityHelpProviderService {
 	registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): IDisposable;
 }
 
-export const IAccessibilityHelpProviderService = createDecorator<IAccessibilityHelpProviderService>('IAccessibilityHelpProviderService');
+export const IAccessibilityHelpProviderService = createDecorator<IAccessibilityHelpProviderService>('accessibilityHelpProviderService');
 export class AccessibilityHelpProviderService extends Disposable implements IAccessibilityHelpProviderService {
-	readonly _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
+	constructor() {
+		super();
+	}
 	registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): IDisposable {
 		this._register(AccessibleViewAction.addImplementation(95, provider.id, accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);

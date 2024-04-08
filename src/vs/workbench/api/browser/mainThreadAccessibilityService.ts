@@ -12,8 +12,7 @@ import { AccessibilityHelpProvider } from 'vscode';
 @extHostNamedCustomer(MainContext.MainThreadAccessibilityService)
 export class MainThreadAccessibilityService implements MainThreadAccessibilityServiceShape {
 	private readonly _providers = new Map<string, IDisposable>();
-	constructor(extHostContext: IExtHostContext,
-		@IAccessibilityHelpProviderService private readonly _accessibilityHelpProviderService: IAccessibilityHelpProviderService) {
+	constructor(extHostContext: IExtHostContext, @IAccessibilityHelpProviderService private readonly _accessibilityHelpProviderService: IAccessibilityHelpProviderService) {
 	}
 	dispose(): void {
 		for (const provider of this._providers.values()) {
