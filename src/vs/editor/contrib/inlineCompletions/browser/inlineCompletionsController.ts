@@ -129,7 +129,7 @@ export class InlineCompletionsController extends Disposable {
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).preview),
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).previewMode),
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).mode),
-						this._enabled
+						this._enabled,
 					);
 					this.model.set(model, tx);
 				}
