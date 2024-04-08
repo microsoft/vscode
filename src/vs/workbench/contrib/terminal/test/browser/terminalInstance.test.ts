@@ -13,22 +13,184 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ITerminalConfigurationService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
-import { TerminalLabelComputer, parseExitResult } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalLabelComputer, parseExitResult, TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { ProcessState, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { fixPath } from 'vs/workbench/services/search/test/browser/queryBuilder.test';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestEnvironmentService, TestLayoutService, TestLifecycleService, TestPathService, TestTerminalProfileResolverService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestContextService, TestExtensionService, TestHistoryService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITerminalChildProcess, ITerminalLogService, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
 
 const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
 const root2 = '/foo/root2';
 const ROOT_2 = fixPath(root2);
 
+class MockTerminalProfileResolverService extends TestTerminalProfileResolverService {
+	override async getDefaultProfile(): Promise<ITerminalProfile> {
+		return {
+			profileName: "my-sh",
+			path: "/usr/bin/zsh",
+			env: {
+				TEST: "TEST",
+			},
+			isDefault: true,
+			isUnsafePath: false,
+			isFromPath: true,
+			icon: {
+				id: "terminal-linux",
+			},
+			color: "terminal.ansiYellow",
+		};
+	}
+}
+
+const terminalShellTypeContextKey = {
+	set: () => { },
+	reset: () => { },
+	get: () => undefined
+};
+
+const terminalInRunCommandPicker = {
+	set: () => { },
+	reset: () => { },
+	get: () => undefined
+};
+
+class TestTerminalChildProcess extends Disposable implements ITerminalChildProcess {
+	id: number = 0;
+	get capabilities() { return []; }
+	constructor(
+		readonly shouldPersist: boolean
+	) {
+		super();
+	}
+	updateProperty(property: any, value: any): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	onProcessOverrideDimensions?: Event<any> | undefined;
+	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	onDidChangeHasChildProcesses?: Event<any> | undefined;
+
+	onDidChangeProperty = Event.None;
+	onProcessData = Event.None;
+	onProcessExit = Event.None;
+	onProcessReady = Event.None;
+	onProcessTitleChanged = Event.None;
+	onProcessShellTypeChanged = Event.None;
+	async start(): Promise<undefined> { return undefined; }
+	shutdown(immediate: boolean): void { }
+	input(data: string): void { }
+	resize(cols: number, rows: number): void { }
+	clearBuffer(): void { }
+	acknowledgeDataEvent(charCount: number): void { }
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
+	async getInitialCwd(): Promise<string> { return ''; }
+	async getCwd(): Promise<string> { return ''; }
+	async processBinary(data: string): Promise<void> { }
+	refreshProperty(property: any): Promise<any> { return Promise.resolve(''); }
+}
+
+class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
+	getBackend() {
+		return {
+			onPtyHostExit: Event.None,
+			onPtyHostUnresponsive: Event.None,
+			onPtyHostResponsive: Event.None,
+			onPtyHostRestart: Event.None,
+			onDidMoveWindowInstance: Event.None,
+			onDidRequestDetach: Event.None,
+			createProcess: (
+				shellLaunchConfig: any,
+				cwd: string,
+				cols: number,
+				rows: number,
+				unicodeVersion: '6' | '11',
+				env: any,
+				windowsEnableConpty: boolean,
+				shouldPersist: boolean
+			) => this._register(new TestTerminalChildProcess(shouldPersist)),
+			getLatency: () => Promise.resolve([])
+		} as any;
+	}
+}
+
 suite('Workbench - TerminalInstance', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('TerminalInstance', () => {
+		let terminalInstance: ITerminalInstance;
+		test('should create an instance of TerminalInstance with env from default profile', async () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				terminal: {
+					integrated: {
+						fontFamily: 'monospace',
+						scrollback: 1000,
+						fastScrollSensitivity: 2,
+						mouseWheelScrollSensitivity: 1,
+						unicodeVersion: '6',
+						shellIntegration: {
+							enabled: true
+						},
+					}
+				},
+			}));
+			instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
+			instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
+			const mockTerminalProfileResolverService = new MockTerminalProfileResolverService();
+			instantiationService.set(ITerminalProfileResolverService, mockTerminalProfileResolverService);
+			instantiationService.stub(IWorkspaceContextService, new TestContextService());
+			instantiationService.stub(IHistoryService, new TestHistoryService());
+			instantiationService.stub(ITerminalLogService, store.add(new NullLogService()));
+			instantiationService.stub(IKeybindingService, new MockKeybindingService());
+			instantiationService.stub(ITerminalConfigurationService, store.add(instantiationService.createInstance(TerminalConfigurationService)));
+			instantiationService.stub(ILayoutService, new TestLayoutService());
+			instantiationService.stub(IThemeService, new TestThemeService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
+			instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
+			instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
+			instantiationService.stub(IPathService, new TestPathService());
+			instantiationService.stub(IProductService, {});
+			instantiationService.stub(IExtensionService, new TestExtensionService());
+			instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, terminalInRunCommandPicker, {}));
+			// //Wait for the teminalInstance._xtermReadyPromise to resolve
+			await new Promise(resolve => setTimeout(resolve, 100));
+			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
+		});
+	});
 	suite('parseExitResult', () => {
 		test('should return no message for exit code = undefined', () => {
 			deepStrictEqual(
