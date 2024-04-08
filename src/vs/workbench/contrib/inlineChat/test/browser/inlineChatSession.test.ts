@@ -51,10 +51,10 @@ import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IChatSlashCommandService, ChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatWidgetHistoryService, ChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { TestExtensionService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IChatAgentService, ChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 
 suite('InlineChatSession', function () {
 
@@ -72,7 +72,7 @@ suite('InlineChatSession', function () {
 
 		const serviceCollection = new ServiceCollection(
 			[IConfigurationService, new TestConfigurationService()],
-			[IChatVariablesService, new MockChatVariablesService()],
+			[IChatVariablesService, new SyncDescriptor(ChatVariablesService)],
 			[ILogService, new NullLogService()],
 			[ITelemetryService, NullTelemetryService],
 			[IExtensionService, new TestExtensionService()],

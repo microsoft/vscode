@@ -47,7 +47,6 @@ import { IExtensionService, nullExtensionDescription } from 'vs/workbench/servic
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -59,6 +58,7 @@ import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget'
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
+import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 
 suite('InteractiveChatController', function () {
 	class TestController extends InlineChatController {
@@ -119,7 +119,7 @@ suite('InteractiveChatController', function () {
 
 		const serviceCollection = new ServiceCollection(
 			[IConfigurationService, new TestConfigurationService()],
-			[IChatVariablesService, new MockChatVariablesService()],
+			[IChatVariablesService, new SyncDescriptor(ChatVariablesService)],
 			[ILogService, new NullLogService()],
 			[ITelemetryService, NullTelemetryService],
 			[IHoverService, NullHoverService],
