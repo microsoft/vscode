@@ -1630,3 +1630,8 @@ export class Relay<T> implements IDisposable {
 		this.emitter.dispose();
 	}
 }
+
+export interface IValueWithChangeEvent<T> {
+	readonly onDidChange: Event<void>;
+	readonly value: T;
+}
