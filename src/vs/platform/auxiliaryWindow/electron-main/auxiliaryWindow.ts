@@ -31,6 +31,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		return super.win;
 	}
 
+	private optionsApplied = false;
+
 	constructor(
 		private readonly webContents: WebContents,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
@@ -46,16 +48,22 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	tryClaimWindow(options?: BrowserWindowConstructorOptions): void {
-		if (options) {
-			this.fixWindowBounds(options);
-		}
-
-		if (this._win) {
-			return; // already claimed
-		}
-
 		if (this._store.isDisposed || this.webContents.isDestroyed()) {
 			return; // already disposed
+		}
+
+		this.doTryClaimWindow();
+
+		if (options && !this.optionsApplied) {
+			this.optionsApplied = true;
+
+			this.fixWindowBounds(options);
+		}
+	}
+
+	private doTryClaimWindow(): void {
+		if (this._win) {
+			return; // already claimed
 		}
 
 		const window = BrowserWindow.fromWebContents(this.webContents);
