@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, derived, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
-import { constObservable, derivedObservableWithWritableCache, mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
+import { IObservable, ITransaction, derived, observableValue, transaction } from 'vs/base/common/observable';
+import { constObservable, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent } from 'vs/base/common/observableInternal/utils';
+import { URI } from 'vs/base/common/uri';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditor/model';
@@ -15,10 +16,9 @@ import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
 
 export class MultiDiffEditorViewModel extends Disposable {
-	private readonly _documents = observableFromEvent(this.model.onDidChange, /** @description MultiDiffEditorViewModel.documents */() => this.model.documents);
+	private readonly _documents = observableFromValueWithChangeEvent(this.model, this.model.documents);
 
 	public readonly items = mapObservableArrayCached(this, this._documents, (d, store) => store.add(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this)))
 		.recomputeInitiallyAndOnChange(this._store);

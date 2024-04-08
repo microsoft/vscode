@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, observableFromEvent } from 'vs/base/common/observable';
+import { observableFromEvent, waitForState } from 'vs/base/common/observable';
+import { ValueWithChangeEventFromObservable } from 'vs/base/common/observableInternal/utils';
 import { URI } from 'vs/base/common/uri';
 import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { localize, localize2 } from 'vs/nls';
@@ -14,7 +14,7 @@ import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
-import { ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
@@ -62,68 +62,39 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const { repositoryUri, groupId } = ScmMultiDiffSourceResolver.parseUri(uri)!;
-
-		const repository = await promiseFromEventState(
+		const repository = await waitForState(observableFromEvent(
 			this._scmService.onDidAddRepository,
-			() => {
-				const repository = [...this._scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryUri.toString());
-				return repository ?? false;
-			}
+			() => [...this._scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryUri.toString()))
 		);
-
-		const group = await promiseFromEventState(
+		const group = await waitForState(observableFromEvent(
 			repository.provider.onDidChangeResourceGroups,
-			() => {
-				const group = repository.provider.groups.find(g => g.id === groupId);
-				return group ?? false;
-			}
-		);
-
-		const resources = observableFromEvent<MultiDiffEditorItem[]>(group.onDidChangeResources, () => group.resources.map(e => {
-			return {
-				original: e.multiDiffEditorOriginalUri,
-				modified: e.multiDiffEditorModifiedUri
-			};
-		}));
-
-		return new ScmResolvedMultiDiffSource(resources, {
-			scmResourceGroup: groupId,
-			scmProvider: repository.provider.contextValue,
-		});
+			() => repository.provider.groups.find(g => g.id === groupId)
+		));
+		return new ScmResolvedMultiDiffSource(group, repository);
 	}
 }
 
 class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
-	get resources(): readonly MultiDiffEditorItem[] { return this._resources.get(); }
-	public readonly onDidChange = Event.fromObservableLight(this._resources);
+	private readonly _resources = observableFromEvent<MultiDiffEditorItem[]>(
+		this._group.onDidChangeResources,
+		() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri))
+	);
+	readonly resources = new ValueWithChangeEventFromObservable(this._resources);
+
+	public readonly contextKeys: Record<string, ContextKeyValue> = {
+		scmResourceGroup: this._group.id,
+		scmProvider: this._repository.provider.contextValue,
+	};
 
 	constructor(
-		private readonly _resources: IObservable<readonly MultiDiffEditorItem[]>,
-		public readonly contextKeys: Record<string, ContextKeyValue> | undefined,
-	) {
-	}
+		private readonly _group: ISCMResourceGroup,
+		private readonly _repository: ISCMRepository,
+	) { }
 }
 
 interface UriFields {
 	repositoryUri: string;
 	groupId: string;
-}
-
-function promiseFromEventState<T>(event: Event<any>, checkState: () => T | false): Promise<T> {
-	const state = checkState();
-	if (state) {
-		return Promise.resolve(state);
-	}
-
-	return new Promise<T>(resolve => {
-		const listener = event(() => {
-			const state = checkState();
-			if (state) {
-				listener.dispose();
-				resolve(state);
-			}
-		});
-	});
 }
 
 export class ScmMultiDiffSourceResolverContribution extends Disposable {
