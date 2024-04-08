@@ -97,6 +97,5 @@
       },
       contentReferences: [  ]
     }
-  ],
-  providerId: "testProvider"
+  ]
 }

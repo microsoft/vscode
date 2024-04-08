@@ -519,7 +519,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		assertType(this._activeSession);
 		this._warmupRequestCts?.dispose(true);
 		this._warmupRequestCts = undefined;
-		this._activeSession.addInput(new SessionPrompt(this._widget.inlineChatWidget.value, 0, true));
+		this._activeSession.addInput(new SessionPrompt(this._widget.inlineChatWidget.value));
 
 		assertType(this._activeSession.lastInput);
 		const value = this._activeSession.lastInput.value;
@@ -560,7 +560,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		const request: IInlineChatRequest = {
 			requestId: generateUuid(),
 			prompt: value,
-			attempt: this._activeSession.lastInput.attempt,
+			attempt: 0,
 			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
 			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			live: true,
@@ -614,7 +614,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				if (!progressiveChatResponse) {
 					const message = {
 						message: new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false }),
-						providerId: this._activeSession!.provider.label,
 						requestId: request.requestId,
 					};
 					progressiveChatResponse = this._widget?.inlineChatWidget.updateChatMessage(message, true);

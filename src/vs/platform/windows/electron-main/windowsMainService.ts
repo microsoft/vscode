@@ -667,7 +667,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		const focusedWindow = BrowserWindow.getFocusedWindow();
 		if (focusedWindow && focusedWindow.id !== mainWindow.id) {
-			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowById(focusedWindow.id);
+			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowByWebContents(focusedWindow.webContents);
 			if (auxiliaryWindowCandidate && auxiliaryWindowCandidate.parentId === mainWindow.id) {
 				windowToFocus = auxiliaryWindowCandidate;
 			}
