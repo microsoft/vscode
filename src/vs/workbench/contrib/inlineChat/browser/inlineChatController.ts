@@ -1232,7 +1232,7 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 
 	const widget = await showChatView(accessor.get(IViewsService));
 	if (widget && widget.viewModel) {
-		chatService.addCompleteRequest(widget.viewModel.sessionId, query, undefined, { message: response });
+		chatService.addCompleteRequest(widget.viewModel.sessionId, query, undefined, 0, { message: response });
 		widget.focusLastMessage();
 	}
 }

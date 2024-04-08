@@ -715,7 +715,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, this.inputPart.implicitContextEnabled, this.location, { selectedAgent: this._lastSelectedAgent });
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, { implicitVariablesEnabled: this.inputPart.implicitContextEnabled, location: this.location, parserContext: { selectedAgent: this._lastSelectedAgent } });
 
 			if (result) {
 				const inputState = this.collectInputState();

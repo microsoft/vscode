@@ -286,6 +286,7 @@ class QuickChat extends Disposable {
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
 					request.message as IParsedChatRequest,
 					request.variableData,
+					request.attempt,
 					{
 						message: request.response.response.value,
 						result: request.response.result,

@@ -306,6 +306,11 @@ declare module 'vscode' {
 		readonly command: string | undefined;
 
 		/**
+		 * The attempt number of the request. The first request has attempt number 0.
+		 */
+		readonly attempt: number;
+
+		/**
 		 * The list of variables and their values that are referenced in the prompt.
 		 *
 		 * *Note* that the prompt contains varibale references as authored and that it is up to the participant

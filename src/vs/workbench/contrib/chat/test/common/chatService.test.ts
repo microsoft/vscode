@@ -99,11 +99,11 @@ suite('ChatService', () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const session1 = testDisposables.add(testService.startSession(CancellationToken.None));
 		await session1.waitForInitialization();
-		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] });
+		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
 		const session2 = testDisposables.add(testService.startSession(CancellationToken.None));
 		await session2.waitForInitialization();
-		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] });
+		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
 		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
@@ -121,7 +121,7 @@ suite('ChatService', () => {
 		const model = testDisposables.add(testService.startSession(CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, { message: 'test response' });
+		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, 0, { message: 'test response' });
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
 		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');

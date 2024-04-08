@@ -104,6 +104,7 @@ export interface IChatAgentRequest {
 	agentId: string;
 	command?: string;
 	message: string;
+	attempt?: number;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
 }

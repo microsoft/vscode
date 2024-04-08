@@ -291,7 +291,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const requestVarData: IChatRequestVariableData = {
 			variables: []
 		};
-		this._currentRequest = model.addRequest(request, requestVarData);
+		this._currentRequest = model.addRequest(request, requestVarData, 0);
 		const requestProps: IChatAgentRequest = {
 			sessionId: model.sessionId,
 			requestId: this._currentRequest!.id,
@@ -378,6 +378,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
 			request.message.text,
 			request.variableData,
+			request.attempt,
 			{
 				message: request.response!.response.value,
 				result: request.response!.result,
