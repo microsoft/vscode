@@ -5,7 +5,8 @@
 
 import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { findFirstMaxBy } from 'vs/base/common/arraysFind';
+import { compareBy, numberComparator } from 'vs/base/common/arrays';
+import { findFirstMax } from 'vs/base/common/arraysFind';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, autorun, autorunWithStore, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
@@ -162,7 +163,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 			let scrollWidth = width;
 			const viewItems = this._viewItems.read(reader);
-			const max = findFirstMaxBy(viewItems, i => i.maxScroll.read(reader).maxScroll);
+			const max = findFirstMax(viewItems, compareBy(i => i.maxScroll.read(reader).maxScroll, numberComparator));
 			if (max) {
 				const maxScroll = max.maxScroll.read(reader);
 				scrollWidth = width + maxScroll.maxScroll;
