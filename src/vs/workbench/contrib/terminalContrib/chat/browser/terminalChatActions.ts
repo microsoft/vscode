@@ -9,6 +9,7 @@ import { localize2 } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import type { IChatViewOpenOptions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -34,11 +35,24 @@ registerActiveXtermAction({
 		// TODO: This needs to change to check for a terminal location capable agent
 		CTX_INLINE_CHAT_HAS_PROVIDER
 	),
-	run: (_xterm, _accessor, activeInstance) => {
+	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
+
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+
+		if (opts) {
+			opts = typeof opts === 'string' ? { query: opts } : opts;
+			if (typeof opts === 'object' && opts !== null && 'query' in opts && typeof opts.query === 'string') {
+				contr?.updateInput(opts.query, false);
+				if (!('isPartialQuery' in opts && opts.isPartialQuery)) {
+					contr?.acceptInput();
+				}
+			}
+
+		}
+
 		contr?.reveal();
 	}
 });
