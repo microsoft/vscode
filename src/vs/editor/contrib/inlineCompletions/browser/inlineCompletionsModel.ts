@@ -106,7 +106,7 @@ export class InlineCompletionsModel extends Disposable {
 		},
 	}, (reader, changeSummary) => {
 		this._forceUpdateExplicitlySignal.read(reader);
-		const shouldUpdate = this._enabled.read(reader) && this.selectedSuggestItem.read(reader) || this._isActive.read(reader);
+		const shouldUpdate = (this._enabled.read(reader) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader);
 		if (!shouldUpdate) {
 			this._source.cancelUpdate();
 			return undefined;
