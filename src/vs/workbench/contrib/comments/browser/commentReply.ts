@@ -177,7 +177,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	public focusIfNeeded() {
 		if (!this._commentThread.comments || !this._commentThread.comments.length) {
 			this.commentEditor.focus();
-		} else if (this.commentEditor.getModel()!.getValueLength() > 0) {
+		} else if ((this.commentEditor.getModel()?.getValueLength() ?? 0) > 0) {
 			this.expandReplyArea();
 		}
 	}
@@ -193,10 +193,6 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 	public isCommentEditorFocused(): boolean {
 		return this.commentEditor.hasWidgetFocus();
-	}
-
-	public getCommentModel() {
-		return this.commentEditor.getModel()!;
 	}
 
 	public updateCanReply() {
