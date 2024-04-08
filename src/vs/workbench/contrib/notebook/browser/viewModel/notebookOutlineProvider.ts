@@ -263,7 +263,21 @@ export class NotebookCellOutlineProvider {
 				}
 			}
 		}
-		if (newActive !== this._activeEntry) {
+
+		// @Yoyokrazy - Make sure the new active entry isn't part of the filtered exclusions
+		const showCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
+		const showCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
+		const showMarkdownHeadersOnly = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
+
+		// check the three outline filtering conditions
+		// if any are true, newActive should NOT be set to this._activeEntry and the event should NOT fire
+		if (
+			(newActive !== this._activeEntry) && !(
+				(showMarkdownHeadersOnly && newActive?.cell.cellKind === CellKind.Markup && newActive?.level === 7) || 	// show headers only + cell is mkdn + is level 7 (no header)
+				(!showCodeCells && newActive?.cell.cellKind === CellKind.Code) ||										// show code cells   + cell is code
+				(!showCodeCellSymbols && newActive?.cell.cellKind === CellKind.Code && newActive?.level > 7)			// show code symbols + cell is code + has level > 7 (nb symbol levels)
+			)
+		) {
 			this._activeEntry = newActive;
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}
