@@ -83,7 +83,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	constructor(
 		private readonly _terminal: Terminal,
-		private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
