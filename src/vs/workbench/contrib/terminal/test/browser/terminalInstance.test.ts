@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
+import { Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -13,40 +15,18 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITerminalChildProcess, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
-import { TerminalLabelComputer, parseExitResult, TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { ProcessState, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { fixPath } from 'vs/workbench/services/search/test/browser/queryBuilder.test';
-import { workbenchInstantiationService, TestEnvironmentService, TestLayoutService, TestLifecycleService, TestPathService, TestTerminalProfileResolverService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService, TestExtensionService, TestHistoryService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITerminalChildProcess, ITerminalLogService, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { parseExitResult, TerminalInstance, TerminalLabelComputer } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { ITerminalProfileResolverService, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
+import { fixPath } from 'vs/workbench/services/search/test/browser/queryBuilder.test';
+import { TestTerminalProfileResolverService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
@@ -149,40 +129,25 @@ suite('Workbench - TerminalInstance', () => {
 	suite('TerminalInstance', () => {
 		let terminalInstance: ITerminalInstance;
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
-			const instantiationService = workbenchInstantiationService(undefined, store);
-			instantiationService.stub(IConfigurationService, new TestConfigurationService({
-				terminal: {
-					integrated: {
-						fontFamily: 'monospace',
-						scrollback: 1000,
-						fastScrollSensitivity: 2,
-						mouseWheelScrollSensitivity: 1,
-						unicodeVersion: '6',
-						shellIntegration: {
-							enabled: true
-						},
-					}
-				},
-			}));
-			instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
-			instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
-			const mockTerminalProfileResolverService = new MockTerminalProfileResolverService();
-			instantiationService.set(ITerminalProfileResolverService, mockTerminalProfileResolverService);
-			instantiationService.stub(IWorkspaceContextService, new TestContextService());
-			instantiationService.stub(IHistoryService, new TestHistoryService());
-			instantiationService.stub(ITerminalLogService, store.add(new NullLogService()));
-			instantiationService.stub(IKeybindingService, new MockKeybindingService());
-			instantiationService.stub(ITerminalConfigurationService, store.add(instantiationService.createInstance(TerminalConfigurationService)));
-			instantiationService.stub(ILayoutService, new TestLayoutService());
-			instantiationService.stub(IThemeService, new TestThemeService());
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							shellIntegration: {
+								enabled: true
+							},
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
 			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
-			instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
-			instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
-			instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
-			instantiationService.stub(IPathService, new TestPathService());
-			instantiationService.stub(IProductService, {});
-			instantiationService.stub(IExtensionService, new TestExtensionService());
-			instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, terminalInRunCommandPicker, {}));
