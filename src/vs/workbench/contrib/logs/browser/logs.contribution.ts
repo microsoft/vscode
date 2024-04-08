@@ -25,7 +25,7 @@ class WebLogOutputChannels extends Disposable implements IWorkbenchContribution 
 	private registerWebContributions(): void {
 		this.instantiationService.createInstance(LogsDataCleaner);
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: OpenWindowSessionLogFileAction.ID,
@@ -37,7 +37,7 @@ class WebLogOutputChannels extends Disposable implements IWorkbenchContribution 
 			run(servicesAccessor: ServicesAccessor): Promise<void> {
 				return servicesAccessor.get(IInstantiationService).createInstance(OpenWindowSessionLogFileAction, OpenWindowSessionLogFileAction.ID, OpenWindowSessionLogFileAction.TITLE.value).run();
 			}
-		});
+		}));
 
 	}
 

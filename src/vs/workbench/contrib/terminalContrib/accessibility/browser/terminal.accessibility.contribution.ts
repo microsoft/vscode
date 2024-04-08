@@ -66,7 +66,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 	private _bufferTracker: BufferContentTracker | undefined;
 	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
-	private _onDidRunCommand: MutableDisposable<IDisposable> = new MutableDisposable();
+	private readonly _onDidRunCommand: MutableDisposable<IDisposable> = new MutableDisposable();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,

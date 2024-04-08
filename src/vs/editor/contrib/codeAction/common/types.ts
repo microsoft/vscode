@@ -5,47 +5,27 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Position } from 'vs/editor/common/core/position';
 import * as languages from 'vs/editor/common/languages';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 
-export class CodeActionKind {
-	private static readonly sep = '.';
+export const CodeActionKind = new class {
+	public readonly QuickFix = new HierarchicalKind('quickfix');
 
-	public static readonly None = new CodeActionKind('@@none@@'); // Special code action that contains nothing
-	public static readonly Empty = new CodeActionKind('');
-	public static readonly QuickFix = new CodeActionKind('quickfix');
-	public static readonly Refactor = new CodeActionKind('refactor');
-	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
-	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
-	public static readonly RefactorMove = CodeActionKind.Refactor.append('move');
-	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
-	public static readonly Notebook = new CodeActionKind('notebook');
-	public static readonly Source = new CodeActionKind('source');
-	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
-	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
-	public static readonly SurroundWith = CodeActionKind.Refactor.append('surround');
+	public readonly Refactor = new HierarchicalKind('refactor');
+	public readonly RefactorExtract = this.Refactor.append('extract');
+	public readonly RefactorInline = this.Refactor.append('inline');
+	public readonly RefactorMove = this.Refactor.append('move');
+	public readonly RefactorRewrite = this.Refactor.append('rewrite');
 
-	constructor(
-		public readonly value: string
-	) { }
+	public readonly Notebook = new HierarchicalKind('notebook');
 
-	public equals(other: CodeActionKind): boolean {
-		return this.value === other.value;
-	}
-
-	public contains(other: CodeActionKind): boolean {
-		return this.equals(other) || this.value === '' || other.value.startsWith(this.value + CodeActionKind.sep);
-	}
-
-	public intersects(other: CodeActionKind): boolean {
-		return this.contains(other) || other.contains(this);
-	}
-
-	public append(part: string): CodeActionKind {
-		return new CodeActionKind(this.value + CodeActionKind.sep + part);
-	}
-}
+	public readonly Source = new HierarchicalKind('source');
+	public readonly SourceOrganizeImports = this.Source.append('organizeImports');
+	public readonly SourceFixAll = this.Source.append('fixAll');
+	public readonly SurroundWith = this.Refactor.append('surround');
+};
 
 export const enum CodeActionAutoApply {
 	IfSingle = 'ifSingle',
@@ -69,13 +49,13 @@ export enum CodeActionTriggerSource {
 }
 
 export interface CodeActionFilter {
-	readonly include?: CodeActionKind;
-	readonly excludes?: readonly CodeActionKind[];
+	readonly include?: HierarchicalKind;
+	readonly excludes?: readonly HierarchicalKind[];
 	readonly includeSourceActions?: boolean;
 	readonly onlyIncludePreferredActions?: boolean;
 }
 
-export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: CodeActionKind): boolean {
+export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: HierarchicalKind): boolean {
 	// A provided kind may be a subset or superset of our filtered kind.
 	if (filter.include && !filter.include.intersects(providedKind)) {
 		return false;
@@ -96,7 +76,7 @@ export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: 
 }
 
 export function filtersAction(filter: CodeActionFilter, action: languages.CodeAction): boolean {
-	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
+	const actionKind = action.kind ? new HierarchicalKind(action.kind) : undefined;
 
 	// Filter out actions by kind
 	if (filter.include) {
@@ -127,7 +107,7 @@ export function filtersAction(filter: CodeActionFilter, action: languages.CodeAc
 	return true;
 }
 
-function excludesAction(providedKind: CodeActionKind, exclude: CodeActionKind, include: CodeActionKind | undefined): boolean {
+function excludesAction(providedKind: HierarchicalKind, exclude: HierarchicalKind, include: HierarchicalKind | undefined): boolean {
 	if (!exclude.contains(providedKind)) {
 		return false;
 	}
@@ -150,7 +130,7 @@ export interface CodeActionTrigger {
 }
 
 export class CodeActionCommandArgs {
-	public static fromUser(arg: any, defaults: { kind: CodeActionKind; apply: CodeActionAutoApply }): CodeActionCommandArgs {
+	public static fromUser(arg: any, defaults: { kind: HierarchicalKind; apply: CodeActionAutoApply }): CodeActionCommandArgs {
 		if (!arg || typeof arg !== 'object') {
 			return new CodeActionCommandArgs(defaults.kind, defaults.apply, false);
 		}
@@ -169,9 +149,9 @@ export class CodeActionCommandArgs {
 		}
 	}
 
-	private static getKindFromUser(arg: any, defaultKind: CodeActionKind) {
+	private static getKindFromUser(arg: any, defaultKind: HierarchicalKind) {
 		return typeof arg.kind === 'string'
-			? new CodeActionKind(arg.kind)
+			? new HierarchicalKind(arg.kind)
 			: defaultKind;
 	}
 
@@ -182,7 +162,7 @@ export class CodeActionCommandArgs {
 	}
 
 	private constructor(
-		public readonly kind: CodeActionKind,
+		public readonly kind: HierarchicalKind,
 		public readonly apply: CodeActionAutoApply,
 		public readonly preferred: boolean,
 	) { }

@@ -211,8 +211,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				return;
 			}
 		}
+		const rangeToReveal = this._commentThread.range
+			? new Range(this._commentThread.range.startLineNumber, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + 1, 1)
+			: new Range(1, 1, 1, 1);
 
-		this.editor.revealRangeInCenter(this._commentThread.range ?? new Range(1, 1, 1, 1));
+		this.editor.revealRangeInCenter(rangeToReveal);
 		if (focus === CommentWidgetFocus.Widget) {
 			this._commentThreadWidget.focus();
 		} else if (focus === CommentWidgetFocus.Editor) {
@@ -325,7 +328,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.bindCommentThreadListeners();
 		}
 
-		this._commentThreadWidget.updateCommentThread(commentThread);
+		await this._commentThreadWidget.updateCommentThread(commentThread);
 
 		// Move comment glyph widget and show position if the line has changed.
 		const lineNumber = this._commentThread.range?.endLineNumber ?? 1;
@@ -353,13 +356,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.layout(widthInPixel);
 	}
 
-	display(range: IRange | undefined) {
+	async display(range: IRange | undefined) {
 		if (range) {
 			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
 			this._commentGlyph.setThreadState(this._commentThread.state);
 		}
 
-		this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
+		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
 			this._refresh(dimension);
 		}));

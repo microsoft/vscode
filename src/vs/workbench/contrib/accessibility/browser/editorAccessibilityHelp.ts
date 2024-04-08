@@ -15,10 +15,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibleViewProviderId, AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { descriptionForCommand } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
+import { descriptionForCommand } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
 import { IAccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_HAS_DEFAULT_AGENT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
@@ -117,7 +117,7 @@ export function getCommentCommandInfo(keybindingService: IKeybindingService, con
 }
 
 export function getChatCommandInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService): string | undefined {
-	if (CONTEXT_PROVIDER_EXISTS.getValue(contextKeyService)) {
+	if (CONTEXT_HAS_DEFAULT_AGENT.getValue(contextKeyService)) {
 		const commentCommandInfo: string[] = [];
 		commentCommandInfo.push(descriptionForCommand('workbench.action.quickchat.toggle', AccessibilityHelpNLS.quickChat, AccessibilityHelpNLS.quickChatNoKb, keybindingService));
 		commentCommandInfo.push(descriptionForCommand('inlineChat.start', AccessibilityHelpNLS.startInlineChat, AccessibilityHelpNLS.startInlineChatNoKb, keybindingService));

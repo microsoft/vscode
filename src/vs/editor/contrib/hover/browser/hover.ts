@@ -479,7 +479,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 				]
 			}, "Show or Focus Hover"),
 			metadata: {
-				description: `Show or Focus Hover`,
+				description: nls.localize2('showOrFocusHoverDescription', 'Show or focus the editor hover which shows documentation, references, and other content for a symbol at the current cursor position.'),
 				args: [{
 					name: 'args',
 					schema: {
@@ -562,7 +562,10 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 				]
 			}, "Show Definition Preview Hover"),
 			alias: 'Show Definition Preview Hover',
-			precondition: undefined
+			precondition: undefined,
+			metadata: {
+				description: nls.localize2('showDefinitionPreviewHoverDescription', 'Show the definition preview hover in the editor.'),
+			},
 		});
 	}
 
@@ -609,7 +612,10 @@ class ScrollUpHoverAction extends EditorAction {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			metadata: {
+				description: nls.localize2('scrollUpHoverDescription', 'Scroll up the editor hover.')
+			},
 		});
 	}
 
@@ -641,7 +647,10 @@ class ScrollDownHoverAction extends EditorAction {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			metadata: {
+				description: nls.localize2('scrollDownHoverDescription', 'Scroll down the editor hover.'),
+			},
 		});
 	}
 
@@ -673,7 +682,10 @@ class ScrollLeftHoverAction extends EditorAction {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.LeftArrow,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			metadata: {
+				description: nls.localize2('scrollLeftHoverDescription', 'Scroll left the editor hover.'),
+			},
 		});
 	}
 
@@ -705,7 +717,10 @@ class ScrollRightHoverAction extends EditorAction {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.RightArrow,
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			metadata: {
+				description: nls.localize2('scrollRightHoverDescription', 'Scroll right the editor hover.')
+			},
 		});
 	}
 
@@ -738,7 +753,10 @@ class PageUpHoverAction extends EditorAction {
 				primary: KeyCode.PageUp,
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			metadata: {
+				description: nls.localize2('pageUpHoverDescription', 'Page up the editor hover.'),
+			},
 		});
 	}
 
@@ -772,7 +790,10 @@ class PageDownHoverAction extends EditorAction {
 				primary: KeyCode.PageDown,
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			metadata: {
+				description: nls.localize2('pageDownHoverDescription', 'Page down the editor hover.'),
+			},
 		});
 	}
 
@@ -805,7 +826,10 @@ class GoToTopHoverAction extends EditorAction {
 				primary: KeyCode.Home,
 				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			metadata: {
+				description: nls.localize2('goToTopHoverDescription', 'Go to the top of the editor hover.'),
+			},
 		});
 	}
 
@@ -839,7 +863,10 @@ class GoToBottomHoverAction extends EditorAction {
 				primary: KeyCode.End,
 				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			metadata: {
+				description: nls.localize2('goToBottomHoverDescription', 'Go to the bottom of the editor hover.')
+			},
 		});
 	}
 

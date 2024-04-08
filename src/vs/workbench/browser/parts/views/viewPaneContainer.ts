@@ -559,10 +559,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		const containerTitle = this.viewContainerModel.title;
 
 		if (this.isViewMergedWithContainer()) {
+			const singleViewPaneContainerTitle = this.paneItems[0].pane.singleViewPaneContainerTitle;
+			if (singleViewPaneContainerTitle) {
+				return singleViewPaneContainerTitle;
+			}
+
 			const paneItemTitle = this.paneItems[0].pane.title;
 			if (containerTitle === paneItemTitle) {
-				return this.paneItems[0].pane.title;
+				return paneItemTitle;
 			}
+
 			return paneItemTitle ? `${containerTitle}: ${paneItemTitle}` : containerTitle;
 		}
 
@@ -779,7 +785,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 					id: viewDescriptor.id,
 					title: viewDescriptor.name.value,
 					fromExtensionId: (viewDescriptor as Partial<ICustomViewDescriptor>).extensionId,
-					expanded: !collapsed
+					expanded: !collapsed,
+					singleViewPaneContainerTitle: viewDescriptor.singleViewPaneContainerTitle,
 				});
 
 			pane.render();

@@ -119,7 +119,7 @@ export class BrowserResourcePerformanceMarks {
 			comment: 'Resource performance numbers';
 			hosthash: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Hash of the hostname' };
 			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Resource basename' };
-			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Resource duration' };
+			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Resource duration' };
 		};
 		for (const item of performance.getEntriesByType('resource')) {
 

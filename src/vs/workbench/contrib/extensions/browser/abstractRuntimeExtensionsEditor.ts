@@ -6,7 +6,6 @@
 import { $, Dimension, addDisposableListener, append, clearNode } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -25,6 +24,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -92,6 +92,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super(AbstractRuntimeExtensionsEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -368,14 +369,14 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				} else {
 					title = nls.localize('extensionActivating', "Extension is activating...");
 				}
-				data.elementDisposables.push(setupCustomHover(getDefaultHoverDelegate('mouse'), data.activationTime, title));
+				data.elementDisposables.push(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.activationTime, title));
 
 				clearNode(data.msgContainer);
 
 				if (this._getUnresponsiveProfile(element.description.identifier)) {
 					const el = $('span', undefined, ...renderLabelWithIcons(` $(alert) Unresponsive`));
 					const extensionHostFreezTitle = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
-					data.elementDisposables.push(setupCustomHover(getDefaultHoverDelegate('mouse'), el, extensionHostFreezTitle));
+					data.elementDisposables.push(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), el, extensionHostFreezTitle));
 
 					data.msgContainer.appendChild(el);
 				}
@@ -423,7 +424,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						if (accessData?.current) {
 							const element = $('span', undefined, nls.localize('requests count', "{0} Requests: {1} (Session)", feature.label, accessData.current.count));
 							const title = nls.localize('requests count title', "Last request was {0}. Overall Requests: {1}", fromNow(accessData.current.lastAccessed, true, true), accessData.totalCount);
-							data.elementDisposables.push(setupCustomHover(getDefaultHoverDelegate('mouse'), element, title));
+							data.elementDisposables.push(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), element, title));
 
 							data.msgContainer.appendChild(element);
 						}

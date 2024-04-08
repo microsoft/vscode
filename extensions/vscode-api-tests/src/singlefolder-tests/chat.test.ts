@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { commands, CancellationToken, ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, InteractiveSession, ProviderResult, chat, interactive } from 'vscode';
+import { ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, chat, commands } from 'vscode';
 import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -30,42 +30,43 @@ suite('chat', () => {
 
 	function setupParticipant(): Event<{ request: ChatRequest; context: ChatContext }> {
 		const emitter = new EventEmitter<{ request: ChatRequest; context: ChatContext }>();
-		disposables.push();
-		disposables.push(interactive.registerInteractiveSessionProvider('provider', {
-			prepareSession: (_token: CancellationToken): ProviderResult<InteractiveSession> => {
-				return {
-					requester: { name: 'test' },
-					responder: { name: 'test' },
-				};
-			},
-		}));
+		disposables.push(emitter);
 
-		const participant = chat.createChatParticipant('participant', (request, context, _progress, _token) => {
+		const participant = chat.createChatParticipant('api-test.participant', (request, context, _progress, _token) => {
 			emitter.fire({ request, context });
-			return null;
 		});
 		participant.isDefault = true;
 		disposables.push(participant);
 		return emitter.event;
 	}
 
-	test('participant and slash command', async () => {
+	test('participant and slash command history', async () => {
 		const onRequest = setupParticipant();
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 
+		const deferred = new DeferredPromise<void>();
 		let i = 0;
-		onRequest(request => {
-			if (i === 0) {
-				assert.deepStrictEqual(request.request.command, 'hello');
-				assert.strictEqual(request.request.prompt, 'friend');
-				i++;
-				commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
-			} else {
-				assert.strictEqual(request.context.history.length, 1);
-				assert.strictEqual(request.context.history[0].participant.name, 'participant');
-				assert.strictEqual(request.context.history[0].command, 'hello');
+		disposables.push(onRequest(request => {
+			try {
+				if (i === 0) {
+					assert.deepStrictEqual(request.request.command, 'hello');
+					assert.strictEqual(request.request.prompt, 'friend');
+					i++;
+					setTimeout(() => {
+						commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
+					}, 0);
+				} else {
+					assert.strictEqual(request.context.history.length, 2);
+					assert.strictEqual(request.context.history[0].participant, 'api-test.participant');
+					assert.strictEqual(request.context.history[0].command, 'hello');
+					deferred.complete();
+				}
+			} catch (e) {
+				deferred.error(e);
 			}
-		});
+		}));
+
+		await deferred.p;
 	});
 
 	test('participant and variable', async () => {
@@ -83,17 +84,8 @@ suite('chat', () => {
 	});
 
 	test('result metadata is returned to the followup provider', async () => {
-		disposables.push(interactive.registerInteractiveSessionProvider('provider', {
-			prepareSession: (_token: CancellationToken): ProviderResult<InteractiveSession> => {
-				return {
-					requester: { name: 'test' },
-					responder: { name: 'test' },
-				};
-			},
-		}));
-
 		const deferred = new DeferredPromise<ChatResult>();
-		const participant = chat.createChatParticipant('participant', (_request, _context, _progress, _token) => {
+		const participant = chat.createChatParticipant('api-test.participant', (_request, _context, _progress, _token) => {
 			return { metadata: { key: 'value' } };
 		});
 		participant.isDefault = true;

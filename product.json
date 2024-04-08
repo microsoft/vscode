@@ -50,8 +50,8 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.87.0",
-			"sha256": "155ba715cc1045835951e70a663010c8f91d773d90a3ec504a041fd53b5658b0",
+			"version": "1.88.0",
+			"sha256": "3a048d87c0fac116fce9190ff6042ec7691e66fc17211a058faf0db91bb6605e",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
@@ -66,8 +66,8 @@
 		},
 		{
 			"name": "ms-vscode.vscode-js-profile-table",
-			"version": "1.0.8",
-			"sha256": "ca30069e21fbf576b49638ff8ff7c316b028c2faca924c23526737c65b8762bf",
+			"version": "1.0.9",
+			"sha256": "3b62ee4276a2bbea3fe230f94b1d5edd915b05966090ea56f882e1e0ab53e1a6",
 			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
 			"metadata": {
 				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",

@@ -57,6 +57,8 @@ import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -79,6 +81,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(ILogService, NullLogService);
 
 	instantiationService.stub(IWorkspaceContextService, new TestContextService());
+	instantiationService.stub(IFileService, disposables.add(new FileService(new NullLogService())));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IProgressService, ProgressService);
 	instantiationService.stub(IProductService, {});
@@ -95,6 +98,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 		onDidUpdateExtensionMetadata: Event.None,
 		onDidChangeProfile: Event.None,
 		async getInstalled() { return []; },
+		async getInstalledWorkspaceExtensions() { return []; },
 		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 		async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
 			local.identifier.uuid = metadata.id;

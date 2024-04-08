@@ -249,16 +249,16 @@ export class ExplorerService implements IExplorerService {
 			type ExplorerViewEditableErrorClassification = {
 				owner: 'lramos15';
 				comment: 'Helps gain a broard understanding of why users are unable to edit files in the explorer';
-				parentIsDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is a directory' };
-				isDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is a directory' };
-				isReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is readonly' };
-				parentIsReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is readonly' };
-				parentIsExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is excluded from being shown in the explorer' };
-				isExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is excluded from being shown in the explorer' };
-				parentIsRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is a root' };
-				isRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is a root' };
-				parentHasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element has nested children' };
-				hasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element has nested children' };
+				parentIsDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is a directory' };
+				isDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is a directory' };
+				isReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is readonly' };
+				parentIsReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is readonly' };
+				parentIsExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is excluded from being shown in the explorer' };
+				isExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is excluded from being shown in the explorer' };
+				parentIsRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is a root' };
+				isRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is a root' };
+				parentHasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element has nested children' };
+				hasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element has nested children' };
 			};
 			const errorData = {
 				parentIsDirectory: parent?.isDirectory,

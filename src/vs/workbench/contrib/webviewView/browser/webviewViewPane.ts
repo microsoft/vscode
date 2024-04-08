@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, EventType, findParentWithClass } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, EventType, findParentWithClass, getWindow } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -29,6 +29,7 @@ import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/w
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 declare const ResizeObserver: any;
 
@@ -74,6 +75,7 @@ export class WebviewViewPane extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IActivityService private readonly activityService: IActivityService,
@@ -84,7 +86,7 @@ export class WebviewViewPane extends ViewPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
 	) {
-		super({ ...options, titleMenuId: MenuId.ViewTitle, showActions: ViewPaneShowActions.WhenExpanded }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...options, titleMenuId: MenuId.ViewTitle, showActions: ViewPaneShowActions.WhenExpanded }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.extensionId = options.fromExtensionId;
 		this.defaultTitle = this.title;
 
@@ -160,7 +162,7 @@ export class WebviewViewPane extends ViewPane {
 	private updateTreeVisibility() {
 		if (this.isBodyVisible()) {
 			this.activate();
-			this._webview.value?.claim(this, undefined);
+			this._webview.value?.claim(this, getWindow(this.element), undefined);
 		} else {
 			this._webview.value?.release(this);
 		}
@@ -206,7 +208,7 @@ export class WebviewViewPane extends ViewPane {
 			}));
 		}
 
-		this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
+		this._webviewDisposables.add(new WebviewWindowDragMonitor(getWindow(this.element), () => this._webview.value));
 
 		const source = this._webviewDisposables.add(new CancellationTokenSource());
 

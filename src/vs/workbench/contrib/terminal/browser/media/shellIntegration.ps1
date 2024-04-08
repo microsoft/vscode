@@ -24,7 +24,7 @@ $env:VSCODE_NONCE = $null
 if ($env:VSCODE_ENV_REPLACE) {
 	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
 	foreach ($Item in $Split) {
-		$Inner = $Item.Split('=')
+		$Inner = $Item.Split('=', 2)
 		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1].Replace('\x3a', ':'))
 	}
 	$env:VSCODE_ENV_REPLACE = $null
@@ -32,7 +32,7 @@ if ($env:VSCODE_ENV_REPLACE) {
 if ($env:VSCODE_ENV_PREPEND) {
 	$Split = $env:VSCODE_ENV_PREPEND.Split(":")
 	foreach ($Item in $Split) {
-		$Inner = $Item.Split('=')
+		$Inner = $Item.Split('=', 2)
 		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1].Replace('\x3a', ':') + [Environment]::GetEnvironmentVariable($Inner[0]))
 	}
 	$env:VSCODE_ENV_PREPEND = $null
@@ -40,7 +40,7 @@ if ($env:VSCODE_ENV_PREPEND) {
 if ($env:VSCODE_ENV_APPEND) {
 	$Split = $env:VSCODE_ENV_APPEND.Split(":")
 	foreach ($Item in $Split) {
-		$Inner = $Item.Split('=')
+		$Inner = $Item.Split('=', 2)
 		[Environment]::SetEnvironmentVariable($Inner[0], [Environment]::GetEnvironmentVariable($Inner[0]) + $Inner[1].Replace('\x3a', ':'))
 	}
 	$env:VSCODE_ENV_APPEND = $null
@@ -63,29 +63,14 @@ function Global:Prompt() {
 	# error when $LastHistoryEntry is null, and is not otherwise useful.
 	Set-StrictMode -Off
 	$LastHistoryEntry = Get-History -Count 1
+	$Result = ""
 	# Skip finishing the command if the first command has not yet started
 	if ($Global:__LastHistoryId -ne -1) {
 		if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
 			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
-			$Result = "$([char]0x1b)]633;E`a"
 			$Result += "$([char]0x1b)]633;D`a"
 		}
 		else {
-			# Command finished command line
-			# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
-			$Result = "$([char]0x1b)]633;E;"
-			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
-			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
-			# to only be composed of _printable_ characters as per the spec.
-			if ($LastHistoryEntry.CommandLine) {
-				$CommandLine = $LastHistoryEntry.CommandLine
-			}
-			else {
-				$CommandLine = ""
-			}
-			$Result += $(__VSCode-Escape-Value $CommandLine)
-			$Result += ";$Nonce"
-			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST
 			$Result += "$([char]0x1b)]633;D;$FakeCode`a"
@@ -114,10 +99,24 @@ function Global:Prompt() {
 if (Get-Module -Name PSReadLine) {
 	$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 	function Global:PSConsoleHostReadLine {
-		$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
+		$CommandLine = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
+
+		# Command line
+		# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
+		$Result = "$([char]0x1b)]633;E;"
+		$Result += $(__VSCode-Escape-Value $CommandLine)
+		$Result += ";$Nonce"
+		$Result += "`a"
+		[Console]::Write($Result)
+
+		# Command executed
+		# OSC 633 ; C ST
+		$Result += "$([char]0x1b)]633;C`a"
+
 		# Write command executed sequence directly to Console to avoid the new line from Write-Host
-		[Console]::Write("$([char]0x1b)]633;C`a")
-		$tmp
+		[Console]::Write($Result)
+
+		$CommandLine
 	}
 }
 

@@ -28,12 +28,13 @@ import { CommentsFilters, CommentsFiltersChangeEvent } from 'vs/workbench/contri
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
-import { CommentThreadState } from 'vs/editor/common/languages';
+import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -80,6 +81,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@IThemeService themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IStorageService storageService: IStorageService
 	) {
@@ -94,7 +96,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				text: viewState['filter'] || '',
 				focusContextKey: CommentsViewFilterFocusContextKey.key
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.hasCommentsContextKey = CONTEXT_KEY_HAS_COMMENTS.bindTo(contextKeyService);
 		this.someCommentsExpandedContextKey = CONTEXT_KEY_SOME_COMMENTS_EXPANDED.bindTo(contextKeyService);
 		this.stateMemento = stateMemento;
@@ -126,6 +128,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	override render(): void {
 		super.render();
 		this._register(registerNavigableContainer({
+			name: 'commentsView',
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
 				if (this.filterWidget.hasFocus()) {
@@ -260,10 +263,50 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.messageBoxContainer.classList.toggle('hidden', this.commentService.commentsModel.hasCommentThreads());
 	}
 
+	private getAriaForNode(element: CommentNode) {
+		if (element.range) {
+			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
+				return nls.localize('resourceWithCommentLabelOutdated',
+					"Outdated from ${0} at line {1} column {2} in {3}, source: {4}",
+					element.comment.userName,
+					element.range.startLineNumber,
+					element.range.startColumn,
+					basename(element.resource),
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
+				);
+			} else {
+				return nls.localize('resourceWithCommentLabel',
+					"${0} at line {1} column {2} in {3}, source: {4}",
+					element.comment.userName,
+					element.range.startLineNumber,
+					element.range.startColumn,
+					basename(element.resource),
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
+				);
+			}
+		} else {
+			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
+				return nls.localize('resourceWithCommentLabelFileOutdated',
+					"Outdated from {0} in {1}, source: {2}",
+					element.comment.userName,
+					basename(element.resource),
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
+				);
+			} else {
+				return nls.localize('resourceWithCommentLabelFile',
+					"{0} in {1}, source: {2}",
+					element.comment.userName,
+					basename(element.resource),
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
+				);
+			}
+		}
+	}
+
 	private createTree(): void {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, {
-			overrideStyles: { listBackground: this.getBackgroundColor() },
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			selectionNavigation: true,
 			filter: this.filter,
 			keyboardNavigationLabelProvider: {
@@ -272,7 +315,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				}
 			},
 			accessibilityProvider: {
-				getAriaLabel(element: any): string {
+				getAriaLabel: (element: any): string => {
 					if (element instanceof CommentsModel) {
 						return nls.localize('rootCommentsLabel', "Comments for current workspace");
 					}
@@ -280,23 +323,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 						return nls.localize('resourceWithCommentThreadsLabel', "Comments in {0}, full path {1}", basename(element.resource), element.resource.fsPath);
 					}
 					if (element instanceof CommentNode) {
-						if (element.range) {
-							return nls.localize('resourceWithCommentLabel',
-								"${0} at line {1} column {2} in {3}, source: {4}",
-								element.comment.userName,
-								element.range.startLineNumber,
-								element.range.startColumn,
-								basename(element.resource),
-								(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-							);
-						} else {
-							return nls.localize('resourceWithCommentLabelFile',
-								"${0} in {1}, source: {2}",
-								element.comment.userName,
-								basename(element.resource),
-								(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-							);
-						}
+						return this.getAriaForNode(element);
 					}
 					return '';
 				},
@@ -328,7 +355,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			return;
 		}
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].thread : element.thread;
-		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
+		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : undefined;
 		return revealCommentThread(this.commentService, this.editorService, this.uriIdentityService, threadToReveal, commentToReveal, false, pinned, preserveFocus, sideBySide);
 	}
 

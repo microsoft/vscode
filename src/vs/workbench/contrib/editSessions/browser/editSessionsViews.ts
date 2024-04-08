@@ -67,7 +67,7 @@ export class EditSessionsDataViews extends Disposable {
 			order: 1
 		});
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resume',
@@ -87,9 +87,9 @@ export class EditSessionsDataViews extends Disposable {
 				await commandService.executeCommand('workbench.editSessions.actions.resumeLatest', editSessionId, true);
 				await treeView.refresh();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.store',
@@ -103,9 +103,9 @@ export class EditSessionsDataViews extends Disposable {
 				await commandService.executeCommand('workbench.editSessions.actions.storeCurrent');
 				await treeView.refresh();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.delete',
@@ -134,9 +134,9 @@ export class EditSessionsDataViews extends Disposable {
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.deleteAll',
@@ -163,7 +163,7 @@ export class EditSessionsDataViews extends Disposable {
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 	}
 }
 

@@ -5,7 +5,6 @@
 
 import { ButtonBar, IButton } from 'vs/base/browser/ui/button/button';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ActionRunner, IAction, IActionRunner, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -14,6 +13,7 @@ import { localize } from 'vs/nls';
 import { MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -44,6 +44,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super(container);
 
@@ -121,7 +122,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			} else {
 				tooltip = action.label;
 			}
-			this._updateStore.add(setupCustomHover(hoverDelegate, btn.element, tooltip));
+			this._updateStore.add(this._hoverService.setupUpdatableHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
 				this._actionRunner.run(action);
 			}));
@@ -141,8 +142,9 @@ export class MenuWorkbenchButtonBar extends WorkbenchButtonBar {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(container, options, contextMenuService, keybindingService, telemetryService);
+		super(container, options, contextMenuService, keybindingService, telemetryService, hoverService);
 
 		const menu = menuService.createMenu(menuId, contextKeyService);
 		this._store.add(menu);
