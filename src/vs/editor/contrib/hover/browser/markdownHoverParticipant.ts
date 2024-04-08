@@ -372,7 +372,7 @@ class RenderedHoverParts extends Disposable {
 	}
 
 	private _replaceRenderedHoverPartAtIndex(index: number, renderedHoverPart: RenderedHoverPart): void {
-		if (this._renderHoverParts && index < this._renderHoverParts.length) {
+		if (index >= this._renderHoverParts.length || index < 0) {
 			return;
 		}
 		const currentRenderedHoverPart = this._renderedHoverParts[index];
