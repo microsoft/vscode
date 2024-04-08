@@ -36,6 +36,7 @@ import { nullExtensionDescription } from 'vs/workbench/services/extensions/commo
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, Recording } from './inlineChatSessionService';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 class BridgeAgent implements IChatAgentImplementation {
 
@@ -70,11 +71,14 @@ class BridgeAgent implements IChatAgentImplementation {
 			throw new Error('FAILED to find session');
 		}
 
-		const { session, editor } = data;
+		const { session } = data;
 
 		if (!session.lastInput) {
 			throw new Error('FAILED to find last input');
 		}
+
+		const inlineChatContextValue = request.variables.variables.find(candidate => candidate.name === _inlineChatContext)?.values[0];
+		const inlineChatContext = typeof inlineChatContextValue?.value === 'string' && JSON.parse(inlineChatContextValue.value);
 
 		const modelAltVersionIdNow = session.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
@@ -86,8 +90,8 @@ class BridgeAgent implements IChatAgentImplementation {
 			withIntentDetection: request.enableCommandDetection ?? true,
 			live: session.editMode !== EditMode.Preview,
 			previewDocument: session.textModelN.uri,
-			selection: editor.getSelection()!,
-			wholeRange: session.wholeRange.trackedInitialRange,
+			selection: inlineChatContext.selection,
+			wholeRange: inlineChatContext.wholeRange
 		};
 
 		const inlineProgress = new Progress<IInlineChatProgressItem>(data => {
@@ -199,6 +203,7 @@ export class InlineChatError extends Error {
 }
 
 const _bridgeAgentId = 'brigde.editor';
+const _inlineChatContext = '_inlineChatContext';
 
 export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
@@ -235,6 +240,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IChatVariablesService chatVariableService: IChatVariablesService,
 	) {
 
 		// MARK: register fake chat agent
@@ -266,7 +272,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 						} satisfies IChatAgentCommand;
 					});
 				},
-				defaultImplicitVariables: [],
+				defaultImplicitVariables: [_inlineChatContext],
 				metadata: {
 					isSticky: false,
 					themeIcon: Codicon.copilot,
@@ -298,6 +304,28 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._store.add(this._chatAgentService.onDidChangeAgents(() => addOrRemoveBridgeAgent()));
 		const brigdeAgent = this._store.add(new MutableDisposable());
 		addOrRemoveBridgeAgent();
+
+
+		// MARK: implicit variable for editor selection and (tracked) whole range
+
+		this._store.add(chatVariableService.registerVariable(
+			{ name: _inlineChatContext, description: '', hidden: true },
+			async (_message, _arg, model) => {
+				for (const [, data] of this._sessions) {
+					if (data.session.chatModel === model) {
+						return [{
+							level: 'full',
+							value: JSON.stringify({
+								selection: data.editor.getSelection(),
+								wholeRange: data.session.wholeRange.trackedInitialRange
+							})
+						}];
+					}
+				}
+				return undefined;
+			}
+		));
+
 	}
 
 	dispose() {
