@@ -302,12 +302,18 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return new SerializableObjectWithBuffers(typeConverters.NotebookData.from(data));
 	}
 
+	private cached = false;
+
 	async $notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer> {
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
 		const bytes = await serializer.serializer.serializeNotebook(typeConverters.NotebookData.to(data.value), token);
+		if (this.cached){
+			return VSBuffer.fromString('');
+		}
+		this.cached = true;
 		return VSBuffer.wrap(bytes);
 	}
 

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
+import * as streams from 'vs/base/common/stream';
+import { VSBuffer, VSBufferReadableStream, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -280,8 +281,15 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		return bufferToStream(bytes);
+		if (NotebookFileWorkingCopyModel.cachedStream) {
+			return NotebookFileWorkingCopyModel.cachedStream;
+		}
+		NotebookFileWorkingCopyModel.cachedStream = bufferToStream(bytes);
+		return NotebookFileWorkingCopyModel.cachedStream;
+
 	}
+
+	private static cachedStream: streams.ReadableStream<VSBuffer> | undefined;
 
 	async update(stream: VSBufferReadableStream, token: CancellationToken): Promise<void> {
 		const serializer = await this.getNotebookSerializer();
