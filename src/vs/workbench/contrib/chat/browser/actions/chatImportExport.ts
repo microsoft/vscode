@@ -14,7 +14,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_HAS_DEFAULT_AGENT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { isExportableSessionData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -29,7 +29,7 @@ export function registerChatExportActions() {
 				id: 'workbench.action.chat.export',
 				category: CHAT_CATEGORY,
 				title: localize2('chat.export.label', "Export Chat..."),
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_HAS_DEFAULT_AGENT,
 				f1: true,
 			});
 		}
@@ -70,7 +70,7 @@ export function registerChatExportActions() {
 				id: 'workbench.action.chat.import',
 				title: localize2('chat.import.label', "Import Chat..."),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_HAS_DEFAULT_AGENT,
 				f1: true,
 			});
 		}
@@ -96,7 +96,7 @@ export function registerChatExportActions() {
 					throw new Error('Invalid chat session data');
 				}
 
-				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { data }, pinned: true } });
+				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { target: { data }, pinned: true } as IChatEditorOptions });
 			} catch (err) {
 				throw err;
 			}

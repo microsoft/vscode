@@ -29,7 +29,7 @@ import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/br
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService, IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext, ICodeCompareBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_HAS_DEFAULT_AGENT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -109,7 +109,6 @@ export function registerChatCodeBlockActions() {
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -155,7 +154,6 @@ export function registerChatCodeBlockActions() {
 		const element = context.element as IChatResponseViewModel | undefined;
 		if (element) {
 			chatService.notifyUserAction({
-				providerId: element.providerId,
 				agentId: element.agent?.id,
 				sessionId: element.sessionId,
 				requestId: element.requestId,
@@ -185,7 +183,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
 				title: localize2('interactive.insertCodeBlock.label', "Insert at Cursor"),
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_HAS_DEFAULT_AGENT,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -331,7 +329,6 @@ export function registerChatCodeBlockActions() {
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -352,7 +349,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
 				title: localize2('interactive.insertIntoNewFile.label', "Insert into New File"),
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_HAS_DEFAULT_AGENT,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.newFile,
@@ -377,7 +374,6 @@ export function registerChatCodeBlockActions() {
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -407,7 +403,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
 				title: localize2('interactive.runInTerminal.label', "Insert into Terminal"),
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_HAS_DEFAULT_AGENT,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
@@ -470,7 +466,6 @@ export function registerChatCodeBlockActions() {
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
-					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
@@ -526,7 +521,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_HAS_DEFAULT_AGENT,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -548,7 +543,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: CONTEXT_HAS_DEFAULT_AGENT,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});

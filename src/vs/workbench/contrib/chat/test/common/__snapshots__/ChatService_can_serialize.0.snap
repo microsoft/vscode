@@ -4,6 +4,5 @@
   responderUsername: "test",
   responderAvatarIconUri: undefined,
   welcomeMessage: undefined,
-  requests: [  ],
-  providerId: "testProvider"
+  requests: [  ]
 }

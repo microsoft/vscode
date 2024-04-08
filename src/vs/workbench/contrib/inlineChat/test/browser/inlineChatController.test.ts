@@ -43,7 +43,6 @@ import { IInlineChatSavingService } from '../../browser/inlineChatSavingService'
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
 import { TestWorkerService } from './testWorkerService';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
@@ -127,7 +126,6 @@ suite('InteractiveChatController', function () {
 			[IExtensionService, new TestExtensionService()],
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new TestExtensionService()],
-			[IChatContributionService, new TestExtensionService()],
 			[IWorkspaceContextService, new TestContextService()],
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],

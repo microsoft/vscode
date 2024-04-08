@@ -2,41 +2,40 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { EditMode, IInlineChatSession, IInlineChatService, IInlineChatSessionProvider, InlineChatResponseFeedbackKind, IInlineChatProgressItem, IInlineChatResponse, IInlineChatRequest, InlineChatResponseType, IInlineChatBulkEditResponse } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { Range } from 'vs/editor/common/core/range';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Iterable } from 'vs/base/common/iterator';
-import { raceCancellation } from 'vs/base/common/async';
-import { Recording, IInlineChatSessionService, ISessionKeyComputer, IInlineChatSessionEvent, IInlineChatSessionEndEvent } from './inlineChatSessionService';
-import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
-import { Schemas } from 'vs/base/common/network';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { IChatFollowup, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { coalesceInPlace, isNonEmptyArray } from 'vs/base/common/arrays';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TextEdit } from 'vs/editor/common/languages';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { raceCancellation } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { CancellationError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { Iterable } from 'vs/base/common/iterator';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Range } from 'vs/editor/common/core/range';
+import { TextEdit } from 'vs/editor/common/languages';
+import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Progress } from 'vs/platform/progress/common/progress';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatFollowup, IChatProgress, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { EditMode, IInlineChatBulkEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, IInlineChatService, IInlineChatSession, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
+import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, Recording } from './inlineChatSessionService';
 
 class BridgeAgent implements IChatAgentImplementation {
 
@@ -299,44 +298,12 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._store.add(this._chatAgentService.onDidChangeAgents(() => addOrRemoveBridgeAgent()));
 		const brigdeAgent = this._store.add(new MutableDisposable());
 		addOrRemoveBridgeAgent();
-
-		// MARK: register fake chat provider
-
-		const mapping = this._store.add(new DisposableMap<IInlineChatSessionProvider>());
-		const registerFakeChatProvider = (provider: IInlineChatSessionProvider) => {
-			const d = this._chatService.registerProvider({
-				id: this._asChatProviderBrigdeName(provider),
-				prepareSession() {
-					return {
-						id: Math.random()
-					};
-				}
-			});
-			mapping.set(provider, d);
-		};
-
-		this._store.add(_inlineChatService.onDidChangeProviders(e => {
-			if (e.added) {
-				registerFakeChatProvider(e.added);
-			}
-			if (e.removed) {
-				mapping.deleteAndDispose(e.removed);
-			}
-		}));
-
-		for (const provider of _inlineChatService.getAllProvider()) {
-			registerFakeChatProvider(provider);
-		}
 	}
 
 	dispose() {
 		this._store.dispose();
 		this._sessions.forEach(x => x.store.dispose());
 		this._sessions.clear();
-	}
-
-	private _asChatProviderBrigdeName(provider: IInlineChatSessionProvider) {
-		return `inlinechat:${provider.label}:${ExtensionIdentifier.toKey(provider.extensionId)}`;
 	}
 
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
@@ -347,7 +314,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			return undefined;
 		}
 
-		const chatModel = this._chatService.startSession(this._asChatProviderBrigdeName(provider), token);
+		const chatModel = this._chatService.startSession(token);
 		if (!chatModel) {
 			this._logService.trace('[IE] NO chatModel found');
 			return undefined;

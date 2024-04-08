@@ -50,7 +50,6 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
@@ -90,7 +89,6 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
@@ -129,7 +127,6 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,

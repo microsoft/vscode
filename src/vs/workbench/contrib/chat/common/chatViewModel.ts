@@ -47,7 +47,6 @@ export interface IChatSessionInitEvent {
 export interface IChatViewModel {
 	readonly model: IChatModel;
 	readonly initState: ChatModelInitState;
-	readonly providerId: string;
 	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
@@ -110,7 +109,6 @@ export interface IChatResponseViewModel {
 	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
-	readonly providerId: string;
 	/** The ID of the associated IChatRequestViewModel */
 	readonly requestId: string;
 	readonly username: string;
@@ -173,10 +171,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	get requestInProgress(): boolean {
 		return this._model.requestInProgress;
-	}
-
-	get providerId() {
-		return this._model.providerId;
 	}
 
 	get initState() {
@@ -361,10 +355,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get dataId() {
 		return this._model.id + `_${this._modelChangeCount}` + `_${ChatModelInitState[this._model.session.initState]}`;
-	}
-
-	get providerId() {
-		return this._model.providerId;
 	}
 
 	get sessionId() {

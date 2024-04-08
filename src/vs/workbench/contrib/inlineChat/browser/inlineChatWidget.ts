@@ -93,7 +93,6 @@ export interface IInlineChatWidgetConstructionOptions {
 export interface IInlineChatMessage {
 	message: IMarkdownString;
 	requestId: string;
-	providerId: string;
 }
 
 export interface IInlineChatMessageAppender {
@@ -302,9 +301,9 @@ export class InlineChatWidget {
 
 		// LEGACY - default chat model
 		// this is only here for as long as we offer updateChatMessage
-		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, `inlineChatDefaultModel/${location}`, undefined));
+		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, undefined));
 		this._defaultChatModel.startInitialize();
-		this._defaultChatModel.initialize({ id: 1 }, undefined);
+		this._defaultChatModel.initialize(undefined);
 		this.setChatModel(this._defaultChatModel);
 	}
 

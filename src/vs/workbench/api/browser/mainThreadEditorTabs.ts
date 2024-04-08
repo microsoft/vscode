@@ -196,7 +196,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		if (editor instanceof ChatEditorInput) {
 			return {
 				kind: TabInputKind.ChatEditorInput,
-				providerId: editor.providerId ?? 'unknown',
 			};
 		}
 

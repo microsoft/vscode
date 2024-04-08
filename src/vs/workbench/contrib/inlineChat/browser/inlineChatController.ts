@@ -29,7 +29,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -51,6 +51,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { isEqual } from 'vs/base/common/resources';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -1229,8 +1230,7 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 		return;
 	}
 
-	const chatWidgetService = accessor.get(IChatWidgetService);
-	const widget = await chatWidgetService.revealViewForProvider(agent.name);
+	const widget = await showChatView(accessor.get(IViewsService));
 	if (widget && widget.viewModel) {
 		chatService.addCompleteRequest(widget.viewModel.sessionId, query, undefined, { message: response });
 		widget.focusLastMessage();
@@ -1238,13 +1238,12 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {
-	const widgetService = accessor.get(IChatWidgetService);
 	const chatAgentService = accessor.get(IChatAgentService);
 	const agent = chatAgentService.getActivatedAgents().find(agent => agent.locations.includes(ChatAgentLocation.Panel) && agent.isDefault);
 	if (!agent) {
 		return;
 	}
-	const widget = await widgetService.revealViewForProvider(agent.name);
+	const widget = await showChatView(accessor.get(IViewsService));
 	if (!widget) {
 		return;
 	}

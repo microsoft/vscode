@@ -4207,7 +4207,7 @@ export class InteractiveWindowInput {
 }
 
 export class ChatEditorTabInput {
-	constructor(readonly providerId: string) { }
+	constructor() { }
 }
 
 export class TextMultiDiffTabInput {
