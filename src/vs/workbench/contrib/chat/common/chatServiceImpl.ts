@@ -21,7 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -398,6 +398,31 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(data, CancellationToken.None);
 	}
 
+	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
+		const model = this._sessionModels.get(request.session.sessionId);
+		if (!model && model !== request.session) {
+			throw new Error(`Unknown session: ${request.session.sessionId}`);
+		}
+
+		await model.waitForInitialization();
+
+		if (this._pendingRequests.has(request.session.sessionId)) {
+			this.trace('sendRequest', `Session ${request.session.sessionId} already has a pending request`);
+			return;
+		}
+
+		const location = options?.location ?? ChatAgentLocation.Panel;
+		const attempt = options?.attempt ?? 0;
+		const enableCommandDetection = !options?.noCommandDetection;
+		const implicitVariablesEnabled = options?.implicitVariablesEnabled ?? false;
+
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
+
+		this.removeRequest(model.sessionId, request.id);
+
+		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, implicitVariablesEnabled, defaultAgent, location);
+	}
+
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
 
 		const location = options?.location ?? ChatAgentLocation.Panel;
@@ -430,7 +455,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
-			responseCompletePromise: this._sendRequestAsync(model, sessionId, parsedRequest, attempt, implicitVariablesEnabled, defaultAgent, location),
+			responseCompletePromise: this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, implicitVariablesEnabled, defaultAgent, location),
 			agent,
 			slashCommand: agentSlashCommandPart?.command,
 		};
@@ -444,7 +469,7 @@ export class ChatService extends Disposable implements IChatService {
 		return newTokenSource.token;
 	}
 
-	private async _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, implicitVariablesEnabled: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation): Promise<void> {
+	private async _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, implicitVariablesEnabled: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation): Promise<void> {
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -521,6 +546,7 @@ export class ChatService extends Disposable implements IChatService {
 						message: promptTextResult.message,
 						command: agentSlashCommandPart?.command.name,
 						variables: updatedVariableData,
+						enableCommandDetection,
 						attempt,
 						location
 					};
