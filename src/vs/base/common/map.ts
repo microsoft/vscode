@@ -703,7 +703,7 @@ export class MRUCache<K, V> extends Cache<K, V> {
 	}
 
 	override set(key: K, value: V): this {
-		if (!this.has(key)) {
+		if (this._limit <= this.size && !this.has(key)) {
 			this.trim(Math.round(this._limit * this._ratio) - 1);
 		}
 
