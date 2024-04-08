@@ -58,6 +58,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -1086,9 +1087,10 @@ export class TestResultsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@ITestResultService private readonly resultService: ITestResultService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 	}
 
 	public get subject() {
@@ -1667,7 +1669,7 @@ export class CloseTestPeek extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.closeTestPeek',
-			title: localize('close', 'Close'),
+			title: localize2('close', 'Close'),
 			icon: Codicon.close,
 			precondition: ContextKeyExpr.or(TestingContextKeys.isInPeek, TestingContextKeys.isPeekVisible),
 			keybinding: {
@@ -2492,6 +2494,9 @@ export class GoToNextMessageAction extends Action2 {
 			id: GoToNextMessageAction.ID,
 			f1: true,
 			title: localize2('testing.goToNextMessage', 'Go to Next Test Failure'),
+			metadata: {
+				description: localize2('testing.goToNextMessage.description', 'Shows the next failure message in your file')
+			},
 			icon: Codicon.arrowDown,
 			category: Categories.Test,
 			keybinding: {
@@ -2525,6 +2530,9 @@ export class GoToPreviousMessageAction extends Action2 {
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
 			title: localize2('testing.goToPreviousMessage', 'Go to Previous Test Failure'),
+			metadata: {
+				description: localize2('testing.goToPreviousMessage.description', 'Shows the previous failure message in your file')
+			},
 			icon: Codicon.arrowUp,
 			category: Categories.Test,
 			keybinding: {
@@ -2576,6 +2584,9 @@ export class ToggleTestingPeekHistory extends Action2 {
 			id: ToggleTestingPeekHistory.ID,
 			f1: true,
 			title: localize2('testing.toggleTestingPeekHistory', 'Toggle Test History in Peek'),
+			metadata: {
+				description: localize2('testing.toggleTestingPeekHistory.description', 'Shows or hides the history of test runs in the peek view')
+			},
 			icon: Codicon.history,
 			category: Categories.Test,
 			menu: [{

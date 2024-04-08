@@ -169,9 +169,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _containerReadyBarrier: AutoOpenBarrier;
 	private _attachBarrier: AutoOpenBarrier;
 	private _icon: TerminalIcon | undefined;
-	private _messageTitleDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _messageTitleDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _widgetManager: TerminalWidgetManager;
-	private _dndObserver: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _dndObserver: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 	private _hasHadInput: boolean;
 	private _description?: string;
@@ -188,7 +188,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 
-	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
+	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
 
 	get store(): DisposableStore {
@@ -459,7 +459,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		}
 
-		this.statusList = this._scopedInstantiationService.createInstance(TerminalStatusList);
+		this.statusList = this._register(this._scopedInstantiationService.createInstance(TerminalStatusList));
 		this._initDimensions();
 		this._processManager = this._createProcessManager();
 
@@ -479,12 +479,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.shellLaunchConfig.executable = defaultProfile.path;
 				this.shellLaunchConfig.args = defaultProfile.args;
 				if (this.shellLaunchConfig.isExtensionOwnedTerminal) {
-					// Only use default icon and color if they are undefined in the SLC
+					// Only use default icon and color and env if they are undefined in the SLC
 					this.shellLaunchConfig.icon ??= defaultProfile.icon;
 					this.shellLaunchConfig.color ??= defaultProfile.color;
+					this.shellLaunchConfig.env ??= defaultProfile.env;
 				} else {
 					this.shellLaunchConfig.icon = defaultProfile.icon;
 					this.shellLaunchConfig.color = defaultProfile.color;
+					this.shellLaunchConfig.env = defaultProfile.env;
 				}
 			}
 
@@ -564,7 +566,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			let contribution: ITerminalContribution;
 			try {
-				contribution = this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager);
+				contribution = this._register(this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager));
 				this._contributions.set(desc.id, contribution);
 			} catch (err) {
 				onUnexpectedError(err);
@@ -734,20 +736,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		);
 		this.xterm = xterm;
 		this.updateAccessibilitySupport();
-		this.xterm.onDidRequestRunCommand(e => {
+		this._register(this.xterm.onDidRequestRunCommand(e => {
 			if (e.copyAsHtml) {
 				this.copySelection(true, e.command);
 			} else {
 				this.sendText(e.command.command, e.noNewLine ? false : true);
 			}
-		});
-		this.xterm.onDidRequestFocus(() => this.focus());
-		this.xterm.onDidRequestSendText(e => this.sendText(e, false));
+		}));
+		this._register(this.xterm.onDidRequestFocus(() => this.focus()));
+		this._register(this.xterm.onDidRequestSendText(e => this.sendText(e, false)));
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		const initialTextWrittenPromise = this._shellLaunchConfig.initialText ? new Promise<void>(r => this._writeInitialText(xterm, r)) : undefined;
 		const lineDataEventAddon = this._register(new LineDataEventAddon(initialTextWrittenPromise));
-		lineDataEventAddon.onLineData(e => this._onLineData.fire(e));
+		this._register(lineDataEventAddon.onLineData(e => this._onLineData.fire(e)));
 		this._lineDataEventAddon = lineDataEventAddon;
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
@@ -767,7 +769,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(xterm.raw.onSelectionChange(async () => this._onSelectionChange()));
 		this._register(xterm.raw.buffer.onBufferChange(() => this._refreshAltBufferContextKey()));
 
-		this._processManager.onProcessData(e => this._onProcessData(e));
+		this._register(this._processManager.onProcessData(e => this._onProcessData(e)));
 		this._register(xterm.raw.onData(async data => {
 			await this._processManager.write(data);
 			this._onDidInputData.fire(this);
@@ -775,13 +777,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(xterm.raw.onBinary(data => this._processManager.processBinary(data)));
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
-		this._processManager.onProcessReady(async (processTraits) => {
+		this._register(this._processManager.onProcessReady(async (processTraits) => {
 			if (this._processManager.os) {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}
 			xterm.raw.options.windowsPty = processTraits.windowsPty;
-		});
-		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e));
+		}));
+		this._register(this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e)));
 
 		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
@@ -1328,7 +1330,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.shellLaunchConfig.attachPersistentProcess?.shellIntegrationNonce
 		);
 		this.capabilities.add(processManager.capabilities);
-		processManager.onProcessReady(async (e) => {
+		this._register(processManager.onProcessReady(async (e) => {
 			this._onProcessIdReady.fire(this);
 			this._initialCwd = await this.getInitialCwd();
 			// Set the initial name based on the _resolved_ shell launch config, this will also
@@ -1356,9 +1358,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 				this._setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
 			}
-		});
-		processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		processManager.onDidChangeProperty(({ type, value }) => {
+		}));
+		this._register(processManager.onProcessExit(exitCode => this._onProcessExit(exitCode)));
+		this._register(processManager.onDidChangeProperty(({ type, value }) => {
 			switch (type) {
 				case ProcessPropertyType.Cwd:
 					this._cwd = value;
@@ -1390,15 +1392,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._usedShellIntegrationInjection = true;
 					break;
 			}
-		});
+		}));
 
-		processManager.onProcessData(ev => {
+		this._register(processManager.onProcessData(ev => {
 			this._initialDataEvents?.push(ev.data);
 			this._onData.fire(ev.data);
-		});
-		processManager.onProcessReplayComplete(() => this._onProcessReplayComplete.fire());
-		processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-		processManager.onPtyDisconnect(() => {
+		}));
+		this._register(processManager.onProcessReplayComplete(() => this._onProcessReplayComplete.fire()));
+		this._register(processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e)));
+		this._register(processManager.onPtyDisconnect(() => {
 			if (this.xterm) {
 				this.xterm.raw.options.disableStdin = true;
 			}
@@ -1408,13 +1410,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				icon: Codicon.debugDisconnect,
 				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
 			});
-		});
-		processManager.onPtyReconnect(() => {
+		}));
+		this._register(processManager.onPtyReconnect(() => {
 			if (this.xterm) {
 				this.xterm.raw.options.disableStdin = false;
 			}
 			this.statusList.remove(TerminalStatus.Disconnected);
-		});
+		}));
 
 		return processManager;
 	}

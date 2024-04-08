@@ -42,8 +42,7 @@ import { asCssVariableWithDefault, checkboxBorder, inputBackground } from 'vs/pl
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { CancelAction, IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { CancelAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -93,7 +92,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputSideToolbarContainer?: HTMLElement;
 
 	private followupsContainer!: HTMLElement;
-	private followupsDisposables = this._register(new DisposableStore());
+	private readonly followupsDisposables = this._register(new DisposableStore());
 
 	private implicitContextContainer!: HTMLElement;
 	private implicitContextLabel!: HTMLElement;
@@ -126,7 +125,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
-	private providerId: string | undefined;
 
 	private cachedDimensions: dom.Dimension | undefined;
 	private cachedToolbarWidth: number | undefined;
@@ -175,9 +173,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return localize('chatInput', "Chat Input");
 	}
 
-	setState(providerId: string, inputValue: string | undefined): void {
-		this.providerId = providerId;
-		const history = this.historyService.getHistory(providerId);
+	setState(inputValue: string | undefined): void {
+		const history = this.historyService.getHistory();
 		this.history = new HistoryNavigator(history, 50);
 
 		if (typeof inputValue === 'string') {
@@ -496,7 +493,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	saveState(): void {
 		const inputHistory = this.history.getHistory();
-		this.historyService.saveHistory(this.providerId!, inputHistory);
+		this.historyService.saveHistory(inputHistory);
 	}
 }
 
@@ -540,7 +537,7 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 			const secondaryAgent = chatAgentService.getSecondaryAgent();
 			if (secondaryAgent) {
 				secondary.forEach(a => {
-					if (a.id === ChatSubmitSecondaryAgentEditorAction.ID) {
+					if (a.id === ChatSubmitSecondaryAgentAction.ID) {
 						a.label = localize('chat.submitToSecondaryAgent', "Send to @{0}", secondaryAgent.name);
 					}
 

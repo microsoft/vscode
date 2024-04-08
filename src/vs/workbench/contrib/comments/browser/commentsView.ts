@@ -34,6 +34,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -80,6 +81,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@IThemeService themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IStorageService storageService: IStorageService
 	) {
@@ -94,7 +96,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				text: viewState['filter'] || '',
 				focusContextKey: CommentsViewFilterFocusContextKey.key
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.hasCommentsContextKey = CONTEXT_KEY_HAS_COMMENTS.bindTo(contextKeyService);
 		this.someCommentsExpandedContextKey = CONTEXT_KEY_SOME_COMMENTS_EXPANDED.bindTo(contextKeyService);
 		this.stateMemento = stateMemento;
@@ -304,7 +306,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private createTree(): void {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, {
-			overrideStyles: { listBackground: this.getBackgroundColor() },
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			selectionNavigation: true,
 			filter: this.filter,
 			keyboardNavigationLabelProvider: {

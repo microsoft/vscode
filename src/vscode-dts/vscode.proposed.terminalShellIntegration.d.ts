@@ -7,8 +7,10 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/145234
 
+	// TODO: Add missing docs
+	// TODO: Review and polish up all docs
 	export interface TerminalShellExecution {
-		// TODO: This is circular, is that fine? Should we add a `TerminalShellExecutionEvent`?
+		// TODO: Create a a `TerminalShellExecutionStartEvent` for future proofing and consistency with other events
 		/**
 		 * The {@link Terminal} the command was executed in.
 		 */
@@ -25,7 +27,12 @@ declare module 'vscode' {
 		 * - It may contain line continuation characters and/or parts of the right prompt.
 		 * - It may be inaccurate if the shell integration does not support command line reporting.
 		 */
-		// TODO@API undefined makes using this hard?
+		// TODO: Remove | undefined - this will be the empty string if the command start and end is the same position
+		// TODO: Implement command line fetching via buffer markers
+		// TODO: Quality/confidence 3x:
+		//       - Top: shell integration reporting
+		//       - Middle: Not multi-line, command start is not on the left-most column
+		//       - Bottom: Multi-line or command start is on the left-most column
 		readonly commandLine: string | undefined;
 
 		/**
@@ -50,6 +57,7 @@ declare module 'vscode' {
 		 *   console.log(data);
 		 * }
 		 */
+		// TODO: read? "data" typically means Uint8Array. What's the encoding of the string? Usage here will typically be checking for substrings
 		readData(): AsyncIterable<string>;
 	}
 
@@ -68,7 +76,6 @@ declare module 'vscode' {
 	}
 
 	export interface TerminalShellIntegration {
-		// TODO: Should this share TerminalShellIntegrationChangeEvent or have it's own TerminalShellIntegrationCwdChangeEvent?
 		/**
 		 * The current working directory of the terminal. This will be a {@link Uri} if the path
 		 * reported by the shell can reliably be mapped to the connected machine.
@@ -186,6 +193,7 @@ declare module 'vscode' {
 		/**
 		 * The exit code reported by the shell.
 		 */
+		// TODO: Explain what undefined means
 		readonly exitCode: number | undefined;
 	}
 

@@ -49,7 +49,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	 * provided through this, even from multiple ext link providers. Xterm should remove lower
 	 * priority intersecting links itself.
 	 */
-	private _linkProvider = this._store.add(new MutableDisposable());
+	private readonly _linkProvider = this._store.add(new MutableDisposable());
 
 	private _os: OperatingSystem = OS;
 

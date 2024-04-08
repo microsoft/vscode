@@ -9,7 +9,6 @@ import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IActionProvider } from 'vs/base/browser/ui/dropdown/dropdown';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -18,6 +17,8 @@ import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/ac
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class CodiconActionViewItem extends MenuEntryActionViewItem {
 
@@ -48,7 +49,7 @@ export class ActionViewWithLabel extends MenuEntryActionViewItem {
 }
 export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 	private _actionLabel?: HTMLAnchorElement;
-	private _hover?: ICustomHover;
+	private _hover?: IUpdatableHover;
 	private _primaryAction: IAction | undefined;
 
 	constructor(
@@ -59,7 +60,8 @@ export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 		readonly subActionViewItemProvider: IActionViewItemProvider | undefined,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IContextMenuService _contextMenuService: IContextMenuService,
-		@IThemeService _themeService: IThemeService
+		@IThemeService _themeService: IThemeService,
+		@IHoverService private readonly _hoverService: IHoverService
 	) {
 		super(action, { ...options, hoverDelegate: options?.hoverDelegate ?? getDefaultHoverDelegate('element') }, _keybindingService, _contextMenuService, _themeService);
 	}
@@ -71,7 +73,7 @@ export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 		this._actionLabel = document.createElement('a');
 		container.appendChild(this._actionLabel);
 
-		this._hover = this._register(setupCustomHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._actionLabel, ''));
+		this._hover = this._register(this._hoverService.setupUpdatableHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._actionLabel, ''));
 
 		this.updateLabel();
 

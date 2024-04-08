@@ -75,7 +75,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	userHome: string | undefined;
 	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	backend: ITerminalBackend | undefined;
-	readonly capabilities = new TerminalCapabilityStore();
+	readonly capabilities = this._register(new TerminalCapabilityStore());
 	readonly shellIntegrationNonce: string;
 
 	private _isDisposed: boolean = false;
@@ -154,8 +154,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
-		this._dataFilter = this._instantiationService.createInstance(SeamlessRelaunchDataFilter);
-		this._dataFilter.onProcessData(ev => {
+		this._dataFilter = this._register(this._instantiationService.createInstance(SeamlessRelaunchDataFilter));
+		this._register(this._dataFilter.onProcessData(ev => {
 			const data = (typeof ev === 'string' ? ev : ev.data);
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
@@ -166,7 +166,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 				this._onProcessData.fire(typeof ev !== 'string' ? ev : { data: beforeProcessDataEvent.data, trackCommit: false });
 			}
-		});
+		}));
 
 		if (cwd && typeof cwd === 'object') {
 			this.remoteAuthority = getRemoteAuthority(cwd);
@@ -208,12 +208,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private _createPtyProcessReadyPromise(): Promise<void> {
+
 		return new Promise<void>(c => {
-			const listener = this.onProcessReady(() => {
+			const listener = Event.once(this.onProcessReady)(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
-				listener.dispose();
+				this._store.delete(listener);
 				c(undefined);
 			});
+			this._store.add(listener);
 		});
 	}
 

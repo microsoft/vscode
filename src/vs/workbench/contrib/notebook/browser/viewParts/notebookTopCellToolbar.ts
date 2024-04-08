@@ -17,7 +17,7 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 export class ListTopCellToolbar extends Disposable {
 	private readonly topCellToolbarContainer: HTMLElement;
 	private topCellToolbar: HTMLElement;
-	private viewZone: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
+	private readonly viewZone: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 	private readonly _modelDisposables = this._register(new DisposableStore());
 	constructor(
 		protected readonly notebookEditor: INotebookEditorDelegate,

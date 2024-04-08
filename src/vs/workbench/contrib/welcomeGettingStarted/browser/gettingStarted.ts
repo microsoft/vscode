@@ -122,10 +122,10 @@ export class GettingStartedPage extends EditorPane {
 	private editorInput!: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();
 
-	private dispatchListeners: DisposableStore = new DisposableStore();
-	private stepDisposables: DisposableStore = new DisposableStore();
-	private detailsPageDisposables: DisposableStore = new DisposableStore();
-	private mediaDisposables: DisposableStore = new DisposableStore();
+	private readonly dispatchListeners: DisposableStore = new DisposableStore();
+	private readonly stepDisposables: DisposableStore = new DisposableStore();
+	private readonly detailsPageDisposables: DisposableStore = new DisposableStore();
+	private readonly mediaDisposables: DisposableStore = new DisposableStore();
 
 	// Ensure that the these are initialized before use.
 	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
@@ -161,7 +161,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private detailsRenderer: GettingStartedDetailsRenderer;
 
-	private categoriesSlideDisposables: DisposableStore;
+	private readonly categoriesSlideDisposables: DisposableStore;
 	private showFeaturedWalkthrough = true;
 
 	constructor(

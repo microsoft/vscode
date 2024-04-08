@@ -71,6 +71,7 @@ import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/comm
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -133,6 +134,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILogService private readonly logService: ILogService,
@@ -145,7 +147,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				text: filterText,
 				history: JSON.parse(storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[],
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);
@@ -153,7 +155,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.filter = new ReplFilter();
 		this.filter.filterQuery = filterText;
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
-		this.replOptions = this._register(this.instantiationService.createInstance(ReplOptions, this.id, () => this.getBackgroundColor()));
+		this.replOptions = this._register(this.instantiationService.createInstance(ReplOptions, this.id, () => this.getLocationBasedColors().background));
 		this._register(this.replOptions.onDidChange(() => this.onDidStyleChange()));
 
 		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
@@ -613,6 +615,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+
 		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
@@ -623,8 +626,8 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				this.instantiationService.createInstance(ReplOutputElementRenderer, linkDetector),
 				new ReplEvaluationInputsRenderer(),
 				this.instantiationService.createInstance(ReplGroupRenderer, linkDetector),
-				new ReplEvaluationResultsRenderer(linkDetector),
-				new ReplRawObjectsRenderer(linkDetector),
+				new ReplEvaluationResultsRenderer(linkDetector, this.hoverService),
+				new ReplRawObjectsRenderer(linkDetector, this.hoverService),
 			],
 			// https://github.com/microsoft/TypeScript/issues/32526
 			new ReplDataSource() satisfies IAsyncDataSource<IDebugSession, IReplElement>,
@@ -638,9 +641,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
 				supportDynamicHeights: wordWrap,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				}
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			});
 
 		this._register(tree.onDidChangeContentHeight(() => {
@@ -974,6 +975,9 @@ registerAction2(class extends ViewAction<Repl> {
 			id: 'workbench.debug.panel.action.clearReplAction',
 			viewId: REPL_VIEW_ID,
 			title: localize2('clearRepl', 'Clear Console'),
+			metadata: {
+				description: localize2('clearRepl.descriotion', 'Clears all program output from your debug REPL')
+			},
 			f1: true,
 			icon: debugConsoleClearAll,
 			menu: [{

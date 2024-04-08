@@ -29,7 +29,6 @@ export class ChatEditorInput extends EditorInput {
 
 	private readonly inputCount: number;
 	public sessionId: string | undefined;
-	public providerId: string | undefined;
 
 	private model: IChatModel | undefined;
 
@@ -59,8 +58,9 @@ export class ChatEditorInput extends EditorInput {
 			throw new Error('Invalid chat URI');
 		}
 
-		this.sessionId = 'sessionId' in options.target ? options.target.sessionId : undefined;
-		this.providerId = 'providerId' in options.target ? options.target.providerId : undefined;
+		this.sessionId = (options.target && 'sessionId' in options.target) ?
+			options.target.sessionId :
+			undefined;
 		this.inputCount = ChatEditorInput.getNextCount();
 		ChatEditorInput.countsInUse.add(this.inputCount);
 		this._register(toDisposable(() => ChatEditorInput.countsInUse.delete(this.inputCount)));
@@ -93,8 +93,8 @@ export class ChatEditorInput extends EditorInput {
 	override async resolve(): Promise<ChatEditorModel | null> {
 		if (typeof this.sessionId === 'string') {
 			this.model = this.chatService.getOrRestoreSession(this.sessionId);
-		} else if (typeof this.providerId === 'string') {
-			this.model = this.chatService.startSession(this.providerId, CancellationToken.None);
+		} else if (!this.options.target) {
+			this.model = this.chatService.startSession(CancellationToken.None);
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
@@ -104,7 +104,6 @@ export class ChatEditorInput extends EditorInput {
 		}
 
 		this.sessionId = this.model.sessionId;
-		this.providerId = this.model.providerId;
 		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
 
 		return this._register(new ChatEditorModel(this.model));

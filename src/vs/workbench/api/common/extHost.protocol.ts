@@ -769,7 +769,6 @@ export interface InteractiveEditorInputDto {
 
 export interface ChatEditorInputDto {
 	kind: TabInputKind.ChatEditorInput;
-	providerId: string;
 }
 
 export interface MultiDiffEditorInputDto {
@@ -1219,6 +1218,8 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: string, chunk: IChatProgressDto): Promise<number | void>;
+
+	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
 
 export interface IChatAgentCompletionItem {
@@ -1287,7 +1288,6 @@ export interface MainThreadUrlsShape extends IDisposable {
 }
 
 export interface IChatDto {
-	id: number;
 }
 
 export interface IChatRequestDto {
@@ -1317,18 +1317,6 @@ export type IDocumentContextDto = {
 
 export type IChatProgressDto =
 	| Dto<IChatProgress>;
-
-export interface MainThreadChatShape extends IDisposable {
-	$registerChatProvider(handle: number, id: string): Promise<void>;
-	$acceptChatState(sessionId: number, state: any): Promise<void>;
-	$unregisterChatProvider(handle: number): Promise<void>;
-	$transferActiveChatSession(toWorkspace: UriComponents): void;
-}
-
-export interface ExtHostChatShape {
-	$prepareChat(handle: number, token: CancellationToken): Promise<IChatDto | undefined>;
-	$releaseSession(sessionId: number): void;
-}
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -2082,7 +2070,6 @@ export interface IPasteEditProviderMetadataDto {
 export interface IDocumentPasteContextDto {
 	readonly only: string | undefined;
 	readonly triggerKind: languages.DocumentPasteTriggerKind;
-
 }
 
 export interface IPasteEditDto {
@@ -2095,10 +2082,13 @@ export interface IPasteEditDto {
 }
 
 export interface IDocumentDropEditProviderMetadata {
+	readonly supportsResolve: boolean;
+
 	dropMimeTypes: readonly string[];
 }
 
-export interface IDocumentOnDropEditDto {
+export interface IDocumentDropEditDto {
+	_cacheId?: ChainedCacheId;
 	title: string;
 	kind: string | undefined;
 	insertText: string | { snippet: string };
@@ -2170,7 +2160,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
-	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto[] | undefined>;
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentDropEditDto[] | undefined>;
 	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
 	$provideInlineEdit(handle: number, document: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined>;
 	$freeInlineEdit(handle: number, pid: number): void;
@@ -2650,19 +2640,6 @@ export interface MainThreadLocalizationShape extends IDisposable {
 	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
 }
 
-export interface ExtHostIssueReporterShape {
-	$getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<UriComponents>;
-	$getIssueReporterData(extensionId: string, token: CancellationToken): Promise<string>;
-	$getIssueReporterTemplate(extensionId: string, token: CancellationToken): Promise<string>;
-}
-
-export interface MainThreadIssueReporterShape extends IDisposable {
-	$registerIssueUriRequestHandler(extensionId: string): void;
-	$unregisterIssueUriRequestHandler(extensionId: string): void;
-	$registerIssueDataProvider(extensionId: string): void;
-	$unregisterIssueDataProvider(extensionId: string): void;
-}
-
 export interface TunnelDto {
 	remoteAddress: { port: number; host: string };
 	localAddress: { port: number; host: string } | string;
@@ -2850,7 +2827,6 @@ export const MainContext = {
 	MainThreadNotebookKernels: createProxyIdentifier<MainThreadNotebookKernelsShape>('MainThreadNotebookKernels'),
 	MainThreadNotebookRenderers: createProxyIdentifier<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
 	MainThreadInteractive: createProxyIdentifier<MainThreadInteractiveShape>('MainThreadInteractive'),
-	MainThreadChat: createProxyIdentifier<MainThreadChatShape>('MainThreadChat'),
 	MainThreadInlineChat: createProxyIdentifier<MainThreadInlineChatShape>('MainThreadInlineChatShape'),
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
@@ -2859,8 +2835,7 @@ export const MainContext = {
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
-	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
-	MainThreadIssueReporter: createProxyIdentifier<MainThreadIssueReporterShape>('MainThreadIssueReporter'),
+	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector')
 };
 
 export const ExtHostContext = {
@@ -2916,7 +2891,6 @@ export const ExtHostContext = {
 	ExtHostNotebookDocumentSaveParticipant: createProxyIdentifier<ExtHostNotebookDocumentSaveParticipantShape>('ExtHostNotebookDocumentSaveParticipant'),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostInlineChat: createProxyIdentifier<ExtHostInlineChatShape>('ExtHostInlineChatShape'),
-	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
 	ExtHostChatAgents2: createProxyIdentifier<ExtHostChatAgentsShape2>('ExtHostChatAgents'),
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
@@ -2930,6 +2904,5 @@ export const ExtHostContext = {
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
-	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
-	ExtHostIssueReporter: createProxyIdentifier<ExtHostIssueReporterShape>('ExtHostIssueReporter'),
+	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization')
 };

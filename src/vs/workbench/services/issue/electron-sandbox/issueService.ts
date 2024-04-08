@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { platform } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, ExtensionType, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
@@ -22,21 +19,14 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ImplicitActivationAwareReader } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { mainWindow } from 'vs/base/browser/window';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
-
-	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
-	private readonly _providers = new Map<string, IIssueDataProvider>();
-	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 
 	constructor(
@@ -50,43 +40,9 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
-		ipcRenderer.on('vscode:triggerIssueUriRequestHandler', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
-			const result = await this.getIssueReporterUri(request.extensionId, CancellationToken.None);
-			ipcRenderer.send(request.replyChannel, result.toString());
-		});
-		ipcRenderer.on('vscode:triggerIssueDataProvider', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
-			const result = await this.getIssueData(request.extensionId, CancellationToken.None);
-			ipcRenderer.send(request.replyChannel, result);
-		});
-		ipcRenderer.on('vscode:triggerIssueDataTemplate', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
-			const result = await this.getIssueTemplate(request.extensionId, CancellationToken.None);
-			ipcRenderer.send(request.replyChannel, result);
-		});
-		ipcRenderer.on('vscode:triggerReporterStatus', async (event, arg) => {
-			const extensionId = arg.extensionId;
-			const extension = await this.extensionService.getExtension(extensionId);
-			if (extension) {
-				const activationEvents = this._activationEventReader.readActivationEvents(extension);
-				for (const activationEvent of activationEvents) {
-					if (activationEvent === 'onIssueReporterOpened') {
-						const eventName = `onIssueReporterOpened:${ExtensionIdentifier.toKey(extension.identifier)}`;
-						try {
-							await this.extensionService.activateById(extension.identifier, { startup: false, extensionId: extension.identifier, activationEvent: eventName });
-						} catch (e) {
-							this.logService.error(`Error activating extension ${extensionId}: ${e}`);
-						}
-						break;
-					}
-				}
-			}
-			const result = [this._providers.has(extensionId.toLowerCase()), this._handlers.has(extensionId.toLowerCase())];
-			ipcRenderer.send(`vscode:triggerReporterStatusResponse`, result);
-		});
 		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
 			const extensionId = arg.extensionId;
 
@@ -130,8 +86,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					version: manifest.version,
 					repositoryUrl: manifest.repository && manifest.repository.url,
 					bugsUrl: manifest.bugs && manifest.bugs.url,
-					hasIssueUriRequestHandler: this._handlers.has(extension.identifier.id.toLowerCase()),
-					hasIssueDataProviders: this._providers.has(extension.identifier.id.toLowerCase()),
 					displayName: manifest.displayName,
 					id: extension.identifier.id,
 					data: dataOverrides.data,
@@ -226,43 +180,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		return this.issueMainService.openProcessExplorer(data);
 	}
 
-	registerIssueUriRequestHandler(extensionId: string, handler: IIssueUriRequestHandler): IDisposable {
-		this._handlers.set(extensionId.toLowerCase(), handler);
-		return {
-			dispose: () => this._handlers.delete(extensionId)
-		};
-	}
-
-	private async getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI> {
-		const handler = this._handlers.get(extensionId);
-		if (!handler) {
-			throw new Error(`No issue uri request handler registered for extension '${extensionId}'`);
-		}
-		return handler.provideIssueUrl(token);
-	}
-
-	registerIssueDataProvider(extensionId: string, handler: IIssueDataProvider): IDisposable {
-		this._providers.set(extensionId.toLowerCase(), handler);
-		return {
-			dispose: () => this._providers.delete(extensionId)
-		};
-	}
-
-	private async getIssueData(extensionId: string, token: CancellationToken): Promise<string> {
-		const provider = this._providers.get(extensionId);
-		if (!provider) {
-			throw new Error(`No issue uri request provider registered for extension '${extensionId}'`);
-		}
-		return provider.provideIssueExtensionData(token);
-	}
-
-	private async getIssueTemplate(extensionId: string, token: CancellationToken): Promise<string> {
-		const provider = this._providers.get(extensionId);
-		if (!provider) {
-			throw new Error(`No issue uri request provider registered for extension '${extensionId}'`);
-		}
-		return provider.provideIssueExtensionTemplate(token);
-	}
 
 }
 

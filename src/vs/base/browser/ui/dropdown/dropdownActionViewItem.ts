@@ -19,8 +19,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./dropdown';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;
@@ -93,7 +93,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			this.element.setAttribute('aria-haspopup', 'true');
 			this.element.setAttribute('aria-expanded', 'false');
 			if (this._action.label) {
-				this._register(setupCustomHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.element, this._action.label));
+				this._register(getBaseLayerHoverDelegate().setupUpdatableHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.element, this._action.label));
 			}
 			this.element.ariaLabel = this._action.label || '';
 

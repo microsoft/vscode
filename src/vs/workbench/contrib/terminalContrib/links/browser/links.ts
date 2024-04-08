@@ -5,7 +5,6 @@
 
 import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
 import { URI } from 'vs/base/common/uri';
-import { IHoverAction } from 'vs/platform/hover/browser/hover';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IParsedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
@@ -14,6 +13,7 @@ import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/bro
 import { Event } from 'vs/base/common/event';
 import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
 
 export const ITerminalLinkProviderService = createDecorator<ITerminalLinkProviderService>('terminalLinkProviderService');
 export interface ITerminalLinkProviderService {
