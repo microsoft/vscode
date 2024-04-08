@@ -693,7 +693,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ExperimentalInlineChat]: {
 			markdownDescription: localize('terminal.integrated.experimentalInlineChat', "Whether to enable the upcoming experimental inline terminal chat UI."),
 			type: 'boolean',
-			default: false
+			default: true
 		}
 	}
 };
