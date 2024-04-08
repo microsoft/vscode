@@ -6,6 +6,7 @@
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
 
 export const allApiProposals = Object.freeze({
+	accessibilityHelpDialog: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.accessibilityHelpDialog.d.ts',
 	activeComment: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.activeComment.d.ts',
 	aiRelatedInformation: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.aiRelatedInformation.d.ts',
 	aiTextSearchProvider: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.aiTextSearchProvider.d.ts',
