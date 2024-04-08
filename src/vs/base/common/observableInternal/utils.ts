@@ -137,7 +137,8 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 			return this.value!;
 		} else {
 			// no cache, as there are no subscribers to keep it updated
-			return this._getValue(undefined);
+			const value = this._getValue(undefined);
+			return value;
 		}
 	}
 }
