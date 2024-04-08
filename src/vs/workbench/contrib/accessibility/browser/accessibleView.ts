@@ -8,7 +8,7 @@ import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardE
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IAction } from 'vs/base/common/actions';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -32,7 +32,7 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -42,7 +42,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
@@ -96,7 +95,6 @@ export interface IAccessibleViewService {
 	 */
 	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null;
 	getCodeBlockContext(): ICodeBlockActionContext | undefined;
-	registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): IDisposable;
 }
 
 export const enum AccessibleViewType {
@@ -842,26 +840,6 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 	getCodeBlockContext(): ICodeBlockActionContext | undefined {
 		return this._accessibleView?.getCodeBlockContext();
-	}
-	registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): IDisposable {
-		this._register(AccessibleViewAction.addImplementation(95, provider.id, accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			accessibleViewService.show({
-				id: provider.id as any,
-				verbositySettingKey: 'accessibilityHelpDialogVerbosity' as any,
-				provideContent() { return provider.provideContent(new CancellationTokenSource().token); },
-				onClose() {
-					provider.resolveOnClose(new CancellationTokenSource().token);
-				},
-				options: { type: AccessibleViewType.Help }
-			});
-			return true;
-		}, ContextKeyExpr.has(provider.contextValue)));
-		return {
-			dispose: () => {
-				AccessibleViewAction.removeImplementation(provider.id);
-			}
-		};
 	}
 }
 

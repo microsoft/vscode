@@ -5,14 +5,14 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MainContext, MainThreadAccessibilityServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewProviderService } from 'vs/workbench/contrib/accessibility/browser/accessibleViewProviderService';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { AccessibilityHelpProvider } from 'vscode';
 
 @extHostNamedCustomer(MainContext.MainThreadAccessibilityService)
 export class MainThreadAccessibilityService implements MainThreadAccessibilityServiceShape {
 	private readonly _providers = new Map<string, IDisposable>();
-	constructor(extHostContext: IExtHostContext, @IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService) {
+	constructor(extHostContext: IExtHostContext, @IAccessibleViewProviderService private readonly _accessibleViewProviderService: IAccessibleViewProviderService) {
 	}
 	dispose(): void {
 		for (const provider of this._providers.values()) {
@@ -27,6 +27,6 @@ export class MainThreadAccessibilityService implements MainThreadAccessibilitySe
 		if (this._providers.has(provider.id)) {
 			return;
 		}
-		this._providers.set(provider.id, this._accessibleViewService.registerAccessibilityHelpProvider(provider));
+		this._providers.set(provider.id, this._accessibleViewProviderService.registerAccessibilityHelpProvider(provider));
 	}
 }
