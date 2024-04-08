@@ -10,6 +10,7 @@ import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, 
 import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
 import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { IValueWithChangeEvent } from '../event';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -498,4 +499,24 @@ class ArrayMap<TIn, TOut, TKey> implements IDisposable {
 	public getItems(): TOut[] {
 		return this._items;
 	}
+}
+
+export class ValueWithChangeEventFromObservable<T> implements IValueWithChangeEvent<T> {
+	constructor(public readonly observable: IObservable<T>) {
+	}
+
+	get onDidChange(): Event<void> {
+		return Event.fromObservableLight(this.observable);
+	}
+
+	get value(): T {
+		return this.observable.get();
+	}
+}
+
+export function observableFromValueWithChangeEvent<T>(_owner: Owner, value: IValueWithChangeEvent<T>): IObservable<T> {
+	if (value instanceof ValueWithChangeEventFromObservable) {
+		return value.observable;
+	}
+	return observableFromEvent(value.onDidChange, () => value.value);
 }
