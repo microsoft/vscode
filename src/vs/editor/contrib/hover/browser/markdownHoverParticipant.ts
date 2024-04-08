@@ -27,11 +27,11 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ClickAction, KeyDownAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -82,7 +82,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService protected readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
@@ -164,7 +165,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: (MarkdownHover | VerboseMarkdownHover)[]): IDisposable {
-		this._renderedHoverData = new RenderedHoverData(hoverParts, context.fragment, this._editor, this._languageService, this._openerService, this._keybindingService, context.onContentsChanged);
+		this._renderedHoverData = new RenderedHoverData(hoverParts, context.fragment, this._editor, this._languageService, this._openerService, this._keybindingService, this._hoverService, context.onContentsChanged);
 		return this._renderedHoverData;
 	}
 
@@ -213,6 +214,7 @@ class RenderedHoverData extends Disposable {
 		private readonly _languageService: ILanguageService,
 		private readonly _openerService: IOpenerService,
 		private readonly _keybindingService: IKeybindingService,
+		private readonly _hoverService: IHoverService,
 		private readonly _onFinishedRendering: () => void,
 	) {
 		super();
@@ -320,12 +322,12 @@ class RenderedHoverData extends Disposable {
 		actionElement.tabIndex = 0;
 		if (isActionIncrease) {
 			const kb = this._keybindingService.lookupKeybinding('editor.action.increaseHoverVerbosityLevel');
-			store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), actionElement, kb ?
+			store.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), actionElement, kb ?
 				nls.localize('increaseVerbosityWithKb', "Increase Verbosity ({0})", kb.getLabel()) :
 				nls.localize('increaseVerbosity', "Increase Verbosity")));
 		} else {
 			const kb = this._keybindingService.lookupKeybinding('editor.action.decreaseHoverVerbosityLevel');
-			store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), actionElement, kb ?
+			store.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), actionElement, kb ?
 				nls.localize('decreaseVerbosityWithKb', "Decrease Verbosity ({0})", kb.getLabel()) :
 				nls.localize('decreaseVerbosity', "Decrease Verbosity")));
 		}
