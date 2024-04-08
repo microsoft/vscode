@@ -214,6 +214,15 @@ export class MultiCommand extends Command {
 		};
 	}
 
+	public removeImplementation(name: string): void {
+		for (let i = 0; i < this._implementations.length; i++) {
+			if (this._implementations[i].name === name) {
+				this._implementations.splice(i, 1);
+				return;
+			}
+		}
+	}
+
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
 		const logService = accessor.get(ILogService);
 		const contextKeyService = accessor.get(IContextKeyService);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
@@ -34,13 +34,13 @@ export interface AccessibilityHelpProvider {
 
 export interface IAccessibilityHelpProviderService {
 	readonly _serviceBrand: undefined;
-	registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): void;
+	registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): IDisposable;
 }
 
 export const IAccessibilityHelpProviderService = createDecorator<IAccessibilityHelpProviderService>('IAccessibilityHelpProviderService');
 export class AccessibilityHelpProviderService extends Disposable implements IAccessibilityHelpProviderService {
 	readonly _serviceBrand: undefined;
-	registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): void {
+	registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): IDisposable {
 		this._register(AccessibleViewAction.addImplementation(95, provider.id, accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			accessibleViewService.show({
@@ -54,5 +54,10 @@ export class AccessibilityHelpProviderService extends Disposable implements IAcc
 			});
 			return true;
 		}, ContextKeyExpr.has(provider.contextValue)));
+		return {
+			dispose: () => {
+				AccessibleViewAction.removeImplementation(provider.id);
+			}
+		};
 	}
 }
