@@ -16,7 +16,7 @@ export interface IExtHostAccessibilityService extends IDisposable, ExtHostAccess
 
 export const IExtHostAccessibilityService = createDecorator<IExtHostAccessibilityService>('IExtHostAccessibilityService');
 
-class ExtHostAccessibilityService implements IExtHostAccessibilityService {
+export class ExtHostAccessibilityService implements IExtHostAccessibilityService {
 	protected _proxy: MainThreadAccessibilityServiceShape;
 	declare readonly _serviceBrand: undefined;
 	constructor(

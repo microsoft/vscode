@@ -31,6 +31,7 @@ import { ExtHostManagedSockets, IExtHostManagedSockets } from 'vs/workbench/api/
 import { ExtHostAuthentication, IExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { ExtHostLanguageModels, IExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
 import { IExtHostTerminalShellIntegration, ExtHostTerminalShellIntegration } from 'vs/workbench/api/common/extHostTerminalShellIntegration';
+import { ExtHostAccessibilityService, IExtHostAccessibilityService } from 'vs/workbench/api/common/extHostAccessibilityService';
 
 registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, InstantiationType.Delayed);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
@@ -50,6 +51,7 @@ registerSingleton(IExtHostSearch, ExtHostSearch, InstantiationType.Eager);
 registerSingleton(IExtHostStorage, ExtHostStorage, InstantiationType.Eager);
 registerSingleton(IExtHostTask, WorkerExtHostTask, InstantiationType.Eager);
 registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService, InstantiationType.Eager);
+registerSingleton(IExtHostAccessibilityService, ExtHostAccessibilityService, InstantiationType.Delayed);
 registerSingleton(IExtHostTerminalShellIntegration, ExtHostTerminalShellIntegration, InstantiationType.Eager);
 registerSingleton(IExtHostTunnelService, ExtHostTunnelService, InstantiationType.Eager);
 registerSingleton(IExtHostWindow, ExtHostWindow, InstantiationType.Eager);
