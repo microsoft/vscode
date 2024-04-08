@@ -363,7 +363,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public async updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
-		this._markdownHoverParticipant?.updateFocusedMarkdownHoverVerbosityLevel(action);
+		this._markdownHoverParticipant?.updateFocusedHoverPartVerbosityLevel(action);
 	}
 
 	public getWidgetContent(): string | undefined {

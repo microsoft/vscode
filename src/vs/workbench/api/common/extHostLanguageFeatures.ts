@@ -255,8 +255,8 @@ class TypeDefinitionAdapter {
 
 class HoverAdapter {
 
+	private _hoverCounter: number = 0;
 	private _hoverMap: Map<number, vscode.Hover> = new Map<number, vscode.Hover>();
-	private _counter: number = 0;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -283,8 +283,7 @@ class HoverAdapter {
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}
-		const id = this._counter;
-		this._counter += 1;
+		const id = this._hoverCounter;
 		this._hoverMap.set(id, value);
 		if (!value.range) {
 			value.range = doc.getWordRangeAtPosition(pos);
@@ -292,6 +291,7 @@ class HoverAdapter {
 		if (!value.range) {
 			value.range = new Range(pos, pos);
 		}
+		this._hoverCounter += 1;
 		return {
 			...typeConvert.Hover.from(value),
 			id
