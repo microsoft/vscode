@@ -31,7 +31,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: IAuxiliaryWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
-	private readonly windows = new Map<number, AuxiliaryWindow>();
+	private readonly windows = new Map<number /* webContents ID */, AuxiliaryWindow>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
