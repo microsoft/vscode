@@ -28,6 +28,7 @@
 	min-width: 500px;
 	max-width: 90vw;
 	min-height: 75px;
+	max-height: 90vh;
 	padding: 10px;
 	transform: translate3d(0px, 0px, 0px);
 }
@@ -87,6 +88,8 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
 	line-height: 22px;
 	flex: 1; /* let the message always grow */
+	max-height: 70vh;
+	overflow: auto; /* show scrollbars if the message is too big */
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
