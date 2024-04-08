@@ -61,10 +61,6 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _editorDictationInProgress = observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true);
 	private readonly _enabled = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
 
-	private get _isEnabled(): boolean {
-		return this._enabled.get() && (!this._isScreenReaderEnabled.get() || !this._editorDictationInProgress.get());
-	}
-
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
 	private readonly _ghostTexts = derived(this, (reader) => {
@@ -177,7 +173,7 @@ export class InlineCompletionsController extends Disposable {
 		this._register(editor.onDidType(() => transaction(tx => {
 			/** @description InlineCompletionsController.onDidType */
 			this.updateObservables(tx, VersionIdChangeReason.Other);
-			if (this._isEnabled) {
+			if (this._enabled.get()) {
 				this.model.get()?.trigger(tx);
 			}
 		})));
@@ -191,7 +187,7 @@ export class InlineCompletionsController extends Disposable {
 				inlineSuggestCommitId,
 				'acceptSelectedSuggestion',
 			]);
-			if (commands.has(e.commandId) && editor.hasTextFocus() && this._isEnabled) {
+			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
 				transaction(tx => {
 					/** @description onDidExecuteCommand */
 					this.model.get()?.trigger(tx);
