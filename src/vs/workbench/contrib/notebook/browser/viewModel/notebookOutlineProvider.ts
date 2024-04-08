@@ -274,8 +274,8 @@ export class NotebookCellOutlineProvider {
 		if (
 			(newActive !== this._activeEntry) && !(
 				(showMarkdownHeadersOnly && newActive?.cell.cellKind === CellKind.Markup && newActive?.level === 7) || 	// show headers only + cell is mkdn + is level 7 (no header)
-				(showCodeCells && newActive?.cell.cellKind === CellKind.Code) ||										// show code cells   + cell is code
-				(showCodeCellSymbols && newActive?.cell.cellKind === CellKind.Code && newActive?.level > 7)				// show code symbols + cell is code + has level > 7 (nb symbol levels)
+				(!showCodeCells && newActive?.cell.cellKind === CellKind.Code) ||										// show code cells   + cell is code
+				(!showCodeCellSymbols && newActive?.cell.cellKind === CellKind.Code && newActive?.level > 7)			// show code symbols + cell is code + has level > 7 (nb symbol levels)
 			)
 		) {
 			this._activeEntry = newActive;
