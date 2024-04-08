@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Display, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, Display, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl, WebContents } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -474,6 +474,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 		}
 	}
+
+	abstract matches(webContents: WebContents): boolean;
 
 	override dispose(): void {
 		super.dispose();
@@ -1478,6 +1480,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		});
 
 		return segments;
+	}
+
+	matches(webContents: WebContents): boolean {
+		return this._win?.webContents.id === webContents.id;
 	}
 
 	override dispose(): void {

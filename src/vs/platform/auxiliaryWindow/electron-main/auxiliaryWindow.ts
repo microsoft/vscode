@@ -20,7 +20,7 @@ export interface IAuxiliaryWindow extends IBaseWindow {
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
-	readonly id = this.contents.id;
+	readonly id = this.webContents.id;
 	parentId = -1;
 
 	override get win() {
@@ -32,7 +32,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	constructor(
-		private readonly contents: WebContents,
+		private readonly webContents: WebContents,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -54,11 +54,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			return; // already claimed
 		}
 
-		if (this._store.isDisposed || this.contents.isDestroyed()) {
+		if (this._store.isDisposed || this.webContents.isDestroyed()) {
 			return; // already disposed
 		}
 
-		const window = BrowserWindow.fromWebContents(this.contents);
+		const window = BrowserWindow.fromWebContents(this.webContents);
 		if (window) {
 			this.logService.trace('[aux window] Claimed browser window instance');
 
@@ -74,5 +74,9 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			// Lifecycle
 			this.lifecycleMainService.registerAuxWindow(this);
 		}
+	}
+
+	matches(webContents: WebContents): boolean {
+		return this.webContents.id === webContents.id;
 	}
 }

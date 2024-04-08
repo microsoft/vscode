@@ -140,7 +140,9 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	}
 
 	getWindowByWebContents(webContents: WebContents): AuxiliaryWindow | undefined {
-		return this.windows.get(webContents.id);
+		const window = this.windows.get(webContents.id);
+
+		return window?.matches(webContents) ? window : undefined;
 	}
 
 	getFocusedWindow(): IAuxiliaryWindow | undefined {

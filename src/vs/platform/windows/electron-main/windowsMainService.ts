@@ -1701,6 +1701,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return undefined;
 		}
 
-		return this.getWindowById(browserWindow.id);
+		const window = this.getWindowById(browserWindow.id);
+
+		return window?.matches(webContents) ? window : undefined;
 	}
 }
