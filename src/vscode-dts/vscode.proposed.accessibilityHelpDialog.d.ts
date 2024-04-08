@@ -6,9 +6,7 @@
 
 declare module 'vscode' {
 
-	// @meganrogge https://github.com/microsoft/vscode/issues/209855
-
-	export interface AccessibilityHelpDialogProvider {
+	export interface AccessibilityHelpProvider {
 		/**
 		 * The id of the provider.
 		 */
@@ -30,11 +28,14 @@ declare module 'vscode' {
 		resolveOnClose(token: CancellationToken): void;
 	}
 
-	/**
-	 * Registers an accessibility help dialog provider.
-	 *
-	 * @param provider An accessibility help dialog provider.
-	 * @returns A {@link Disposable} that unregisters this provider when being disposed.
-	 */
-	export function registerAccessibilityHelpDialogProvider(provider: DocumentLinkProvider): Disposable;
+	export namespace window {
+		// @meganrogge https://github.com/microsoft/vscode/issues/209855
+
+		/**
+		 * Registers an accessibility help provider.
+		 *
+		 * @param provider An accessibility help provider.
+		 */
+		export function registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): Disposable;
+	}
 }

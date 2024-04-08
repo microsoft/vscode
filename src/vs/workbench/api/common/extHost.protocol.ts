@@ -81,6 +81,7 @@ import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { AccessibilityHelpProvider, Disposable } from 'vscode';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -2228,6 +2229,15 @@ export interface ITerminalCommandDto {
 	output: string | undefined;
 }
 
+export interface MainThreadAccessibilityServiceShape extends IDisposable {
+	$registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): void;
+	$unregisterAccessibilityHelpProvider(id: string): void;
+}
+
+export interface ExtHostAccessibilityServiceShape {
+	$registerAccessibilityHelpProvider(provider: AccessibilityHelpProvider): Disposable;
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): void;
 	$acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
@@ -2773,6 +2783,7 @@ export const MainContext = {
 	MainThreadChatAgents2: createProxyIdentifier<MainThreadChatAgentsShape2>('MainThreadChatAgents2'),
 	MainThreadChatVariables: createProxyIdentifier<MainThreadChatVariablesShape>('MainThreadChatVariables'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
+	MainThreadAccessibilityService: createProxyIdentifier<MainThreadAccessibilityServiceShape>('MainThreadAccessibilityService'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createProxyIdentifier<MainThreadConfigurationShape>('MainThreadConfiguration'),
@@ -2862,6 +2873,7 @@ export const ExtHostContext = {
 	ExtHostExtensionService: createProxyIdentifier<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
 	ExtHostLogLevelServiceShape: createProxyIdentifier<ExtHostLogLevelServiceShape>('ExtHostLogLevelServiceShape'),
 	ExtHostTerminalService: createProxyIdentifier<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
+	ExtHostAccessibilityService: createProxyIdentifier<ExtHostAccessibilityServiceShape>('ExtHostAccessibilityService'),
 	ExtHostTerminalShellIntegration: createProxyIdentifier<ExtHostTerminalShellIntegrationShape>('ExtHostTerminalShellIntegration'),
 	ExtHostSCM: createProxyIdentifier<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostSearch: createProxyIdentifier<ExtHostSearchShape>('ExtHostSearch'),

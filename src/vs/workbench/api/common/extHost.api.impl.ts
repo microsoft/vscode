@@ -100,6 +100,7 @@ import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPane
 import { ExtHostWebviewViews } from 'vs/workbench/api/common/extHostWebviewView';
 import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { IExtHostAccessibilityService } from 'vs/workbench/api/common/extHostAccessibilityService';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -166,6 +167,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, accessor.get(IExtHostDocumentsAndEditors));
 	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, accessor.get(IExtHostCommands));
 	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, accessor.get(IExtHostTerminalService));
+	const extHostAccessibilityService = rpcProtocol.set(ExtHostContext.ExtHostAccessibilityService, accessor.get(IExtHostAccessibilityService));
 	const extHostTerminalShellIntegration = rpcProtocol.set(ExtHostContext.ExtHostTerminalShellIntegration, accessor.get(IExtHostTerminalShellIntegration));
 	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, accessor.get(IExtHostDebugService));
 	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, accessor.get(IExtHostSearch));
@@ -815,6 +817,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createWebviewTextEditorInset(editor: vscode.TextEditor, line: number, height: number, options?: vscode.WebviewOptions): vscode.WebviewEditorInset {
 				checkProposedApiEnabled(extension, 'editorInsets');
 				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
+			},
+			registerAccessibilityHelpProvider(provider: vscode.AccessibilityHelpProvider): vscode.Disposable {
+				return extHostAccessibilityService.$registerAccessibilityHelpProvider(provider);
 			},
 			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.ExtensionTerminalOptions | string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
