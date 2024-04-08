@@ -155,8 +155,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				const range = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
 				const hoverSource: HoverSourceInformation = {
 					hover: item.hover,
-					hoverPosition: position,
-					hoverProvider: item.provider
+					hoverProvider: item.provider,
+					hoverPosition: position
 				};
 				return new MarkdownHover(this, range, item.hover.contents, false, item.ordinal, hoverSource);
 			});
@@ -258,12 +258,12 @@ class RenderedHoverParts extends Disposable {
 
 	private _renderHoverPart(
 		hoverPartIndex: number,
-		contents: IMarkdownString[],
+		hoverContents: IMarkdownString[],
 		hoverSourceInformation: HoverSourceInformation | undefined,
 		onFinishedRendering: () => void
 	): RenderedHoverPart {
 
-		const { renderedMarkdown, disposables } = this._renderMarkdownContent(contents, onFinishedRendering);
+		const { renderedMarkdown, disposables } = this._renderMarkdownContent(hoverContents, onFinishedRendering);
 
 		if (!hoverSourceInformation) {
 			return { isVerbose: false, renderedMarkdown, disposables };
@@ -335,14 +335,14 @@ class RenderedHoverParts extends Disposable {
 		if (!model) {
 			return;
 		}
-		const focusedHoverPartIndex = this._hoverFocusInfo.hoverPartIndex;
-		const currentHoverRenderedPart = this._getRenderedHoverPartAtIndex(focusedHoverPartIndex);
-		if (!currentHoverRenderedPart || !currentHoverRenderedPart.isVerbose) {
+		const hoverFocusedPartIndex = this._hoverFocusInfo.hoverPartIndex;
+		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(hoverFocusedPartIndex);
+		if (!hoverRenderedPart || !hoverRenderedPart.isVerbose) {
 			return;
 		}
-		const hoverPosition = currentHoverRenderedPart.hoverSourceInformation.hoverPosition;
-		const hoverProvider = currentHoverRenderedPart.hoverSourceInformation.hoverProvider;
-		const hover = currentHoverRenderedPart.hoverSourceInformation.hover;
+		const hoverPosition = hoverRenderedPart.hoverSourceInformation.hoverPosition;
+		const hoverProvider = hoverRenderedPart.hoverSourceInformation.hoverProvider;
+		const hover = hoverRenderedPart.hoverSourceInformation.hover;
 		const hoverContext: HoverContext = { action, previousHover: hover };
 
 		let newHover: Hover | null | undefined;
@@ -361,13 +361,13 @@ class RenderedHoverParts extends Disposable {
 			hoverProvider: hoverProvider
 		};
 		const renderedHoverPart = this._renderHoverPart(
-			focusedHoverPartIndex,
+			hoverFocusedPartIndex,
 			newHover.contents,
 			hoverInformation,
 			this._onFinishedRendering
 		);
-		this._replaceRenderedHoverPartAtIndex(focusedHoverPartIndex, renderedHoverPart);
-		this._focusOnHoverPartWithIndex(focusedHoverPartIndex);
+		this._replaceRenderedHoverPartAtIndex(hoverFocusedPartIndex, renderedHoverPart);
+		this._focusOnHoverPartWithIndex(hoverFocusedPartIndex);
 		this._onFinishedRendering();
 	}
 
