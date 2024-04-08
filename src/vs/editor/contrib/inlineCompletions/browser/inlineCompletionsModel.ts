@@ -8,10 +8,9 @@ import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { itemsEquals } from 'vs/base/common/equals';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, transaction } from 'vs/base/common/observable';
 import { commonPrefixLength, splitLinesIncludeSeparators } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -60,8 +59,6 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _suggestPreviewMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _inlineSuggestMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _enabled: IObservable<boolean>,
-		private readonly _isScreenReaderEnabled: IObservable<boolean>,
-		private readonly _editorDictationInProgress: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -109,7 +106,7 @@ export class InlineCompletionsModel extends Disposable {
 		},
 	}, (reader, changeSummary) => {
 		this._forceUpdateExplicitlySignal.read(reader);
-		const shouldUpdate = (this._enabled.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader);
+		const shouldUpdate = this._enabled.read(reader) && this.selectedSuggestItem.read(reader) || this._isActive.read(reader);
 		if (!shouldUpdate) {
 			this._source.cancelUpdate();
 			return undefined;
