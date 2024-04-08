@@ -95,10 +95,14 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			/** @description Updates name */
 			const resources = this._resources.read(reader);
 			const label = this.label ?? localize('name', "Multi Diff Editor");
-			this._name = label + localize({
-				key: 'files',
-				comment: ['the number of files being shown']
-			}, " ({0} files)", resources?.length ?? 0);
+			if (resources) {
+				this._name = label + localize({
+					key: 'files',
+					comment: ['the number of files being shown']
+				}, " ({0} files)", resources.length);
+			} else {
+				this._name = label;
+			}
 			this._onDidChangeLabel.fire();
 		}));
 	}
@@ -233,8 +237,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return false;
 	}
 
-	private readonly _resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader) ?? []);
-	private readonly _isDirtyObservables = mapObservableArrayCached(this, this._resources, res => {
+	private readonly _resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
+	private readonly _isDirtyObservables = mapObservableArrayCached(this, this._resources.map(r => r ?? []), res => {
 		const isModifiedDirty = res.modified ? isUriDirty(this._textFileService, res.modified) : constObservable(false);
 		const isOriginalDirty = res.original ? isUriDirty(this._textFileService, res.original) : constObservable(false);
 		return derived(reader => /** @description modifiedDirty||originalDirty */ isModifiedDirty.read(reader) || isOriginalDirty.read(reader));
