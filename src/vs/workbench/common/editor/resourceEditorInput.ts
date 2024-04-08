@@ -95,10 +95,14 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		}
 	}
 
+	private getCustomLabel(): string | undefined {
+		return this.customEditorLabelService.getName(this._preferredResource);
+	}
+
 	private _name: string | undefined = undefined;
 	override getName(): string {
 		if (typeof this._name !== 'string') {
-			this._name = this.customEditorLabelService.getName(this._preferredResource) ?? this.labelService.getUriBasenameLabel(this._preferredResource);
+			this._name = this.getCustomLabel() ?? this.labelService.getUriBasenameLabel(this._preferredResource);
 		}
 
 		return this._name;
@@ -116,10 +120,14 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		}
 	}
 
+	private get descriptionResource(): URI {
+		return !!this.getCustomLabel() ? this._preferredResource : dirname(this._preferredResource);
+	}
+
 	private _shortDescription: string | undefined = undefined;
 	private get shortDescription(): string {
 		if (typeof this._shortDescription !== 'string') {
-			this._shortDescription = this.labelService.getUriBasenameLabel(dirname(this._preferredResource));
+			this._shortDescription = this.labelService.getUriBasenameLabel(this.descriptionResource);
 		}
 
 		return this._shortDescription;
@@ -128,7 +136,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	private _mediumDescription: string | undefined = undefined;
 	private get mediumDescription(): string {
 		if (typeof this._mediumDescription !== 'string') {
-			this._mediumDescription = this.labelService.getUriLabel(dirname(this._preferredResource), { relative: true });
+			this._mediumDescription = this.labelService.getUriLabel(this.descriptionResource, { relative: true });
 		}
 
 		return this._mediumDescription;
@@ -137,7 +145,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	private _longDescription: string | undefined = undefined;
 	private get longDescription(): string {
 		if (typeof this._longDescription !== 'string') {
-			this._longDescription = this.labelService.getUriLabel(dirname(this._preferredResource));
+			this._longDescription = this.labelService.getUriLabel(this.descriptionResource);
 		}
 
 		return this._longDescription;

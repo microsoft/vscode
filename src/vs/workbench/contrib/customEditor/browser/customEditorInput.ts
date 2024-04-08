@@ -170,6 +170,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return capabilities;
 	}
 
+	private getCustomLabel(): string | undefined {
+		return this.customEditorLabelService.getName(this.resource);
+	}
+
 	private _editorName: string | undefined = undefined;
 	override getName(): string {
 		if (typeof this._editorName !== 'string') {
@@ -191,10 +195,14 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 	}
 
+	private get descriptionResource(): URI {
+		return !!this.getCustomLabel() ? this.resource : dirname(this.resource);
+	}
+
 	private _shortDescription: string | undefined = undefined;
 	private get shortDescription(): string {
 		if (typeof this._shortDescription !== 'string') {
-			this._shortDescription = this.labelService.getUriBasenameLabel(dirname(this.resource));
+			this._shortDescription = this.labelService.getUriBasenameLabel(this.descriptionResource);
 		}
 
 		return this._shortDescription;
@@ -203,7 +211,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private _mediumDescription: string | undefined = undefined;
 	private get mediumDescription(): string {
 		if (typeof this._mediumDescription !== 'string') {
-			this._mediumDescription = this.labelService.getUriLabel(dirname(this.resource), { relative: true });
+			this._mediumDescription = this.labelService.getUriLabel(this.descriptionResource, { relative: true });
 		}
 
 		return this._mediumDescription;
@@ -212,7 +220,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private _longDescription: string | undefined = undefined;
 	private get longDescription(): string {
 		if (typeof this._longDescription !== 'string') {
-			this._longDescription = this.labelService.getUriLabel(dirname(this.resource));
+			this._longDescription = this.labelService.getUriLabel(this.descriptionResource);
 		}
 
 		return this._longDescription;
