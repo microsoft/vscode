@@ -449,6 +449,32 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	//#endregion
 
+	protected fixWindowBounds(state: IWindowState, hasMultipleDisplays = screen.getAllDisplays().length > 0): void {
+
+		// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
+		// to open the window has a larger resolution than the primary display, the window will not size
+		// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
+		//
+		// Extended to cover Windows as well as Mac (https://github.com/microsoft/vscode/issues/146499)
+		//
+		// However, when running with native tabs with multiple windows we cannot use this workaround
+		// because there is a potential that the new window will be added as native tab instead of being
+		// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
+
+		const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
+		const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
+		if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
+			if ([state.width, state.height, state.x, state.y].every(value => typeof value === 'number')) {
+				this._win?.setBounds({
+					width: state.width,
+					height: state.height,
+					x: state.x,
+					y: state.y
+				});
+			}
+		}
+	}
+
 	override dispose(): void {
 		super.dispose();
 
@@ -578,27 +604,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this._id = this._win.id;
 			this.setWin(this._win);
 
-			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
-			// to open the window has a larger resolution than the primary display, the window will not size
-			// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
-			//
-			// Extended to cover Windows as well as Mac (https://github.com/microsoft/vscode/issues/146499)
-			//
-			// However, when running with native tabs with multiple windows we cannot use this workaround
-			// because there is a potential that the new window will be added as native tab instead of being
-			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
-			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
-			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
-			if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
-				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
-					this._win.setBounds({
-						width: this.windowState.width,
-						height: this.windowState.height,
-						x: this.windowState.x,
-						y: this.windowState.y
-					});
-				}
-			}
+			// Fix window bounds
+			this.fixWindowBounds(this.windowState, hasMultipleDisplays);
 
 			if (isFullscreenOrMaximized) {
 				mark('code/willMaximizeCodeWindow');

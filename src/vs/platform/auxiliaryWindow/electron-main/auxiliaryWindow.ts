@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, WebContents } from 'electron';
+import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -45,7 +45,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		this.tryClaimWindow();
 	}
 
-	tryClaimWindow(): void {
+	tryClaimWindow(options?: BrowserWindowConstructorOptions): void {
+		if (options) {
+			this.fixWindowBounds(options);
+		}
+
 		if (this._win) {
 			return; // already claimed
 		}

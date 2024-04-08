@@ -51,11 +51,25 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		// is created.
 
 		app.on('browser-window-created', (_event, browserWindow) => {
+
+			// This is an auxiliary window, try to claim it
 			const auxiliaryWindow = this.getWindowByWebContents(browserWindow.webContents);
 			if (auxiliaryWindow) {
 				this.logService.trace('[aux window] app.on("browser-window-created"): Trying to claim auxiliary window');
 
 				auxiliaryWindow.tryClaimWindow();
+			}
+
+			// This is a main window, listen to child windows getting created to claim it
+			else {
+				browserWindow.webContents.on('did-create-window', (browserWindow, details) => {
+					const auxiliaryWindow = this.getWindowByWebContents(browserWindow.webContents);
+					if (auxiliaryWindow) {
+						this.logService.trace('[aux window] window.on("did-create-window"): Trying to claim auxiliary window');
+
+						auxiliaryWindow.tryClaimWindow(details.options);
+					}
+				});
 			}
 		});
 
